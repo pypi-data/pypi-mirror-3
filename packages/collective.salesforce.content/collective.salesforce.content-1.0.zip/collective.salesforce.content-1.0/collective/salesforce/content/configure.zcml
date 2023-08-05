@@ -1,0 +1,106 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:plone="http://namespaces.plone.org/plone"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    xmlns:grok="http://namespaces.zope.org/grok"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="collective.salesforce.content">
+  
+  <!-- Include configuration for dependencies listed in setup.py. -->
+  <include package="plone.app.dexterity" file="meta.zcml" />
+  <include package="plone.app.dexterity" />
+  <include package="collective.autopermission" />
+  <include package="plone.directives.dexterity" />
+  
+  <!-- Grok the package to initialize schema interfaces and content classes. -->
+  <grok:grok package="." />
+
+  <include file="meta.zcml"/>
+
+  <adapter for="zope.schema.interfaces.IField"
+    factory=".converters.DefaultValueConverter" />
+      
+  <adapter for="zope.schema.interfaces.ITextLine"
+    factory=".converters.TextLineValueConverter" />
+    
+  <adapter for="zope.schema.interfaces.IText"
+    factory=".converters.TextLineValueConverter" />
+    
+  <adapter for="plone.app.textfield.interfaces.IRichText"
+    factory=".converters.RichTextValueConverter" />
+    
+  <adapter for="zope.schema.interfaces.IList"
+    factory=".converters.ListValueConverter" />
+  
+  <browser:page
+    for="Products.CMFPlone.interfaces.IPloneSiteRoot"
+    name="sf_sync"
+    class=".sync.SFSync"
+    layer=".interfaces.ISalesforceContentLayer"
+    permission="cmf.ManagePortal"
+    />
+    
+  <browser:page
+    for="Products.CMFPlone.interfaces.IPloneSiteRoot"
+    name="salesforce-sync"
+    class=".controlpanel.SalesforceBehaviorControlPanel"
+    layer=".interfaces.ISalesforceContentLayer"
+    permission="cmf.ManagePortal"
+    />
+    
+  <plone:behavior
+    title="Salesforce Object"
+    description="An item that corresponds to an object in Salesforce."
+    provides=".behaviors.ISalesforceObject"
+    factory=".behaviors.SalesforceObject"
+    marker=".behaviors.ISalesforceObjectMarker"
+    for="plone.dexterity.interfaces.IDexterityContent"
+    />
+    
+  <plone:behavior
+    title="Salesforce Object: Publish Updated Objects"
+    description="This object should be published whenever it is updated from Salesforce."
+    provides=".interfaces.IPublishUpdated"
+    for="plone.dexterity.interfaces.IDexterityContent"
+    />
+    
+  <plone:behavior
+    title="Salesforce Object: Reject Not Found Objects"
+    description="This object should be made private if it is not found in Salesforce during a sync."
+    provides=".interfaces.IRejectNotFound"
+    for="plone.dexterity.interfaces.IDexterityContent"
+    />
+    
+  <plone:behavior
+    title="Salesforce Object: Delete Not Found Objects"
+    description="This object should be deleted if it is not found in Salesforce during a sync."
+    provides=".interfaces.IDeleteNotFound"
+    for="plone.dexterity.interfaces.IDexterityContent"
+    />
+    
+  <genericsetup:registerProfile
+    name="default"
+    title="collective.salesforce.content"
+    directory="profiles/default"
+    description="Behaviors for creating Dexterity content types that integrate with Salesforce."
+    provides="Products.GenericSetup.interfaces.EXTENSION"
+    />
+
+  <genericsetup:importStep
+    name="collective.salesforce.content"
+    title="collective.salesforce.content"
+    description=""
+    handler=".setuphandlers.import_various">
+  </genericsetup:importStep>
+  
+  <genericsetup:upgradeStep
+    zcml:condition="installed collective.salesforce.behavior"
+    profile="collective.salesforce.behavior:default"
+    source="*"
+    destination="2"
+    title="Replace collective.salesforce.behavior with collective.salesforce.content"
+    handler=".upgrade.replace_c_s_behavior"
+    />
+
+</configure>
