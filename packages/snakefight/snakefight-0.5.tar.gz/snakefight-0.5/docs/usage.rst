@@ -1,0 +1,112 @@
+.. _usage:
+
+snakefight
+==========
+
+snakefight generates `WAR files`_ from Python (Jython) WSGI applications,
+suitable for deployment to Java `Servlet containers`_.
+
+Installation
+============
+
+snakefight requires at least `Jython`_ 2.5b2. To install::
+
+    $ easy_install snakefight
+
+Creating WAR files
+==================
+
+snakefight provides a new distutils command: ``bdist_war``.
+
+To create a `WAR file`, create a ``web.xml`` deployment descriptor (which would
+typically utilize the `modjy`_ library for the actual Servlet) and run::
+
+    $ jython setup.py bdist_war --web-xml web.xml
+
+snakefight can automatically generate a ``web.xml`` (utilizing `modjy`_) for
+Paste style projects (those that support the `paste.app_factory`_ entry point),
+by specifying the ``--paste-config`` option. To specify a named app in the
+config file, use the ``--paste-app-name`` option (which defaults to main)::
+
+    $ jython setup.py bdist_war --paste-config production.ini --paste-app-name cascade
+
+To include separate ``.jar`` files in the WAR's ``WEB-INF/lib`` directory,
+specify a comma separated list of jars to the ``--include-jars`` option::
+
+    $ jython setup.py bdist_war --include-jars jasper-runtime-5.5.9.jar,lucene-core-2.4.jar \
+    > --web-xml web.xml
+
+As with any distutils command the options may also be specified in the project's
+``setup.cfg``::
+
+    [bdist_war]
+    paste-config = production.ini
+    include-jars = jasper-runtime-5.5.9.jar
+                   lucene-core-2.4.jar
+
+snakefight can also be ran from CPython (at least version 2.5) as long as a
+``JYTHON_HOME`` is specified::
+
+    $ jython setup.py bdist_war --web-xml web.xml --jython-home=~/jython2.5b2
+
+Other options:
+
+* ``--war-prefix``      Prefix of the war file to build
+* ``--no-jython``       Don't include the Jython distribution
+
+
+TODO
+====
+Add options for:
+
+* exclude-requires: exclude certain eggs from inclusion
+* static_files: list of directories to serve public files (through the faster
+  ``org.jruby.webapp.FileServlet``)
+* specifying modjy options
+* --unpacked: don't zip the war file
+
+Support:
+
+* non setuptools apps? (like Django apps) `django-jython`_ already handles
+  Django but ideally we'd share code
+
+Changelog
+=========
+
+0.5 (2011-12-10)
+~~~~~~~~~~~~~~~~
+
+* Fixed installation via pip.
+
+0.4 (2009-07-15)
+~~~~~~~~~~~~~~~~
+
+* Reorder the auto-generated ``web.xml`` child tags for better
+  validation.
+
+* Use the actual distribution name (not the egg safe name) for the WAR
+  filename.
+
+* Close the war file handle before moving it, particularly for Windows.
+
+0.3 (2009-03-13)
+~~~~~~~~~~~~~~~~
+
+* Added the ``--include-jars`` option
+
+0.2 (2009-03-10)
+~~~~~~~~~~~~~~~~
+
+* easy_install'ing the app is now the first step
+
+0.1 (2009-03-08)
+~~~~~~~~~~~~~~~~
+
+* Initial release
+
+.. _`Jython`: http://www.jython.org
+.. _`WAR files`: http://en.wikipedia.org/wiki/Sun_WAR_(file_format)
+.. _`Servlet containers`: http://en.wikipedia.org/wiki/Servlet_container
+.. _`modjy`: http://modjy.xhaus.com/
+.. _`paste.app_factory`: http://pythonpaste.org/deploy/#paste-app-factory
+.. _`django-jython`: http://code.google.com/p/django-jython/
