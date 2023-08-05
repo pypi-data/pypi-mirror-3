@@ -1,0 +1,202 @@
+Metadata-Version: 1.0
+Name: pyduck
+Version: 0.5
+Summary: Python implementation of Go-like interfaces for more robust duck typing
+Home-page: http://github.com/Xion/pyduck
+Author: Karol Kuczmarski "Xion"
+Author-email: karol.kuczmarski@gmail.com
+License: BSD
+Description: pyduck
+        ======
+        
+        *pyduck* is a Python utility framework for effective use of
+        **duck typing** - one of the core concepts driving the language. It
+        aims to solve some issues which naturally arise when using
+        try-and-fail approach to interfacing with objects.
+        
+        Rationale
+        ---------
+        
+        As an example, consider the following code:
+        
+        ::
+        
+            try:
+                some_object.perform_first_operation()
+                some_object.perform_second_operation()
+            except AttributeError:
+                logging.error("Object %r cannot perform both operations", some_object)
+            except Exception:
+                logging.exception("Error occured")
+        
+        Here some\_object has been received from the outside and two
+        operations are being executed on it without checking whether
+        relevant method are actually available. Since possible exceptions
+        are being caught (particularly the AttributeError), this doesn't
+        seem to be a problem in most cases. If, however, there is a
+        possibility for some\_object to support first operation and not
+        second, executing perform\_first\_operation might commit some
+        irreversible changes that leave the system in inconsistent state.
+        To prevent that, we would usually need some form of transactions
+        which the above code will be executed in. This would not be the
+        case if we could check whether some\_object supports both
+        operations we are requesting.
+        
+        Overview
+        --------
+        
+        *pyduck* provides means for easy verifying whether a particular
+        object supports operations we want to perform on it **before**
+        actually attempting them. It does so not by polling for any
+        explicitly declared "markers" (such as standard Python
+        superclasses, or
+        `abstract base classes <http://docs.python.org/library/abc.html>`_
+        registered using ABCMeta.register) but by checking if object
+        implements a particular **interface**.
+        
+        An interface is simply a specification of methods an object should
+        have in order to be considered as an implementation of that
+        interface. The important note is that object does *not* need to
+        explicitly declare that it implements an interface - it only needs
+        to actually have those particular methods.
+        
+        This is somewhat similar to the interface model used by the Go
+        language. The bottom line is that
+        *no interface has to be explictly declared* - or even known about!
+        - by the implementor.
+        
+        Installation
+        ------------
+        
+        A (relatively) stable release should be available from
+        `PyPi <http://pypi.python.org/pypi/pyduck/>`_:
+        
+        ::
+        
+            $ sudo easy_install pyduck
+        
+        If you prefer to use the latest revision, clone the Git repo and
+        install the package in development mode:
+        
+        ::
+        
+            $ git clone git://github.com/Xion/pyduck.git
+            $ cd pyduck
+            $ sudo ./setup.py develop
+        
+        This allows to git pull changes without having to run setup.py
+        again.
+        
+        Usage
+        -----
+        
+        Consider the canonical pythonic example of duck typing: the
+        file-like object. If we expect to receive such object and use its
+        read, we can define an interface for it:
+        
+        ::
+        
+            import pyduck
+            
+            class ReadableFileLike(pyduck.Interface):
+                def read(self): pass
+        
+        It can then be used to verify whether particular object satisfies
+        our conditions:
+        
+        ::
+        
+            def load(file_obj):
+                if not pyduck.implements(file_obj, ReadableFileLike):
+                    raise TypeError, "Readable file-like object expected"
+                # ...
+        
+        Of course this particular example isn't very impressive as it's
+        essentially a wrapped hasattr call. But we could define a more
+        strict specification that also enforces a particular method
+        signature:
+        
+        ::
+        
+            class Parser(pyduck.Interface):
+                def load(self, file_obj): pass
+                def dump(self, data, file_obj, **kwargs): pass
+            
+            def serialize_data(parser):
+                if pyduck.implements(parser, Parser):
+                    file_obj = open("file.dat", "w")
+                    parser.dump(data, file_obj, whitespace=False)
+            
+            def deserialize_data(parser):
+                if pyduck.implements(parser, Parser):
+                    file_obj = open("file.dat")
+                    data = parser.load(file_obj)
+        
+        *pyduck* is capable of checking the number of arguments, their kind
+        (normal, variadic, keyword) and whether they are optional or not.
+        
+        @expects decorator
+        ~~~~~~~~~~~~~~~~~~
+        
+        The obvious downside of using pyduck.implements is adding a lot of
+        boilerplate ifs. To avoid that, we can apply the @expects decorator
+        to function whose arguments we want to check against some
+        interfaces. Rewriting the above code using @expects leads to more
+        readable result:
+        
+        ::
+        
+            from pyduck import Interface, expects
+            
+            class Parser(Interface):
+                def load(self, file_obj): pass
+                def dump(self, data, file_obj, **kwargs): pass
+            
+            @expects(Parser)
+            def serialize_data(parser):
+                file_obj = open("file.dat", "w")
+                parser.dump(data, file_obj, whitespace=False)
+            
+            @expects(Parser)
+            def deserialize_data(parser):
+                file_obj = open("file.dat")
+                data = parser.load(file_obj)
+        
+        @expects will check whether function arguments comply to specified
+        *pyduck* interfaces (or any Python types, for that matter). In case
+        of failure, a standard TypeError will be raised.
+        
+        @returns decorator
+        ~~~~~~~~~~~~~~~~~~
+        
+        To go along with @expects, there is also a @returns decorator which
+        can automatically verify whether function has returned object of
+        correct interface or type:
+        
+        ::
+        
+            from pyduck import returns
+            
+            @returns(int)
+            def number_of_bicycles_in_beijing():
+                # ...
+        
+        As with its arguments' counterpart, @returns will raise standard
+        TypeError if the check fails.
+        
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.5
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
