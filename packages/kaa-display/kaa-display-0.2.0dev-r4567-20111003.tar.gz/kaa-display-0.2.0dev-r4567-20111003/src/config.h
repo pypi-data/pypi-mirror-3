@@ -1,0 +1,4 @@
+#define USE_IMLIB2
+#define HAVE_X11
+#define HAVE_X11_COMPOSITE
+#define USE_IMLIB2_X11
