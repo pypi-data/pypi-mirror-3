@@ -1,0 +1,74 @@
+.. copyright 2011 Daniel J. Popowich
+
+========================
+Welcome to WSGIServlets!
+========================
+
+WSGIServlets offers a programmer an object oriented paradigm for web
+application development.
+
+WSGIServlets is a rewrite and significant enhancement of Mod_python
+Servlets for WSGI servers and gateways.  For historical rationale you
+can look at README.mpservlets.
+
+
+
+Running the Tutorial
+~~~~~~~~~~~~~~~~~~~~
+
+To get started, try running the tutorial::
+
+   cd tutorial
+   ./runtutorial
+
+This will start the tutorial on port 8000.  If that's not available on
+your host, you can specify a different port::
+
+   ./runtutorial 8888
+
+NOTE: the tutorial text is written in Markdown
+(http://daringfireball.net/projects/markdown/).  While not required
+(at all!), for best viewing pleasure you'll want to install it in your
+python environment::
+
+    pip install Markdown
+
+Or you can download the tarball from:
+http://pypi.python.org/packages/source/M/Markdown/Markdown-2.0.3.tar.gz
+
+
+  
+Reading the Documentation
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sphinx documentation is in the doc directory.  You can read the rst
+files in that directory or load doc/build/html/index.html in your
+favorite browser.  The tutorial acts as a webserver, so you can read
+the documentation from within the tutorial as well.
+
+
+
+Installation
+~~~~~~~~~~~~
+
+If you're reading this I'm assuming you've downloaded and extracted a
+tarball, in which case, run from this directory::
+
+   python setup.py install
+
+
+
+Feedback
+~~~~~~~~
+
+This project is hosted at Google Project Hosting.  The website for the
+project is: http://code.google.com/p/wsgiservlets/.  Issues can be
+submitted there.
+
+
+
+Thank You
+~~~~~~~~~
+
+This rewrite would not have happened without the generous support from
+Let's Go Learn, Inc.  http://letsgolearn.com/
