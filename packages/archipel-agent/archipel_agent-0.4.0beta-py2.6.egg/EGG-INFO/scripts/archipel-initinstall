@@ -1,0 +1,178 @@
+#!/usr/bin/python -W ignore::DeprecationWarning
+#
+# archipel-initinstall
+#
+# Copyright (C) 2010 Antoine Mercadal <antoine.mercadal@inframonde.eu>
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+import os
+import sqlite3
+import sys
+import shutil
+import string
+import uuid
+from socket import gethostname, getfqdn
+from random import choice
+from optparse import OptionParser
+
+
+def prepare_environment(prefix="", force=False, xmpp_server="auto", hypervisor_name="auto"):
+    from pkg_resources import Requirement, resource_filename
+    import errno
+    init_script     = resource_filename(Requirement.parse("archipel-agent"),"install/etc/init.d/archipel")
+    conf_folder     = resource_filename(Requirement.parse("archipel-agent"),"install/etc/archipel")
+    lib_folder      = resource_filename(Requirement.parse("archipel-agent"),"install/var/lib/archipel")
+
+    print init_script
+
+    if force:
+        try:
+            print "\033[31m****** WARNING ******"
+            print "using --force will remove ALL your Archipel Installation, including the /vm folder"
+            print "This mean you will lost ALL OF YOUR VIRTUAL MACHINE and other data"
+            print "Do this only if you are completely sure"
+            c = raw_input("Do you really want to force the reinstallation ? [NO/yes] : ")
+            if not c == "yes":
+                print "\033[0mouf..."
+                return
+            c = raw_input("Really really sure (last chance) ? [NO/yes] : ")
+            if not c == "yes":
+                print "\033[0mouf..."
+                return
+            print "ok. you have been warned...\033[0m"
+            print "# cleaning old existing files"
+            print " - cleaning init script from %s/etc/init.d/archipel" % prefix
+            os.system("rm -rf %s/etc/init.d/archipel" % prefix)
+            print " - cleaning library folders from %s/var/lib/archipel" % prefix
+            os.system("rm -rf %s/var/lib/archipel" % prefix)
+            print " - cleaning configuration file from %s/etc/archipel" % prefix
+            os.system("rm -rf %s/etc/archipel" % prefix)
+            print ""
+            print "\033[32m[SUCCESS]\033[0m : previous installation cleaned"
+            print ""
+        except Exception as ex:
+            print "\033[31m[ERROR]\033[0m : %s" % (n, strerror)
+
+
+    print "# Installation initialization started"
+    try:
+        sys.stdout.write(" - installing init script to %s/etc/init.d/archipel: " % prefix)
+        shutil.copyfile(init_script, "%s/etc/init.d/archipel" % prefix)
+        os.system("chmod 755 %s/etc/init.d/archipel" % prefix)
+        print "\033[32m[OK]\033[0m"
+    except IOError as (n, strerror):
+        if n == errno.ENOENT:
+            print "\033[31m[ERROR]\033[0m\n"
+            print "  %s/etc/init.d doesn't exist. You mostly are on a non-supported platform." % prefix
+            sys.exit(2)
+        if n == errno.EEXIST:
+            print  "\033[33m[WARNING]"
+            print "   init script files already exists. Leaving as it is\033[0m"
+    except Exception as ex :
+        print "\033[31m[ERROR]\033[0m : %s" % (str(ex))
+        sys.exit(1)
+
+    print ""
+
+    try:
+        sys.stdout.write(" - installing configuration to %s/etc/archipel:" % prefix)
+        shutil.copytree(conf_folder, "%s/etc/archipel/" % prefix)
+        os.system("chmod 600 '%s/etc/archipel/archipel.conf'" % prefix)
+        print "      \033[32m[OK]\033[0m"
+
+        sys.stdout.write(" - pre-configuring %s/etc/archipel/archipel.conf:" % prefix)
+        conf_in = open("%s/archipel.conf" % conf_folder)
+        conf_out = open("%s/etc/archipel/archipel.conf" % prefix, "w")
+        uuidgen = str(uuid.uuid4())
+        if hypervisor_name == "auto":
+            hypervisor_name = gethostname()
+        if xmpp_server == "auto":
+            xmpp_server = getfqdn()
+        hypervisor_password = ''.join([choice(string.letters + string.digits) for i in xrange(8)])
+        for line in conf_in:
+            line = line.replace("PARAM_UUID",uuidgen)
+            line = line.replace("PARAM_HYPERVISOR_NAME", hypervisor_name)
+            line = line.replace("PARAM_HYPERVISOR_PASSWORD", hypervisor_password)
+            line = line.replace("PARAM_XMPP_SERVER", xmpp_server)
+            conf_out.write(line)
+        conf_in.close()
+        conf_out.close()
+    except OSError as (n, strerror):
+        if n == errno.ENOENT:
+            print "      \033[31m[ERROR]\033[0m"
+            print "  %s/etc doesn't exist. You mostly are on a non-supported platform." % prefix
+            sys.exit(2)
+        if n == errno.EEXIST:
+            print "      \033[33m[WARNING]"
+            print "   configuration files already exists. Leaving as it is\033[0m"
+    except Exception as ex :
+        print "  \033[31m[ERROR]\033[0m : %s" % (str(ex))
+        sys.exit(1)
+
+    print ""
+
+    try:
+        sys.stdout.write(" - installing data folder to %s/var/lib/archipel" % prefix)
+        shutil.copytree(lib_folder, "%s/var/lib/archipel" % prefix)
+        print "     \033[32m[OK]\033[0m"
+    except OSError as (n, strerror):
+        if n == errno.ENOENT:
+            print "     \033[31m[ERROR %d]"
+            print "  %s/var/lib/ doesn't exist. You mostly are on a non-supported platform.\033[0m" % prefix
+            sys.exit(2)
+        if n == errno.EEXIST:
+            print "     \033[33m[WARNING]"
+            print "   lib files already exists. Leaving as it is\033[0m"
+    except Exception as ex :
+        print "  \033[31m[ERROR]\033[0m : %s" % (str(ex))
+        sys.exit(1)
+
+    print ""
+    print "\033[32m[SUCCESS]\033[0m : installation initialization complete"
+    print ""
+    print "\033[35m ** IMPORTANT NOTE 1: you now need to edit /etc/archipel/archipel.conf top match your informations         **\033[0m"
+    print "\033[35m ** IMPORTANT NOTE 2: If you have used --name=auto and/or --xmpp-server=auto, please check these values    **\033[0m"
+    print "\033[35m **                   - xmpp_server                                                                        **\033[0m"
+    print "\033[35m **                   - hypervisor_xmpp_jid                                                                **\033[0m"
+    print "\033[35m ** IMPORTANT NOTE 3: if this is not already done, you need to run archipel-tagnode and archipel-rolesnode **\033[0m"
+    print ""
+
+
+if __name__ == "__main__":
+    parser = OptionParser()
+    parser.add_option("-p", "--prefix",
+                        dest="prefix",
+                        help="all installation folders and files will be prefixed with given value",
+                        metavar="PREFIX",
+                        default="")
+    parser.add_option("-f", "--force",
+                        dest="clean",
+                        help="before installing, clean all existing folder and files. IT WILL DESTROY YOUR CURRENT INSTALLATION, VM DRIVES etc. Be warned!",
+                        metavar="SERVER",
+                        default=False)
+    parser.add_option("-x", "--xmpp-server",
+                        dest="xmpp_server",
+                        help="set the fqdn of the XMPP server, defaults to local fqdn",
+                        metavar="FQDN",
+                        default="auto")
+    parser.add_option("-n", "--name",
+                        dest="hypervisor_name",
+                        help="set the name of the hypervisor (left part of the JID), defaults to <hostname>",
+                        metavar="SERVER",
+                        default="auto")
+
+    options, args = parser.parse_args()
+
+    prepare_environment(options.prefix, options.clean, options.xmpp_server, options.hypervisor_name)
