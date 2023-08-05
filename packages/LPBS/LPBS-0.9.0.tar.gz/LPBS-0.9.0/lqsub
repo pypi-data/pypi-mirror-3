@@ -1,0 +1,501 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+############################################################################
+#    Copyright (C) 2011 by Michael Goerz                                   #
+#    http://michaelgoerz.net                                               #
+#                                                                          #
+#    This program is free software; you can redistribute it and/or modify  #
+#    it under the terms of the GNU General Public License as published by  #
+#    the Free Software Foundation; either version 3 of the License, or     #
+#    (at your option) any later version.                                   #
+#                                                                          #
+#    This program is distributed in the hope that it will be useful,       #
+#    but WITHOut ANY WARRANTY; without even the implied warranty of        #
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+#    GNU General Public License for more details.                          #
+#                                                                          #
+#    You should have received a copy of the GNU General Public License     #
+#    along with this program; if not, write to the                         #
+#    Free Software Foundation, Inc.,                                       #
+#    59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             #
+############################################################################
+
+"""
+Submit a job to the local workstation
+"""
+
+import os
+import shutil
+import os.path
+import sys
+import subprocess
+import logging
+import signal
+import getpass
+import time
+from optparse import OptionParser
+from LPBS.JobUtils import get_new_job_id, JobInfo
+from LPBS.Config import get_config, verify_lpbs_home, full_expand
+from LPBS.PBSFile import set_options_from_pbs_script
+from LPBS.Notifications import Notifier, COND_STRT, COND_STOP, COND_ABRT, \
+                               COND_ABER
+
+
+class SignalExc(Exception):
+    """ Exception to be raised when a signal is received """
+    def __init__(self, value):
+        """ Initialize for signal number given as 'value' """
+        self.value = value
+    def __str__(self):
+        """ Retrun signal number as string """
+        return repr(self.value)
+
+
+def psutil_killtree(pid):
+    """ Use psutil to kill a process tree from the bottom up. Return True on
+        success, False on error (i.e. psutil not available)
+    """
+    try:
+        import psutil
+        process = psutil.Process(pid)
+        children = process.get_children()
+        if len(children) == 0:
+            process.kill()
+        else:
+            for child in children:
+                psutil_killtree(child.pid)
+        return True
+    except ImportError:
+        return False
+
+
+def signal_handler(sig, stack):
+    """ Raise SignalExc """
+    logging.debug("signal handler for sig %s", sig)
+    raise SignalExc(sig)
+
+
+def run_pbs_script(pbs_script, job_id, options):
+    """ Run the given pbs_script """
+    logging.debug("Preparing for run of PBS script %s (Job ID %s)",
+                  pbs_script, job_id)
+    notifier = Notifier(job_id, options)
+    job_info = JobInfo(job_id)
+    process = None
+    retcode = 1
+    if not os.environ.has_key('LPBS_HOME'):
+        return retcode
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    try:
+
+        job_name = os.path.basename(pbs_script)
+        sequence_number = job_id[0:job_id.index('.')]
+
+        # create the scratch folder
+        scratch_root = options.config.get('Scratch', 'scratch_root')
+        scratch_root = os.path.join(os.environ['LPBS_HOME'],
+                                    full_expand(scratch_root))
+        if os.path.isdir(scratch_root):
+            if not os.access(scratch_root, os.W_OK):
+                print >> sys.stderr, "WARNING: Scratch root %s not writable" \
+                            % scratch_root
+                logging.warn("Scratch root %s not writable", scratch_root)
+        else:
+            print >> sys.stderr, "WARNING: Scratch root %s does not exist" \
+                        % scratch_root
+            logging.warn("Scratch root %s does not exist", scratch_root)
+        if (options.config.getboolean('Scratch', 'create_jobid_folder')):
+            job_scratch = os.path.join(scratch_root, job_id)
+            try:
+                os.mkdir(job_scratch)
+            except OSError, error:
+                print >> sys.stderr, "Could not create scratch folder: %s" \
+                         % error
+                return 1
+
+
+        # set environment
+        if options.job_name is not None:
+            job_name = options.job_name
+        job_info.name = job_name
+        pbs_env = {}
+        if options.copy_environment:
+            pbs_env = os.environ
+        if options.extra_env_vars is not None:
+            for var_value in options.extra_env_vars.split(","):
+                try:
+                    var, value = var_value.split("=", 1)
+                    var = var.strip()
+                    value = value.strip()
+                except ValueError:
+                    var = var_value.strip()
+                    value = ''
+                    if os.environ.has_key(var):
+                        value = os.environ[var]
+                pbs_env[var] = value
+        # Copy the standard "login" variables into the environment
+        for env_var in ['HOME', 'LOGNAME', 'USER', 'SHELL', 'TERM', 'MAIL']:
+            if os.environ.has_key(env_var):
+                pbs_env[env_var] = os.environ[env_var]
+        for env_var in ['HOME', 'LANG', 'LOGNAME', 'PATH', 'MAIL', 'SHELL',
+        'TZ']:
+            if os.environ.has_key(env_var):
+                pbs_env["PBS_O_%s" % env_var] = os.environ[env_var]
+        pbs_env['PBS_O_HOST'] = options.config.get('Node','hostname') + "." \
+                                + options.config.get('Node','domain')
+        pbs_env['PBS_SERVER'] = options.config.get('Server','hostname') + "." \
+                                + options.config.get('Server','domain')
+        pbs_env['PBS_O_QUEUE'] = ''
+        pbs_env['PBS_O_WORKDIR'] = os.getcwd()
+        pbs_env['PBS_ENVIRONMENT'] = 'PBS_BATCH'
+        pbs_env['PBS_JOBID'] = job_id
+        pbs_env['PBS_JOBNAME'] = job_name
+        pbs_env['PBS_NODEFILE'] = os.path.join(os.environ['LPBS_HOME'],
+                                               'nodefile')
+        pbs_env['PBS_QUEUE'] = ''
+        job_info.variable_list = "%s" % pbs_env
+        nodefile_fh = open(pbs_env['PBS_NODEFILE'], 'w')
+        nodefile_fh.write(pbs_env['PBS_O_HOST']+"\n")
+        nodefile_fh.close()
+        job_info.server = pbs_env['PBS_SERVER']
+        job_info.exec_host = pbs_env['PBS_O_HOST']
+
+        job_info.mail_points = options.mail_options
+
+        # redirect I/O
+        job_info.join_path = False
+        job_info.output_path = 'STDOUT'
+        job_info.error_path = 'STDERR'
+        if not options.interactive:
+            os.setsid()
+            stdout_file = "%s.o%s" % (job_name, sequence_number)
+            stderr_file = "%s.e%s" % (job_name, sequence_number)
+            devnull = open(os.devnull)
+            os.dup2(devnull.fileno(), sys.stdin.fileno())
+            if options.stdout_file is not None:
+                stdout_file = options.stdout_file
+                job_info.output_path = stdout_file
+            if options.stderr_file is not None:
+                stderr_file = options.stderr_file
+                job_info.error_path = stderr_file
+            if options.oe_join == 'oe':
+                job_info.join_path = True
+                stdout_fh = open(stdout_file, 'w')
+                os.dup2(stdout_fh.fileno(), sys.stdout.fileno())
+                os.dup2(stdout_fh.fileno(), sys.stderr.fileno())
+            elif options.oe_join == 'eo':
+                job_info.join_path = True
+                stderr_fh = open(stderr_file, 'w')
+                os.dup2(stderr_fh.fileno(), sys.stdout.fileno())
+                os.dup2(stdout_fh.fileno(), sys.stderr.fileno())
+            else:
+                stdout_fh = open(stdout_file, 'w')
+                stderr_fh = open(stderr_file, 'w')
+                os.dup2(stdout_fh.fileno(), sys.stdout.fileno())
+                os.dup2(stderr_fh.fileno(), sys.stderr.fileno())
+
+        job_info.owner = getpass.getuser()
+        job_info.start_time = time.time()
+        job_info.set_lock(os.getpid())
+        script_copy = os.path.join(os.environ['LPBS_HOME'], "%s.SC" % job_id)
+        shutil.copy(pbs_script, script_copy)
+        os.chmod(script_copy, 0o700)
+        if options.chroot is not None:
+            pbs_env['PBS_O_ROOTDIR'] = options.chroot
+            os.chroot(options.chroot)
+        init_dir = os.environ['HOME']
+        if options.init_dir is not None:
+            init_dir = options.init_dir
+            pbs_env['PBS_O_INITDIR'] = init_dir
+        cmd_list = []
+        if options.shell is not None:
+            shell = options.shell
+            if "," in shell:
+                shell = shell.split(",")[0]
+            if "@" in shell:
+                shell = shell.split("@")[0]
+            shell = shell.strip()
+            cmd_list.append(shell)
+        else:
+            cmd_list.append(os.environ['SHELL'])
+        cmd_list.append('-l')
+        cmd_list.append('-c')
+        cmd_list.append(script_copy)
+        # pass control to shell, wait for completion
+        if options.interactive:
+            notifier.notify(COND_STRT)
+            logging.info("Started interactive job %s", job_id)
+            retcode = subprocess.call(cmd_list, env=pbs_env, cwd=init_dir)
+        else:
+            process = subprocess.Popen(cmd_list, env=pbs_env, cwd=init_dir)
+            notifier.notify(COND_STRT)
+            logging.info("Submitted job %s", job_id)
+            retcode = process.wait()
+        job_info.release_lock()
+        try:
+            os.unlink(script_copy)
+        except OSError:
+            pass
+
+        # close I/O
+        if not options.interactive:
+            if options.oe_join == 'oe':
+                stdout_fh.close()
+            elif options.oe_join == 'eo':
+                stderr_fh.close()
+            else:
+                stdout_fh.close()
+                stderr_fh.close()
+            devnull.close()
+
+        # notify about end of process
+        notifier.job_retcode = retcode
+        notifier.notify(COND_STOP)
+        logging.info("Finished job %s with status %s", job_id, retcode)
+
+        # remove scratch folder
+        if os.path.isdir(job_scratch):
+            if not options.config.getboolean('Scratch', 'keep_scratch'):
+                if ( (retcode == 0) or (options.config.getboolean('Scratch',
+                'delete_failed_scratch')) ):
+                    shutil.rmtree(job_scratch, ignore_errors=True)
+
+    except OSError, error:
+        notifier.notify(COND_ABER, message="%s"%error)
+        logging.error("Failed to submit job %s: %s", job_id, error)
+    except SignalExc:
+        # Cancel Job
+        logging.debug("SignalExc")
+        try:
+            if not psutil_killtree(process.pid):
+                # If psutil didn't work, just terminate the subprocess.
+                # This may leave its children running
+                process.terminate()
+        except AttributeError:
+            # process wasn't even running
+            pass
+        job_info.release_lock()
+        try:
+            os.unlink(script_copy)
+        except OSError:
+            pass
+        if os.path.isdir(job_scratch):
+            shutil.rmtree(job_scratch, ignore_errors=True)
+        notifier.notify(COND_ABRT)
+        retcode = 0
+        logging.info("Canceled job %s", job_id)
+
+    return retcode
+
+
+
+def submit_pbs_script(pbs_script, options):
+    """ Submit the given PBS script """
+    logging.debug("Submitting PBS script %s", pbs_script)
+    if os.path.isfile(pbs_script) and os.access(pbs_script, os.X_OK):
+        job_id = get_new_job_id(options)
+        logging.debug("assigning Job ID %s", job_id)
+        if job_id is None:
+            print >> sys.stderr, "Could not get new job ID"
+            return 1
+        if options.interactive:
+            retcode = run_pbs_script(pbs_script, job_id, options)
+            logging.debug("Returning process with code %s", retcode)
+            return retcode
+        else:
+            newpid = os.fork()
+            if newpid == 0:
+                # Child process
+                retcode = run_pbs_script(pbs_script, job_id, options)
+                logging.debug("Returning child process with code %s", retcode)
+                return retcode
+            else:
+                # Parent process
+                if not options.do_not_print_id:
+                    print job_id
+                retcode = 0
+                logging.debug("Returning parent process with code %s", retcode)
+                return retcode
+    else:
+        print >> sys.stderr, "'%s' must be an executable script" % pbs_script
+        logging.critical("'%s'is not an executable script", pbs_script)
+        retcode = 0
+        logging.debug("Returning process with code %s", retcode)
+        return retcode
+
+
+
+def main(argv=None):
+    """ Main Program """
+    if argv is None:
+        argv = sys.argv
+    arg_parser = OptionParser(
+    usage="usage: %prog [options] <PBS script>",
+    add_help_option=False, description=__doc__)
+    arg_parser.add_option(
+      '-a', action='store', dest='exec_date_time', metavar="DATE_TIME",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-A', action='store', dest='account_strint', metavar="ACCOUNT_STRING",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-b', action='store', dest='wait_seconds', metavar="SECONDS",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-c', action='store', dest='checkpoint_options',
+      metavar="CHECKPOINT_OPTS", help="(ignored)")
+    arg_parser.add_option(
+      '-C', action='store', dest='directive_prefix', metavar="DIRECTIVE_PREFIX",
+      help="(ignored)")
+    arg_parser.add_option(
+      '--config', action='store', dest='config', help="Config file to "
+      "use, on top of $LPBS_HOME/lpbs.cfg and $HOME/.lpbs.cfg")
+    arg_parser.add_option(
+      '-d', action='store', dest='init_dir', metavar="PATH",
+      help="Defines the working directory path to be used for the job. If the "
+      "-d option is not specified, the default working directory is the home "
+      "directory. This option sets the environment variable PBS_O_INITDIR.")
+    arg_parser.add_option(
+      '-D', action='store', dest='chroot', metavar="PATH",
+      help="Defines the root directory to be used for the job. This option "
+      "sets the environment variable PBS_O_ROOTDIR.")
+    arg_parser.add_option(
+      '--debug', action='store_true', dest='debug',
+      default=False, help="Set logging to debug level")
+    arg_parser.add_option(
+      '-e', action='store', dest='stderr_file', metavar="PATH",
+      help="Defines the path to be used for the standard error stream of "
+      "the batch job. If the -e option is not specified, the default "
+      "file name for the standard error stream will be used. The "
+      "default name has the following form: "
+      "job_name.esequence_number")
+    arg_parser.add_option(
+      '-f', action='store_true', dest='fault_tolerant', help="(ignored)")
+    arg_parser.add_option(
+      '--help', action='store_true', dest='print_help',
+      help="show this help message and exit")
+    arg_parser.add_option(
+      '-h', action='store_true', dest='hold', help="(ignored)")
+    arg_parser.add_option(
+      '-I', action='store_true', dest='interactive',
+      help="Declares that the job is to be run \"interactively\". The standard "
+      "input, output, and error streams of the job are connected through lqsub "
+      "to the terminal session in which lqsub is running")
+    arg_parser.add_option(
+      '-j', action='store', dest='oe_join', metavar="JOIN",
+      help="Declares if the standard error stream of the job will be "
+      "merged with the standard output stream of the job.  An option "
+      "argument value of 'oe' directs that the two streams will be "
+      "merged, intermixed, as standard output. An option argument value "
+      "of 'eo' directs that the two streams will be merged, intermixed, "
+      "as standard error.  If the join argument is n or the option is "
+      "not specified, the two streams will be two separate files.")
+    arg_parser.add_option(
+      '-k', action='store', dest='keep', metavar="KEEP",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-l', action='append', dest='resource_list', metavar="RESOURCE_LIST",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-m', action='store', dest='mail_options',
+      default='n', help="Defines the set of conditions under which the "
+      "execution server will send a mail message about the job. The "
+      "mail_options argument is a string which consists of either the "
+      "single character 'n', or one or more of the characters 'a', 'b', "
+      "and 'e'. If the character 'n' is specified (default), no normal "
+      "mail is sent. If 'a' present, mail is "
+      "sent when the job is aborted by the batch system; if 'b' "
+      "present, mail is sent when the job begins execution; if 'e' "
+      "present, mail is sent when the job terminates.")
+    arg_parser.add_option(
+      '-M', action='append', dest='email_addresses',
+      help="Email address to which messages are send. Option can be given "
+      "multiple times")
+    arg_parser.add_option(
+      '-N', action='store', dest='job_name', help="Declares a name for the "
+      "job. The name specified may be up to and including 15 characters in "
+      "length. It must consist of printable, non white space characters with "
+      "the first character alphabetic. If the -N option is not specified, the "
+      "job name will be the base name of the job script file specified on the "
+      "command line. If no script file name was specified and the script was "
+      "read from the standard input, then the job name will be set to STDIN.")
+    arg_parser.add_option(
+      '-o', action='store', dest='stdout_file', metavar="PATH",
+      help="Defines the path to be used for the standard output stream of "
+      "the batch job. If the -o option is not specified, the default "
+      "file name for the standard output stream will be used. The "
+      "default name has the following form: "
+      "job_name.osequence_number")
+    arg_parser.add_option(
+      '-p', action='store', dest='priority', metavar="PRIORITY",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-P', action='store', dest='sudo_user', metavar="USER",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-q', action='store', dest='queue', metavar="DESTINATION",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-r', action='store_true', dest='rerunnable', help="(ignored)")
+    arg_parser.add_option(
+      '-S', action='store', dest='shell', metavar="SHELL",
+      help="Declares the shell that interprets the job script.")
+    arg_parser.add_option(
+      '-u', action='store', dest='exec_user', metavar="USER",
+      help="(ignored)")
+    arg_parser.add_option(
+      '-v', action='store', dest='extra_env_vars', metavar="VARIABLE_LIST",
+      help="In addition to the otherwise determined set of environmanet "
+      "variables, VARIABLE_LIST names environment variables from the lqsub "
+      "command environment which are made available to the job when it "
+      "executes.  The VARIABLE_LIST is a comma separated list of strings of "
+      "the form variable or variable=value. These variables and their values "
+      "are passed to the job.")
+    arg_parser.add_option(
+      '-V', action='store_true', dest='copy_environment',
+      default=False, help="Declares that all environment variables in the "
+      "lqsub commands environment are to be exported to the batch job.")
+    arg_parser.add_option(
+      '-W', action='store', dest='extra_attributes',
+      metavar="ADDITIONAL_ATTRIBUTES", help="(ignored)")
+    arg_parser.add_option(
+      '-X', action='store_true', dest='x_forwarding', help="(ignored)")
+    arg_parser.add_option(
+      '-z', action='store_true', dest='do_not_print_id',
+      default=False, help="Directs that the lqsub command is not to write the "
+      "job identifier assigned to the job to the commands standard output.")
+    options, args = arg_parser.parse_args(argv)
+    if options.print_help:
+        arg_parser.print_help()
+        return 0
+    if (verify_lpbs_home() != 0):
+        return 1
+    options.config = get_config(options.config)
+    if options.debug:
+        logging.basicConfig(filename=os.path.join(os.environ['LPBS_HOME'],
+        options.config.get('LPBS', 'logfile')),
+        format='%(asctime)s %(funcName)s-%(levelname)s: %(message)s',
+        datefmt='%m/%d/%Y %H:%M:%S %z', level=logging.DEBUG)
+    else:
+        logging.basicConfig(filename=os.path.join(os.environ['LPBS_HOME'],
+        options.config.get('LPBS', 'logfile')),
+        format='%(asctime)s: %(message)s', datefmt='%m/%d/%Y %H:%M:%S %z',
+        level=logging.INFO)
+    logging.info("##### New Job Submission ####")
+    if options.config is None:
+        return 1
+    if (len(args) < 2):
+        arg_parser.print_usage()
+        print >> sys.stderr, "You must supply a pbs script. " \
+                             "Run with option '--help' for more information."
+        return 1
+    pbs_script = args[1]
+    set_options_from_pbs_script(arg_parser, options, pbs_script)
+    return submit_pbs_script(pbs_script, options)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
