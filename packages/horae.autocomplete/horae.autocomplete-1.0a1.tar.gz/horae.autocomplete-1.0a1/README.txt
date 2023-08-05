@@ -1,0 +1,95 @@
+Introduction
+============
+
+The ``horae.autocomplete`` package provides autocomplete fields and widgets for
+`zope.formlib <http://pypi.python.org/pypi/zope.formlib>`_ based on the
+`autocomplete widget of jQuery UI <http://jqueryui.com/demos/autocomplete>`_.
+
+Usage
+=====
+
+There are two types of autocomplete fields available:
+
+**AutocompleteList**
+  Allows selection of multiple values
+**AutocompleteChoice**
+  Allows selection of one value
+
+To enable autocompletion for a list or choice field simply replace the ``List``
+respectively the ``Choice`` from `zope.schema <http://pypi.python.org/pypi/zope.schema>`_
+by the one provided in ``horae.autocomplete.fields``::
+
+    from zope import interface, schema
+    
+    from horae.autocomplete import fields
+    
+    class ISampleSchema(interface.Interface):
+        """ A schema using an autocomplete choice and list field
+        """
+        
+        choice = fields.AutocompleteChoice(
+            values = (u'one', u'two', u'three',)
+        )
+        
+        list = fields.AutocompleteList(
+            value_type = schema.Choice(
+                values=(u'Tag 1', u'Tag 2', u'Tag 3',)
+            )
+        )
+
+The ``AutocompleteChoice`` field takes exactly the same parameters as the ``Choice`` field
+provided by `zope.schema <http://pypi.python.org/pypi/zope.schema>`_. The same is true for
+the ``AutocompleteList`` field which takes the same parameters as the ``List`` field of
+`zope.schema <http://pypi.python.org/pypi/zope.schema>`_ with the only restriction that
+the ``value_type`` has to be either a ``Choice`` or ``TextLine`` field.
+
+Advanced usage
+--------------
+
+Value providers
+'''''''''''''''
+
+The available values presented to the user when entering a term into the field are provided
+by adapters implementing ``horae.autocomplete.interfaces.IValueProvider``. There are default
+value providers already implemented which look up the available values based on the given
+input in the vocabulary of the field. This is done by iterating over the values in the
+vocabulary and check whether a value matches the given input. For very large or infinite
+vocabularies this is quite expensive or not possible at all. To efficiently support such
+vocabularies value providers may be overridden by registering a more specific adapter
+implementing ``horae.autocomplete.interfaces.IValueProvider``. Those adapters are looked
+up in the following order where the first one found is used:
+
+**Named contextual provider**
+  A value provider adapting the ``context``, ``field`` and ``request`` registered with the
+  same name as the field
+**Named uncontextual provider**
+  A value provider adapting the ``field`` and ``request`` registered with the same name as
+  the field
+**Contextual provider**
+  A value provider adapting the ``context``, ``field`` and ``request``
+**Uncontextual provider**
+  A value provider adapting the ``field`` and ``request``
+
+Examples of custom value providers is found in the `horae.search <http://pypi.python.org/pypi/horae.search>`_
+package which provides non iterable vocabularies and corresponding value providers which
+use full text search in a catalog to look up the available values based on the input.
+
+Field providers
+'''''''''''''''
+
+As mentioned in the previous chapter the value providers are adapters adapting at least the
+``field`` and the ``request``. To look up those providers the field needs to be looked up
+first. In most cases this is not an issue at all since the fields are defined by the schema
+of the form. But in some cases the field is placed in the form only when rendering it which
+would then require to render the whole form only to find the required field. To efficiently
+support this use-case the way how a field is looked up may be overridden by registering an
+adapter implementing ``horae.autocomplete.interfaces.IFieldProvider`` and adapting the
+``context`` and ``request``.
+
+Dependencies
+============
+
+* `fanstatic <http://pypi.python.org/pypi/fanstatic>`_
+* `zope.fanstatic <http://pypi.python.org/pypi/zope.fanstatic>`_
+* `js.jquery <http://pypi.python.org/pypi/js.jquery>`_
+* `js.jqueryui <http://pypi.python.org/pypi/js.jqueryui>`_
