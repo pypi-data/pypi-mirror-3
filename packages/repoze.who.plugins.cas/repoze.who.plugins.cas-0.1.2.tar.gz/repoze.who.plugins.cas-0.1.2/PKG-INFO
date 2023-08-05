@@ -1,0 +1,210 @@
+Metadata-Version: 1.0
+Name: repoze.who.plugins.cas
+Version: 0.1.2
+Summary: CAS plugin for repoze.who by Makina Corpus
+Home-page: http://github.com/kiorky/repoze.who.plugins.cas/
+Author: Simon Thepot, Mathieu Pasquet
+Author-email: dj.coin@laposte.net, kiorky@cryptelium.net
+License: BSD
+Description: Introduction
+        ============
+        
+        ``repoze.who.plugins.cas`` is a plugin for the `repoze.who framework
+        <http://static.repoze.org/whodocs/>`_
+        enabling straightforward "cassification" (i.e.: makings each of your
+        applications part of the SSO mechanism) of all applications that can be deployed
+        through `Python Paste <http://pythonpaste.org/deploy/>`_.
+        
+        It currently supports CAS 3.0, although it may be used with others versions of CAS (yet, no compatibility is ensured as it has only been tested with CAS 3.0).
+        
+        Applications which can be used :
+        
+        - App complying with the `simple_authentication WSGI specification <http://wsgi.org/wsgi/Specifications/simple_authentication>`_, which take advantage of the REMOTE_USER key in the WSGI environment.
+        - App which can handle themselves the CAS mechanism (e.g.: phpBB with the CAS patch, - use wphp as a paste filter for integration of PHP with python - )
+        
+        Links :
+        
+        - `Official link for CAS <http://www.jasig.org/cas>`_
+        
+        .. contents::
+        
+        Credits
+        ======================================
+        |makinacom|_
+        
+        * `Planet Makina Corpus <http://www.makina-corpus.org>`_
+        * `Contact us <mailto:python@makina-corpus.org>`_
+        
+        .. |makinacom| image:: http://depot.makina-corpus.org/public/logo.gif
+        .. _makinacom:  http://www.makina-corpus.com
+        
+        
+        
+        
+        Installing
+        ==========
+        
+        Requirement
+        ++++++++++++
+        You must have a CAS server working.
+        
+        CAS
+        +++
+        You must also have enabled the logout 
+        which basically is adding 
+        ``<property name="followServiceRedirects" value="true" />`` in the
+        LogoutController bean in the cas-servlet.xml.
+        
+        
+        Your apps
+        +++++++++
+        Nothing is required for your apps, just set them up and fill out the config 
+        file as seen in the demo/ directory.
+        
+        The configuration is pretty straightforward, you should take example on the
+        config files demo provided with the egg.
+        
+        Here is what you can find in it, for the who.ini file::
+        
+            # IDENTIFIER
+            # @param :
+            # - cas_url : URL to your CAS server. Ensure your URL has a trailing slash.
+            # - rememberer_name : name of the plugin for remembering (delegate)
+            # - path_toskip : regex for url handling their own way the CAS authent
+            # - path_logout : regex to see if a logout has to be performed (and trigger forget via challenge)
+            #                 WARNING : must include the path of logout even for path_toskip application
+            #                 to properly logging out from the CAS also
+            [plugin:casauth]
+            use = repoze.who.plugins.cas.main_plugin:make_plugin
+            cas_url= https://servcas:8443/cas/
+            rememberer_name = auth_tkt
+            path_toskip = .*/phpbb/.*
+            path_logout = .*/logout.*
+                          .*mode=logout.*
+            
+            # CHALLENGE DECIDER
+            # @param:
+            # - path_login : those regexp indicate which url should be redirected for a challenge 
+            #                e.g. : for CAS, will be redirected on a "/cas/login" like url
+            [plugin:decider]
+            use = repoze.who.plugins.cas.challenge_decider:make_plugin
+            path_login = 
+                        .*trac/login.*
+                        .*/login$ 
+            
+            
+            
+            [plugin:auth_tkt]
+            # identification
+            use = repoze.who.plugins.auth_tkt:make_plugin
+            secret = secret
+            cookie_name = oatmeal
+            secure = False
+            include_ip = False
+            
+            [general]
+            request_classifier = repoze.who.classifiers:default_request_classifier
+            remote_user_key = REMOTE_USER
+            # trick : target the plugin whose name is the same
+            challenge_decider = decider
+            
+            
+            [identifiers]
+            # plugin_name;classifier_name:.. or just plugin_name (good for any)
+            plugins =
+                  casauth
+                  auth_tkt
+            
+            [authenticators]
+            # plugin_name;classifier_name.. or just plugin_name (good for any)
+            plugins =
+                  casauth
+            
+            
+            [challengers]
+            # plugin_name;classifier_name:.. or just plugin_name (good for any)
+            plugins =
+                  casauth
+            
+            
+        
+        
+        TODO: improvement for the future
+        ================================
+        
+        More Tests
+        ++++++++++
+        Some scenarios deploying severals applications and running
+        doctests on it will be soon available.
+        
+        Handling Single Sign Out
+        ++++++++++++++++++++++++
+        At this point, this plugin does handle SSO (Single Sign On).
+        Yet, it does not handle Single Sign Out.
+        There may be several ways to achieve this.
+        
+         - A simple solution may be found by enabling the plugin to execute each
+           callable delivered by webapp whose purpose would be to
+           logout the user from it (e.g: by redirecting the browser on the logout url,
+           or deleting some cookies etc.).
+        
+         - Currently, CAS 3 and higher handle SSOut by triggering a POST request to all
+           the web application registered. 
+           I did not digg this option at all, wonder how it would fit or not.
+        
+         - ...
+        
+        Not relying on the CAS server itself ?
+        ++++++++++++++++++++++++++++++++++++++
+        At the moment, the plugin relies on a CAS server.
+        Yet, CAS is just a specific trusted third party (e.g.: like Kerberos etc.)
+        
+        Thus, to avoid code redundancy between plugins dealing with concrete
+        implementation of this "trusted third party abstraction",
+        we should code against this abstraction => refactor this code.
+        
+        Yet, of course, rather than extending this plugin, we may create a new one,
+        if each implementations tends to get very specific.
+        
+        
+        Misc
+        ++++
+        Clearing and make more relevant comments ;)
+        
+        
+        KNOWN ISSUES
+        ============
+        
+        
+        
+        
+        Changes
+        =======
+        
+        0.1.2 (unreleased)
+        ++++++++++++++++++
+        
+         - Minor additions to example configuration about CAS URL and auth_tkt
+           plugin.
+           [davidjb]
+        
+        0.1 (2009-07-28)
+        ++++++++++++++++
+        Initial release.
+        
+         - Provides repoze.who plugins (i.e.: challenge, identifier, chalenge decider and
+           auth plugins) for enabling CAS
+         - Provides simple unit tests
+           
+        
+        
+Keywords: cas authentication server web wsgi repoze repoze.who sponsorised by Makina Corpus
+Platform: UNKNOWN
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Middleware
+Classifier: Topic :: System :: Systems Administration :: Authentication/Directory
