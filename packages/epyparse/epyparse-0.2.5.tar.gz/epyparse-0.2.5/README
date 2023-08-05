@@ -1,0 +1,413 @@
+
+epyparse.py
+===========
+
+Formatting and serialization of epydoc-parsed Python source code.
+Source code is only ever parsed textually, never imported.
+
+
+Command line Usage
+------------------
+
+prettyprint
+~~~~~~~~~~~
+
+Pretty print a representation of the API of a named object or file::
+
+    $ epyparse print -path <name_or_path> [options]
+
+which can be shortened to::
+
+    $ epyparse <name_or_path> [options]
+
+By default, output is colored for the terminal, you can turn this off with
+the `-nocolor` option.
+
+serialize
+~~~~~~~~~
+
+Flatten the recursive API structure of a named object or file to a sequence
+of individual dictionaries. Each dictionary is JSON-serialized and saved to
+its own file::
+
+    $ epyparse serialize -path <name_or_path> [options]
+
+By default, files are written to the current working directory, you can
+specify another directory with the `-out` option::
+
+    $ epyparse serialize -path <name_or_path> -out docs/api
+
+Programmatic Usage
+------------------
+
+Top-level functions are `parsed`, `flattened`, `pprint` and `objectify`::
+
+    >>> from epyparse import parsed, flattened, pprint, objectify
+
+Input can be a file path::
+
+    >>> pprint('setup.py')
+    ################################################################################
+    #    setup
+    ################################################################################
+    """
+    """
+    <BLANKLINE>
+    import distutils.core.setup
+    import sys
+    import os
+    import epyparse
+    <BLANKLINE>
+
+which must exist::
+
+    >>> parsed('does/not/exist')
+    Traceback (most recent call last):
+        ...
+    IOError: No such file does/not/exist
+
+Or a named object::
+
+    >>> pprint('os.getenv')
+    def getenv(key, default=None):
+        """
+        Get an environment variable, return None if it doesn't exist.
+        The optional second argument can specify an alternate default.
+        """
+    <BLANKLINE>
+
+which must be accessible::
+
+    >>> pprint('does.not.exist')
+    Traceback (most recent call last):
+        ...
+    ImportError: No Python source file found.
+
+and not a builtin or c-based object::
+
+    >>> pprint('cStringIO.StringIO')
+    Traceback (most recent call last):
+        ...
+    ImportError: No Python source file for builtin modules.
+
+Modules, functions, classes or methods can be accessed::
+
+    >>> pprint('StringIO.StringIO.write')
+    def write(self, s):
+        """
+        Write a string to the file.
+    <BLANKLINE>
+        There is no return value.
+        """
+    <BLANKLINE>
+
+
+Parse to a nested dictionary
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Parse module::
+
+    >>> d = parsed('epydoc.apidoc')
+    >>> sorted(d.keys())
+    ['children', 'docstring', 'fullname', 'imports', 'type']
+    >>> d['type']
+    'module'
+    >>> for item in sorted(d['children'], key=lambda d: (d['type'], d['fullname'])):
+    ...     print item['type'], ' -> ', item['fullname']
+    class  ->  epydoc.apidoc.APIDoc
+    class  ->  epydoc.apidoc.ClassDoc
+    class  ->  epydoc.apidoc.ClassMethodDoc
+    class  ->  epydoc.apidoc.DocIndex
+    class  ->  epydoc.apidoc.DottedName
+    class  ->  epydoc.apidoc.GenericValueDoc
+    class  ->  epydoc.apidoc.ModuleDoc
+    class  ->  epydoc.apidoc.NamespaceDoc
+    class  ->  epydoc.apidoc.PropertyDoc
+    class  ->  epydoc.apidoc.RoutineDoc
+    class  ->  epydoc.apidoc.StaticMethodDoc
+    class  ->  epydoc.apidoc.ValueDoc
+    class  ->  epydoc.apidoc.VariableDoc
+    class  ->  epydoc.apidoc._Sentinel
+    function  ->  epydoc.apidoc._flatten
+    function  ->  epydoc.apidoc._pp_apidoc
+    function  ->  epydoc.apidoc._pp_dict
+    function  ->  epydoc.apidoc._pp_list
+    function  ->  epydoc.apidoc._pp_val
+    function  ->  epydoc.apidoc.pp_apidoc
+    function  ->  epydoc.apidoc.reachable_valdocs
+
+Flatten and JSON-serialize
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For the `Object.get_parent` and `Object.get_children` deserialization
+methods to work, we rely on the convention that api objects have been
+saved to the same directory with the canonical name as file name and
+with no file extension::
+
+    >>> import os, json
+    >>> assert not os.path.exists('TESTOUT')
+    >>> os.mkdir('TESTOUT')
+    >>> for item in flattened('epydoc.apidoc'):
+    ...     print item['fullname']
+    ...     with open('TESTOUT/' + item['fullname'], 'w+b') as fp:
+    ...         json.dump(item, fp)
+    ...
+    epydoc.apidoc._flatten
+    epydoc.apidoc._pp_apidoc
+    epydoc.apidoc._pp_dict
+    epydoc.apidoc._pp_list
+    epydoc.apidoc._pp_val
+    epydoc.apidoc.pp_apidoc
+    epydoc.apidoc.reachable_valdocs
+    epydoc.apidoc.APIDoc.__cmp__
+    epydoc.apidoc.APIDoc.__hash__
+    epydoc.apidoc.APIDoc.__init__
+    epydoc.apidoc.APIDoc.__repr__
+    epydoc.apidoc.APIDoc._debug_setattr
+    epydoc.apidoc.APIDoc._debug_setattr
+    epydoc.apidoc.APIDoc.apidoc_links
+    epydoc.apidoc.APIDoc.is_detailed
+    epydoc.apidoc.APIDoc.merge_and_overwrite
+    epydoc.apidoc.APIDoc.pp
+    epydoc.apidoc.APIDoc.pp
+    epydoc.apidoc.APIDoc.specialize_to
+    epydoc.apidoc.APIDoc
+    epydoc.apidoc.ClassDoc._c3_merge
+    epydoc.apidoc.ClassDoc._c3_mro
+    epydoc.apidoc.ClassDoc._dfs_bases
+    epydoc.apidoc.ClassDoc._report_bad_base
+    epydoc.apidoc.ClassDoc.apidoc_links
+    epydoc.apidoc.ClassDoc.is_exception
+    epydoc.apidoc.ClassDoc.is_newstyle_class
+    epydoc.apidoc.ClassDoc.is_type
+    epydoc.apidoc.ClassDoc.mro
+    epydoc.apidoc.ClassDoc.select_variables
+    epydoc.apidoc.ClassDoc
+    epydoc.apidoc.ClassMethodDoc
+    epydoc.apidoc.DocIndex.__init__
+    epydoc.apidoc.DocIndex._get
+    epydoc.apidoc.DocIndex._get_from
+    epydoc.apidoc.DocIndex._get_module_classes
+    epydoc.apidoc.DocIndex._update_funcid_to_doc
+    epydoc.apidoc.DocIndex.container
+    epydoc.apidoc.DocIndex.find
+    epydoc.apidoc.DocIndex.get_valdoc
+    epydoc.apidoc.DocIndex.get_vardoc
+    epydoc.apidoc.DocIndex.reachable_valdocs
+    epydoc.apidoc.DocIndex.read_profiling_info
+    epydoc.apidoc.DocIndex
+    epydoc.apidoc.DottedName.InvalidDottedName
+    epydoc.apidoc.DottedName.__add__
+    epydoc.apidoc.DottedName.__cmp__
+    epydoc.apidoc.DottedName.__getitem__
+    epydoc.apidoc.DottedName.__hash__
+    epydoc.apidoc.DottedName.__init__
+    epydoc.apidoc.DottedName.__len__
+    epydoc.apidoc.DottedName.__radd__
+    epydoc.apidoc.DottedName.__repr__
+    epydoc.apidoc.DottedName.__str__
+    epydoc.apidoc.DottedName.container
+    epydoc.apidoc.DottedName.contextualize
+    epydoc.apidoc.DottedName.dominates
+    epydoc.apidoc.DottedName
+    epydoc.apidoc.GenericValueDoc.is_detailed
+    epydoc.apidoc.GenericValueDoc
+    epydoc.apidoc.ModuleDoc.apidoc_links
+    epydoc.apidoc.ModuleDoc.init_submodule_groups
+    epydoc.apidoc.ModuleDoc.select_variables
+    epydoc.apidoc.ModuleDoc
+    epydoc.apidoc.NamespaceDoc.__init__
+    epydoc.apidoc.NamespaceDoc._init_grouping
+    epydoc.apidoc.NamespaceDoc.apidoc_links
+    epydoc.apidoc.NamespaceDoc.group_names
+    epydoc.apidoc.NamespaceDoc.init_sorted_variables
+    epydoc.apidoc.NamespaceDoc.init_variable_groups
+    epydoc.apidoc.NamespaceDoc.is_detailed
+    epydoc.apidoc.NamespaceDoc.report_unused_groups
+    epydoc.apidoc.NamespaceDoc
+    epydoc.apidoc.PropertyDoc.apidoc_links
+    epydoc.apidoc.PropertyDoc.is_detailed
+    epydoc.apidoc.PropertyDoc
+    epydoc.apidoc.RoutineDoc.all_args
+    epydoc.apidoc.RoutineDoc.is_detailed
+    epydoc.apidoc.RoutineDoc
+    epydoc.apidoc.StaticMethodDoc
+    epydoc.apidoc.ValueDoc.__getstate__
+    epydoc.apidoc.ValueDoc.__repr__
+    epydoc.apidoc.ValueDoc.__setstate__
+    epydoc.apidoc.ValueDoc.apidoc_links
+    epydoc.apidoc.ValueDoc.pyval_repr
+    epydoc.apidoc.ValueDoc.summary_pyval_repr
+    epydoc.apidoc.ValueDoc
+    epydoc.apidoc.VariableDoc.__init__
+    epydoc.apidoc.VariableDoc.__repr__
+    epydoc.apidoc.VariableDoc._get_defining_module
+    epydoc.apidoc.VariableDoc.apidoc_links
+    epydoc.apidoc.VariableDoc.is_detailed
+    epydoc.apidoc.VariableDoc
+    epydoc.apidoc._Sentinel.__init__
+    epydoc.apidoc._Sentinel.__nonzero__
+    epydoc.apidoc._Sentinel.__repr__
+    epydoc.apidoc._Sentinel
+    epydoc.apidoc
+
+Deserialize to `Object`
+~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    >>> from epyparse import objectify
+    >>> obj = objectify('TESTOUT/epydoc.apidoc.APIDoc.merge_and_overwrite')
+
+The returned `Object` type is a dict subclass::
+
+    >>> sorted(obj.keys())
+    [u'args', u'attributes', u'fullname', u'is_method', u'lineno', u'params', 'src', u'type']
+
+with attribute-style access::
+
+    >>> obj.args
+    [u'self', u'other']
+    >>> obj.is_method
+    True
+    >>> obj.lineno * 0
+    0
+    >>> obj.params
+    [[u'ignore_hash_conflict', False]]
+    >>> obj.name
+    u'merge_and_overwrite'
+
+`Object.parent` gives the name of the parent object, if any::
+
+    >>> obj.parent
+    u'epydoc.apidoc.APIDoc'
+
+And, because we have serialized the parent to the same directory, we can
+retrieve it with the `Object.get_parent` method::
+
+    >>> parent = obj.get_parent()
+    >>> parent.fullname
+    u'epydoc.apidoc.APIDoc'
+    >>> parent.type
+    u'class'
+    >>> parent.name
+    u'APIDoc'
+
+Similarly, `Object.members` returns the names of the object's members, if any::
+
+    >>> for name in sorted(parent.members):
+    ...     print parent.fullname + '.' + name
+    epydoc.apidoc.APIDoc.__cmp__
+    epydoc.apidoc.APIDoc.__hash__
+    epydoc.apidoc.APIDoc.__init__
+    epydoc.apidoc.APIDoc.__repr__
+    epydoc.apidoc.APIDoc._debug_setattr
+    epydoc.apidoc.APIDoc._debug_setattr
+    epydoc.apidoc.APIDoc.apidoc_links
+    epydoc.apidoc.APIDoc.is_detailed
+    epydoc.apidoc.APIDoc.merge_and_overwrite
+    epydoc.apidoc.APIDoc.pp
+    epydoc.apidoc.APIDoc.pp
+    epydoc.apidoc.APIDoc.specialize_to
+
+and `Object.get_members` deserializes each member::
+
+    >>> for child in sorted(parent.get_members(), key=lambda d: d['fullname']):
+    ...     print child.type, ' -> ', child.name
+    function  ->  __cmp__
+    function  ->  __hash__
+    function  ->  __init__
+    function  ->  __repr__
+    alias  ->  _debug_setattr
+    alias  ->  _debug_setattr
+    function  ->  apidoc_links
+    function  ->  is_detailed
+    function  ->  merge_and_overwrite
+    function  ->  pp
+    function  ->  pp
+    function  ->  specialize_to
+
+Introspection - `inspect` vs. `Inspector`
+-----------------------------------------
+
+    >>> import inspect
+    >>> from epydoc.apidoc import APIDoc
+    >>> from epyparse import Inspector
+    >>> merge_and_overwrite_obj = obj
+    >>> APIDoc_obj = parent
+
+argspec (not identical but good enough for displaying the function signature)::
+
+    >>> inspect.getargspec(APIDoc.merge_and_overwrite)
+    ArgSpec(args=['self', 'other', 'ignore_hash_conflict'], varargs=None, keywords=None, defaults=(False,))
+    >>> Inspector.getargspec(merge_and_overwrite_obj)
+    ArgSpec(args=[u'self', u'other', u'ignore_hash_conflict'], varargs=None, keywords=None, defaults=(False,))
+
+    >>> inspect.getargspec(APIDoc.apidoc_links)
+    ArgSpec(args=['self'], varargs=None, keywords='filters', defaults=None)
+    >>> Inspector.getargspec(APIDoc_obj.get_member('apidoc_links'))
+    ArgSpec(args=[u'self'], varargs=None, keywords=u'filters', defaults=None)
+
+hasattr::
+
+    >>> hasattr(APIDoc, 'merge_and_overwrite')
+    True
+    >>> Inspector.hasattr(APIDoc_obj, 'merge_and_overwrite')
+    True
+    >>> Inspector.hasattr(APIDoc_obj, 'somethingsomethingorangessomething')
+    False
+
+dir
+---
+
+    >>> dir(merge_and_overwrite_obj)
+    ['__dict__', u'__doc__', u'__name__']
+    >>> sorted(dir(APIDoc_obj))[:7]
+    [u'__cmp__', '__dict__', u'__doc__', u'__hash__', u'__init__', u'__name__', u'__repr__']
+    >>> sorted(dir(APIDoc_obj))[7:13]
+    [u'_debug_setattr', u'_debug_setattr', u'apidoc_links', u'is_detailed', u'merge_and_overwrite', u'pp']
+    >>> module_obj = objectify('TESTOUT/epydoc.apidoc')
+    >>> sorted(dir(module_obj))[:7]
+    [u'APIDoc', u'ClassDoc', u'ClassMethodDoc', u'DocIndex', u'DottedName', u'GenericValueDoc', u'ModuleDoc']
+
+__doc__
+-------
+
+    >>> hasattr(APIDoc.merge_and_overwrite, '__doc__')
+    True
+    >>> hasattr(merge_and_overwrite_obj, '__doc__')
+    True
+    >>> Inspector.hasattr(merge_and_overwrite_obj, '__doc__')
+    True
+    >>> actual = ''.join(
+    ...   s.strip() for s in APIDoc.merge_and_overwrite.__doc__.splitlines() if s.strip()
+    ... )
+    ...
+    >>> serialized = ''.join(
+    ...   s.strip() for s in merge_and_overwrite_obj.__doc__.splitlines() if s.strip()
+    ... )
+    ...
+    >>> assert len(actual) and len(serialized)
+    >>> assert actual == serialized
+
+__dict__
+--------
+
+    >>> Inspector.hasattr(merge_and_overwrite_obj, '__dict__')
+    True
+    >>> d = Inspector.getattr(merge_and_overwrite_obj, '__dict__')
+    >>> d['__name__']
+    u'merge_and_overwrite'
+    >>> print d['__doc__'] #doctest: +ELLIPSIS
+    Combine C{self} and C{other} into a X{merged object}, such
+    that any changes made to one will affect the other.  Any...
+
+Base classes
+------------
+
+
+Tidy up::
+
+    >>> import shutil
+    >>> shutil.rmtree('TESTOUT')
+
