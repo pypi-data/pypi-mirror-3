@@ -1,0 +1,152 @@
+{% extends "base_site.html" %}
+
+{% block main %}
+<div id="sidebar">
+  <div id="repository-meta" class="sidebar-panel">
+    <table>
+      <caption>{{ gettext('Repository status') }}</caption>
+      <tbody>
+        <tr>
+          <th>{{ gettext('branch') }}</th>
+          <td>{{ repository.branch() }}</td>
+        </tr>
+        <tr>
+          <th>{{ gettext('revision') }}</th>
+          <td>{{ repository.parent_number() }}: {{ repository.parent_revision() }}</td>
+        </tr>
+        <tr>
+          <th>{{ gettext('timestamp') }}</th>
+          <td>{{ repository.parent_date() }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% if form_actions.action.choices %}
+    <div id="action-form" class="sidebar-panel">
+      <h3>{{ gettext('run action') }}</h3>
+      <form method="post" action="{{ url_for('exec_action') }}" id="formactions">
+        {{ form_actions.csrf_token }}
+        <div>
+          {{ form_actions.action }}
+          <input type="submit" value="{{ gettext('Run') }}" />
+        </div>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div>
+      <ul class="flashes">
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endwith %}
+
+<h2>{{ gettext('Changes in tracked files') }}</h2>
+<div class="status-help">
+  <ul>
+    <li>
+      <span class="status-mark status-modified">M</span>{{ gettext('Modified') }}
+    </li>
+    <li>
+      <span class="status-mark status-added">A</span>{{ gettext('Added') }}
+    </li>
+    <li>
+      <span class="status-mark status-removed">R</span>{{ gettext('Removed') }}
+    </li>
+    <li>
+      <span class="status-mark status-missing">!</span>{{ gettext('Missing') }}
+    </li>
+  </ul>
+</div>
+{% if form_ctrl.files.choices %}
+  <form method="post" action="{{ url_for('submit_confirm') }}" id="formctrl">
+    {{ form_ctrl.csrf_token }}
+    <div class="select-files">
+      {{ form_ctrl.files }}
+    </div>
+    {% if allow_commit %}
+      <div class="operation">
+        <input type="hidden" name="{{ form_ctrl._prefix }}operation" value="" id="formctrl-operation" />
+        <button type="button" id="formctrl-commit">{{ gettext('Commit') }}</button>
+        <button type="button" id="formctrl-revert">{{ gettext('Revert') }}</button>
+        <button type="button" id="formctrl-remove">{{ gettext('Remove') }}</button>
+      </div>
+    {% endif %}
+  </form>
+{% else %}
+  <p>
+    {{ gettext('There was no changes in tracked files.') }}
+  </p>
+{% endif %}
+<h2>{{ gettext('Untracked files') }}</h2>
+<div class="status-help">
+  <ul>
+    <li>
+      <span class="status-mark status-not-tracked">?</span>{{ gettext('Not tracked') }}
+    </li>
+  </ul>
+</div>
+{% if form_unknown.files.choices %}
+  <form method="post" action="{{ url_for('add_unknown_confirm') }}">
+    {{ form_unknown.csrf_token }}
+    <div class="select-files">
+      {{ form_unknown.files }}
+    </div>
+    {% if allow_commit %}
+      <div class="operation">
+        <input type="submit" value="{{ gettext('Add') }}" />
+      </div>
+    {% endif %}
+  </form>
+{% else %}
+  <p>
+    {{ gettext('There was no untracked files.') }}
+  </p>
+{% endif %}
+{% endblock %}
+
+{% block js %}
+(function() {
+  var hgwebcommit = {};
+  hgwebcommit.submit_form = function(op) {
+    $("#formctrl-operation").val(op);
+    $("#formctrl").submit();
+  };
+  hgwebcommit.apply_status_color = function(parent) {
+    var colormap = {
+      "M": "status-modified",
+      "A": "status-added",
+      "R": "status-removed",
+      "!": "status-missing",
+      "?": "status-not-tracked"
+    };
+    $(parent + " option").each(function(idx, val) {
+      var obj = $(val);
+      if (obj.text().length > 0) {
+        var key = obj.text().charAt(0);
+        var style = colormap[key];
+        obj.addClass(style);
+      }
+    });
+  };
+
+  $(document).ready(function() {
+    $("#formctrl-commit").click(function() {
+      hgwebcommit.submit_form("commit");
+    });
+    $("#formctrl-revert").click(function() {
+      hgwebcommit.submit_form("revert");
+    });
+    $("#formctrl-remove").click(function() {
+      hgwebcommit.submit_form("remove");
+    });
+    hgwebcommit.apply_status_color(".select-files");
+  });
+})();
+{% endblock %}
