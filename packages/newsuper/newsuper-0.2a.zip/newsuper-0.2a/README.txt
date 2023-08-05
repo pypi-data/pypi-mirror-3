@@ -1,0 +1,87 @@
+.. include globals.rst
+
+Intro
+========
+
+`newsuper` provides you Python3k-alike super() for Python2.x,
+
+Why
+=======
+
+you must hate to write code like this::
+
+    super(Foo, self).__init__()
+    
+and you might have written (WRONG) code like this::
+
+    super(self.__class__, self).__init__()
+    
+Python3k's super() saves your ass a bit::
+
+    super().__init__()
+    
+but this looks evil, and confusing for classmethods
+
+Example
+=======
+
+You can make your topest-level class subclassing `newsuper.Object` ::
+
+    from newsuper import Object
+
+    class Foo(Object):
+        def __init__(self):
+            self.foo = 1
+
+        @classmethod
+        def do_something(cls):
+            return ['Foo']
+            
+    class Bar(Foo):
+        def __init__(self):
+            super().__init__(self) # You should pass self explictly
+            self.bar = 1
+
+        @classmethod
+        def do_something(cls):
+            return super().do_something() + ['Bar']
+
+    class Baz(Bar):
+        def __init__(self):
+            super().__init__(self)
+            self.baz = 1
+
+        @classmethod
+        def do_something(cls):
+            return super(Baz, cls).do_something() + ['Baz'] # Compatible with old super(Baz, cls)
+        
+    if __name__ == '__main__':
+        assert Baz().foo == Baz().bar == Baz().baz == 1
+        assert Baz.do_something() == ['Foo', 'Bar', 'Baz']
+
+property is supported too.
+
+.. warning::
+
+    There is difference between `newsuper` and Python3k super()
+    
+    in Python3k, super().method() == super(Foo, self).method()
+    
+    In `newsuper`, super() always returns a proxy of class, not instance
+    
+    in other words, you must pass self by yourself!
+
+Install
+==========
+
+Let's try it now
+
+Use pip::
+
+    pip install newsuper
+    
+or easy_install::
+
+    easy_install newsuper
+    
+also, there is windows installer.
