@@ -1,0 +1,47 @@
+Plone Hotfix package, 2011-10-04
+********************************
+
+This hotfix fixes the following vulnerabilities:
+
+* A vulnerability in CMFEditions where KwAsAttributes classes were publishable,
+  exposing sub-objects to anonymous access. This vulnerability is found in
+  CMFEditions 2.0a1 and up. CMFEditions 1.x and before are not vulnerable.
+
+* Zope vulnerability `CVE 2011-3587`_. This vulnerability is found in Zope
+  2.12.x and 2.13.x. Zope 2.11 and before are not vulnerable.
+
+  This Plone Hotfix applies the same fix as Products.Zope_Hotfix_CVE_2011_3587
+  and can co-exist with that patch.
+
+.. _`CVE 2011-3587`: http://www.cve.mitre.org/cgi-bin/cvename.cgi?name=2011-3587
+
+
+This hotfix is supported on Plone 4.0 - 4.0.9, 4.1 and 4.2. Older versions
+of Plone (3.3.x and below) are not affected by the vulnerabilities and are not
+supported by this patch.
+
+The fixes included here will be incorporated into subsequent releases of Plone,
+so Plone 4.0.10, 4.1.1, 4.2a3 and greater should not require this hotfix.
+
+
+Installation
+============
+
+Installation instructions can be found at
+http://plone.org/products/plone-hotfix/releases/20110928
+
+
+Changelog
+=========
+
+1.1 (2011-10-04)
+----------------
+
+- Fix URLs in the readme and setup.py.
+  [mj]
+
+1.0 (2011-10-04)
+----------------
+
+- Initial release
+  [Plone security team]
