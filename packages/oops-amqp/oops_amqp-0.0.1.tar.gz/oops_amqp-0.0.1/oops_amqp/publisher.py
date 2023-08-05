@@ -1,0 +1,86 @@
+# Copyright (c) 2011, Canonical Ltd
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# GNU Affero General Public License version 3 (see the file LICENSE).
+
+"""Publish OOPS reports over amqp."""
+
+__metaclass__ = type
+
+from hashlib import md5
+import socket
+from threading import local
+
+from amqplib import client_0_8 as amqp
+from bson import dumps
+
+__all__ = [
+    'Publisher',
+    ]
+
+class Publisher:
+    """Publish OOPS reports over AMQP.
+    
+    Messages are published as bson dicts via durable messages sent to a
+    supplied exchange + routing key.
+    """
+
+    def __init__(self, connection_factory, exchange_name, routing_key):
+        """Create a publisher.
+
+        :param connection_factory: A callable which creates an amqplib
+            Connection when called. This is used to create connections - one
+            per thread which OOPS publishing happens in. This is because
+            amqplib is not threadsafe and recommends not sharing connections
+            across threads.
+        :param exchange_name: The name of the exchange to publish to.
+        :param routing_key: The routing key for messages.
+        """
+        self.connection_factory = connection_factory
+        self.exchange_name = exchange_name
+        self.routing_key = routing_key
+        self.channels = local()
+
+    def get_channel(self):
+        if getattr(self.channels, 'channel', None) is None:
+            try:
+                self.channels.channel = self.connection_factory().channel()
+            except socket.error:
+                # Could not connect
+                return None
+        return self.channels.channel
+
+    def __call__(self, report):
+        # Don't mess with the passed in report.
+        report = dict(report)
+        # Discard any existing id.
+        report.pop('id', None)
+        # Hash it, to make an ID
+        oops_id = "OOPS-%s" % md5(dumps(report)).hexdigest()
+        # Store the id in what we send on the wire, so that the recipient has
+        # it.
+        report['id'] = oops_id
+        message = amqp.Message(dumps(report))
+        # We don't want to drop OOPS on the floor if rabbit is restarted.
+        message.properties["delivery_mode"] = 2
+        channel = self.get_channel()
+        if channel is None:
+            return None
+        try:
+            channel.basic_publish(
+                message, self.exchange_name, routing_key=self.routing_key)
+        except socket.error:
+            self.channels.channel = None
+            return None
+        return oops_id
