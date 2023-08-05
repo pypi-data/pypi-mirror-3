@@ -1,0 +1,299 @@
+Metadata-Version: 1.0
+Name: quick_orm
+Version: 0.2.1
+Summary: A python orm which enables you to get started in less than a minute! Super easy to setup and super easy to use, yet super powerful! You would regret that you didn't discorver it earlier!
+Home-page: http://stackoverflow.com/users/862862/tyler-long
+Author: Tyler Long
+Author-email: tyler4long@gmail.com
+License: BSD
+Description: Introduction
+        ************
+        A python ORM which enables you to get started in less than a minute! 
+        Super easy to setup and super easy to use, yet super powerful! 
+        You would regret that you didn't discorver it earlier!
+        
+        
+        
+        Features
+        ********
+         - quick: you could get and play with it in less than a minute. It couldn't be more straightforward.
+         - easy: you don't have to write any SQL statement, including those "create table xxx ..." ones.
+         - simple: the core code counts only 220 lines including comments and pydocs, bugs have nowhere to hide.
+         - free: released under BSD license, you are free to use it and distribute it.
+         - powerful: built upon SQLAlchemy and doesn't compromise its power.
+         - flexible: you are free to write raw sql to improve performance.
+         - support multiple databases: you can map your models to many databases without difficulty.
+         - write less, do more: taking advantage of python metaclass reduces data modeling code dramatically.
+         - long-term maintained: Continous efforts are taking to improve and maintain it.
+        
+        
+        
+        Prerequisites 
+        *************
+        You need Python 2.6 or above. I didn't test it against Python 3+. I will do it soon.
+        You need SQLAlchemy 0.7+. I didn't test it against SQLAlchemy versions before 0.7. 
+        You need toolkit_library 0.3.1+
+        You could issue the following command to install the prerequisites: 
+            pip install --upgrade sqlalchemy
+            pip install --upgrade toolkit_library
+        
+               
+        
+        How to install or upgrade ? 
+        ***************************
+        just one command:  
+            pip install --upgrade quick_orm    
+        Alternatively you could download the source code and issue command: python setup.py install
+        
+        
+        
+        Hello World example
+        *******************
+        from quick_orm.core import Database
+        from sqlalchemy import Column, String
+        
+        class User(object):
+            __metaclass__ = Database.DefaultMeta
+            name = Column(String(70))
+        
+        if __name__ == '__main__':
+            database = Database('sqlite://')
+            database.create_tables()
+            
+            user = User(name = 'Hello World')
+            database.session.add_then_commit(user)
+            
+            user = database.session.query(User).get(1)
+            print 'My name is', user.name
+        
+        
+        
+        Foreign Key example
+        *******************
+        from quick_orm.core import Database
+        from sqlalchemy import Column, String, Text
+        
+        class Question(object):
+            __metaclass__ = Database.DefaultMeta
+            title = Column(String(70))
+            content = Column(Text)
+        
+        @Database.foreign_key(Question)
+        class Answer(object):
+            __metaclass__ = Database.DefaultMeta
+            content = Column(Text)
+        
+        if __name__ == '__main__':
+            database = Database('sqlite://')
+            database.create_tables()
+            
+            question = Question(title = 'What is Quick ORM ?', content = 'What is Quick ORM ?')
+            answer = Answer(question = question, content = 'Quick ORM is a python ORM which enables you to get started in less than a minute!')
+            database.session.add_then_commit(answer)
+            
+            question = database.session.query(Question).get(1)
+            print 'The question is:', question.title
+            print 'The answer is:', question.answers.first().content
+        
+        
+        
+        Many-to-many relationship example
+        *********************************
+        from quick_orm.core import Database
+        from sqlalchemy import Column, String, Text
+        
+        class User(object):
+            __metaclass__ = Database.DefaultMeta
+            name = Column(String(70))
+        
+        @Database.many_to_many(User)
+        class Role(object):
+            __metaclass__ = Database.DefaultMeta
+            name = Column(String(70))
+        
+        if __name__ == '__main__':
+            database = Database('sqlite://')
+            database.create_tables()
+            
+            user1 = User(name = 'Tyler Long')
+            database.session.add(user1)
+            user2 = User(name = 'Peter Lau')
+            database.session.add(user1)
+            role = Role(name = 'Administrator', users = [user1, user2])
+            database.session.add_then_commit(role)
+        
+            admin_role = database.session.query(Role).filter_by(name = 'Administrator').one()
+            print ', '.join([user.name for user in admin_role.users]), 'are admintrators'
+        
+        
+        
+        Performing raw sql query example
+        ********************************
+        from quick_orm.core import Database
+        from sqlalchemy import Column, String
+        
+        class User(object):
+            __metaclass__ = Database.DefaultMeta
+            name = Column(String(70))
+        
+        if __name__ == '__main__':
+            database = Database('sqlite://')
+            database.create_tables()
+            
+            count = database.engine.execute('select count(name) from user').scalar()
+            print 'There are {0} users in total'.format(count)
+        
+        
+        
+        Multiple databases example
+        **************************
+        from quick_orm.core import Database
+        from sqlalchemy import Column, String
+        
+        class User(object):
+            __metaclass__ = Database.DefaultMeta
+            name = Column(String(70))
+        
+        if __name__ == '__main__':
+            database1 = Database('sqlite://')
+            database1.create_tables()
+        
+            database2 = Database('sqlite://')
+            database2.create_tables()
+            
+            user1 = User(name = 'user in database1')
+            user2 = User(name = 'user in database2')
+            database1.session.add_then_commit(user1)
+            database2.session.add_then_commit(user2)
+            
+            print 'I am', database1.session.query(User).get(1).name
+            print 'I am', database2.session.query(User).get(1).name
+        
+        
+        
+        Table inheritance example
+        *************************
+        from quick_orm.core import Database
+        from sqlalchemy import Column, String, Text
+        
+        class User(object):
+            __metaclass__ = Database.DefaultMeta
+            name = Column(String(70))
+        
+        @Database.foreign_key(User)
+        class Post(object):
+            __metaclass__ = Database.DefaultMeta
+            content = Column(Text)
+        
+        class Question(Post):
+            title = Column(String(70))    
+        
+        @Database.foreign_key(Question)
+        class Answer(Post):
+            pass
+        
+        @Database.foreign_key(Post)
+        class Comment(Post):
+            pass
+        
+        if __name__ == '__main__':
+            database = Database('sqlite://')
+            database.create_tables()
+        
+            user1 = User(name = 'Tyler Long')
+            user2 = User(name = 'Peter Lau')
+            
+            question = Question(user = user1, title = 'What is Quick ORM ?', content = 'What is Quick ORM ?')
+            answer = Answer(user = user1, question = question, 
+                content = 'Quick ORM is a python ORM which enables you to get started in less than a minute!')
+            comment1 = Comment(user = user2, content = 'good question', post = question)
+            comment2 = Comment(user = user2, content = 'nice answer', post = answer)
+        
+            database.session.add_all([question, answer, comment1, comment2])
+            database.session.commit()
+        
+            question = database.session.query(Question).get(1)
+            print 'new comment on question:', question.comments.first().content
+            print 'new comment on answer:', question.answers.first().comments.first().content
+        
+            # Could the last two line work as you expected? Try it yourself!
+            user = database.session.query(User).filter_by(name = 'Peter Lau').one()
+            print 'Peter Lau has posted {0} comments'.format(user.comments.count())
+        
+        
+        
+        Write less, do more example
+        ***************************
+        from quick_orm.core import Database
+        from sqlalchemy import Column, String, DateTime, func
+        
+        class DefaultModel(object):
+            name = Column(String(70))
+            created = Column(DateTime, default = func.now(), nullable = False)
+        
+        metaclass = Database.MetaBuilder(DefaultModel)
+        
+        class User(object):
+            __metaclass__ = metaclass
+        
+        class Group(object):
+            __metaclass__ = metaclass
+        
+        if __name__ == '__main__':
+            database = Database('sqlite://')
+            database.create_tables()
+            user = User(name = 'tylerlong')
+            database.session.add(user)
+            group = Group(name = 'python')
+            database.session.add_then_commit(group)
+        
+            print user.name, user.created
+            print group.name, group.created
+        
+        
+        
+        
+        More examples
+        *************
+        More examples could be found in folder site-packages/quick_orm/examples/
+        And even more examples are being added   
+          
+        
+        
+        Where to learn more about quick_orm?
+        ************************************
+        As said above, quick_orm is built upon SQLAlchemy. Quick ORM never tried to hide SQLAlchemy's flexibility and power. 
+        Everything availiable in SQLAlchemy is still available in quick_orm. 
+        So please read the documents of SQLAlchemy, you would learn much more there than you could here.  
+        Read quick_orm's source code. add anything you want to it.
+        
+        
+        
+        You wanna involve? 
+        ******************
+        The source code is released under BSD lisence. And the current code line is below 220 (including comments and pydocs).
+        I am planning to move the project to github. I will post the link here once I've done.
+        
+        
+        
+        Acknowledgements
+        ****************
+        Quick ORM is built upon SQLAlchemy - the famous Python SQL Toolkit and Object Relational Mapper. 
+        All of the glory belongs to the SQLAlchemy development team and the SQLAlchemy community! 
+        My contribution to Quich ORM becomes trivial compared with theirs( to SQLAlchemy).
+        
+        
+        
+        Feedback 
+        ********
+        Comments, suggestions, questions, free beer, t-shirts, kindles, ipads ... are all welcome! 
+        Email: quick.orm.feedback@gmail.com 
+        
+Platform: any
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
