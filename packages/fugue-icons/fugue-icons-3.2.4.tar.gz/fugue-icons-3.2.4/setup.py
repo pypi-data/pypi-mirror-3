@@ -1,0 +1,32 @@
+from setuptools import setup
+
+setup(
+    name='fugue-icons',
+    description='Fugue Icons packaged for simple use in web apps.',
+    version='3.2.4',
+    license='MIT',
+    author='Radomir Dopieralski',
+    author_email='fugue@sheep.art.pl',
+    url='https://bitbucket.org/thesheep/fugue-icons/',
+    download_url='https://bitbucket.org/thesheep/fugue-icons/get/master.tar.gz',
+    keywords='icon css sprite graphics ui',
+    packages=['fugue_icons'],
+    install_requires=['distribute'],
+    platforms='any',
+    requires=['pygame'],
+    include_package_data=True,
+    zip_safe=False,
+    classifiers=[
+        'Development Status :: 6 - Mature',
+        'Environment :: Web Environment',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python',
+        'Topic :: Multimedia :: Graphics',
+        'Topic :: Scientific/Engineering :: Human Machine Interfaces',
+        'Topic :: Scientific/Engineering :: Visualization',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Software Development :: User Interfaces',
+    ],
+)
