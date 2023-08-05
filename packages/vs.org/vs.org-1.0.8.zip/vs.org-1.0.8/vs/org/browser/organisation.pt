@@ -1,0 +1,215 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      lang="en"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="plone">
+<body>
+
+<metal:slot fill-slot="javascript_head_slot">
+
+    <script type="text/javascript">
+        var $j = jQuery.noConflict();
+
+        /*
+        $j(document).ready(function() {
+            $(".formTab span").bind('dblclick', function() { 
+                $j(#area-slot2').empty();
+                $j(#area-slot3').empty();
+                $j(#department-slot2').empty();
+                $j(#department-slot3').empty();
+                $j(#location-slot2').empty();
+                $j(#location-slot3').empty();
+            });
+        });
+        */
+
+        $j(document).ready(function() {
+            $j(".bcenabled").live('click', function() {
+                var slot_selector = $j(this).parents('.slot-selector').attr('id');
+                $j('#'+slot_selector+' .highlight').toggleClass('highlight');
+                $j(this).toggleClass('highlight');
+            });
+        });
+
+        function showSlot2(index) {
+            $j('#area-slot2 .enum').hide('fast');
+            $j('#area-slot3').empty();
+            $j('#area-slot2 #area-slot2-' + index).show('fast');
+        }
+
+        function showDepartmentSlot2(index) {
+            $j('#department-slot2 .enum').hide('fast')
+            $j('#department-slot3').empty();
+            $j('#department-slot2 #department-slot2-' + index).show('fast');
+        }
+
+        function showDepartmentsInSlot3ForUid(uid) {
+            $j('#area-slot3').load('getDepartmentsForInstitutionAsHtml?uid=' + uid);
+            }
+
+        function showBusinessAreasForLocationInSlot2(country_region) {
+            $j('#location-slot3').empty();
+            $j('#location-slot2').load('getBusinessAreasForLocationAsHtml?country_region=' + encodeURIComponent(country_region));
+            }
+
+        function showInstitutionsInLocationForBusinessAreaInSlot3(country_region, area) {
+            $j('#location-slot3').load('getInstitutionsInLocationForBusinessAreaAsHtml?country_region=' + encodeURIComponent(country_region) + '&area=' + encodeURIComponent(area));
+        }
+
+        function highlight(node, slot) {
+           $j(slot + ' a').removeClass('highlight');            
+           $j(node).addClass('highlight');
+        }
+
+    </script>
+
+</metal:slot>
+
+<metal:main fill-slot="main">
+    <tal:main-macro metal:define-macro="main"
+           tal:define="kssClassesView context/@@kss_field_decorator_view;
+                       getKssClasses nocall:kssClassesView/getKssClassesInlineEditable;
+                       templateId template/getId;
+                       text here/getText;">
+
+        <div tal:replace="structure provider:plone.abovecontenttitle" />
+
+        <h1 class="documentFirstHeading">
+            <metal:field use-macro="python:here.widget('title', mode='view')">
+            Title
+            </metal:field>
+        </h1>
+
+        <div tal:replace="structure provider:plone.belowcontenttitle" />
+
+        <p class="documentDescription">
+            <metal:field use-macro="python:here.widget('description', mode='view')">
+            Description
+            </metal:field>
+        </p>
+
+        <div tal:replace="structure provider:plone.abovecontentbody" />
+
+        <p tal:define="is_editable context/@@plone_context_state/is_editable"
+           tal:condition="python: not text and is_editable"
+           i18n:translate="no_body_text"
+           class="discreet">
+            This item does not have any body text, click the edit tab to change it.
+        </p>
+
+        <metal:field use-macro="python:here.widget('text', mode='view')">
+        Body text
+        </metal:field>
+
+        <div metal:use-macro="here/document_relateditems/macros/relatedItems">
+            show related items if they exist
+        </div>
+
+
+        <dl class="enableFormTabbing">
+            <dt id="fieldsetlegend-institution" class="switcher">...nach Gesch&auml;ftsbereichen</dt>
+            <dd id="fieldset-institution" 
+                tal:define="result view/getDataByBusinessArea">
+                <table border="0" width="100%">
+                    <tr>
+                        <td id="area-slot1" class="slot-selector" width="33%">
+                            <ul class="enum">
+                                <li tal:repeat="area result/areas">                             
+                                    <a tal:attributes="href string:javascript:showSlot2('${repeat/area/index}');
+                                                       id   string:area-slot1-${repeat/area/index};
+                                                       class string:bcenabled"
+                                       tal:content="area"
+                                    />
+                                </li>
+                            </ul>
+                        </td>
+                        <td id="area-slot2" class="slot-selector" width="33%">
+                            <tal:loop repeat="area result/areas">
+                                <ul class="enum" tal:attributes="id string:area-slot2-${repeat/area/index}"  style="display: none">
+                                    <li tal:repeat="inst python: result['area2inst'][area]">
+                                        <a tal:attributes="href string:javascript:showDepartmentsInSlot3ForUid('${inst/UID}');
+                                                           class string:bcenabled"
+                                           tal:content="inst/Title"
+                                        />
+                                    <a tal:attributes="href inst/absolute_url"><img tal:attributes="src string:${portal_url}/++resource++vs.org.images/institution_icon.gif" alt="" title="" /> </a>
+                                    </li>
+                                </ul>
+                            </tal:loop>
+                        </td>
+                        <td id="area-slot3" class="slot-selector" width="33%">
+                        </td>
+                    </tr>
+                </table>
+            </dd>
+
+            <dt id="fieldsetlegend-departments" class="switcher">...nach Fachrichtungen/Abteilungen</dt>
+            <dd id="fieldset-departments"> 
+                <table border="0" width="100%" tal:define="data view/getDepartmentOverview">
+                    <tr>
+                        <td id="department-slot1" class="slot-selector" width="33%">
+                            <ul class="enum">
+                                <li tal:repeat="row data">
+                                    <a tal:attributes="href string:javascript:showDepartmentSlot2('${repeat/row/index}');
+                                                       id string:department-slot1-${repeat/row/index};
+                                                       class string:bcenabled"
+                                        tal:content="row/Specialisation" />
+                                </li>
+                            </ul>
+                        </td>
+                        <td id="department-slot2" class="slot-selector" width="33%">
+                            <tal:loop repeat="row data">
+                                <ul class="enum" tal:attributes="id string:department-slot2-${repeat/row/index}" style="display: none">
+
+                                    <li tal:repeat="item row/deps">                     
+                                        <a tal:attributes="href item/institution/getURL;
+                                                           class string:bcenabled" 
+                                           tal:content="item/institution/Title" />
+                                        <a tal:attributes="href item/institution/getURL"><img tal:attributes="src string:${portal_url}/++resource++vs.org.images/institution_icon.gif" alt="" title="" /> </a>
+                                    </li>
+                                </ul>
+                            </tal:loop>
+                        </td>
+                        <td id="department-slot3" class="slot-selector" width="33%">
+                        </td>
+                    </tr>
+                </table>
+            </dd>
+
+            <dt id="fieldsetlegend-regions" class="switcher">...nach Regionen</dt>
+            <dd id="fieldset-regions"> 
+                <table border="0" width="100%" tal:define="data_all view/getLocationOverview"> 
+                    <tr>
+                        <td id="location-slot1" class="slot-selector" width="33%">
+                            <ul tal:repeat="data data_all">
+                                <li tal:content="string:label_country_${data/country}" i18n:translate="" i18n:domain="vs.org" >country</li>
+                                <ul>
+                                    <li tal:repeat="item data/provinces">
+                                        <a tal:define="country_region python: context.plone_utils.normalizeString('%s-%s' % (data['country'], item['province']))"
+                                            tal:attributes="href string:javascript:showBusinessAreasForLocationInSlot2('$country_region');
+                                                            id string:location-slot1-${repeat/item/index};
+                                                            class string:bcenabled"
+                                            tal:content="item/province"
+                                        /> 
+                                    </li>
+                                </ul>
+                            </ul>
+                        </td>
+                        <td id="location-slot2" class="slot-selector" width="33%">
+                        </td>
+                        <td id="location-slot3" class="slot-selector" width="33%">
+                        </td>
+                    </tr>
+                </table>
+            </dd>
+        </dl>
+
+        <div tal:replace="structure provider:plone.belowcontentbody" />
+
+    </tal:main-macro>
+</metal:main>
+
+</body>
+</html>
+

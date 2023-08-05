@@ -1,0 +1,68 @@
+var map=null;
+var geocoder=null;
+
+<metal:block tal:define="view context/@@map_view">
+
+function showAddress(address, center) {
+    if (geocoder){
+        geocoder.getLatLng(
+            address[0],
+            function(point) {
+                my_point = null;
+                if (address[1].length != 0) {
+                    my_point = new GLatLng(address[1][0], address[1][1]);
+                }
+                if (!point) {
+                    alert(address[0] + " nicht gefunden");
+                    map.setCenter(new GLatLng(52.419749,13.163981), 13);
+                    alert(address[0] + " not found");
+                } else {
+                    if (center){
+                        map.setCenter(my_point != null ? my_point: point , 13);
+                    }
+                    var marker = new GMarker(my_point != null? my_point:point);
+                    map.addOverlay(marker);
+                    GEvent.addListener(marker, "click", function() {
+                        marker.openInfoWindowHtml(address[0]);
+                    });
+                    if (center) {
+                        marker.openInfoWindowHtml(address[0]);
+                    }
+                }
+            }
+        );
+    }
+}
+ 
+function initAddresses(){ 
+    var addresses = Array();
+    <tal:block tal:repeat="address view/getAddresses">
+        var c_geo = Array();
+        <tal:geoblock tal:repeat="geo address/geocode" tal:condition="address/geocode">
+           c_geo.push(<tal:str tal:replace="geo" />);
+        </tal:geoblock>
+        addresses.push(new Array('<tal:str tal:replace="address/title" />', c_geo));
+    </tal:block>
+    for (var i = 0; i < addresses.length; ++i) {
+        if (i == 0) {
+            showAddress(addresses[i], true);
+        } else {
+            showAddress(addresses[i], true);
+        } 
+    }
+}
+</metal:block>
+function mapsInit() {
+    if (GBrowserIsCompatible()) {
+        map = new GMap2(document.getElementById("map"));
+        map.addControl(new GSmallMapControl());
+        map.addControl(new GMapTypeControl());
+        map.addControl(new GOverviewMapControl());
+        map.addControl(new GSmallMapControl());
+        geocoder = new GClientGeocoder();
+        initAddresses();
+    }
+}
+
+registerEventListener(window, 'load', mapsInit);
+registerEventListener(window, 'unload', GUnload);
