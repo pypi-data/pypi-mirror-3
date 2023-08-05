@@ -1,0 +1,112 @@
+""" Code to extract FITS frame extensions.
+
+Context : SRP
+Module  : SRPFitsExtension.py
+Version : 1.1.0
+Author  : Stefano Covino
+Date    : 30/08/2011
+E-mail  : stefano.covino@brera.inaf.it
+URL:    : http://www.merate.mi.astro.it/utenti/covino
+
+Usage   : SRPFitsExtension [-e] -i arg1 [-h] [-v]
+            -e, --extract         Extract extensions
+            -i Input FITS file list or single FITS file
+            -n Plane numebr to extract
+            Extract extensions in a FITS file
+
+History : (24/08/2011) First version.
+        : (30/08/2011) Possibility to choose the plane to extract.
+"""
+
+
+
+import os
+from optparse import OptionParser
+import pyfits
+import warnings
+from SRP.SRPFits.FitsImageClass import FitsImage
+from SRP.SRPFits.IsFits import IsFits
+
+
+
+parser = OptionParser(usage="usage: %prog [-e] -i arg1 [-h] [-n arg2] [-v]", version="%prog 1.0.0")
+parser.add_option("-i", "--inputlist", action="store", nargs=1, type="string", help="Input FITS file list or single FITS file")
+parser.add_option("-e", "--extract", action="store_true", help="Extract extensions")
+parser.add_option("-n", "--nplane", action="store", nargs=1, type="int", help="Plane number to extract")
+parser.add_option("-v", "--verbose", action="store_true", help="Fully describe operations")
+(options, args) = parser.parse_args()
+
+
+if options.inputlist:
+    # Input files
+    if os.path.isfile(options.inputlist):
+        # FITS file
+        if IsFits(options.inputlist):
+            if options.verbose:
+                print "Input FITS file is: %s" % options.inputlist
+            FITSfileflag = True
+        # FITS file list
+        else:
+            try:
+                f = open(options.inputlist)
+            except IOError:
+                parser.error("FITS file list not readable.")
+            #
+            if options.verbose:
+                print "Input FITS file list is: %s" % options.inputlist
+            FITSfileflag = False
+        #                        
+        flist = []
+        nentr = 0
+        while True:
+            if FITSfileflag:
+                flist.append(options.inputlist)
+                nentr = 1
+                break
+            else:
+                try:
+                    dt = f.readline()
+                except IOError:
+                    parser.error("FITS file list not readable.")
+                if dt != '':
+                    flist.append(dt.split()[0])
+                    nentr = nentr + 1
+                    if not IsFits(flist[nentr-1]):
+                        parser.error("Input FITS file %s not found" % flist[nentr-1])
+                    if options.verbose:
+                        print "FITS file selected: %s" % flist[nentr-1]    
+                else:
+                    break
+        if not FITSfileflag:
+            f.close()
+        #
+        # Begin analysis
+        for fr in flist:
+            frhdu = pyfits.open(fr)
+            #
+            if options.verbose:
+                frhdu.info()
+                print
+            nel = len(frhdu)
+            # 
+            # if extraction flag is set
+            if options.extract:
+                r,e = os.path.splitext(fr)
+                for i in range(nel):
+                    if options.nplane == None or options.nplane == i:
+                        frhduh = frhdu[i].header
+                        frhdud = frhdu[i].data
+                        newnamefile = "%s_%d%s" % (r,i,e)
+                        if options.verbose:
+                            print "Creating file: %s" % newnamefile
+                        warnings.resetwarnings()
+                        warnings.filterwarnings('ignore', category=UserWarning, append=True)
+                        pyfits.writeto(newnamefile,frhdud,frhduh,clobber=True)
+                        warnings.resetwarnings() 
+                        warnings.filterwarnings('always', category=UserWarning, append=True)
+            #
+            frhdu.close()
+    else:
+        parser.error("Input file or file list does not exist.")
+else:
+    parser.print_help()
