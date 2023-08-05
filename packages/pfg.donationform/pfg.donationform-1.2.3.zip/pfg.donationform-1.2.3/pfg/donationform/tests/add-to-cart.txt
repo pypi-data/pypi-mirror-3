@@ -1,0 +1,153 @@
+This tests the donation form in a configuration where it is the first step
+before checking out via the GetPaid checkout wizard.
+
+Get a test browser.
+
+  >>> from Products.Five.testbrowser import Browser
+  >>> authenticated_browser = browser = Browser()
+  >>> self.app.acl_users.userFolderAddUser('root', 'secret', ['Manager'], [])
+  >>> browser.addHeader('Authorization', 'Basic root:secret')
+  >>> self.portal.MailHost.smtp_host = 'localhost'
+  
+The manager should be able to add a Donation Form.
+
+  >>> browser.handleErrors = False
+  >>> browser.open('http://nohost/plone')
+  >>> browser.getLink('Donation Form').click()
+  >>> browser.url
+  'http://nohost/plone/+/addDonationForm'
+
+Configuring the Donation Form
+-----------------------------
+
+Set a title for the form.
+  >>> browser.getControl('Title').value = 'Support'
+
+We can list some donation levels. (We'll use the default.)
+  >>> print browser.getControl('Donation Levels').value
+  10|Supporter
+  25|Friend
+  50|Patron
+
+We choose to not automatically create contact and billing fields.
+(This means the standard GetPaid checkout wizard will be used.)
+  >>> browser.getControl('Create contact and billing fields').selected = False
+
+Disable SSL form submission since we're testing.
+  >>> browser.getControl('Use HTTPS').selected = False
+
+Now create the form.
+  >>> browser.getControl('Add').click()
+  >>> browser.url
+  'http://nohost/plone/support'
+
+Completing the form
+-------------------
+
+We should have a field for specifying the donation amount, and a GetPaid
+checkout adapter.
+  >>> form = self.portal.support
+  >>> form.objectIds()
+  ['mailer', 'thank-you', 'donation', 'getpaid-checkout']
+
+The donation widget should be populated with the options we entered above.
+  >>> browser.getControl(name="donation_level").options
+  ['10.0', '25.0', '50.0', '']
+
+The input to specify a custom amount should be blank.
+  >>> browser.getControl(name='donation_amount').value
+  ''
+
+Manually disable the mailer, since we can't send mail in this test.
+  >>> form.setActionAdapter(('getpaid-checkout',))
+
+We can't submit the form without specifying an amount.
+  >>> browser.getControl(name="donation_amount").value = ''
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/support'
+  >>> 'Please enter digits only for the donation amount.' in browser.contents
+  True
+
+Now choose an amount and submit.
+  >>> browser.getControl(name='donation_level').value = ['10.0']
+  >>> browser.getControl('Donate').click()
+
+Now we should have been diverted to the GetPaid checkout wizard, with the
+donation added to the cart.
+  >>> browser.url
+  'http://nohost/plone/@@getpaid-cart'
+  >>> 'Support' in browser.contents
+  True
+  >>> '10.00' in browser.contents
+  True
+
+Other ways of specifying the amount
+-----------------------------------
+
+Make sure we can specify an arbitrary amount.
+  >>> browser.open('http://nohost/plone/support')
+  >>> browser.getControl(name='donation_amount').value = '3.14'
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/@@getpaid-cart'
+  >>> '3.14' in browser.contents
+  True
+
+Make sure we can't specify an amount that is not a number.
+  >>> browser.open('http://nohost/plone/support')
+  >>> browser.getControl(name='donation_amount').value = 'foobar'
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/support'
+  >>> 'Please enter digits only for the donation amount.' in browser.contents
+  True
+
+But we can include a dollar sign at the beginning.
+  >>> browser.open('http://nohost/plone/support')
+  >>> browser.getControl(name='donation_amount').value = '$42'
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/@@getpaid-cart'
+  >>> '42.00' in browser.contents
+  True
+
+The donation amount must be above the minimum.
+  >>> form.donation.setFgMinimumDonation(5)
+  >>> browser.open('http://nohost/plone/support')
+  >>> browser.getControl(name='donation_amount').value = '1'
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/support'
+  >>> "Sorry, we cannot accept online donations of less than $5" in browser.contents
+  True
+
+We can specify that the donation should be recurring.
+  >>> form.donation.setFgRecurForever(False)
+  >>> browser.open('http://nohost/plone/support')
+  >>> browser.getControl(name='donation_amount').value = '25'
+  >>> browser.getControl(name='donation_recurring').value = [True]
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/@@getpaid-cart'
+  >>> '25.00' in browser.contents
+  True
+  >>> 'You will be billed for this product every 1 months, for a total of 12 payments.' in browser.contents
+  True
+
+But only if we give a valid integer for the number of recurrences.
+  >>> browser.open('http://nohost/plone/support')
+  >>> browser.getControl(name='donation_amount').value = '25'
+  >>> browser.getControl(name='donation_recurring').value = [True]
+  >>> browser.getControl(name='donation_occurrences').value = 'foobar'
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/support'
+  >>> 'Please enter digits only for the number of payments.' in browser.contents
+  True
+
+Make sure that we can specify a suggested donation amount and have it be selected.
+  >>> form.donation.setFgCost('42')
+  >>> browser.open('http://nohost/plone/support')
+  >>> browser.getControl(name='donation_amount').value
+  '42.00'

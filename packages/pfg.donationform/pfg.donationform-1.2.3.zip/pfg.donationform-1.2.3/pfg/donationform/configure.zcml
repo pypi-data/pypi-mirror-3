@@ -1,0 +1,79 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:five="http://namespaces.zope.org/five"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:cmf="http://namespaces.zope.org/cmf"
+    xmlns:i18n="http://namespaces.zope.org/i18n"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="pfg.donationform">
+
+  <five:registerPackage package="." initialize=".initialize" />
+  
+  <cmf:registerDirectory name="skins" directory="skins" recursive="True" />
+  
+  <include package="Products.PloneFormGen"/>
+  <include zcml:condition="installed Products.PloneGetPaid" package="Products.PloneGetPaid"/>
+  <include package="getpaid.formgen"/>
+  <include package="collective.pfg.creditcardfields"/>
+  
+  <utility
+      component=".browser.DonationFormFactory"
+      name="addDonationForm"
+      />
+  <browser:page
+      name="addDonationForm"
+      for="zope.app.container.interfaces.IAdding"
+      class=".browser.DonationFormAddForm"
+      permission="cmf.AddPortalContent"
+      />
+  <browser:page
+      name="pfg.donationform-field-helper"
+      for="*"
+      class=".donationfieldset.DonationFieldHelperView"
+      permission="zope.Public"
+      allowed_attributes="listFgDonationLevels requestValue formatAmount"
+      />
+  
+  <adapter factory=".cart.DonationFieldLineItemFactory"/>
+  
+  <!-- Register the installation GenericSetup extension profile -->
+  <genericsetup:registerProfile
+      name="default"
+      title="Donation Form"
+      directory="profiles/default"
+      description="Adds a PloneFormGen-based donation form that does checkout via getpaid."
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      />
+  
+  <!-- custom steps for installation profile -->
+  <genericsetup:importStep
+    name="pfgdonation-various"
+    title="Donation Form custom setup steps"
+    description=""
+    handler=".setuphandlers.importVarious">
+    <depends name="typeinfo"/>
+  </genericsetup:importStep>
+
+  <!-- set add_view_expr when upgrading from Plone 3 to 4 -->
+  <genericsetup:upgradeStep
+      source="4001"
+      destination="4002"
+      title="Update Donation Form FTI"
+      description="Add an add view expression for Plone 4."
+      profile="Products.CMFPlone:plone"
+      handler="pfg.donationform.setuphandlers.set_add_view_expr"
+      />
+
+  <class class=".donationfieldset.DonationFieldSet">
+    <require
+        permission="zope2.View"
+        interface=".interfaces.IDonationFieldSet"
+        />
+    <require
+        permission="cmf.ModifyPortalContent"
+        set_schema=".interfaces.IDonationFieldSet"
+        />
+  </class>
+
+</configure>

@@ -1,0 +1,103 @@
+This tests the donation form in a "single-page checkout" configuration.
+
+Get a test browser.
+
+  >>> from Products.Five.testbrowser import Browser
+  >>> authenticated_browser = browser = Browser()
+  >>> self.app.acl_users.userFolderAddUser('root', 'secret', ['Manager'], [])
+  >>> browser.addHeader('Authorization', 'Basic root:secret')
+  >>> self.portal.MailHost.smtp_host = 'localhost'
+  
+The manager should be able to add a Donation Form.
+
+  >>> browser.handleErrors = False
+  >>> browser.open('http://nohost/plone')
+  >>> browser.getLink('Donation Form').click()
+  >>> browser.url
+  'http://nohost/plone/+/addDonationForm'
+
+Configuring the Donation Form
+-----------------------------
+
+The form for adding a donation form has the job of collecting some settings,
+and then has the job of creating a normal PloneFormGen form based on those
+settings.  So the initial form doesn't have all the normal form settings;
+those can be adjusted later.
+
+We must set a title for the form.
+  >>> browser.getControl('Title').value = 'Support'
+
+We can list some donation levels.  (We'll use the default.)
+  >>> print browser.getControl('Donation Levels').value
+  10|Supporter
+  25|Friend
+  50|Patron
+
+Since we want a one-page checkout, we choose to automatically create contact
+and billing fields.  This is the default.
+  >>> browser.getControl('Create contact and billing fields').selected
+  True
+
+Disable SSL form submission since we're testing.
+  >>> browser.getControl('Use HTTPS').selected = False
+
+Now finish creating the form.
+  >>> browser.getControl('Add').click()
+  >>> browser.url
+  'http://nohost/plone/support'
+
+Filling out the form
+--------------------
+
+We should have fields for specifying the donation amount, plus the contact
+and billing fieldsets, and a GetPaid checkout adapter.
+  >>> form = self.portal.support
+  >>> form.objectIds()
+  ['mailer', 'thank-you', 'donation', 'getpaid-checkout', 'contact-info', 'billing-info']
+
+The donation widget should be populated with the options we entered above.
+  >>> browser.getControl(name="donation_level").options
+  ['10.0', '25.0', '50.0', '']
+
+Manually disable the mailer, since we can't send mail in this test.
+  >>> form.setActionAdapter(('getpaid-checkout',))
+
+Fill out the other fields.
+  >>> browser.getControl(name='first_name').value = 'David'
+  >>> browser.getControl(name='last_name').value = 'Glick'
+  >>> browser.getControl('E-mail').value = 'david@example.com'
+  >>> browser.getControl('Street Address').value = '1402 3rd Ave.'
+  >>> browser.getControl('City').value = 'Seattle'
+  >>> browser.getControl('State').value = 'WA'
+  >>> browser.getControl('Postal Code').value = '98101'
+  >>> browser.getControl('Phone').value = '2062861235'
+  >>> browser.getControl('Credit Card Type').value = ['Visa']
+  >>> browser.getControl(name='credit_card').value = '4222222222222'
+  >>> browser.getControl('Card Holder Name').value = 'David Glick'
+  >>> browser.getControl('Credit Card Verification Number').value = '111'
+  >>> browser.getControl(name='cc_expiration_month').value = ['01']
+  >>> browser.getControl(name='cc_expiration_year').value = ['2012']
+
+We can't submit the form without specifying an amount.
+  >>> browser.getControl(name="donation_amount").value = ''
+  >>> browser.getControl('Donate').click()
+  >>> browser.url
+  'http://nohost/plone/support'
+  >>> 'Please enter digits only for the donation amount.' in browser.contents
+  True
+
+Now choose an amount and submit.
+  >>> browser.getControl(name='donation_level').value = ['10.0']
+  >>> browser.getControl('Donate').click()
+
+We should see the normal form thank you page.
+  >>> 'Thanks for your generous donation' in browser.contents
+  True
+
+And we can confirm that the order was processed successfully.
+  >>> browser.open('http://nohost/plone/@@manage-getpaid-orders')
+  >>> browser.getLink(url='@@admin-manage-order').click()
+  >>> 'Non-recurring Order' in browser.contents
+  True
+  >>> 'CHARGED' in browser.contents
+  True
