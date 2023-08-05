@@ -1,0 +1,157 @@
+Dalimil
+=======
+version from 2011-11-15
+dalimil tool organizes files into time related containers (directories or archives).
+
+Prerequisities
+==============
+Python 2.6 or 2.7
+Runs on Windows as well on Linux
+
+.. warning:: files can be deleted - Use it at your own risk.
+
+   The tool deletes files in some actions, so be aware, the files can be deleted.
+
+   I was carefull with designing and programming the tool to be as safe as possible.
+   Some tests were also done, but be warned, that this is early version.
+
+Install
+=======
+Use standard methods like::
+  
+  $ python setup.py install
+  
+or::
+  
+  pip install dalimil
+
+or::
+  
+  easy_install dalimil
+
+It shall install script called `dalimil` into python site-packages. 
+
+It is recommended to add this path (python `site-packages`) into you PATH.
+
+Use
+===
+see dalimil -h
+
+Author
+======
+Jan Vlcinsky
+jan.vlcinsky@cad-programs.com
+
+Current doc
+===========
+::
+
+  usage: dalimil [-h]
+                 [-action {list,move2dir,move2zip,move2targz,copy2dir,copy2zip,copy2targz}]
+                 [-destination DESTINATION] [-time {modified,pattern}]
+                 [-pattern TIME_DETECTION_PATTERN] [-incomplete]
+                 source [source ...]
+
+  dalimil tool organizes files into time related containers (directories or archives).
+  Note: This command never starts anything by itself, it runs only once per call.
+
+  So called Dalimil wrote Chronicle of Dalimil, sorting past and current events.
+  See http://en.wikipedia.org/wiki/Chronicle_of_Dalimil    
+
+  positional arguments:
+    source                Unix shell pattern for selecting files to archive.
+                          (defaults to all files in current dir)
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    -action {list,move2dir,move2zip,move2targz,copy2dir,copy2zip,copy2targz}
+                          Defines action to do with files organized into time
+                          related containers. (default: list)
+    -destination DESTINATION
+                          Time formated pattern for resulting container
+                          (default: archive/year-%Y/month-%m/%Y-%m-%d.zip)
+    -time {modified,pattern}
+                          Method, how time of file is detected, options:
+                          modified, pattern (default: modified)
+    -pattern TIME_DETECTION_PATTERN
+                          Pattern, detecting time from filename. Effective only,
+                          if -time_detection_method is "pattern". Path is
+                          ignored, first part of filename must fit, useless end
+                          of filename can be omitted. (default:
+                          %Y-%m-%dT%H_%M_%S))
+    -incomplete           Allows creation of containers for periods, which are
+                          not yet completed (default: False))
+
+  Files are selected using Unix shell like syntax using *, ?, [seq] and [!seq]
+  Finally, files are placed container, which is archive file or end leaf directory.  
+  Warning: File selection pattern can select files from multiple directories.
+  If final container rejects storing duplicate names, duplicates are skipped.
+
+  Time is detected from file modification or creation time, or decoded from filename.
+
+  Resulting containers are defined by time formating pattern.
+
+  Time formating patters for target path and container name:
+  Defines path and file name, which can be created from related file time.
+      %c Locale's appropriate date and time representation.
+      %d Day of the month as a decimal number [01,31].
+      %f Microsecond as a decimal number [0,999999], zero-padded on the left
+      %H Hour (24-hour clock) as a decimal number [00,23].
+      %j Day of the year as a decimal number [001,366].
+      %m Month as a decimal number [01,12].
+      %M Minute as a decimal number [00,59].
+      %S Second as a decimal number [00,61].
+      %U Week number of the year (Sunday as the first day of the week) as a decimal number [00,53]. All days in a new year preceding the first Sunday are considered to be in week 0.
+      %w Weekday as a decimal number [0(Sunday),6].
+      %W Week number of the year (Monday as the first day of the week) as a decimal number [00,53]. All days in a new year preceding the first Monday are considered to be in week 0.
+      %y Year without century as a decimal number [00,99].
+      %Y Year with century as a decimal number.
+      %z UTC offset in the form +HHMM or -HHMM (empty string if the the object is naive).
+      %Z Time zone name (empty string if the object is naive).
+  For more and details see bottom of page http://docs.python.org/library/datetime.html
+  Samples: pattern => resulting path + archive name:
+      "archive/%Y-%m-%dT%H.zip" => "archive/2010-02-28T13.zip" 
+      "archive/%Y/%m/%d.zip" => "archive/2010/02/28.zip" 
+      "archive/%Y/week-%W.zip" => "archive/2010/week-10.zip"
+  default value is:
+      "archive/year-%Y/month-%m/%Y-%m-%d.zip" => "archive/year-2010/month-08/2010-08-28.zip"
+
+  Containers contain flat structure without deeper directory tree.
+  Source files can be finally deleted or left as they are.
+  Use action list (default) to see expected result without endangering files.
+
+  Existing containers are never touched, if they are found, *_1.* etc. is used.
+
+  Reading command line parameters from file: write arguments into text file,
+  each prefix and each value on separate lines like 
+      ------(quotation of my.cfg start)
+      -action
+      movetozip
+      D:\my files with spaces\data\2010-0[789]\*.xml
+      E:/other/location/data\2010-0[789]\*.xml
+      (quotation of my.cfg end)------    
+  Then from command line 
+      dalimil -incomplete @my.cfg
+  will read it.
+  Mixing command line arguments and others from file(s) is possible.
+
+  Examples:
+  Dry test of archiving *.xml from current folder without touching the files
+      dalimil *.xml
+
+  Move the *.xml fles into subdir archive/year-2010/month-08/2010-08-28.zip etc.
+  Current period are skipped
+      dalimil -a move2zip *.xml
+
+  Move there all files, including current period
+      dalimil -a move2zip -incomplete *.xml
+
+  Copy the *.xml files into dir structure without zipping (dirs keep the .zip extension)
+      dalimil -a copy2dir *.xml
+
+  Move the *.xml files into dir structure of style archive/year-2010/month-08/2010-08-28
+      dalimil -a move2dir -d archive/year-%Y/month-%m/%Y-%m-%d *.xml
+
+  Move to archives, detecting time of files from file names
+  Expecting file names notes-201010251325_abc.xml
+      dalimil -t pattern -p notes-%Y%m%d%H%M -a move2zip *.xml
