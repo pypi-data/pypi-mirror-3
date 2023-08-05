@@ -1,0 +1,49 @@
+Introduction
+============
+
+This is an add-on for Plone to provide some content management metadata
+essentials.
+
+Even if they are several fields, they complement each other to build a set of
+useful features for managing and maintaining websites.
+
+Responsible person
+------------------
+
+It may come as a surprise to some that we don't have this in Plone already. We
+store and index the creator of content (a mostly useless value) and we manage an
+owner role on content, a permission rule not indexed for practical use. The
+responsible person is the person that owns the content and is responsible for
+keeping it updated.
+
+Validity date
+-------------
+
+The expiry date field in Plone is not very useful and not often used beyond
+checkboxes in feature comparisons. This field, the validity date, is more
+useful: It is always set when saving an object (like the versioning note) from a
+vocabulary of dates in the future (1 week, 1 month, 3 months, 6 months, 1 year
+from now). Whenever the object is saved, the date is set in the future.
+
+When the date approaches, the responsible person will be notified that his
+content is about to expire. It will also be visible in her review lists. For
+updating it, all she needs to do is to open the content and save it again,
+effectively setting the expiry date some time in the future. If the content does
+expire, it will, according to site policy, either be archived/made
+unavailable/hidden, or visibly marked as obsolete/unmaintained.
+
+Views and actions needed
+------------------------
+
+* My content
+    a screen of content i am responsible for and its status
+    Perhaps batch operations on it
+    perhaps batch assign to someone else
+
+* New document byline
+    the responsible person, not the creator
+    alternatively a portlet with a photo and contact details of the responsible person
+
+* a new ownership form which sets this field along with the owner role
+
+* a global change ownership form for when you delete/deactivate users.
