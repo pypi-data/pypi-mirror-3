@@ -1,0 +1,55 @@
+[buildout]
+develop=\${buildout:directory}/src/$project/setup.py
+eggs=$project
+extensions=buildout.eggtractor
+newest=false
+project-name=${project}_dev
+server-name=$hostname_dev
+tractor-src-directory=parts
+parts=
+    django
+    uwsgi
+    nginx
+    media-links
+    uwsgi-supervisor
+
+[django]
+recipe=djangorecipe
+projectegg=$project
+settings=dev_settings
+eggs=\${buildout:eggs}
+
+[uwsgi]
+recipe=shaunsephton.recipe.uwsgi
+socket=127.0.0.1:7001
+module=${project}.wsgi
+eggs=\${buildout:eggs}
+
+[nginx]
+recipe=collective.recipe.template
+input=buildout_templates/nginx.conf
+output=\${buildout:directory}/nginx/${project}.conf
+port=80
+media-root=\${buildout:directory}/media
+
+[media-links]
+recipe = svetlyak40wt.recipe.symlinks
+path = \${buildout:directory}/media
+files =
+    \${buildout:directory}/src/$project/$project/media/$project
+#for $app in $required_apps
+    #if 'buildout_media_links' in $required_apps[$app].keys
+        #for $link in $required_apps[$app]['buildout_media_links']
+            $link
+        #end for
+    #end if
+#end for
+
+[uwsgi-supervisor]
+recipe=collective.recipe.template
+input=buildout_templates/supervisor.uwsgi
+output=\${buildout:directory}/supervisor/\${buildout:project-name}.uwsgi.conf
+name=\${buildout:project-name}
+user=www-data
+xml=uwsgi.xml
+log=\${buildout:directory}/log/uwsgi.log
