@@ -1,0 +1,396 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>StarCluster Elastic Load Balancer &mdash; StarCluster v0.92 documentation</title>
+    <link rel="stylesheet" href="../_static/pylons.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.92',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="StarCluster v0.92 documentation" href="../index.html" />
+    <link rel="up" title="StarCluster User Manual" href="index.html" />
+    <link rel="next" title="Enabling Tab Completion for Bash/Zsh" href="shell_completion.html" />
+    <link rel="prev" title="Adding and Removing Nodes from StarCluster" href="addremovenode.html" />
+<link rel="stylesheet" href="../_static/nobile.css" type="text/css" media="screen" charset="utf-8" />
+<link rel="stylesheet" href="../_static/neuton.css" type="text/css" media="screen" charset="utf-8" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+<link rel="shortcut icon" href="../_static/starcluster.ico"/>
+
+  </head>
+  <body>
+<div class="header-small">
+	
+	<div class="logo-small">
+		<a href="../index.html">
+      		<img class="logo" src="../_static/logo-small.png" alt="Logo"/>
+		</a>
+  	</div>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="shell_completion.html" title="Enabling Tab Completion for Bash/Zsh"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="addremovenode.html" title="Adding and Removing Nodes from StarCluster"
+             accesskey="P">previous</a> |</li>
+    	<li><a href="../index.html">Home</a> &raquo;</li>
+          <li><a href="../contents.html" >Master Table of Contents</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">StarCluster User Manual</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="starcluster-elastic-load-balancer">
+<h1>StarCluster Elastic Load Balancer<a class="headerlink" href="#starcluster-elastic-load-balancer" title="Permalink to this headline">¶</a></h1>
+<p>StarCluster&#8217;s load balancer grows and shrinks an Oracle Grid Engine cluster
+according to the length of the cluster&#8217;s job queue. When the cluster is heavily
+loaded and processing a long job queue, the load balancer can gradually add
+more nodes, up to the specified max_nodes, to distribute the work and improve
+throughput. When the queue becomes empty, the load balancer can remove idle
+nodes in order to save money. The cluster will shrink down to a single node,
+the master, terminating all of the other nodes as they become idle.</p>
+<div class="section" id="goals">
+<h2>Goals<a class="headerlink" href="#goals" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>To increase the size of the cluster to some user-defined maximum number of
+nodes when there is a large queue of waiting jobs</li>
+<li>To decrease the size of the cluster to a single node or some minimum number
+of nodes when there are no jobs waiting to optimize for cost</li>
+<li>To elastically balance the cluster&#8217;s load deterministically, predictably, and
+slowly.</li>
+</ul>
+</div>
+<div class="section" id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
+<p>You must already have a cluster running in order to use StarCluster&#8217;s load
+balancer. Once you have a cluster running you can load balance the cluster by
+passing the name of the cluster to the <em>loadbalance</em> command:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance mycluster</pre>
+</div>
+<p>This will start the load balancer in an infinite loop running on your local
+machine. The load balancer will continuously monitor the cluster&#8217;s Oracle Grid
+Engine queue and determine whether it should add or remove nodes to the cluster
+or not. A running load balancer session can be safely stopped at any time by
+pressing CTRL-C. A new load balancing session can be resumed later simply by
+re-executing the above command.</p>
+<div class="section" id="cluster-size-limits">
+<h3>Cluster Size Limits<a class="headerlink" href="#cluster-size-limits" title="Permalink to this headline">¶</a></h3>
+<p>If a cluster that&#8217;s being load balanced experiences a heavy load for a
+sustained amount of time, the load balancer will begin adding nodes
+continuously in order to reduce the load. Once the cluster size has reached an
+upper-bound limit the load balancer will stop adding new nodes even if it
+thinks another node should be added. Conversely, if the cluster is idle for a
+prolonged amount of time the load balancer will begin removing nodes to reduce
+costs. Once the cluster size has reached a lower-bound limit the load balancer
+will stop removing nodes.</p>
+<p>By default, the upper-bound, is set to the original <strong>CLUSTER_SIZE</strong> used when
+creating the cluster and the lower-bound is set to one. This means that the
+number of nodes in the cluster will fluctuate, by default, between 1 and
+<strong>CLUSTER_SIZE</strong> as necessary to optimize for cost and performance.</p>
+<p>You can change the upper-bound limit, or maximum number of nodes, using the
+<em>-m</em> or <em>&#8211;max_nodes</em> option:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -m 20 mycluster</pre>
+</div>
+<p>The above command tells the load balancer to increase the size of the cluster
+as necessary up until there are twenty nodes in the cluster.</p>
+<p>You can also change the lower-bound limit, or minimum number of nodes, using
+the <em>-n</em> or <em>&#8211;min_nodes</em> option:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -n 3 mycluster</pre>
+</div>
+<p>The above command tells the load balancer to decrease the size of the cluster
+as necessary until there are three nodes in the cluster.</p>
+</div>
+<div class="section" id="increasing-cluster-growth-rate">
+<h3>Increasing Cluster Growth Rate<a class="headerlink" href="#increasing-cluster-growth-rate" title="Permalink to this headline">¶</a></h3>
+<p>By default the load balancer will add a single node at a time when adding new
+nodes to the cluster. This allows the load balancer to gradually make a change
+and observe the impact on the queue without adding excessive resources.
+However, if you&#8217;d like to increase the number of nodes added when the load
+balancer determines more nodes are necessary use the <em>-a</em>, or
+<em>&#8211;add_nodes_per_iter</em>, option:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -m 20 -a 2 mycluster</pre>
+</div>
+<p>The above command will load balance <em>mycluster</em> up to a maximum of twenty nodes
+by adding two nodes at a time as necessary.</p>
+</div>
+<div class="section" id="load-balancer-statistics">
+<h3>Load Balancer Statistics<a class="headerlink" href="#load-balancer-statistics" title="Permalink to this headline">¶</a></h3>
+<p>The <em>loadbalance</em> command supports outputting various load balancing stats over
+time such as the number of nodes, number of running jobs, number of queued
+jobs, etc while it&#8217;s running:</p>
+<img alt="../_images/balancer_visualizer.png" src="../_images/balancer_visualizer.png" />
+<p>To plot these stats over time in <em>png</em> format:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -p mycluster</pre>
+</div>
+<p>By default, this will generate the plots as <em>png</em> images in
+$HOME/.starcluster/sge/&lt;cluster_tag&gt;/. You can change where the load balancer
+outputs the images using the <em>-P</em> option:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -p -P /path/to/stats/imgs/dir mycluster</pre>
+</div>
+<p>You can also dump the raw stats used to build the above plots into a single csv
+file:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -d mycluster</pre>
+</div>
+<p>The above command will run the load balancer and output stats to a csv file. By
+default the stats are written to
+$HOME/.starcluster/sge/&lt;cluster_tag&gt;/sge-stats.csv, however, this can be
+changed using the <em>-D</em> option:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -d -D /path/to/statsfile.csv mycluster</pre>
+</div>
+<p>You can of course combine all of these options to generate both the plots and
+the raw statistics:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance -d -p mycluster</pre>
+</div>
+</div>
+<div class="section" id="advanced-configuration">
+<h3>Advanced Configuration<a class="headerlink" href="#advanced-configuration" title="Permalink to this headline">¶</a></h3>
+<p>The following parameters are also available for fine-tuning, however, the
+majority of users shouldn&#8217;t need them:</p>
+<ol class="arabic simple">
+<li><strong>Polling interval</strong> (-i INTERVAL or &#8211;interval=INTERVAL) - How often, in
+seconds, to collect statistics and make decisions</li>
+<li><strong>Wait Time</strong> (-w WAIT_TIME, &#8211;job_wait_time=WAIT_TIME) - Maximum wait time,
+in seconds, for a job before adding nodes</li>
+<li><strong>Kill after</strong> (-k KILL_AFTER, &#8211;kill_after=KILL_AFTER) - Minutes after
+which a node can be killed</li>
+<li><strong>Stabilization time</strong> (-s STAB, &#8211;stabilization_time=STAB) - How long, in
+seconds, to wait before cluster &#8220;stabilizes&#8221;</li>
+<li><strong>Lookback window</strong> (-l LOOKBACK_WIN, &#8211;lookback_window=LOOKBACK_WIN) - How
+long, in minutes, to look back for past job history</li>
+</ol>
+</div>
+<div class="section" id="experimental-features">
+<h3>Experimental Features<a class="headerlink" href="#experimental-features" title="Permalink to this headline">¶</a></h3>
+<p>The load balancer, by default, will not kill the master node in order to keep
+the cluster alive and functional. However, there are times when you might want
+to destroy the master if the cluster is completely idle and there are no more
+nodes left to remove. For example, you may wish to launch 10000 jobs and have
+the cluster shutdown when the last job has completed. In this case you can use
+the experimental <em>-K</em>, or <em>&#8211;kill-master</em>, option:</p>
+<div class="highlight-python"><pre>$ starcluster loadbalance --kill-master mycluster</pre>
+</div>
+<p>The above command will load balance <em>mycluster</em> as usual, however, once all
+jobs have completed and all worker nodes have been shutdown by the load
+balancer the master node will also be terminated.</p>
+</div>
+</div>
+<div class="section" id="how-it-works">
+<h2>How it Works<a class="headerlink" href="#how-it-works" title="Permalink to this headline">¶</a></h2>
+<p>There is a polling loop that runs every 60 seconds by default. The polling loop
+interval can be tuned using the <em>-i</em> configuration option discussed in the
+previous section. Every polling interval the load balancer will connect to the
+cluster, obtain statistics from Oracle Grid Engine, and decide whether or not
+to add or remove nodes based on the current job queue. The load balancer only
+deals only with the queue length and active machines. Currently the load
+balancer only supports monitoring the <em>default</em> queue, &#8220;all.q&#8221;. Future releases
+will support balancing arbitrary once <a class="reference external" href="https://github.com/jtriley/StarCluster/pull/20">pull request 20</a> has been merged.</p>
+<p>The diagram below illustrates the decisions that the load balancer will make in
+each loop:</p>
+<img alt="../_images/balancer_decision_diagram.jpg" src="../_images/balancer_decision_diagram.jpg" />
+<div class="section" id="criteria-for-adding-a-node">
+<h3>Criteria for Adding a Node<a class="headerlink" href="#criteria-for-adding-a-node" title="Permalink to this headline">¶</a></h3>
+<p>A node will be added when <em>all</em> of the following criteria have been met:</p>
+<ol class="arabic simple">
+<li>There are jobs in the queued waiting (SGE&#8217;s moniker is &#8216;qw&#8217;) state</li>
+<li>The longest queued job has been waiting for more than 15 minutes</li>
+<li>The number of nodes does not meet or exceed the maximum number of nodes set
+in the configuration file.</li>
+</ol>
+<p>A user can set the number of nodes to be added per iteration. For instance, if
+the user wanted to add 1 node per iteration, which is standard and a
+recommended practice, they would set the <em>&#8211;add_nodes_per_iteration</em> parameter
+to one. If the user wanted two nodes to be added per iteration, that parameter
+should be set to two, and the cluster would grow at a faster rate, consequently
+incurring higher charges from Amazon.com.</p>
+</div>
+<div class="section" id="criteria-for-removing-a-node">
+<h3>Criteria for Removing a Node<a class="headerlink" href="#criteria-for-removing-a-node" title="Permalink to this headline">¶</a></h3>
+<p>A node will be removed when <em>all</em> of the following criteria have been met:</p>
+<ol class="arabic simple">
+<li>No jobs are in the queued waiting (&#8216;qw&#8217; state) state</li>
+<li>The node in question is idle, meaning it is not running an SGE job</li>
+<li>The node in question is not the master node</li>
+<li>The node in question has been up for more than 45 minutes past the hour.</li>
+</ol>
+<p>Each node in the cluster will be analyzed in turn, and any and all nodes
+meeting the above criteria will be terminated in that polling loop. The entire
+cluster need not be idle for a node to be terminated: If Node001 is working on
+a job, but Node002 is idle and there are no queued waiting jobs, Node002 is a
+candidate for termination.</p>
+</div>
+<div class="section" id="the-45-minutes-past-the-hour-rule">
+<h3>The 45 Minutes Past the Hour Rule<a class="headerlink" href="#the-45-minutes-past-the-hour-rule" title="Permalink to this headline">¶</a></h3>
+<p>Since Amazon charges by the hour, we are assuming that you have already paid
+for a full hour of server time. It would be wasteful to turn it off the moment
+it becomes idle. By keeping that node up for 45 minutes, we allow for it to
+complete the maximum workload from the queue, and use 75% of the hour you have
+already paid for.</p>
+<p>Leaving a node up for this amount of time also increases the stability of the
+cluster. It is detrimental to the cluster and wasteful to be continuosly adding
+and removing nodes.</p>
+</div>
+<div class="section" id="the-process-of-adding-a-node">
+<h3>The Process of Adding a Node<a class="headerlink" href="#the-process-of-adding-a-node" title="Permalink to this headline">¶</a></h3>
+<p>Adding a new node is a multi-stage process:</p>
+<ol class="arabic simple">
+<li>Use the cluster class to start up a new node of the same instance and AMI as
+the other slave nodes in the cluster.</li>
+<li>Wait for that node to come up. Name it with the highest Node # available: If
+Node001, Node003, and Node005, are started, the next node will be Node006.</li>
+<li>Set up an /etc/hosts file on each node in the cluster, mapping the new node
+name to its ip address.</li>
+<li>Create a cluster user account and cluster group on the new node.</li>
+<li>Set up the /etc/exports file, creating the NFS shares for /home and sge on
+the master, and then exportfs so the shares are open to the slave nodes.</li>
+<li>Mount the NFS shares on the new node.</li>
+<li>Configure SGE: inform the master of the new host&#8217;s address, and inform the
+new host of the master, and excute the sge commands to establish
+communications.</li>
+</ol>
+</div>
+<div class="section" id="the-process-of-removing-a-node">
+<h3>The Process of Removing a Node<a class="headerlink" href="#the-process-of-removing-a-node" title="Permalink to this headline">¶</a></h3>
+<p>Removing a node is also a multi-stage process:</p>
+<ol class="arabic simple">
+<li>Remove the node from SGE, so that no jobs can be sent to the node while it
+is in a transition period.</li>
+<li>Remove the node from the /etc/hosts file on other cluster machines.</li>
+<li>Remove the master&#8217;s nfs export to this soon-to-be-killed node. Call exportfs
+to cut it off.</li>
+<li>Terminate the node</li>
+</ol>
+<p>Given that the node is immediately removed from SGE, and it seems like SGE
+takes about 15 seconds between a qsub command and a node beginning execution of
+a job, makes it very unlikely that a job will be started on a host as it is
+going down. There is a very small window of time within which this could
+happen.</p>
+</div>
+<div class="section" id="learning-more">
+<h3>Learning More<a class="headerlink" href="#learning-more" title="Permalink to this headline">¶</a></h3>
+<p>To learn more about the design and development of the load balancer please see
+<a class="reference external" href="http://www.hindoogle.com/thesis/BanerjeeR_Thesis0316.pdf">Rajat Banerjee&#8217;s master&#8217;s thesis</a>.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">StarCluster Elastic Load Balancer</a><ul>
+<li><a class="reference internal" href="#goals">Goals</a></li>
+<li><a class="reference internal" href="#usage">Usage</a><ul>
+<li><a class="reference internal" href="#cluster-size-limits">Cluster Size Limits</a></li>
+<li><a class="reference internal" href="#increasing-cluster-growth-rate">Increasing Cluster Growth Rate</a></li>
+<li><a class="reference internal" href="#load-balancer-statistics">Load Balancer Statistics</a></li>
+<li><a class="reference internal" href="#advanced-configuration">Advanced Configuration</a></li>
+<li><a class="reference internal" href="#experimental-features">Experimental Features</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#how-it-works">How it Works</a><ul>
+<li><a class="reference internal" href="#criteria-for-adding-a-node">Criteria for Adding a Node</a></li>
+<li><a class="reference internal" href="#criteria-for-removing-a-node">Criteria for Removing a Node</a></li>
+<li><a class="reference internal" href="#the-45-minutes-past-the-hour-rule">The 45 Minutes Past the Hour Rule</a></li>
+<li><a class="reference internal" href="#the-process-of-adding-a-node">The Process of Adding a Node</a></li>
+<li><a class="reference internal" href="#the-process-of-removing-a-node">The Process of Removing a Node</a></li>
+<li><a class="reference internal" href="#learning-more">Learning More</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="addremovenode.html"
+                        title="previous chapter">Adding and Removing Nodes from StarCluster</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="shell_completion.html"
+                        title="next chapter">Enabling Tab Completion for Bash/Zsh</a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="shell_completion.html" title="Enabling Tab Completion for Bash/Zsh"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="addremovenode.html" title="Adding and Removing Nodes from StarCluster"
+             >previous</a> |</li>
+    	<li><a href="../index.html">Home</a> &raquo;</li>
+          <li><a href="../contents.html" >Master Table of Contents</a> &raquo;</li>
+          <li><a href="index.html" >StarCluster User Manual</a> &raquo;</li> 
+      </ul>
+    </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2010, Software Tools for Academics and Researchers.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+
+
+<script type="text/javascript">
+//<![CDATA[
+    var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+    document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+    //]]>
+    </script><script type="text/javascript">
+//<![CDATA[
+    try{
+        var pageTracker = _gat._getTracker("UA-1048253-12");
+        pageTracker._trackPageview();
+    } catch(err) {}
+    //]]>
+    </script>
+
+  </body>
+</html>
