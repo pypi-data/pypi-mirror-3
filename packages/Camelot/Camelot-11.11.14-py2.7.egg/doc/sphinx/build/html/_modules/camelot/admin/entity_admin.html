@@ -1,0 +1,813 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.admin.entity_admin &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.admin.entity_admin</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.admin.entity_admin&#39;</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">camelot.admin.action.list_action</span> <span class="kn">import</span> <span class="n">OpenFormView</span>
+<span class="kn">from</span> <span class="nn">camelot.admin.object_admin</span> <span class="kn">import</span> <span class="n">ObjectAdmin</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">post</span><span class="p">,</span> <span class="n">model_function</span><span class="p">,</span> <span class="n">gui_function</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext_lazy</span><span class="p">,</span> <span class="n">ugettext</span>
+<span class="kn">from</span> <span class="nn">camelot.admin.validator.entity_validator</span> <span class="kn">import</span> <span class="n">EntityValidator</span>
+
+<div class="viewcode-block" id="EntityAdmin"><a class="viewcode-back" href="../../../doc/entity_admin.html#camelot.admin.entity_admin.EntityAdmin">[docs]</a><span class="k">class</span> <span class="nc">EntityAdmin</span><span class="p">(</span><span class="n">ObjectAdmin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Admin class specific for classes that are mapped by sqlalchemy.</span>
+<span class="sd">This allows for much more introspection than the standard </span>
+<span class="sd">:class:`camelot.admin.object_admin.ObjectAdmin`.</span>
+<span class="sd">    </span>
+<span class="sd">It has additional class attributes that customise its behaviour.</span>
+
+<span class="sd">**Basic**</span>
+
+<span class="sd">.. attribute:: list_action</span>
+
+<span class="sd">   The :class:`camelot.admin.action.Action` that will be triggered when the</span>
+<span class="sd">   user selects an item in a list of objects.  This defaults to </span>
+<span class="sd">   :class:`camelot.admin.action.list_action.OpenFormView`, which opens a form</span>
+<span class="sd">   for the current object.</span>
+<span class="sd">   </span>
+<span class="sd">**Filtering**</span>
+
+<span class="sd">.. attribute:: list_filter</span>
+
+<span class="sd">    A list of fields that should be used to generate filters for in the table</span>
+<span class="sd">    view.  If the field named is a one2many, many2one or many2many field, the</span>
+<span class="sd">    field name should be followed by a field name of the related entity ::</span>
+
+<span class="sd">        class Project(Entity):</span>
+<span class="sd">            oranization = OneToMany(&#39;Organization&#39;)</span>
+<span class="sd">            name = Field(Unicode(50))</span>
+<span class="sd">    </span>
+<span class="sd">          class Admin(EntityAdmin):</span>
+<span class="sd">              list_display = [&#39;organization&#39;]</span>
+<span class="sd">              list_filter = [&#39;organization.name&#39;]</span>
+
+<span class="sd">    .. image:: /_static/filter/group_box_filter.png</span>
+
+<span class="sd">**Copying**</span>
+
+<span class="sd">.. attribute:: copy_deep</span>
+
+<span class="sd">   A dictionary of fields that will be deep copied when the user presses the copy</span>
+<span class="sd">   button.  This is usefull for OneToMany fields.  The key in the dictionary should</span>
+<span class="sd">   be the name of the field, and the value is a new dictionary that can contain other</span>
+<span class="sd">   fields that need to be copied::</span>
+
+<span class="sd">       copy_deep = {&#39;addresses&#39;:{}}</span>
+
+<span class="sd">.. attribute:: copy_exclude</span>
+
+<span class="sd">    A list of fields that should not be copied when the user presses the copy button::</span>
+
+<span class="sd">        copy_exclude = [&#39;name&#39;]</span>
+
+<span class="sd">    The fields that form the primary key of the object will be excluded by default.</span>
+
+<span class="sd">**Searching**</span>
+
+<span class="sd">.. attribute:: list_search</span>
+
+<span class="sd">    A list of fields that should be searched when the user enters something in</span>
+<span class="sd">    the search box in the table view.  By default all fields are</span>
+<span class="sd">    searched for which Camelot can do a conversion of the entered string to the</span>
+<span class="sd">    datatype of the underlying column.  </span>
+
+<span class="sd">    For use with one2many, many2one or many2many fields, the same rules as for the </span>
+<span class="sd">    list_filter attribute apply</span>
+
+<span class="sd">.. attribute:: search_all_fields</span>
+
+<span class="sd">    Defaults to True, meaning that by default all searchable fields should be</span>
+<span class="sd">    searched.  If this is set to False, one should explicitely set the list_search</span>
+<span class="sd">    attribute to enable search.</span>
+
+<span class="sd">.. attribute:: expanded_list_search</span>
+
+<span class="sd">    A list of fields that will be searchable through the expanded search.  When set </span>
+<span class="sd">    to None, all the fields in list_display will be searchable.  Use this attribute</span>
+<span class="sd">    to limit the number of search widgets.  Defaults to None.</span>
+<span class="sd"> </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">list_action</span> <span class="o">=</span> <span class="n">OpenFormView</span><span class="p">()</span>
+    <span class="n">list_search</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">expanded_list_search</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">copy_deep</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">copy_exclude</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">search_all_fields</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="n">validator</span> <span class="o">=</span> <span class="n">EntityValidator</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_admin</span><span class="p">,</span> <span class="n">entity</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">app_admin</span><span class="p">,</span> <span class="n">entity</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.exc</span> <span class="kn">import</span> <span class="n">UnmappedClassError</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.mapper</span> <span class="kn">import</span> <span class="n">_mapper_registry</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span> <span class="o">=</span> <span class="n">orm</span><span class="o">.</span><span class="n">class_mapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">UnmappedClassError</span><span class="p">,</span> <span class="n">exception</span><span class="p">:</span>
+            <span class="n">mapped_entities</span> <span class="o">=</span> <span class="p">[</span><span class="nb">unicode</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">_mapper_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">u&#39;</span><span class="si">%s</span><span class="s"> is not a mapped class, configured mappers include </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="p">,</span> <span class="s">u&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mapped_entities</span><span class="p">)),</span>
+                         <span class="n">exc_info</span><span class="o">=</span><span class="n">exception</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">exception</span>
+
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.get_query"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.get_query">[docs]</a>    <span class="k">def</span> <span class="nf">get_query</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: an sqlalchemy query for all the objects that should be</span>
+<span class="sd">        displayed in the table or the selection view.  Overwrite this method to</span>
+<span class="sd">        change the default query, which selects all rows in the database.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">elixir</span> <span class="kn">import</span> <span class="n">session</span>
+        <span class="k">return</span> <span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">entity</span> <span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.get_verbose_identifier"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.get_verbose_identifier">[docs]</a>    <span class="k">def</span> <span class="nf">get_verbose_identifier</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">obj</span><span class="p">:</span>
+            <span class="n">primary_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">primary_key_from_instance</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">in</span> <span class="n">primary_key</span><span class="p">:</span>
+                <span class="n">primary_key_representation</span> <span class="o">=</span> <span class="s">u&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">unicode</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">primary_key</span><span class="p">])</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;__unicode__&#39;</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="s">u&#39;</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s"> : </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span><span class="p">),</span>
+                        <span class="n">primary_key_representation</span><span class="p">,</span>
+                        <span class="nb">unicode</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="s">u&#39;</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span><span class="p">,</span>
+                        <span class="n">primary_key_representation</span>
+                    <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.get_field_attributes"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.get_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the attributes needed to visualize the field field_name</span>
+<span class="sd">        :param field_name: the name of the field</span>
+
+<span class="sd">        :return: a dictionary of attributes needed to visualize the field,</span>
+<span class="sd">        those attributes can be:</span>
+<span class="sd">         * python_type : the corresponding python type of the object</span>
+<span class="sd">         * editable : bool specifying wether the user can edit this field</span>
+<span class="sd">         * widget : which widget to be used to render the field</span>
+<span class="sd">         * ...</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.mapper</span> <span class="kn">import</span> <span class="n">_mapper_registry</span>
+            
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+
+            <span class="k">def</span> <span class="nf">create_default_getter</span><span class="p">(</span><span class="n">field_name</span><span class="p">):</span>
+                <span class="k">return</span> <span class="k">lambda</span> <span class="n">o</span><span class="p">:</span><span class="nb">getattr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">field_name</span><span class="p">)</span>
+
+            <span class="kn">from</span> <span class="nn">camelot.view.controls</span> <span class="kn">import</span> <span class="n">delegates</span>
+            <span class="c">#</span>
+            <span class="c"># Default attributes for all fields</span>
+            <span class="c">#</span>
+            <span class="n">attributes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="n">python_type</span> <span class="o">=</span> <span class="nb">str</span><span class="p">,</span>
+                <span class="n">to_string</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">,</span>
+                <span class="n">field_name</span> <span class="o">=</span> <span class="n">field_name</span><span class="p">,</span>
+                <span class="n">getter</span> <span class="o">=</span> <span class="n">create_default_getter</span><span class="p">(</span><span class="n">field_name</span><span class="p">),</span>
+                <span class="n">length</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
+                <span class="n">tooltip</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
+                <span class="n">background_color</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
+                <span class="n">minimal_column_width</span> <span class="o">=</span> <span class="mi">12</span><span class="p">,</span>
+                <span class="n">editable</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span>
+                <span class="n">nullable</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                <span class="n">widget</span> <span class="o">=</span> <span class="s">&#39;str&#39;</span><span class="p">,</span>
+                <span class="n">blank</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">,</span>
+                <span class="n">validator_list</span> <span class="o">=</span> <span class="p">[],</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">ugettext_lazy</span><span class="p">(</span><span class="n">field_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">,</span> <span class="s">&#39; &#39;</span><span class="p">)</span><span class="o">.</span><span class="n">capitalize</span><span class="p">())</span>
+            <span class="p">)</span>
+
+            <span class="c">#</span>
+            <span class="c"># Field attributes forced by the field_attributes property</span>
+            <span class="c">#</span>
+            <span class="n">forced_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">forced_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+            <span class="k">def</span> <span class="nf">resolve_target</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+                <span class="sd">&quot;&quot;&quot;A class or name of the class representing the other</span>
+<span class="sd">                side of a relation.  Use the name of the class to avoid</span>
+<span class="sd">                circular dependencies&quot;&quot;&quot;</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">mapped_class</span> <span class="ow">in</span> <span class="n">_mapper_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">mapped_class</span><span class="o">.</span><span class="n">class_</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+                            <span class="k">return</span> <span class="n">mapped_class</span><span class="o">.</span><span class="n">class_</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&#39;No mapped class found for target </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">target</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">target</span>
+                
+            <span class="k">def</span> <span class="nf">get_entity_admin</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+                <span class="sd">&quot;&quot;&quot;Helper function that instantiated an Admin object for a</span>
+<span class="sd">                target entity class.</span>
+
+<span class="sd">                :param target: an entity class for which an Admin object is</span>
+<span class="sd">                needed</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">admin_class</span> <span class="o">=</span> <span class="n">forced_attributes</span><span class="p">[</span><span class="s">&#39;admin&#39;</span><span class="p">]</span>
+                    <span class="k">return</span> <span class="n">admin_class</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_related_entity_admin</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+            <span class="c">#</span>
+            <span class="c"># Get the default field_attributes trough introspection if the</span>
+            <span class="c"># field is a mapped field</span>
+            <span class="c">#</span>
+            <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span><span class="p">,</span> <span class="n">schema</span>
+            <span class="kn">from</span> <span class="nn">sqlalchemy.exc</span> <span class="kn">import</span> <span class="n">InvalidRequestError</span>
+            <span class="kn">from</span> <span class="nn">camelot.view.field_attributes</span> <span class="kn">import</span> <span class="n">_sqlalchemy_to_python_type_</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">property</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span>
+                    <span class="n">field_name</span><span class="p">,</span>
+                    <span class="n">resolve_synonyms</span><span class="o">=</span><span class="bp">True</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">property</span><span class="p">,</span> <span class="n">orm</span><span class="o">.</span><span class="n">properties</span><span class="o">.</span><span class="n">ColumnProperty</span><span class="p">):</span>
+                    <span class="n">column_type</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">type</span>
+                    <span class="n">python_type</span> <span class="o">=</span> <span class="n">_sqlalchemy_to_python_type_</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                        <span class="n">column_type</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span>
+                        <span class="bp">None</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">python_type</span><span class="p">:</span>
+                        <span class="n">attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">python_type</span><span class="p">(</span><span class="n">column_type</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="nb">property</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">Column</span><span class="p">)</span> <span class="p">):</span>
+                        <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;nullable&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">nullable</span>
+                        <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;default&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">default</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">property</span><span class="p">,</span> <span class="n">orm</span><span class="o">.</span><span class="n">properties</span><span class="o">.</span><span class="n">PropertyLoader</span><span class="p">):</span>
+                    <span class="n">target</span> <span class="o">=</span> <span class="n">forced_attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span> <span class="s">&#39;target&#39;</span><span class="p">,</span> 
+                                                    <span class="nb">property</span><span class="o">.</span><span class="n">_get_target</span><span class="p">()</span><span class="o">.</span><span class="n">class_</span> <span class="p">)</span>
+                    
+                    <span class="c">#</span>
+                    <span class="c"># _foreign_keys is for sqla pre 0.6.4</span>
+                    <span class="c"># </span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="nb">property</span><span class="p">,</span> <span class="s">&#39;_foreign_keys&#39;</span><span class="p">):</span>
+                        <span class="n">foreign_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">property</span><span class="o">.</span><span class="n">_foreign_keys</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">foreign_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span> <span class="nb">property</span><span class="o">.</span><span class="n">_user_defined_foreign_keys</span> <span class="p">)</span>
+                        <span class="n">foreign_keys</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="nb">list</span><span class="p">(</span><span class="nb">property</span><span class="o">.</span><span class="n">_calculated_foreign_keys</span><span class="p">)</span> <span class="p">)</span>
+                        
+                    <span class="k">if</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="n">orm</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">ONETOMANY</span><span class="p">:</span>
+                        <span class="n">attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                            <span class="n">python_type</span> <span class="o">=</span> <span class="nb">list</span><span class="p">,</span>
+                            <span class="n">editable</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                            <span class="n">nullable</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                            <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">One2ManyDelegate</span><span class="p">,</span>
+                            <span class="n">target</span> <span class="o">=</span> <span class="n">target</span><span class="p">,</span>
+                            <span class="n">create_inline</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span>
+                            <span class="n">direction</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span><span class="p">,</span>
+                            <span class="n">admin</span> <span class="o">=</span> <span class="n">get_entity_admin</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+                        <span class="p">)</span>
+                    <span class="k">elif</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="n">orm</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">MANYTOONE</span><span class="p">:</span>
+                        <span class="n">attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                            <span class="n">python_type</span> <span class="o">=</span> <span class="nb">str</span><span class="p">,</span>
+                            <span class="n">editable</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                            <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">Many2OneDelegate</span><span class="p">,</span>
+                            <span class="n">target</span> <span class="o">=</span> <span class="n">target</span><span class="p">,</span>
+                            <span class="c">#</span>
+                            <span class="c"># @todo: take into account all foreign keys instead</span>
+                            <span class="c"># of only the first one</span>
+                            <span class="c">#</span>
+                            <span class="n">nullable</span> <span class="o">=</span> <span class="n">foreign_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">nullable</span><span class="p">,</span>
+                            <span class="n">direction</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span><span class="p">,</span>
+                            <span class="n">admin</span> <span class="o">=</span> <span class="n">get_entity_admin</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+                        <span class="p">)</span>
+                    <span class="k">elif</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="n">orm</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">MANYTOMANY</span><span class="p">:</span>
+                        <span class="n">attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                            <span class="n">python_type</span> <span class="o">=</span> <span class="nb">list</span><span class="p">,</span>
+                            <span class="n">editable</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                            <span class="n">target</span> <span class="o">=</span> <span class="n">target</span><span class="p">,</span>
+                            <span class="n">nullable</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                            <span class="n">create_inline</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span>
+                            <span class="n">direction</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span><span class="p">,</span>
+                            <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">ManyToManyDelegate</span><span class="p">,</span>
+                            <span class="n">admin</span> <span class="o">=</span> <span class="n">get_entity_admin</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+                        <span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&#39;PropertyLoader has unknown direction&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">InvalidRequestError</span><span class="p">:</span>
+                <span class="c">#</span>
+                <span class="c"># If the field name is not a property of the mapper, then use</span>
+                <span class="c"># the default stuff</span>
+                <span class="c">#</span>
+                <span class="k">pass</span>
+
+            <span class="k">if</span> <span class="s">&#39;choices&#39;</span> <span class="ow">in</span> <span class="n">forced_attributes</span><span class="p">:</span>
+                <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;delegate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">ComboBoxDelegate</span>
+                <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;editable&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">forced_attributes</span><span class="p">[</span><span class="s">&#39;choices&#39;</span><span class="p">],</span> <span class="nb">list</span><span class="p">):</span>
+                    <span class="n">choices_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">forced_attributes</span><span class="p">[</span><span class="s">&#39;choices&#39;</span><span class="p">])</span>
+                    <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;to_string&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span> <span class="p">:</span> <span class="n">choices_dict</span><span class="p">[</span><span class="n">x</span><span class="p">]</span>
+
+            <span class="c">#</span>
+            <span class="c"># Overrule introspected field_attributes with those defined</span>
+            <span class="c">#</span>
+            <span class="n">attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">forced_attributes</span><span class="p">)</span>
+
+            <span class="c">#</span>
+            <span class="c"># In case of a &#39;target&#39; field attribute, instantiate an appropriate</span>
+            <span class="c"># &#39;admin&#39; attribute</span>
+            <span class="c">#</span>
+            <span class="k">if</span> <span class="s">&#39;target&#39;</span> <span class="ow">in</span> <span class="n">attributes</span><span class="p">:</span>
+                <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;target&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">resolve_target</span><span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;target&#39;</span><span class="p">])</span>
+                <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;admin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_entity_admin</span><span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;target&#39;</span><span class="p">])</span>
+            
+            <span class="bp">self</span><span class="o">.</span><span class="n">_field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">attributes</span>
+            <span class="k">return</span> <span class="n">attributes</span>
+</div>
+<div class="viewcode-block" id="EntityAdmin.get_dynamic_field_attributes"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.get_dynamic_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_dynamic_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">field_names</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Takes the dynamic field attributes from through the ObjectAdmin its</span>
+<span class="sd">        get_dynamic_field_attributes and add the new_message attributes for</span>
+<span class="sd">        One2Many fields where the object was not flushed yet</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.session</span> <span class="kn">import</span> <span class="n">Session</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="n">Session</span><span class="o">.</span><span class="n">object_session</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+        <span class="c"># when a previous flush failed, obj might have no session</span>
+        <span class="k">if</span> <span class="n">session</span> <span class="ow">and</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">session</span><span class="o">.</span><span class="n">new</span><span class="p">:</span>
+            <span class="n">new_message</span> <span class="o">=</span> <span class="n">ugettext</span><span class="p">(</span><span class="s">&#39;Please complete the form first&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">new_message</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">for</span> <span class="n">attributes</span> <span class="ow">in</span> <span class="nb">super</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">get_dynamic_field_attributes</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">field_names</span><span class="p">):</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;new_message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_message</span>
+            <span class="k">yield</span> <span class="n">attributes</span>
+            </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.get_list_charts"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.get_list_charts">[docs]</a>    <span class="k">def</span> <span class="nf">get_list_charts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_charts</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.get_filters"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.get_filters">[docs]</a>    <span class="k">def</span> <span class="nf">get_filters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the filters applicable for these entities each filter is</span>
+
+<span class="sd">        :return: [(filter_name, [(option_name, query_decorator), ...), ... ]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.filters</span> <span class="kn">import</span> <span class="n">structure_to_filter</span>
+
+        <span class="k">def</span> <span class="nf">filter_generator</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">structure</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_filter</span><span class="p">:</span>
+                <span class="nb">filter</span> <span class="o">=</span> <span class="n">structure_to_filter</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="p">(</span><span class="nb">filter</span><span class="p">,</span> <span class="nb">filter</span><span class="o">.</span><span class="n">get_name_and_options</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">filter_generator</span><span class="p">())</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.set_defaults"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.set_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">set_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">,</span> <span class="n">include_nullable_fields</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set the fields of an object to their default state.</span>
+<span class="sd">        </span>
+<span class="sd">        :param include_nullable_fields: also set defaults for nullable fields, </span>
+<span class="sd">            depending on the context, this should be set to False to allow </span>
+<span class="sd">            the user to set the field to None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.schema</span> <span class="kn">import</span> <span class="n">ColumnDefault</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_deleted</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">attributes</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fields</span><span class="p">():</span>
+            <span class="n">has_default</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">default</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;default&#39;</span><span class="p">]</span>
+                <span class="n">has_default</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">if</span> <span class="n">has_default</span><span class="p">:</span>
+                <span class="c">#</span>
+                <span class="c"># prevent the setting of a default value when one has been</span>
+                <span class="c"># set already</span>
+                <span class="c">#</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;getter&#39;</span><span class="p">](</span><span class="n">entity_instance</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">value</span><span class="o">!=</span><span class="bp">None</span><span class="p">:</span> <span class="c"># False is a legitimate value for Booleans</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">ColumnDefault</span><span class="p">):</span>
+                    <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+                <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span><span class="n">default</span><span class="p">):</span>
+                    <span class="kn">import</span> <span class="nn">inspect</span>
+                    <span class="n">args</span><span class="p">,</span> <span class="n">_varargs</span><span class="p">,</span> <span class="n">_kwargs</span><span class="p">,</span> <span class="n">_defs</span> <span class="o">=</span> \
+                        <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">default</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+                        <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span><span class="p">(</span><span class="n">entity_instance</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s">&#39;set default for </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="n">field</span><span class="p">,</span>
+                        <span class="nb">unicode</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">entity_instance</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                        <span class="s">&#39;Programming Error : could not set&#39;</span>
+                        <span class="s">&#39; attribute </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s"> on </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="n">field</span><span class="p">,</span>
+                            <span class="n">default_value</span><span class="p">,</span>
+                            <span class="n">entity_instance</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+                        <span class="p">),</span>
+                        <span class="n">exc_info</span><span class="o">=</span><span class="n">exc</span>
+                    <span class="p">)</span>
+
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="EntityAdmin.create_select_view"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.create_select_view">[docs]</a>    <span class="k">def</span> <span class="nf">create_select_view</span><span class="p">(</span><span class="n">admin</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">search_text</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a Qt widget that can be used to select an element from a</span>
+<span class="sd">        query</span>
+
+<span class="sd">        :param query: sqlalchemy query object</span>
+
+<span class="sd">        :param parent: the widget that will contain this select view, the</span>
+<span class="sd">        returned widget has an entity_selected_signal signal that will be fired</span>
+<span class="sd">        when a entity has been selected.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.art</span> <span class="kn">import</span> <span class="n">Icon</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.proxy.queryproxy</span> <span class="kn">import</span> <span class="n">QueryTableProxy</span>
+        <span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span><span class="p">,</span> <span class="n">QtGui</span>
+
+        <span class="k">class</span> <span class="nc">SelectQueryTableProxy</span><span class="p">(</span><span class="n">QueryTableProxy</span><span class="p">):</span>
+            <span class="n">header_icon</span> <span class="o">=</span> <span class="n">Icon</span><span class="p">(</span><span class="s">&#39;tango/16x16/emblems/emblem-symbolic-link.png&#39;</span><span class="p">)</span>
+
+        <span class="k">class</span> <span class="nc">SelectView</span><span class="p">(</span><span class="n">admin</span><span class="o">.</span><span class="n">TableView</span><span class="p">):</span>
+            <span class="n">table_model</span> <span class="o">=</span> <span class="n">SelectQueryTableProxy</span>
+            <span class="n">entity_selected_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+            <span class="n">title_format</span> <span class="o">=</span> <span class="n">ugettext</span><span class="p">(</span><span class="s">&#39;Select </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">admin</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+                <span class="nb">super</span><span class="p">(</span><span class="n">SelectView</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+                    <span class="n">admin</span><span class="p">,</span>
+                    <span class="n">search_text</span><span class="o">=</span><span class="n">search_text</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">row_selected_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">sectionClicked</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">setUpdatesEnabled</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+                <span class="n">table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QTableView</span><span class="p">,</span> <span class="s">&#39;AdminTableWidget&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">table</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">table</span><span class="o">.</span><span class="n">keyboard_selection_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">on_keyboard_selection</span><span class="p">)</span>
+                    <span class="n">table</span><span class="o">.</span><span class="n">setEditTriggers</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">NoEditTriggers</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">emit_entity_selected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance_getter</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">entity_selected_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">instance_getter</span> <span class="p">)</span>
+                
+            <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+            <span class="k">def</span> <span class="nf">on_keyboard_selection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="n">table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QTableView</span><span class="p">,</span> <span class="s">&#39;AdminTableWidget&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">table</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">row_selected_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">currentIndex</span><span class="p">()</span><span class="o">.</span><span class="n">row</span><span class="p">())</span>
+
+            <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="k">def</span> <span class="nf">sectionClicked</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+                <span class="c"># table model will be set by the model thread, we can&#39;t</span>
+                <span class="c"># decently select if it has not been set yet</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">():</span>
+
+                    <span class="k">def</span> <span class="nf">create_constant_getter</span><span class="p">(</span><span class="n">cst</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="k">lambda</span><span class="p">:</span><span class="n">cst</span>
+
+                    <span class="k">def</span> <span class="nf">create_instance_getter</span><span class="p">():</span>
+                        <span class="n">entity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">_get_object</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">create_constant_getter</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+
+                    <span class="n">post</span><span class="p">(</span><span class="n">create_instance_getter</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">emit_entity_selected</span><span class="p">)</span>
+
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">SelectView</span><span class="p">(</span><span class="n">admin</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+        <span class="n">widget</span><span class="o">.</span><span class="n">setUpdatesEnabled</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">widget</span><span class="o">.</span><span class="n">setMinimumSize</span><span class="p">(</span><span class="n">admin</span><span class="o">.</span><span class="n">list_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">admin</span><span class="o">.</span><span class="n">list_size</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">widget</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">widget</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="EntityAdmin.create_table_view"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.create_table_view">[docs]</a>    <span class="k">def</span> <span class="nf">create_table_view</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a QWidget containing a table view</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">TableView</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.delete"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Delete an entity instance&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.session</span> <span class="kn">import</span> <span class="n">Session</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="n">Session</span><span class="o">.</span><span class="n">object_session</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># new and deleted instances cannot be deleted</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="n">session</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">entity_instance</span> <span class="ow">in</span> <span class="n">session</span><span class="o">.</span><span class="n">new</span><span class="p">:</span>
+                <span class="n">session</span><span class="o">.</span><span class="n">expunge</span><span class="p">(</span><span class="n">entity_instance</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="n">entity_instance</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">session</span><span class="o">.</span><span class="n">deleted</span><span class="p">)</span> <span class="ow">and</span> \
+                 <span class="p">(</span><span class="n">entity_instance</span> <span class="ow">in</span> <span class="n">session</span><span class="p">):</span> <span class="c"># if the object is not in the session, it might already be deleted</span>
+                <span class="n">history</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="c">#</span>
+                <span class="c"># only if we know the primary key, we can keep track of its history</span>
+                <span class="c">#</span>
+                <span class="n">primary_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">primary_key_from_instance</span><span class="p">(</span><span class="n">entity_instance</span><span class="p">)</span>
+                <span class="c">#</span>
+                <span class="c"># we can only store history of objects where the primary key has only</span>
+                <span class="c"># 1 element</span>
+                <span class="c"># @todo: store history for compound primary keys</span>
+                <span class="c">#</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">in</span> <span class="n">primary_key</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">primary_key</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+                    <span class="n">pk</span> <span class="o">=</span> <span class="n">primary_key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="c"># save the state before the update</span>
+                    <span class="kn">from</span> <span class="nn">camelot.model.memento</span> <span class="kn">import</span> <span class="n">BeforeDelete</span>
+                    <span class="c"># only register the delete when the camelot model is active</span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">BeforeDelete</span><span class="p">,</span> <span class="s">&#39;query&#39;</span><span class="p">):</span>
+                        <span class="kn">from</span> <span class="nn">camelot.model.authentication</span> <span class="kn">import</span> <span class="n">getCurrentAuthentication</span>
+                        <span class="n">history</span> <span class="o">=</span> <span class="n">BeforeDelete</span><span class="p">(</span> <span class="n">model</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">__name__</span> <span class="p">),</span>
+                                                <span class="n">primary_key</span> <span class="o">=</span> <span class="n">pk</span><span class="p">,</span>
+                                                <span class="n">previous_attributes</span> <span class="o">=</span> <span class="p">{},</span>
+                                                <span class="n">authentication</span> <span class="o">=</span> <span class="n">getCurrentAuthentication</span><span class="p">()</span> <span class="p">)</span>
+                <span class="n">entity_instance</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
+                <span class="n">session</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="p">[</span><span class="n">entity_instance</span><span class="p">]</span> <span class="p">)</span>
+                <span class="k">if</span> <span class="n">history</span><span class="p">:</span>
+                    <span class="n">Session</span><span class="o">.</span><span class="n">object_session</span><span class="p">(</span> <span class="n">history</span> <span class="p">)</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="p">[</span><span class="n">history</span><span class="p">]</span> <span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.expunge"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.expunge">[docs]</a>    <span class="k">def</span> <span class="nf">expunge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Expunge the entity from the session&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.session</span> <span class="kn">import</span> <span class="n">Session</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="n">Session</span><span class="o">.</span><span class="n">object_session</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">session</span><span class="o">.</span><span class="n">expunge</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">)</span>
+        </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.flush"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Flush the pending changes of this entity instance to the backend&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.session</span> <span class="kn">import</span> <span class="n">Session</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="n">Session</span><span class="o">.</span><span class="n">object_session</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">session</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="p">[</span><span class="n">entity_instance</span><span class="p">]</span> <span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.refresh"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.refresh">[docs]</a>    <span class="k">def</span> <span class="nf">refresh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Undo the pending changes to the backend and restore the original</span>
+<span class="sd">        state&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.session</span> <span class="kn">import</span> <span class="n">Session</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="n">Session</span><span class="o">.</span><span class="n">object_session</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">session</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_deleted</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">):</span>
+                <span class="n">session</span><span class="o">.</span><span class="n">refresh</span><span class="p">(</span> <span class="n">entity_instance</span> <span class="p">)</span>
+       </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.is_persistent"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.is_persistent">[docs]</a>    <span class="k">def</span> <span class="nf">is_persistent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: True if the object has a persisted state, False otherwise&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.session</span> <span class="kn">import</span> <span class="n">Session</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="n">Session</span><span class="o">.</span><span class="n">object_session</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">session</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">session</span><span class="o">.</span><span class="n">new</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">session</span><span class="o">.</span><span class="n">deleted</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">False</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.is_deleted"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.is_deleted">[docs]</a>    <span class="k">def</span> <span class="nf">is_deleted</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: True if the object has been deleted from the persistent</span>
+<span class="sd">            state, False otherwise&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.orm.attributes</span> <span class="kn">import</span> <span class="n">instance_state</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">instance_state</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">state</span> <span class="o">!=</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">state</span><span class="o">.</span><span class="n">deleted</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.get_expanded_search_fields"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.get_expanded_search_fields">[docs]</a>    <span class="k">def</span> <span class="nf">get_expanded_search_fields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: a list of tuples of type [(field_name, field_attributes)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">expanded_list_search</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">field_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_display</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">field_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expanded_list_search</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">field</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_field_attributes</span><span class="p">(</span><span class="n">field</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">field_list</span><span class="p">]</span>
+        </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="EntityAdmin.copy"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.entity_admin.EntityAdmin.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">new_obj</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Duplicate an object.  If no new object is given to copy to, a new</span>
+<span class="sd">        one will be created.  This function will be called every time the</span>
+<span class="sd">        user presses a copy button.</span>
+<span class="sd">        </span>
+<span class="sd">        :param obj: the object to be copied from</span>
+<span class="sd">        :param new_obj: the object to be copied to, defaults to None</span>
+<span class="sd">        :return: the new object</span>
+<span class="sd">        </span>
+<span class="sd">        This function takes into account the deep_copy and the copy_exclude</span>
+<span class="sd">        attributes.  It tries to recreate relations with a minimum of side</span>
+<span class="sd">        effects.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">new_obj</span><span class="p">:</span>
+            <span class="n">new_obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__class__</span><span class="p">()</span>
+        <span class="c">#</span>
+        <span class="c"># serialize the object to be copied</span>
+        <span class="c">#</span>
+        <span class="c"># @todo: this code depends on elixir</span>
+        <span class="n">serialized</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">copy_deep</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">primary_key</span><span class="p">]</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">copy_exclude</span><span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># make sure we don&#39;t move duplicated OneToMany relations from the</span>
+        <span class="c"># old object to the new, but instead duplicate them, by manipulating</span>
+        <span class="c"># the serialized structure</span>
+        <span class="c">#</span>
+        <span class="c"># @todo: this should be recursive</span>
+        <span class="k">for</span> <span class="nb">property</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">iterate_properties</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">property</span><span class="p">,</span> <span class="n">orm</span><span class="o">.</span><span class="n">properties</span><span class="o">.</span><span class="n">PropertyLoader</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="n">orm</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">ONETOMANY</span><span class="p">:</span>
+                    <span class="n">target</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">_get_target</span><span class="p">()</span><span class="o">.</span><span class="n">class_</span>
+                    <span class="k">for</span> <span class="n">relation</span> <span class="ow">in</span> <span class="n">serialized</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">property</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="p">[]):</span>
+                        <span class="n">relation_mapper</span> <span class="o">=</span> <span class="n">orm</span><span class="o">.</span><span class="n">class_mapper</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">primary_key_field</span> <span class="ow">in</span> <span class="n">relation_mapper</span><span class="o">.</span><span class="n">primary_key</span><span class="p">:</span>
+                            <span class="n">relation</span><span class="p">[</span><span class="n">primary_key_field</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="c">#from pprint import pprint</span>
+        <span class="c">#pprint( serialized )</span>
+        <span class="c">#</span>
+        <span class="c"># deserialize into the new object</span>
+        <span class="c">#</span>
+        <span class="n">new_obj</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span> <span class="n">serialized</span> <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># recreate the ManyToOne relations</span>
+        <span class="c">#</span>
+        <span class="k">for</span> <span class="nb">property</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">iterate_properties</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">property</span><span class="p">,</span> <span class="n">orm</span><span class="o">.</span><span class="n">properties</span><span class="o">.</span><span class="n">PropertyLoader</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">property</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="n">orm</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">MANYTOONE</span><span class="p">:</span>
+                    <span class="nb">setattr</span><span class="p">(</span> <span class="n">new_obj</span><span class="p">,</span> 
+                             <span class="nb">property</span><span class="o">.</span><span class="n">key</span><span class="p">,</span>
+                             <span class="nb">getattr</span><span class="p">(</span> <span class="n">obj</span><span class="p">,</span> <span class="nb">property</span><span class="o">.</span><span class="n">key</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">new_obj</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

@@ -1,0 +1,483 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.field_attributes &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.field_attributes</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;Default field attributes for various sqlalchemy column types&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">sqlalchemy.types</span>
+<span class="kn">import</span> <span class="nn">camelot.types</span>
+<span class="kn">from</span> <span class="nn">camelot.core.sql</span> <span class="kn">import</span>  <span class="n">like_op</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.sql.operators</span> <span class="kn">import</span> <span class="n">between_op</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">operator</span>
+
+<span class="kn">from</span> <span class="nn">controls</span> <span class="kn">import</span> <span class="n">delegates</span>
+<span class="kn">from</span> <span class="nn">camelot.core</span> <span class="kn">import</span> <span class="n">constants</span>
+<span class="kn">from</span> <span class="nn">camelot.view.utils</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">bool_from_string</span><span class="p">,</span>
+    <span class="n">date_from_string</span><span class="p">,</span>
+    <span class="n">time_from_string</span><span class="p">,</span>
+    <span class="n">datetime_from_string</span><span class="p">,</span>
+    <span class="n">int_from_string</span><span class="p">,</span>
+    <span class="n">float_from_string</span><span class="p">,</span>
+    <span class="n">string_from_string</span><span class="p">,</span>
+    <span class="n">enumeration_to_string</span><span class="p">,</span>
+    <span class="n">default_language</span><span class="p">,</span>
+    <span class="n">code_from_string</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">_numerical_operators</span> <span class="o">=</span> <span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">eq</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">ne</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">lt</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">le</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">gt</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">ge</span><span class="p">,</span> <span class="n">between_op</span><span class="p">)</span>
+<span class="n">_text_operators</span> <span class="o">=</span> <span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">eq</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">ne</span><span class="p">,</span> <span class="n">like_op</span><span class="p">)</span>
+
+<span class="n">_sqlalchemy_to_python_type_</span> <span class="o">=</span> <span class="p">{</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Boolean</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">BoolDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">bool_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">eq</span><span class="p">,),</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">BOOLEAN</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">BoolDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">bool_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">eq</span><span class="p">,),</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Date</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">,</span>
+        <span class="s">&#39;format&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_date_format</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;min&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+        <span class="s">&#39;max&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">DateDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">date_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Time</span> <span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">time</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;time&#39;</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">TimeDelegate</span><span class="p">,</span>
+        <span class="s">&#39;format&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_time_format</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">time_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span><span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">DateTime</span> <span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;time&#39;</span><span class="p">,</span>
+        <span class="s">&#39;format&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_datetime_format</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">DateTimeDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">datetime_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span><span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Float</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="s">&#39;precision&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">precision</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">precision</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="k">else</span> <span class="n">f</span><span class="o">.</span><span class="n">precision</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="ow">or</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;minimum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_minfloat</span><span class="p">,</span>
+        <span class="s">&#39;maximum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_maxfloat</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">FloatDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">float_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span><span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Numeric</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="s">&#39;precision&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;minimum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_minfloat</span><span class="p">,</span>
+        <span class="s">&#39;maximum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_maxfloat</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">FloatDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">float_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span><span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+        <span class="s">&#39;decimal&#39;</span><span class="p">:</span><span class="bp">True</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Integer</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;minimum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_minint</span><span class="p">,</span>
+        <span class="s">&#39;maximum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_maxint</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">IntegerDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">int_from_string</span><span class="p">,</span>
+        <span class="s">&#39;to_string&#39;</span><span class="p">:</span> <span class="nb">unicode</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;int&#39;</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span><span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">INT</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;minimum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_minint</span><span class="p">,</span>
+        <span class="s">&#39;maximum&#39;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">camelot_maxint</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">IntegerDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">int_from_string</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;int&#39;</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span><span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">String</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;length&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">length</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;str&#39;</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">string_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">TEXT</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;length&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">length</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;str&#39;</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">string_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;length&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">length</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;str&#39;</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">string_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Image</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">ImageDelegate</span><span class="p">,</span>
+        <span class="s">&#39;storage&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">storage</span><span class="p">,</span>
+        <span class="s">&#39;preview_width&#39;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+        <span class="s">&#39;preview_height&#39;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Code</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">CodeDelegate</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;parts&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">parts</span><span class="p">,</span>
+        <span class="s">&#39;separator&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">separator</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span> <span class="p">:</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span><span class="n">code_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">separator</span><span class="p">),</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">IPAddress</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;parts&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">parts</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">CodeDelegate</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;code&#39;</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">VirtualAddress</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">VirtualAddressDelegate</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span> <span class="p">:</span> <span class="k">lambda</span> <span class="nb">str</span><span class="p">:</span><span class="bp">None</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">RichText</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">RichTextDelegate</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">string_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="p">[],</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Color</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">ColorDelegate</span><span class="p">,</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;color&#39;</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Rating</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">StarDelegate</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;star&#39;</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">int_from_string</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Enumeration</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">EnumerationDelegate</span><span class="p">,</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;choices&#39;</span><span class="p">:</span> <span class="p">[(</span><span class="n">v</span><span class="p">,</span> <span class="n">enumeration_to_string</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">choices</span><span class="p">],</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span><span class="nb">dict</span><span class="p">((</span><span class="n">enumeration_to_string</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">choices</span><span class="p">)[</span><span class="n">s</span><span class="p">],</span>
+        <span class="s">&#39;minimal_column_width&#39;</span><span class="p">:</span><span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">enumeration_to_string</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">choices</span><span class="p">),</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;combobox&#39;</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_numerical_operators</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Language</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">LanguageDelegate</span><span class="p">,</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;default&#39;</span><span class="p">:</span> <span class="n">default_language</span><span class="p">,</span>
+        <span class="s">&#39;from_string&#39;</span><span class="p">:</span> <span class="n">string_from_string</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;nullable&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+        <span class="s">&#39;widget&#39;</span><span class="p">:</span> <span class="s">&#39;combobox&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+
+    <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">File</span> <span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s">&#39;python_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s">&#39;editable&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="s">&#39;delegate&#39;</span><span class="p">:</span> <span class="n">delegates</span><span class="o">.</span><span class="n">FileDelegate</span><span class="p">,</span>
+        <span class="s">&#39;storage&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">storage</span><span class="p">,</span>
+        <span class="s">&#39;operators&#39;</span> <span class="p">:</span> <span class="n">_text_operators</span><span class="p">,</span>
+        <span class="s">&#39;remove_original&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+
+<span class="c">#</span>
+<span class="c"># Generate a restructured text table out of the previous data structure</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="DummyField"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.field_attributes.DummyField">[docs]</a><span class="k">class</span> <span class="nc">DummyField</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">length</span> <span class="o">=</span> <span class="mi">20</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;AAA&#39;</span><span class="p">,</span> <span class="s">&#39;99&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">choices</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;planned&#39;</span><span class="p">,</span> <span class="s">&#39;canceled&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">precision</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">storage</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">separator</span> <span class="o">=</span> <span class="s">u&#39;.&#39;</span>
+</div>
+<span class="n">row_separator</span> <span class="o">=</span> <span class="s">&#39;+&#39;</span> <span class="o">+</span> <span class="s">&#39;-&#39;</span><span class="o">*</span><span class="mi">20</span> <span class="o">+</span> <span class="s">&#39;+&#39;</span> <span class="o">+</span> <span class="s">&#39;-&#39;</span><span class="o">*</span><span class="mi">70</span> <span class="o">+</span> <span class="s">&#39;+&#39;</span> <span class="o">+</span> <span class="s">&#39;-&#39;</span><span class="o">*</span><span class="mi">70</span> <span class="o">+</span> <span class="s">&#39;+&#39;</span>
+<span class="n">row_format</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;| </span><span class="si">%-18s</span><span class="s"> | </span><span class="si">%-68s</span><span class="s"> | </span><span class="si">%-68s</span><span class="s"> |&quot;&quot;&quot;</span>
+
+<span class="n">doc</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;Field types handled through introspection :</span>
+
+<span class="s">&quot;&quot;&quot;</span> <span class="o">+</span> <span class="n">row_separator</span> <span class="o">+</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">&quot;&quot;&quot;</span> <span class="o">+</span> <span class="n">row_format</span><span class="o">%</span><span class="p">(</span><span class="s">&#39;**Field type**&#39;</span><span class="p">,</span> <span class="s">&#39;**Default delegate**&#39;</span><span class="p">,</span> <span class="s">&#39;**Default editor**&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">&quot;&quot;&quot;</span> <span class="o">+</span> <span class="n">row_separator</span> <span class="o">+</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">&quot;&quot;&quot;</span>
+
+<span class="n">field_types</span> <span class="o">=</span> <span class="n">_sqlalchemy_to_python_type_</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+<span class="n">field_types</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">cmp</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">y</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+
+<span class="k">for</span> <span class="n">field_type</span> <span class="ow">in</span> <span class="n">field_types</span><span class="p">:</span>
+    <span class="n">field_attributes</span> <span class="o">=</span> <span class="n">_sqlalchemy_to_python_type_</span><span class="p">[</span><span class="n">field_type</span><span class="p">](</span><span class="n">DummyField</span><span class="p">())</span>
+    <span class="n">delegate</span> <span class="o">=</span> <span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;delegate&#39;</span><span class="p">]</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="n">row_format</span><span class="o">%</span><span class="p">(</span><span class="n">field_type</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span>
+                      <span class="s">&#39;:ref:`</span><span class="si">%s</span><span class="s"> &lt;delegate-</span><span class="si">%s</span><span class="s">&gt;`&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">delegate</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">delegate</span><span class="o">.</span><span class="n">__name__</span><span class="p">),</span>
+                      <span class="s">&#39;.. image:: /_static/editors/</span><span class="si">%s</span><span class="s">_editable.png&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">delegate</span><span class="o">.</span><span class="n">editor</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+    <span class="n">doc</span> <span class="o">+=</span> <span class="n">row</span> <span class="o">+</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">&quot;&quot;&quot;</span> <span class="o">+</span> <span class="n">row_separator</span> <span class="o">+</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">&quot;&quot;&quot;</span>
+
+<span class="n">doc</span> <span class="o">+=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">&quot;&quot;&quot;</span>
+
+<span class="n">__doc__</span> <span class="o">=</span> <span class="n">doc</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

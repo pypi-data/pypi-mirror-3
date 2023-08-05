@@ -1,0 +1,665 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.database_selection &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.database_selection</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">pkgutil</span>
+
+<span class="c"># from collections import defaultdict</span>
+
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">create_engine</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtNetwork</span>
+<span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">Qt</span>
+<span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">QFileInfo</span>
+<span class="kn">from</span> <span class="nn">PyQt4.QtGui</span> <span class="kn">import</span> <span class="n">QBoxLayout</span><span class="p">,</span> <span class="n">QDialog</span><span class="p">,</span> <span class="n">QFont</span><span class="p">,</span> <span class="n">QGridLayout</span><span class="p">,</span> <span class="n">QHBoxLayout</span><span class="p">,</span> \
+    <span class="n">QLabel</span><span class="p">,</span> <span class="n">QLineEdit</span><span class="p">,</span> <span class="n">QPushButton</span><span class="p">,</span> <span class="n">QFileDialog</span><span class="p">,</span> <span class="n">QComboBox</span><span class="p">,</span> <span class="n">QWidget</span><span class="p">,</span> <span class="n">QVBoxLayout</span>
+<span class="kn">from</span> <span class="nn">camelot.view</span> <span class="kn">import</span> <span class="n">art</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.progress_dialog</span> <span class="kn">import</span> <span class="n">ProgressDialog</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.editors</span> <span class="kn">import</span> <span class="n">ChoicesEditor</span><span class="p">,</span> <span class="n">TextLineEditor</span><span class="p">,</span> <span class="n">LanguageEditor</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.standalone_wizard_page</span> <span class="kn">import</span> <span class="n">HSeparator</span><span class="p">,</span> <span class="n">StandaloneWizardPage</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.combobox_input_dialog</span> <span class="kn">import</span> <span class="n">ComboBoxInputDialog</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.exception</span> <span class="kn">import</span> <span class="n">UserException</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span> <span class="k">as</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread.signal_slot_model_thread</span> <span class="kn">import</span> <span class="n">SignalSlotModelThread</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">gui_function</span>
+<span class="kn">from</span> <span class="nn">camelot.core.dbprofiles</span> <span class="kn">import</span> <span class="n">fetch_profiles</span><span class="p">,</span> <span class="n">use_chosen_profile</span><span class="p">,</span> \
+    <span class="n">store_profiles</span><span class="p">,</span> <span class="n">get_network_proxy</span><span class="p">,</span> <span class="n">last_used_profile</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.database_selection&#39;</span><span class="p">)</span>
+
+
+<span class="n">NEW_PROFILE_LABEL</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;new/edit profile&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="select_database"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.select_database">[docs]</a><span class="k">def</span> <span class="nf">select_database</span><span class="p">(</span><span class="n">app_admin</span><span class="p">):</span>
+    <span class="n">profiles_dict</span> <span class="o">=</span> <span class="n">fetch_profiles</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">profiles_dict</span><span class="p">:</span>
+        <span class="n">create_new_profile</span><span class="p">(</span><span class="n">app_admin</span><span class="p">,</span> <span class="n">profiles_dict</span><span class="p">)</span>
+
+    <span class="n">selected</span> <span class="o">=</span> <span class="n">select_profile</span><span class="p">(</span><span class="n">profiles_dict</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">selected</span> <span class="ow">in</span> <span class="n">profiles_dict</span><span class="p">:</span>
+        <span class="n">use_chosen_profile</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">selected</span> <span class="o">==</span> <span class="n">NEW_PROFILE_LABEL</span><span class="p">:</span>
+        <span class="n">create_new_profile</span><span class="p">(</span><span class="n">app_admin</span><span class="p">,</span> <span class="n">profiles_dict</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="select_profile"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.select_profile">[docs]</a><span class="k">def</span> <span class="nf">select_profile</span><span class="p">(</span><span class="n">profiles_dict</span><span class="p">):</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Profile Selection&#39;</span><span class="p">)</span>
+    <span class="n">input_label</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Select a stored profile:&#39;</span><span class="p">)</span>
+    <span class="n">ok_label</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;OK&#39;</span><span class="p">)</span>
+    <span class="n">cancel_label</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Quit&#39;</span><span class="p">)</span>
+
+    <span class="n">input_dialog</span> <span class="o">=</span> <span class="n">ComboBoxInputDialog</span><span class="p">(</span><span class="n">autoaccept</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_window_title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_label_text</span><span class="p">(</span><span class="n">input_label</span><span class="p">)</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_ok_button_text</span><span class="p">(</span><span class="n">ok_label</span><span class="p">)</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_cancel_button_text</span><span class="p">(</span><span class="n">cancel_label</span><span class="p">)</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_items</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">profiles_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="p">[</span><span class="n">NEW_PROFILE_LABEL</span><span class="p">])</span>
+    <span class="n">_last_used_profile</span> <span class="o">=</span> <span class="n">last_used_profile</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">_last_used_profile</span><span class="p">:</span>
+        <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_choice_by_text</span><span class="p">(</span><span class="n">_last_used_profile</span><span class="p">)</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_ok_button_default</span><span class="p">()</span>
+
+    <span class="n">last_index</span> <span class="o">=</span> <span class="n">input_dialog</span><span class="o">.</span><span class="n">count</span><span class="p">()</span><span class="o">-</span><span class="mi">1</span>
+    <span class="n">custom_font</span> <span class="o">=</span> <span class="n">QFont</span><span class="p">()</span>
+    <span class="n">custom_font</span><span class="o">.</span><span class="n">setItalic</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">icon</span> <span class="o">=</span> <span class="n">art</span><span class="o">.</span><span class="n">Icon</span><span class="p">(</span><span class="s">&#39;tango/16x16/actions/document-new.png&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">getQIcon</span><span class="p">()</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">last_index</span><span class="p">,</span> <span class="n">custom_font</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">FontRole</span><span class="p">)</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">last_index</span><span class="p">,</span> <span class="n">icon</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">DecorationRole</span><span class="p">)</span>
+
+    <span class="n">dialog_code</span> <span class="o">=</span> <span class="n">input_dialog</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">dialog_code</span> <span class="o">==</span> <span class="n">QDialog</span><span class="o">.</span><span class="n">Accepted</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">input_dialog</span><span class="o">.</span><span class="n">get_text</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="new_profile_item_selected"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.new_profile_item_selected">[docs]</a><span class="k">def</span> <span class="nf">new_profile_item_selected</span><span class="p">(</span><span class="n">input_dialog</span><span class="p">):</span>
+    <span class="n">input_dialog</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="create_new_profile"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.create_new_profile">[docs]</a><span class="k">def</span> <span class="nf">create_new_profile</span><span class="p">(</span><span class="n">app_admin</span><span class="p">,</span> <span class="n">profiles</span><span class="p">):</span>
+    <span class="n">wizard</span> <span class="o">=</span> <span class="n">app_admin</span><span class="o">.</span><span class="n">database_profile_wizard</span><span class="p">(</span><span class="n">profiles</span><span class="p">)</span>
+    <span class="n">dialog_code</span> <span class="o">=</span> <span class="n">wizard</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">dialog_code</span> <span class="o">==</span> <span class="n">QDialog</span><span class="o">.</span><span class="n">Rejected</span><span class="p">:</span>
+        <span class="c"># no profiles? exit</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">profiles</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="c"># one more time</span>
+        <span class="n">select_database</span><span class="p">(</span><span class="n">app_admin</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard">[docs]</a><span class="k">class</span> <span class="nc">ProfileWizard</span><span class="p">(</span><span class="n">StandaloneWizardPage</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Wizard for the creation of a new database</span>
+<span class="sd">profile.</span>
+
+<span class="sd">.. attribute:: languages</span>
+<span class="sd">.. attribute:: dialects</span>
+
+<span class="sd">A list of languages allowed in the profile selection, an empty list will</span>
+<span class="sd">allow all languages</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">languages</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">dialects</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">profiles</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ProfileWizard</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connection_valid</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_reply</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span> <span class="o">=</span> <span class="n">profiles</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Profile Wizard&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_banner_logo_pixmap</span><span class="p">(</span><span class="n">art</span><span class="o">.</span><span class="n">Icon</span><span class="p">(</span><span class="s">&#39;tango/22x22/categories/preferences-system.png&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">getQPixmap</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_banner_title</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Create New/Edit Profile&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_banner_subtitle</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Please enter the database settings&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">banner_widget</span><span class="p">()</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="s">&#39;background-color: white;&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">manager</span> <span class="o">=</span> <span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkAccessManager</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">manager</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_network_status</span> <span class="p">)</span>
+        <span class="c">#self.manager.networkAccessibleChanged.connect( self.network_accessible_changed )</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">manager</span><span class="o">.</span><span class="n">proxyAuthenticationRequired</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_authentication_required</span> <span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_labels_and_widgets</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_buttons</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_tab_order</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_widgets_values</span><span class="p">()</span>
+        <span class="c"># note: connections come after labels and widgets are created</span>
+        <span class="c"># and have default values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">connect_widgets</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">connect_buttons</span><span class="p">()</span>
+        
+        <span class="n">timer</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QTimer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">timer</span><span class="o">.</span><span class="n">timeout</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_network_request</span> <span class="p">)</span>
+        <span class="n">timer</span><span class="o">.</span><span class="n">setInterval</span><span class="p">(</span> <span class="mi">3000</span> <span class="p">)</span>
+        <span class="n">timer</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">new_network_request</span><span class="p">()</span>
+
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="ProfileWizard.create_labels_and_widgets"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.create_labels_and_widgets">[docs]</a>    <span class="k">def</span> <span class="nf">create_labels_and_widgets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Profile Name:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dialect_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Driver:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">host_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Server Host:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Port:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">database_name_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Database Name:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">username_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Username:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Password:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">media_location_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Media Location:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">language_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Language:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Proxy Host:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Port:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_username_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Proxy Username:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Proxy Password:&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">not_accessible_media_path_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Media location path &#39;</span>\
+            <span class="s">&#39;is not accessible.&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">not_accessible_media_path_label</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="s">&#39;color: red&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">not_writable_media_path_label</span> <span class="o">=</span> <span class="n">QLabel</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Media location path &#39;</span>\
+            <span class="s">&#39;is not writable.&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">not_writable_media_path_label</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="s">&#39;color: red&#39;</span><span class="p">)</span>
+
+        <span class="n">layout</span> <span class="o">=</span> <span class="n">QGridLayout</span><span class="p">()</span>
+
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profile_label</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dialect_label</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">host_label</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">port_label</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">database_name_label</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username_label</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">password_label</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">media_location_label</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">language_label</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_label</span><span class="p">,</span>  <span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_label</span><span class="p">,</span>  <span class="mi">10</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_username_label</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_label</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span> <span class="o">=</span> <span class="n">QComboBox</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="o">.</span><span class="n">setEditable</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="c"># 32767 is Qt max length for string</span>
+        <span class="c"># should be more than enough for folders</span>
+        <span class="c"># http://doc.qt.nokia.com/latest/qlineedit.html#maxLength-prop</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dialect_editor</span> <span class="o">=</span> <span class="n">ChoicesEditor</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">host_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">32767</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port_editor</span><span class="o">.</span><span class="n">setFixedWidth</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">database_name_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">32767</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">username_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password_editor</span><span class="o">.</span><span class="n">setEchoMode</span><span class="p">(</span><span class="n">QLineEdit</span><span class="o">.</span><span class="n">Password</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">media_location_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">32767</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span> <span class="o">=</span> <span class="n">LanguageEditor</span><span class="p">(</span><span class="n">languages</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">languages</span><span class="p">,</span>
+                                              <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># try to find a default language</span>
+        <span class="c">#</span>
+        <span class="n">system_language</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QLocale</span><span class="o">.</span><span class="n">system</span><span class="p">()</span><span class="o">.</span><span class="n">name</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">languages</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">system_language</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">languages</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span> <span class="n">system_language</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">languages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span> <span class="n">system_language</span> <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">32767</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_editor</span><span class="o">.</span><span class="n">setFixedWidth</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_username_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_editor</span> <span class="o">=</span> <span class="n">TextLineEditor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_editor</span><span class="o">.</span><span class="n">setEchoMode</span><span class="p">(</span><span class="n">QLineEdit</span><span class="o">.</span><span class="n">Password</span><span class="p">)</span>
+
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dialect_editor</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">host_editor</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">port_editor</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">database_name_editor</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username_editor</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">password_editor</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="n">HSeparator</span><span class="p">(),</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">media_location_editor</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="n">HSeparator</span><span class="p">(),</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_editor</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_editor</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_username_editor</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_editor</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_widget</span><span class="p">()</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span><span class="n">layout</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.set_widgets_values"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.set_widgets_values">[docs]</a>    <span class="k">def</span> <span class="nf">set_widgets_values</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dialect_editor</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dialects</span><span class="p">:</span>
+            <span class="n">dialects</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dialects</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">sqlalchemy.dialects</span>
+            <span class="n">dialects</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">_importer</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">is_package</span> <span class="ow">in</span> \
+                        <span class="n">pkgutil</span><span class="o">.</span><span class="n">iter_modules</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">dialects</span><span class="o">.</span><span class="n">__path__</span><span class="p">)</span> \
+                        <span class="k">if</span> <span class="n">is_package</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dialect_editor</span><span class="o">.</span><span class="n">set_choices</span><span class="p">([(</span><span class="n">dialect</span><span class="p">,</span> <span class="n">dialect</span><span class="o">.</span><span class="n">capitalize</span><span class="p">())</span> \
+            <span class="k">for</span> <span class="n">dialect</span> <span class="ow">in</span> <span class="n">dialects</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="o">.</span><span class="n">insertItems</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="s">&#39;&#39;</span><span class="p">]</span> <span class="o">+</span> \
+            <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">fetch_profiles</span><span class="p">()])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="o">.</span><span class="n">setFocus</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_wizard_values</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.connect_widgets"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.connect_widgets">[docs]</a>    <span class="k">def</span> <span class="nf">connect_widgets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="o">.</span><span class="n">editTextChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">update_wizard_values</span><span class="p">)</span>
+        <span class="c"># self.dialect_editor.currentIndexChanged.connect(self.update_wizard_values)    </span>
+    </div>
+<div class="viewcode-block" id="ProfileWizard.create_buttons"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.create_buttons">[docs]</a>    <span class="k">def</span> <span class="nf">create_buttons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">more_button</span> <span class="o">=</span> <span class="n">QPushButton</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;More&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">more_button</span><span class="o">.</span><span class="n">setCheckable</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">more_button</span><span class="o">.</span><span class="n">setAutoDefault</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cancel_button</span> <span class="o">=</span> <span class="n">QPushButton</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Cancel&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ok_button</span> <span class="o">=</span> <span class="n">QPushButton</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;OK&#39;</span><span class="p">))</span>
+
+        <span class="n">layout</span> <span class="o">=</span> <span class="n">QHBoxLayout</span><span class="p">()</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">setDirection</span><span class="p">(</span><span class="n">QBoxLayout</span><span class="o">.</span><span class="n">RightToLeft</span><span class="p">)</span>
+
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cancel_button</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ok_button</span><span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addStretch</span><span class="p">()</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">more_button</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">buttons_widget</span><span class="p">()</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span><span class="n">layout</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">browse_button</span> <span class="o">=</span> <span class="n">QPushButton</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Browse&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_widget</span><span class="p">()</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">browse_button</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">setup_extension</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.setup_extension"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.setup_extension">[docs]</a>    <span class="k">def</span> <span class="nf">setup_extension</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extension</span> <span class="o">=</span> <span class="n">QWidget</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">load_button</span> <span class="o">=</span> <span class="n">QPushButton</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Load profiles&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_button</span> <span class="o">=</span> <span class="n">QPushButton</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Save profiles&#39;</span><span class="p">))</span>
+
+        <span class="n">extension_buttons_layout</span> <span class="o">=</span> <span class="n">QHBoxLayout</span><span class="p">()</span>
+        <span class="n">extension_buttons_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">extension_buttons_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">load_button</span><span class="p">)</span>
+        <span class="n">extension_buttons_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_button</span><span class="p">)</span>
+        <span class="n">extension_buttons_layout</span><span class="o">.</span><span class="n">addStretch</span><span class="p">()</span>
+
+        <span class="n">extension_layout</span> <span class="o">=</span> <span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="n">extension_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">extension_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="n">HSeparator</span><span class="p">())</span>
+        <span class="n">extension_layout</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span><span class="n">extension_buttons_layout</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">extension</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span><span class="n">extension_layout</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">main_widget</span><span class="p">()</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">extension</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extension</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.set_tab_order"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.set_tab_order">[docs]</a>    <span class="k">def</span> <span class="nf">set_tab_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">all_widgets</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dialect_editor</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">host_editor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port_editor</span><span class="p">,</span>  <span class="bp">self</span><span class="o">.</span><span class="n">database_name_editor</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">username_editor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password_editor</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">media_location_editor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">browse_button</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_editor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_editor</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">proxy_username_editor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_editor</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ok_button</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cancel_button</span><span class="p">]</span>
+
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">i</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">all_widgets</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">setTabOrder</span><span class="p">(</span><span class="n">all_widgets</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">all_widgets</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.connect_buttons"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.connect_buttons">[docs]</a>    <span class="k">def</span> <span class="nf">connect_buttons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cancel_button</span><span class="o">.</span><span class="n">pressed</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reject</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ok_button</span><span class="o">.</span><span class="n">pressed</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">proceed</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">browse_button</span><span class="o">.</span><span class="n">pressed</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fill_media_location</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">more_button</span><span class="o">.</span><span class="n">toggled</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">extension</span><span class="o">.</span><span class="n">setVisible</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_button</span><span class="o">.</span><span class="n">pressed</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_profiles_to_file</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">load_button</span><span class="o">.</span><span class="n">pressed</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">load_profiles_from_file</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.proceed"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.proceed">[docs]</a>    <span class="k">def</span> <span class="nf">proceed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_connection_valid</span><span class="p">():</span>
+            <span class="n">profilename</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collect_info</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">profilename</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">[</span><span class="n">profilename</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">[</span><span class="n">profilename</span><span class="p">]</span> <span class="o">=</span> <span class="n">info</span>
+            <span class="n">store_profiles</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">)</span>
+            <span class="n">use_chosen_profile</span><span class="p">(</span><span class="n">profilename</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.is_connection_valid"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.is_connection_valid">[docs]</a>    <span class="k">def</span> <span class="nf">is_connection_valid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">profilename</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collect_info</span><span class="p">()</span>
+        <span class="n">mt</span> <span class="o">=</span> <span class="n">SignalSlotModelThread</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span><span class="bp">None</span><span class="p">)</span>
+        <span class="n">mt</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="n">progress</span> <span class="o">=</span> <span class="n">ProgressDialog</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Verifying database settings&#39;</span><span class="p">))</span>
+        <span class="n">mt</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">test_connection</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s">&#39;dialect&#39;</span><span class="p">],</span> <span class="n">info</span><span class="p">[</span><span class="s">&#39;host&#39;</span><span class="p">],</span>
+            <span class="n">info</span><span class="p">[</span><span class="s">&#39;port&#39;</span><span class="p">],</span> <span class="n">info</span><span class="p">[</span><span class="s">&#39;user&#39;</span><span class="p">],</span> <span class="n">info</span><span class="p">[</span><span class="s">&#39;pass&#39;</span><span class="p">],</span> <span class="n">info</span><span class="p">[</span><span class="s">&#39;database&#39;</span><span class="p">]),</span>
+            <span class="n">progress</span><span class="o">.</span><span class="n">finished</span><span class="p">,</span> <span class="n">progress</span><span class="o">.</span><span class="n">exception</span><span class="p">)</span>
+        <span class="n">progress</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connection_valid</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.test_connection"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.test_connection">[docs]</a>    <span class="k">def</span> <span class="nf">test_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">passwd</span><span class="p">,</span> <span class="n">db</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connection_valid</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">connection_string</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">://</span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">@</span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">/</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dialect</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">passwd</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">db</span><span class="p">)</span>
+        <span class="n">engine</span> <span class="o">=</span> <span class="n">create_engine</span><span class="p">(</span><span class="n">connection_string</span><span class="p">,</span> <span class="n">pool_recycle</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">connection</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">raw_connection</span><span class="p">()</span>
+            <span class="n">cursor</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+            <span class="n">cursor</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="n">connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connection_valid</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connection_valid</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">raise</span> <span class="n">UserException</span><span class="p">(</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Could not connect to database, please check host and port&#39;</span><span class="p">),</span>
+                                 <span class="n">resolution</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Verify driver, host and port or contact your system administrator&#39;</span><span class="p">),</span>
+                                 <span class="n">detail</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.toggle_ok_button"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.toggle_ok_button">[docs]</a>    <span class="k">def</span> <span class="nf">toggle_ok_button</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enabled</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ok_button</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">enabled</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.current_profile"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.current_profile">[docs]</a>    <span class="k">def</span> <span class="nf">current_profile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profile_editor</span><span class="o">.</span><span class="n">currentText</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">toggle_ok_button</span><span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="n">text</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">text</span>
+    
+    <span class="c"># FIXME can&#39;t get this to work properly (call in update_wizard_values(): port_editor )</span>
+    <span class="c"># def _related_default_port(self, dialect_editor):</span>
+    <span class="c">#     class Missing(defaultdict):</span>
+    <span class="c">#         def __missing__(self, key):</span>
+    <span class="c">#             return &#39;&#39;</span>
+    <span class="c">#     ports = Missing(mysql=&#39;3306&#39;, postgresql=&#39;5432&#39;)</span>
+    <span class="c">#     return ports[dialect_editor.get_value()]</span>
+    </div>
+<div class="viewcode-block" id="ProfileWizard.update_wizard_values"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.update_wizard_values">[docs]</a>    <span class="k">def</span> <span class="nf">update_wizard_values</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">network_proxy</span> <span class="o">=</span> <span class="n">get_network_proxy</span><span class="p">()</span>
+        <span class="c"># self.dialect_editor.set_value(self.get_profile_value(&#39;dialect&#39;) or &#39;mysql&#39;)</span>
+        <span class="c"># self.host_editor.setText(self.get_profile_value(&#39;host&#39;) or &#39;127.0.0.1&#39;)</span>
+        <span class="c"># self.port_editor.setText(self.get_profile_value(&#39;port&#39;) or &#39;3306&#39;)        </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dialect_editor</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;dialect&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s">&#39;postgresql&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">host_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;host&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">host_editor</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;port&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">port_editor</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>        
+        <span class="c"># self.port_editor.setText(self.get_profile_value(&#39;port&#39;) or self._related_default_port(self.dialect_editor))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">database_name_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;database&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">database_name_editor</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">username_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;user&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">username_editor</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;pass&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">password_editor</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">media_location_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;media_location&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">media_location_editor</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;locale_language&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="o">.</span><span class="n">get_value</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;proxy_host&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">network_proxy</span><span class="o">.</span><span class="n">hostName</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;proxy_port&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">network_proxy</span><span class="o">.</span><span class="n">port</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_username_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;proxy_username&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">network_proxy</span><span class="o">.</span><span class="n">user</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_profile_value</span><span class="p">(</span><span class="s">&#39;proxy_password&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">network_proxy</span><span class="o">.</span><span class="n">password</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+        </div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkProxy</span><span class="p">,</span> <span class="n">QtNetwork</span><span class="o">.</span><span class="n">QAuthenticator</span><span class="p">)</span>
+<div class="viewcode-block" id="ProfileWizard.proxy_authentication_required"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.proxy_authentication_required">[docs]</a>    <span class="k">def</span> <span class="nf">proxy_authentication_required</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">proxy</span><span class="p">,</span> <span class="n">authenticator</span><span class="p">):</span>
+        <span class="k">pass</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkReply</span><span class="p">)</span>
+<div class="viewcode-block" id="ProfileWizard.update_network_status"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.update_network_status">[docs]</a>    <span class="k">def</span> <span class="nf">update_network_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reply</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">reply</span><span class="o">.</span><span class="n">isFinished</span><span class="p">():</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="n">reply</span><span class="o">.</span><span class="n">error</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">error</span> <span class="o">==</span> <span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkReply</span><span class="o">.</span><span class="n">NoError</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Internet available.&#39;</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="s">&#39;color: green&#39;</span><span class="p">)</span>
+                <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Internet not available.</span><span class="se">\n</span><span class="si">%s</span><span class="s">.&#39;</span><span class="o">%</span><span class="n">reply</span><span class="o">.</span><span class="n">errorString</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_status_label</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="s">&#39;color: red&#39;</span><span class="p">)</span>
+                </div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="ProfileWizard.new_network_request"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.new_network_request">[docs]</a>    <span class="k">def</span> <span class="nf">new_network_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_reply</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_reply</span><span class="o">.</span><span class="n">isFinished</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">network_reply</span><span class="o">.</span><span class="n">abort</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_editor</span><span class="o">.</span><span class="n">text</span><span class="p">():</span>
+            <span class="n">proxy</span> <span class="o">=</span> <span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkProxy</span><span class="p">(</span> <span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkProxy</span><span class="o">.</span><span class="n">HttpProxy</span><span class="p">,</span> 
+                                             <span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_editor</span><span class="o">.</span><span class="n">text</span><span class="p">(),</span> 
+                                             <span class="nb">int</span><span class="p">(</span> <span class="nb">str</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span> <span class="p">)</span> <span class="p">)</span> <span class="p">)</span><span class="c">#,</span>
+                                             <span class="c">#self.proxy_username_editor.text(),</span>
+                                             <span class="c">#self.proxy_password_editor.text() )</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">manager</span><span class="o">.</span><span class="n">setProxy</span><span class="p">(</span> <span class="n">proxy</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">manager</span><span class="o">.</span><span class="n">setProxy</span><span class="p">(</span> <span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkProxy</span><span class="p">()</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_reply</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">manager</span><span class="o">.</span><span class="n">get</span><span class="p">(</span> <span class="n">QtNetwork</span><span class="o">.</span><span class="n">QNetworkRequest</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QUrl</span><span class="p">(</span><span class="s">&#39;http://aws.amazon.com&#39;</span><span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.get_profile_value"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.get_profile_value">[docs]</a>    <span class="k">def</span> <span class="nf">get_profile_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_profile</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">current</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">[</span><span class="n">current</span><span class="p">][</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.collect_info"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.collect_info">[docs]</a>    <span class="k">def</span> <span class="nf">collect_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;collecting new database profile info&#39;</span><span class="p">)</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">profilename</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_profile</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;dialect&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dialect_editor</span><span class="o">.</span><span class="n">get_value</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;host&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">host_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;port&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">port_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;database&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">database_name_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;user&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">username_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;pass&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">password_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;media_location&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">media_location_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;locale_language&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_editor</span><span class="o">.</span><span class="n">get_value</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;proxy_host&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_host_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;proxy_port&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_port_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;proxy_username&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_username_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="n">info</span><span class="p">[</span><span class="s">&#39;proxy_password&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy_password_editor</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">profilename</span><span class="p">,</span> <span class="n">info</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.fill_media_location"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.fill_media_location">[docs]</a>    <span class="k">def</span> <span class="nf">fill_media_location</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">caption</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Select media location&#39;</span><span class="p">)</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">QFileDialog</span><span class="o">.</span><span class="n">getExistingDirectory</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">caption</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">selected</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">info</span> <span class="o">=</span> <span class="n">QFileInfo</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">info</span><span class="o">.</span><span class="n">isReadable</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">main_widget</span><span class="p">()</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">not_accessible_media_path_label</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">info</span><span class="o">.</span><span class="n">isWritable</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">main_widget</span><span class="p">()</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">not_writable_media_path_label</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">media_location_editor</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="ProfileWizard.save_profiles_to_file"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.save_profiles_to_file">[docs]</a>    <span class="k">def</span> <span class="nf">save_profiles_to_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">caption</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Save Profiles To a File&#39;</span><span class="p">)</span>
+        <span class="n">filters</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Profiles file (*.ini)&#39;</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">QFileDialog</span><span class="o">.</span><span class="n">getSaveFileName</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">caption</span><span class="p">,</span> <span class="s">&#39;profiles&#39;</span><span class="p">,</span> <span class="n">filters</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;Could not save profiles to file; no path.&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">store_profiles</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">,</span> <span class="n">to_file</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ProfileWizard.load_profiles_from_file"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.database_selection.ProfileWizard.load_profiles_from_file">[docs]</a>    <span class="k">def</span> <span class="nf">load_profiles_from_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">caption</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Load Profiles From a File&#39;</span><span class="p">)</span>
+        <span class="n">filters</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Profiles file (*.ini)&#39;</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">QFileDialog</span><span class="o">.</span><span class="n">getOpenFileName</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">caption</span><span class="p">,</span> <span class="s">&#39;profiles&#39;</span><span class="p">,</span> <span class="n">filters</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;Could not load profiles from file; no path.&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span> <span class="o">=</span> <span class="n">fetch_profiles</span><span class="p">(</span><span class="n">from_file</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">:</span>
+            <span class="n">store_profiles</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiles</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">execv</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">]</span> <span class="o">+</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

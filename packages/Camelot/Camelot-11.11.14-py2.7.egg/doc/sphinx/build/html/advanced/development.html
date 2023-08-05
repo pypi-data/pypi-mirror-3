@@ -1,0 +1,328 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Development Guidlines &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../index.html" />
+    <link rel="up" title="Advanced Topics" href="index.html" />
+    <link rel="next" title="Debugging Camelot and PyQt" href="debug.html" />
+    <link rel="prev" title="Authentication and permissions" href="permissions.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="debug.html" title="Debugging Camelot and PyQt"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="permissions.html" title="Authentication and permissions"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../contents.html" >Camelot Documentation contents</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Advanced Topics</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="development-guidlines">
+<span id="doc-development"></span><h1>Development Guidlines<a class="headerlink" href="#development-guidlines" title="Permalink to this headline">¶</a></h1>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Date:</th><td class="field-body">November 03, 2011</td>
+</tr>
+</tbody>
+</table>
+<div class="section" id="python-pyqt-and-qt-objects">
+<h2>Python, PyQt and Qt objects<a class="headerlink" href="#python-pyqt-and-qt-objects" title="Permalink to this headline">¶</a></h2>
+<p>Python and Qt both have their own way of tracking objects
+and deleting them when they are no longer needed :</p>
+<blockquote>
+<div><ul class="simple">
+<li>Python does reference counting supported
+by a garbage collector.</li>
+<li>Qt has parent child relations between objects.  When a
+parent object is deleted, all its child objects are
+deleted as well.</li>
+</ul>
+</div></blockquote>
+<p>PyQt merges these two concepts by introducing <strong>ownership</strong>
+of objects :</p>
+<blockquote>
+<div><ul class="simple">
+<li>Pure python objects are owned by Python, Python takes
+care of their deletion.</li>
+<li>Qt objects wrapped by Python are either:<ul>
+<li>owned by Qt when they have a parent object, Qt will
+delete them, when their parent object is deleted</li>
+<li>owned by Python when they have no parent, Python will
+delete them, and trigger the deletion of all their children
+by Qt</li>
+</ul>
+</li>
+<li>Qt objects that are not wrapped by Python, those are in
+one way or another children of a Qt object that is wrapped
+by Python, they will get deleted by Qt.</li>
+</ul>
+</div></blockquote>
+<p>The difficult case in this scheme is the case where Qt objects
+are wrapped by Python but have a parent object.  This can happen
+in two ways :</p>
+<blockquote>
+<div><ul>
+<li><p class="first">A Qt object is created in python, but with a parent</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="n">parent</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">()</span>
+<span class="n">child</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In this case PyQt is able to track when the object is
+deleted by Qt and raises exceptions accordingly when a
+method of underlying Qt object is called after the deletion</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">parent</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">()</span>
+<span class="n">child</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+<span class="k">del</span> <span class="n">parent</span>
+<span class="k">print</span> <span class="n">child</span><span class="o">.</span><span class="n">objectName</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>will raise a RuntimeError: underlying C/C++ object has been deleted.</p>
+</li>
+<li><p class="first">A Qt object is returned from a Qt function that created the object
+without Python being aware of it.  When the object is passed as a
+return value PyQt will wrap it as a Python object, but is unable
+to track when Qt deletes it</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="p">([])</span>
+<span class="n">window</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMainWindow</span><span class="p">()</span>
+<span class="n">statusbar</span> <span class="o">=</span> <span class="n">window</span><span class="o">.</span><span class="n">statusBar</span><span class="p">()</span>
+<span class="k">del</span> <span class="n">window</span>
+<span class="n">statusbar</span><span class="o">.</span><span class="n">objectName</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Will result in a segmentation fault.</p>
+</li>
+</ul>
+</div></blockquote>
+<p>A segmentation fault will happen in several cases :</p>
+<blockquote>
+<div><ul class="simple">
+<li>Python tries to delete a Qt object already deleted by Qt</li>
+<li>PyQt calls a function of a Qt object already deleted</li>
+<li>Qt calls a function of a Qt object already deleted by Python</li>
+</ul>
+</div></blockquote>
+<p>In principle, PyQt is able to handle all cases where the object
+has been created by Python.  However, when this ownership tracking
+is combined with threading and signal slot connections, a lot
+of corner cases arise in both Qt and PyQt.</p>
+<p>To play on safe, these guidelines are used when developing Camelot :</p>
+<blockquote>
+<div><ul>
+<li><p class="first">Never keep a reference to objects created by Qt having a parent,
+so only use:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">window</span><span class="o">.</span><span class="n">statusBar</span><span class="p">()</span><span class="o">.</span><span class="n">objectName</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first">Keep references to Qt child objects as short as possible, and
+never beyond the scope of a method call.  This is possible because
+qt allows objects to have a name.</p>
+<p>so instead of doing</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+
+<span class="k">class</span> <span class="nc">Parent</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span> <span class="p">):</span>
+
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+                <span class="nb">super</span><span class="p">(</span><span class="n">Parent</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_child</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span> <span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">do_something</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+                <span class="k">print</span> <span class="bp">self</span><span class="o">.</span><span class="n">_child</span><span class="o">.</span><span class="n">objectName</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>this is done</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+
+<span class="k">class</span> <span class="nc">Parent</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span> <span class="p">):</span>
+
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+                <span class="nb">super</span><span class="p">(</span><span class="n">Parent</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+                <span class="n">child</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span> <span class="p">)</span>
+                <span class="n">child</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span> <span class="s">&#39;label&#39;</span> <span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">do_something</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+            <span class="n">child</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;label&#39;</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="n">child</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="k">print</span> <span class="n">child</span><span class="o">.</span><span class="n">objectName</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>should the child object have been deleted by Qt, the findChild method
+will return None, and a segmentation fault is prevented.  An explicit
+check for None is needed, since even if the widget exists, it might
+evaluate to 0 or an empty string.</p>
+</li>
+</ul>
+</div></blockquote>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Development Guidlines</a><ul>
+<li><a class="reference internal" href="#python-pyqt-and-qt-objects">Python, PyQt and Qt objects</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="permissions.html"
+                        title="previous chapter">Authentication and permissions</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="debug.html"
+                        title="next chapter">Debugging Camelot and PyQt</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/advanced/development.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="debug.html" title="Debugging Camelot and PyQt"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="permissions.html" title="Authentication and permissions"
+             >previous</a> |</li>
+        <li><a href="../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../contents.html" >Camelot Documentation contents</a> &raquo;</li>
+          <li><a href="index.html" >Advanced Topics</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

@@ -1,0 +1,380 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.model.type_and_status &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.model.type_and_status</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="sd">Created on Sep 25, 2009</span>
+
+<span class="sd">@author: Erik De Rijcke</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="kn">from</span> <span class="nn">elixir.entity</span> <span class="kn">import</span> <span class="n">Entity</span><span class="p">,</span> <span class="n">EntityMeta</span>
+
+<span class="kn">from</span> <span class="nn">sqlalchemy.types</span> <span class="kn">import</span> <span class="n">Date</span><span class="p">,</span> <span class="n">Unicode</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.sql</span> <span class="kn">import</span> <span class="n">and_</span>
+
+<span class="kn">from</span> <span class="nn">elixir.fields</span> <span class="kn">import</span> <span class="n">Field</span>
+<span class="kn">from</span> <span class="nn">elixir.options</span> <span class="kn">import</span> <span class="n">using_options</span>
+<span class="kn">from</span> <span class="nn">elixir.relationships</span> <span class="kn">import</span> <span class="n">ManyToOne</span><span class="p">,</span> <span class="n">OneToMany</span>
+
+<span class="kn">from</span> <span class="nn">camelot.model.authentication</span> <span class="kn">import</span> <span class="n">end_of_times</span>
+<span class="kn">from</span> <span class="nn">camelot.admin.entity_admin</span> <span class="kn">import</span> <span class="n">EntityAdmin</span>
+<span class="kn">from</span> <span class="nn">camelot.types</span> <span class="kn">import</span> <span class="n">Enumeration</span>
+
+<span class="c">#</span>
+<span class="c"># Global dict keeping track of which status class is used for which class</span>
+<span class="c">#</span>
+<span class="n">__status_classes__</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">__status_type_classes__</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="get_status_class"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.type_and_status.get_status_class">[docs]</a><span class="k">def</span> <span class="nf">get_status_class</span><span class="p">(</span><span class="n">cls_name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param cls_name: an Entity class name</span>
+<span class="sd">    :return: the status class used for this entity</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">__status_classes__</span><span class="p">[</span><span class="n">cls_name</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="get_status_type_class"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.type_and_status.get_status_type_class">[docs]</a><span class="k">def</span> <span class="nf">get_status_type_class</span><span class="p">(</span><span class="n">cls_name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param cls_name: an Entity class name</span>
+<span class="sd">    :return: the status type class used for this entity</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">__status_type_classes__</span><span class="p">[</span><span class="n">cls_name</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="create_type_3_status_mixin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.type_and_status.create_type_3_status_mixin">[docs]</a><span class="k">def</span> <span class="nf">create_type_3_status_mixin</span><span class="p">(</span><span class="n">status_attribute</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create a class that can be subclassed to provide a class that</span>
+<span class="sd">    has a type 3 status with methods to manipulate and review its status</span>
+<span class="sd">    :param status_attribute: the name of the type 3 status attribute</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="k">class</span> <span class="nc">Type3StatusMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+        <span class="nd">@property</span>
+        <span class="k">def</span> <span class="nf">current_status</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">classified_by</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="n">today</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">status_history</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">status_history</span><span class="o">.</span><span class="n">status_from_date</span><span class="o">&lt;=</span><span class="n">today</span> <span class="ow">and</span> <span class="n">status_history</span><span class="o">.</span><span class="n">status_thru_date</span><span class="o">&gt;=</span><span class="n">today</span><span class="p">:</span>
+                    <span class="n">classified_by</span> <span class="o">=</span> <span class="n">status_history</span><span class="o">.</span><span class="n">classified_by</span>
+            <span class="k">return</span> <span class="n">classified_by</span>
+    
+        <span class="k">def</span> <span class="nf">change_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_status</span><span class="p">,</span> <span class="n">status_from_date</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">status_thru_date</span><span class="o">=</span><span class="n">end_of_times</span><span class="p">()):</span>
+            <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">status_from_date</span><span class="p">:</span>
+                <span class="n">status_from_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="n">orm</span><span class="o">.</span><span class="n">class_mapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>
+            <span class="n">status_property</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span><span class="s">&#39;status&#39;</span><span class="p">)</span>
+            <span class="n">status_type</span> <span class="o">=</span> <span class="n">status_property</span><span class="o">.</span><span class="n">_get_target</span><span class="p">()</span><span class="o">.</span><span class="n">class_</span>
+            <span class="n">old_status</span> <span class="o">=</span> <span class="n">status_type</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span> <span class="n">and_</span><span class="p">(</span> <span class="n">status_type</span><span class="o">.</span><span class="n">status_for</span> <span class="o">==</span> <span class="bp">self</span><span class="p">,</span>
+                                                         <span class="n">status_type</span><span class="o">.</span><span class="n">status_from_date</span> <span class="o">&lt;=</span> <span class="n">status_from_date</span><span class="p">,</span>
+                                                         <span class="n">status_type</span><span class="o">.</span><span class="n">status_thru_date</span> <span class="o">&gt;=</span> <span class="n">status_from_date</span> <span class="p">)</span> <span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">old_status</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">old_status</span><span class="o">.</span><span class="n">thru_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span> <span class="o">-</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span> <span class="n">days</span> <span class="o">=</span> <span class="mi">1</span> <span class="p">)</span>
+                <span class="n">old_status</span><span class="o">.</span><span class="n">status_thru_date</span> <span class="o">=</span> <span class="n">status_from_date</span> <span class="o">-</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span> <span class="n">days</span> <span class="o">=</span> <span class="mi">1</span> <span class="p">)</span>
+            <span class="n">new_status</span> <span class="o">=</span> <span class="n">status_type</span><span class="p">(</span>    <span class="n">status_for</span> <span class="o">=</span> <span class="bp">self</span><span class="p">,</span>
+                                         <span class="n">classified_by</span> <span class="o">=</span> <span class="n">new_status</span><span class="p">,</span>
+                                         <span class="n">status_from_date</span> <span class="o">=</span> <span class="n">status_from_date</span><span class="p">,</span>
+                                         <span class="n">status_thru_date</span> <span class="o">=</span> <span class="n">status_thru_date</span><span class="p">,</span>
+                                         <span class="n">from_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">(),</span>
+                                         <span class="n">thru_date</span> <span class="o">=</span> <span class="n">end_of_times</span><span class="p">()</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="n">old_status</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="p">[</span><span class="n">old_status</span><span class="p">]</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="p">[</span><span class="n">new_status</span><span class="p">]</span> <span class="p">)</span>        
+        
+    <span class="k">return</span> <span class="n">Type3StatusMixin</span>
+    </div>
+<div class="viewcode-block" id="type_3_status"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.type_and_status.type_3_status">[docs]</a><span class="k">def</span> <span class="nf">type_3_status</span><span class="p">(</span> <span class="n">statusable_entity</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">collection</span><span class="p">,</span> <span class="n">verbose_entity_name</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">enumeration</span><span class="o">=</span><span class="bp">None</span> <span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Creates a new type 3 status related to the given entity</span>
+<span class="sd">    :statusable_entity: A string referring to an entity.</span>
+<span class="sd">    :enumeration: if this parameter is used, no status type Entity is created, but the status type is</span>
+<span class="sd">    described by the enumeration.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">t3_status_name</span> <span class="o">=</span> <span class="n">statusable_entity</span> <span class="o">+</span> <span class="s">&#39;_status&#39;</span>
+    <span class="n">t3_status_type_name</span> <span class="o">=</span> <span class="n">statusable_entity</span> <span class="o">+</span> <span class="s">&#39;_status_type&#39;</span>
+
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">enumeration</span><span class="p">:</span>
+        
+        <span class="k">class</span> <span class="nc">Type3StatusTypeMeta</span><span class="p">(</span> <span class="n">EntityMeta</span> <span class="p">):</span>
+            <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span> <span class="n">cls</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">):</span>
+                <span class="k">return</span> <span class="n">EntityMeta</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span> <span class="n">cls</span><span class="p">,</span> <span class="n">t3_status_type_name</span><span class="p">,</span>
+                                     <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">)</span>
+            <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">):</span>
+                <span class="n">EntityMeta</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">t3_status_type_name</span><span class="p">,</span>
+                                      <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">)</span>
+            
+        <span class="k">class</span> <span class="nc">Type3StatusType</span><span class="p">(</span> <span class="n">Entity</span><span class="p">,</span> <span class="p">):</span>
+            <span class="n">using_options</span><span class="p">(</span> <span class="n">tablename</span> <span class="o">=</span> <span class="n">t3_status_type_name</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="n">collection</span> <span class="p">)</span>
+            <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">Type3StatusTypeMeta</span>
+    
+            <span class="n">code</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Unicode</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span> <span class="n">index</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                          <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">unique</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">)</span>
+            <span class="n">description</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Unicode</span><span class="p">(</span> <span class="mi">40</span> <span class="p">),</span> <span class="n">index</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">)</span>
+    
+            <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span>
+    
+            <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+                <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;code&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">]</span>
+                <span class="n">form_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;code&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">]</span>
+                <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">statusable_entity</span> <span class="o">+</span> <span class="s">&#39; Status Type&#39;</span>
+                <span class="k">if</span> <span class="n">verbose_entity_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">verbose_entity_name</span> <span class="o">+</span> <span class="s">&#39; Status Type&#39;</span>
+
+        <span class="n">__status_type_classes__</span><span class="p">[</span><span class="n">statusable_entity</span><span class="p">]</span> <span class="o">=</span> <span class="n">Type3StatusType</span>
+        
+    <span class="k">class</span> <span class="nc">Type3StatusMeta</span><span class="p">(</span> <span class="n">EntityMeta</span> <span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span> <span class="n">cls</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">):</span>
+            <span class="k">return</span> <span class="n">EntityMeta</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span> <span class="n">cls</span><span class="p">,</span> <span class="n">t3_status_name</span><span class="p">,</span>
+                                       <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">)</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">):</span>
+            <span class="n">EntityMeta</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">t3_status_name</span><span class="p">,</span>
+                                 <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Type3Status</span><span class="p">(</span> <span class="n">Entity</span><span class="p">,</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Status Pattern</span>
+<span class="sd">        .. attribute:: status_datetime For statuses that occur at a specific point in time</span>
+<span class="sd">        .. attribute:: status_from_date For statuses that require a date range</span>
+<span class="sd">        .. attribute:: from_date When a status was enacted or set</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">using_options</span><span class="p">(</span> <span class="n">tablename</span> <span class="o">=</span> <span class="n">t3_status_name</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="n">collection</span> <span class="p">)</span>
+        <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">Type3StatusMeta</span>
+
+        <span class="n">status_datetime</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Date</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">)</span>
+        <span class="n">status_from_date</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Date</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">)</span>
+        <span class="n">status_thru_date</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Date</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">)</span>
+        <span class="n">from_date</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Date</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">default</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span> <span class="p">)</span>
+        <span class="n">thru_date</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Date</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">default</span> <span class="o">=</span> <span class="n">end_of_times</span> <span class="p">)</span>
+
+        <span class="n">status_for</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span> <span class="n">statusable_entity</span><span class="p">,</span> <span class="c">#required = True,</span>
+                                 <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span> <span class="p">)</span>
+        
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">enumeration</span><span class="p">:</span>
+            <span class="n">classified_by</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span> <span class="n">t3_status_type_name</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                                       <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">classified_by</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">Enumeration</span><span class="p">(</span><span class="n">enumeration</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+            <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">statusable_entity</span> <span class="o">+</span> <span class="s">&#39; Status&#39;</span>
+            <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="n">statusable_entity</span> <span class="o">+</span> <span class="s">&#39; Statuses&#39;</span>
+            <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;status_from_date&#39;</span><span class="p">,</span> <span class="s">&#39;status_thru_date&#39;</span><span class="p">,</span> <span class="s">&#39;classified_by&#39;</span><span class="p">]</span>
+            <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">statusable_entity</span> <span class="o">+</span> <span class="s">&#39; Status&#39;</span>
+            <span class="k">if</span> <span class="n">verbose_entity_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">verbose_entity_name</span> <span class="o">+</span> <span class="s">&#39; Status&#39;</span>
+
+        <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+            <span class="k">return</span> <span class="s">u&#39;Status&#39;</span>
+
+    <span class="n">__status_classes__</span><span class="p">[</span><span class="n">statusable_entity</span><span class="p">]</span> <span class="o">=</span> <span class="n">Type3Status</span>
+    
+    <span class="k">return</span> <span class="n">t3_status_name</span>
+</div>
+<div class="viewcode-block" id="entity_type"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.type_and_status.entity_type">[docs]</a><span class="k">def</span> <span class="nf">entity_type</span><span class="p">(</span> <span class="n">typable_entity</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">collection</span><span class="p">,</span> <span class="n">verbose_entity_name</span> <span class="o">=</span> <span class="bp">None</span> <span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Creates a new type related to the given entity.</span>
+<span class="sd">    .. typeable_entity:: A string referring to an entity.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">type_name</span> <span class="o">=</span> <span class="n">typable_entity</span> <span class="o">+</span> <span class="s">&#39;_type&#39;</span>
+
+    <span class="k">class</span> <span class="nc">TypeMeta</span><span class="p">(</span> <span class="n">EntityMeta</span> <span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span> <span class="n">cls</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">):</span>
+            <span class="k">return</span> <span class="n">EntityMeta</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span> <span class="n">cls</span><span class="p">,</span> <span class="n">type_name</span><span class="p">,</span>
+                                       <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">)</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">):</span>
+            <span class="n">EntityMeta</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">type_name</span><span class="p">,</span>
+                                 <span class="n">bases</span><span class="p">,</span> <span class="n">dictionary</span> <span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Type</span><span class="p">(</span> <span class="n">Entity</span> <span class="p">):</span>
+        <span class="n">using_options</span><span class="p">(</span> <span class="n">tablename</span> <span class="o">=</span> <span class="n">type_name</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="n">collection</span> <span class="p">)</span>
+        <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">TypeMeta</span>
+
+        <span class="n">type_description_for</span> <span class="o">=</span> <span class="n">OneToMany</span><span class="p">(</span> <span class="n">typable_entity</span> <span class="p">)</span>
+        <span class="n">description</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Unicode</span><span class="p">(</span> <span class="mi">48</span> <span class="p">),</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">)</span>
+
+        <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+            <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">typable_entity</span> <span class="o">+</span> <span class="s">&#39; Type&#39;</span>
+            <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;description&#39;</span><span class="p">,</span> <span class="p">]</span>
+            <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">typable_entity</span> <span class="o">+</span> <span class="s">&#39; Type&#39;</span>
+            <span class="k">if</span> <span class="n">verbose_entity_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">verbose_entity_name</span> <span class="o">+</span> <span class="s">&#39; Type&#39;</span>
+
+        <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+            <span class="k">return</span> <span class="s">u&#39;Type: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">type_name</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

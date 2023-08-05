@@ -1,0 +1,382 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.bin.camelot_manage &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.bin.camelot_manage</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="kn">from</span> <span class="nn">optparse</span> <span class="kn">import</span> <span class="n">OptionParser</span>
+<span class="kn">from</span> <span class="nn">code</span> <span class="kn">import</span> <span class="n">InteractiveConsole</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+
+<span class="c">#</span>
+<span class="c"># Description of the application, out of which the help text as well as the</span>
+<span class="c"># __doc__ strings can be generated</span>
+<span class="c">#</span>
+
+<span class="n">usage</span> <span class="o">=</span> <span class="s">&quot;usage: %prog [options] command&quot;</span>
+
+<span class="n">description</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">camelot_manage is oriented towards administrators of an installed</span>
+<span class="s">camelot application. It is used for interacting the database, the model</span>
+<span class="s">and migration of the database to a certain schema revision.</span>
+
+<span class="s">To use this application, PYTHONPATH should contain a valid settings.py file that</span>
+<span class="s">will be used to resolve the database engine and the model.</span>
+<span class="s">&quot;&quot;&quot;</span>
+
+<span class="n">command_description</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s">&#39;console&#39;</span><span class="p">,</span> <span class="s">&quot;&quot;&quot;Launches a python console with the model all setup for command line</span>
+<span class="s">interaction.</span>
+
+<span class="s">Within the example movie project one could do</span>
+<span class="s">the following to print a list of all movie titles to the screen::</span>
+
+<span class="s">    from model import Movie</span>
+<span class="s">    for movie in Movie.query.all():</span>
+<span class="s">    print movie.title</span>
+<span class="s">&quot;&quot;&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s">&#39;db_version&#39;</span><span class="p">,</span> <span class="s">&quot;&quot;&quot;Get the version of the database schema from the current database&quot;&quot;&quot;</span><span class="p">),</span>
+
+    <span class="p">(</span><span class="s">&#39;version&#39;</span><span class="p">,</span> <span class="s">&quot;&quot;&quot;Get the latest available database schema version&quot;&quot;&quot;</span><span class="p">),</span>
+
+    <span class="p">(</span><span class="s">&#39;upgrade&#39;</span><span class="p">,</span> <span class="s">&quot;&quot;&quot;Upgrade or downgrade the database to the specified version, use upgrade version_number.&quot;&quot;&quot;</span><span class="p">),</span>
+
+    <span class="p">(</span><span class="s">&#39;version_control&#39;</span><span class="p">,</span> <span class="s">&quot;&quot;&quot;Put the database under version control&quot;&quot;&quot;</span><span class="p">),</span>
+   
+    <span class="p">(</span><span class="s">&#39;schema_display&#39;</span><span class="p">,</span> <span class="s">&quot;&quot;&quot;Generate a graph of the database schema.  The result is stored in schema.png.  This</span>
+<span class="s">option requires pydot to be installed.&quot;&quot;&quot;</span><span class="p">),</span>
+<span class="p">]</span>
+
+<span class="c">#</span>
+<span class="c"># Generate a docstring in restructured text format</span>
+<span class="c">#</span>
+
+<span class="n">__doc__</span> <span class="o">=</span> <span class="n">description</span>
+
+<span class="k">for</span> <span class="n">command</span><span class="p">,</span> <span class="n">desc</span> <span class="ow">in</span> <span class="n">command_description</span><span class="p">:</span>
+    <span class="n">__doc__</span> <span class="o">+=</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">.. cmdoption:: </span><span class="si">%s</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="o">%</span><span class="n">command</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">desc</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">):</span>
+        <span class="n">__doc__</span> <span class="o">+=</span> <span class="s">&quot;    </span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">%</span><span class="n">line</span>
+
+<span class="n">__doc__</span> <span class="o">+=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">   .. image:: /_static/schema.png</span>
+<span class="s">      :width: 400&quot;&quot;&quot;</span>
+
+<span class="c">#</span>
+<span class="c"># A custom OptionParser that generates help information on the commands</span>
+<span class="c">#</span>
+<div class="viewcode-block" id="CommandOptionParser"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.CommandOptionParser">[docs]</a><span class="k">class</span> <span class="nc">CommandOptionParser</span><span class="p">(</span><span class="n">OptionParser</span><span class="p">):</span>
+    
+<div class="viewcode-block" id="CommandOptionParser.format_help"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.CommandOptionParser.format_help">[docs]</a>    <span class="k">def</span> <span class="nf">format_help</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">formatter</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">command_help</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">The available commands are :</span>
+
+<span class="s">&quot;&quot;&quot;</span>
+        <span class="n">command_help</span> <span class="o">+=</span> <span class="s">&#39;</span><span class="se">\n\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s">&#39;</span><span class="si">%s</span><span class="se">\n</span><span class="si">%s</span><span class="se">\n</span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">command</span><span class="p">,</span><span class="s">&#39;-&#39;</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">command</span><span class="p">),</span> <span class="n">desc</span><span class="p">)</span> <span class="k">for</span> <span class="n">command</span><span class="p">,</span><span class="n">desc</span> <span class="ow">in</span> <span class="n">command_description</span><span class="p">])</span>
+        <span class="n">command_help</span> <span class="o">+=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">        </span>
+<span class="s">For the creation and development of Camelot projects, see camelot_admin</span>
+
+<span class="s">&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">OptionParser</span><span class="o">.</span><span class="n">format_help</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command_help</span><span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="FileCacher"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.FileCacher">[docs]</a><span class="k">class</span> <span class="nc">FileCacher</span><span class="p">:</span>
+    <span class="s">&quot;Cache the stdout text so we can analyze it before returning it&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<div class="viewcode-block" id="FileCacher.reset"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.FileCacher.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="p">[]</span></div>
+<div class="viewcode-block" id="FileCacher.write"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.FileCacher.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">line</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span></div>
+<div class="viewcode-block" id="FileCacher.flush"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.FileCacher.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">output</span>
+    </div></div>
+<div class="viewcode-block" id="Shell"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.Shell">[docs]</a><span class="k">class</span> <span class="nc">Shell</span><span class="p">(</span><span class="n">InteractiveConsole</span><span class="p">):</span>
+    <span class="s">&quot;Wrapper around Python that can filter input/output to the shell&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="n">FileCacher</span><span class="p">()</span>
+        <span class="n">InteractiveConsole</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">locals</span><span class="p">)</span>
+        <span class="k">return</span>
+<div class="viewcode-block" id="Shell.get_output"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.Shell.get_output">[docs]</a>    <span class="k">def</span> <span class="nf">get_output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span></div>
+<div class="viewcode-block" id="Shell.return_output"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.Shell.return_output">[docs]</a>    <span class="k">def</span> <span class="nf">return_output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stdout</span></div>
+<div class="viewcode-block" id="Shell.push"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.Shell.push">[docs]</a>    <span class="k">def</span> <span class="nf">push</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">line</span><span class="p">):</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\r</span><span class="s">&#39;</span><span class="p">,</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_output</span><span class="p">()</span>
+        <span class="c"># you can filter input here by doing something like</span>
+        <span class="c"># line = filter(line)</span>
+        <span class="n">InteractiveConsole</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">line</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">return_output</span><span class="p">()</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="c"># you can filter the output here by doing something like</span>
+        <span class="c"># output = filter(output)</span>
+        <span class="k">print</span> <span class="n">output</span> <span class="c"># or do something else with it</span>
+        <span class="k">return</span> 
+    </div></div>
+<div class="viewcode-block" id="schema_display"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.schema_display">[docs]</a><span class="k">def</span> <span class="nf">schema_display</span><span class="p">(</span><span class="n">image_path</span><span class="o">=</span><span class="s">&#39;schema.png&#39;</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">camelot.core.schema_display</span> <span class="kn">import</span> <span class="n">create_uml_graph</span>
+    <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span>
+    <span class="kn">from</span> <span class="nn">elixir</span> <span class="kn">import</span> <span class="n">entities</span>
+    <span class="n">mappers</span> <span class="o">=</span> <span class="p">[</span><span class="n">orm</span><span class="o">.</span><span class="n">class_mapper</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">entities</span><span class="p">]</span>
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">create_uml_graph</span><span class="p">(</span><span class="n">mappers</span><span class="p">,</span>
+        <span class="n">show_operations</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="c"># not necessary in this case</span>
+        <span class="n">show_multiplicity_one</span><span class="o">=</span><span class="bp">False</span> <span class="c"># some people like to see the ones, some don&#39;t</span>
+    <span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">write_png</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span>
+     </div>
+<div class="viewcode-block" id="setup_model"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.setup_model">[docs]</a><span class="k">def</span> <span class="nf">setup_model</span><span class="p">():</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">setup_model</span><span class="p">()</span>
+     </div>
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../../api2/camelot.bin.html#camelot.bin.camelot_manage.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="kn">import</span> <span class="nn">camelot</span>
+    <span class="kn">import</span> <span class="nn">logging</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+    <span class="c">#logging.getLogger(&#39;sqlalchemy.engine&#39;).setLevel(logging.DEBUG)</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">CommandOptionParser</span><span class="p">(</span><span class="n">usage</span><span class="o">=</span><span class="n">usage</span><span class="p">,</span>
+                                 <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span> 
+                                 <span class="n">version</span><span class="o">=</span><span class="n">camelot</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">_options</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">print_help</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="s">&#39;console&#39;</span><span class="p">:</span>
+        <span class="n">setup_model</span><span class="p">()</span>
+        <span class="n">sh</span> <span class="o">=</span> <span class="n">Shell</span><span class="p">()</span>
+        <span class="n">sh</span><span class="o">.</span><span class="n">interact</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="s">&#39;schema_display&#39;</span><span class="p">:</span>
+        <span class="n">setup_model</span><span class="p">()</span>
+        <span class="n">schema_display</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;version_control&#39;</span><span class="p">,</span> <span class="s">&#39;db_version&#39;</span><span class="p">,</span> <span class="s">&#39;version&#39;</span><span class="p">,</span> <span class="s">&#39;upgrade&#39;</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">migrate.versioning.repository</span> <span class="kn">import</span> <span class="n">Repository</span>
+        <span class="kn">from</span> <span class="nn">migrate.versioning.schema</span> <span class="kn">import</span> <span class="n">ControlledSchema</span>
+        <span class="kn">from</span> <span class="nn">migrate.versioning.exceptions</span> <span class="kn">import</span> <span class="n">DatabaseNotControlledError</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.exc</span> <span class="kn">import</span> <span class="n">NoSuchTableError</span>
+        <span class="n">migrate_engine</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ENGINE</span><span class="p">()</span>
+        <span class="n">repository</span> <span class="o">=</span> <span class="n">Repository</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">REPOSITORY</span><span class="p">)</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">schema</span> <span class="o">=</span> <span class="n">ControlledSchema</span><span class="p">(</span><span class="n">migrate_engine</span><span class="p">,</span> <span class="n">repository</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">NoSuchTableError</span><span class="p">,</span> <span class="n">DatabaseNotControlledError</span><span class="p">):</span>
+            <span class="k">print</span> <span class="s">&#39;database not yet under version control, putting it under version_control first.&#39;</span>
+        <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="s">&#39;version_control&#39;</span> <span class="ow">or</span> <span class="n">schema</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">migrate_connection</span> <span class="o">=</span> <span class="n">migrate_engine</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+            <span class="n">transaction</span> <span class="o">=</span> <span class="n">migrate_connection</span><span class="o">.</span><span class="n">begin</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">schema</span> <span class="o">=</span> <span class="n">ControlledSchema</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">migrate_engine</span><span class="p">,</span> <span class="n">repository</span><span class="p">)</span>
+                <span class="n">transaction</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">transaction</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                <span class="k">raise</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="n">migrate_connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">print</span> <span class="s">&#39;database was put under version control&#39;</span>
+        <span class="k">if</span> <span class="n">schema</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="s">&#39;db_version&#39;</span><span class="p">:</span>
+                <span class="k">print</span> <span class="n">schema</span><span class="o">.</span><span class="n">version</span>
+            <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="s">&#39;version&#39;</span><span class="p">:</span>
+                <span class="k">print</span> <span class="n">repository</span><span class="o">.</span><span class="n">latest</span>
+            <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="s">&#39;upgrade&#39;</span><span class="p">:</span>
+                <span class="n">migrate_connection</span> <span class="o">=</span> <span class="n">migrate_engine</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">&gt;=</span><span class="mi">2</span><span class="p">:</span>
+                    <span class="n">version</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">version</span> <span class="o">=</span> <span class="n">repository</span><span class="o">.</span><span class="n">latest</span>
+                <span class="c">#</span>
+                <span class="c"># perform each upgrade step in a separate transaction, since</span>
+                <span class="c"># one upgrade might depend on an other being fully executed</span>
+                <span class="c">#</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">schema</span><span class="o">.</span><span class="n">version</span> <span class="o">==</span> <span class="n">version</span><span class="p">:</span>
+                        <span class="k">print</span> <span class="s">&#39;database is already at requested version&#39;</span>
+                    <span class="k">if</span> <span class="n">schema</span><span class="o">.</span><span class="n">version</span> <span class="o">&lt;=</span> <span class="n">version</span><span class="p">:</span>
+                        <span class="n">step</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">step</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">version</span><span class="o">+</span><span class="n">step</span><span class="p">,</span> <span class="n">version</span><span class="o">+</span><span class="n">step</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+                        <span class="n">transaction</span> <span class="o">=</span> <span class="n">migrate_connection</span><span class="o">.</span><span class="n">begin</span><span class="p">()</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">schema</span><span class="o">.</span><span class="n">upgrade</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                            <span class="n">transaction</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+                                <span class="k">print</span> <span class="s">&#39;upgrade </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">i</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="k">print</span> <span class="s">&#39;downgrade </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">i</span>
+                        <span class="k">except</span><span class="p">:</span>
+                            <span class="n">transaction</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+                            <span class="k">raise</span>
+                <span class="k">finally</span><span class="p">:</span>
+                    <span class="n">migrate_connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">print_help</span><span class="p">()</span>
+             </div>
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

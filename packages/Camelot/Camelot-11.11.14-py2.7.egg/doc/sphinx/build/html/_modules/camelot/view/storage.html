@@ -1,0 +1,313 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.storage &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.storage</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">post</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span> <span class="k">as</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.exception</span> <span class="kn">import</span> <span class="n">model_thread_exception_message_box</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.storage&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="OpenFileProgressDialog"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.OpenFileProgressDialog">[docs]</a><span class="k">class</span> <span class="nc">OpenFileProgressDialog</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QProgressDialog</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QProgressDialog</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Please wait&#39;</span><span class="p">),</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QString</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Open file&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setRange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+<div class="viewcode-block" id="OpenFileProgressDialog.open_path"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.OpenFileProgressDialog.open_path">[docs]</a>    <span class="k">def</span> <span class="nf">open_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">critical</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span>
+                <span class="n">_</span><span class="p">(</span><span class="s">&#39;Could not open file&#39;</span><span class="p">),</span>
+                <span class="n">_</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> does not exist&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="n">path</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># support for windows shares</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">r&#39;</span><span class="se">\\</span><span class="s">&#39;</span><span class="p">):</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QUrl</span><span class="o">.</span><span class="n">fromLocalFile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QUrl</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QUrl</span><span class="o">.</span><span class="n">TolerantMode</span><span class="p">)</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QDesktopServices</span><span class="o">.</span><span class="n">openUrl</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="OpenFileProgressDialog.file_stored"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.OpenFileProgressDialog.file_stored">[docs]</a>    <span class="k">def</span> <span class="nf">file_stored</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Called when the file has been stored at path&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+</div></div>
+<div class="viewcode-block" id="SaveFileProgressDialog"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.SaveFileProgressDialog">[docs]</a><span class="k">class</span> <span class="nc">SaveFileProgressDialog</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QProgressDialog</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QProgressDialog</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Please wait&#39;</span><span class="p">),</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QString</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Save file&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setRange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SaveFileProgressDialog.finish"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.SaveFileProgressDialog.finish">[docs]</a>    <span class="k">def</span> <span class="nf">finish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">on_finish</span><span class="p">):</span>
+        <span class="n">on_finish</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+</div></div>
+<div class="viewcode-block" id="open_stored_file"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.open_stored_file">[docs]</a><span class="k">def</span> <span class="nf">open_stored_file</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">stored_file</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Open the stored file with the default system editor for</span>
+<span class="sd">    this file type&quot;&quot;&quot;</span>
+
+    <span class="n">progress</span> <span class="o">=</span> <span class="n">OpenFileProgressDialog</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get_path</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">stored_file</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">checkout</span><span class="p">(</span><span class="n">stored_file</span><span class="p">)</span>
+
+    <span class="n">post</span><span class="p">(</span><span class="n">get_path</span><span class="p">,</span> <span class="n">progress</span><span class="o">.</span><span class="n">open_path</span><span class="p">,</span> <span class="n">model_thread_exception_message_box</span><span class="p">)</span>
+    <span class="n">progress</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="save_stored_file"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.save_stored_file">[docs]</a><span class="k">def</span> <span class="nf">save_stored_file</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">stored_file</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Save a stored file as another file&quot;&quot;&quot;</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSettings</span><span class="p">()</span>
+    <span class="n">default_dir</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="s">&#39;datasource&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">toString</span><span class="p">()</span>
+    <span class="n">proposal</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">unicode</span><span class="p">(</span><span class="n">default_dir</span><span class="p">),</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">stored_file</span><span class="o">.</span><span class="n">verbose_name</span><span class="p">)</span> <span class="p">)</span>
+
+    <span class="n">path</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFileDialog</span><span class="o">.</span><span class="n">getSaveFileName</span><span class="p">(</span>
+        <span class="n">parent</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Save as&#39;</span><span class="p">),</span> <span class="n">proposal</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">path</span><span class="p">:</span>
+        <span class="n">progress</span> <span class="o">=</span> <span class="n">OpenFileProgressDialog</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">save_as</span><span class="p">():</span>
+            <span class="n">destination</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s">&#39;wb&#39;</span><span class="p">)</span>
+            <span class="n">destination</span><span class="o">.</span><span class="n">write</span><span class="p">(</span> <span class="n">stored_file</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">checkout_stream</span><span class="p">(</span><span class="n">stored_file</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span> <span class="p">)</span>
+
+        <span class="n">post</span><span class="p">(</span><span class="n">save_as</span><span class="p">,</span> <span class="n">progress</span><span class="o">.</span><span class="n">file_stored</span><span class="p">,</span> <span class="n">model_thread_exception_message_box</span><span class="p">)</span>
+        <span class="n">progress</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="create_stored_file"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.storage.create_stored_file">[docs]</a><span class="k">def</span> <span class="nf">create_stored_file</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">storage</span><span class="p">,</span> <span class="n">on_finish</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="s">&#39;All files (*)&#39;</span><span class="p">,</span>
+                       <span class="n">remove_original</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span>
+                       <span class="n">filename</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Popup a QFileDialog, put the selected file in the storage and</span>
+<span class="sd">    return the call on_finish with the StoredFile when done</span>
+<span class="sd">    </span>
+<span class="sd">    :param on_finish: function that will be called in the gui thread when</span>
+<span class="sd">    the file is stored.  the first argument of the function should be the</span>
+<span class="sd">    StoredFile</span>
+<span class="sd">    </span>
+<span class="sd">    :param filename: if None, a dialog will pop up, asking the user for</span>
+<span class="sd">    the file, otherwise a string with the name of the file to be stored</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSettings</span><span class="p">()</span>
+    <span class="nb">dir</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="s">&#39;lastpath&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">toString</span><span class="p">()</span>
+    <span class="c"># use last path saved in settings, if none current dir is used by Qt</span>
+    <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFileDialog</span><span class="o">.</span><span class="n">getOpenFileName</span><span class="p">(</span>
+            <span class="n">parent</span><span class="p">,</span> <span class="s">&#39;Open file&#39;</span><span class="p">,</span> <span class="nb">dir</span><span class="p">,</span> <span class="nb">filter</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">filename</span><span class="p">:</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span> <span class="n">filename</span> <span class="p">)</span>
+        <span class="n">remove</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">if</span> <span class="n">remove_original</span><span class="p">:</span>
+            <span class="n">reply</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="p">(</span>
+                <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Warning</span><span class="p">,</span>
+                <span class="n">_</span><span class="p">(</span><span class="s">&#39;The file will be stored.&#39;</span><span class="p">),</span>
+                <span class="n">_</span><span class="p">(</span><span class="s">&#39;Do you want to remove the original file?&#39;</span><span class="p">),</span>
+                <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">No</span> <span class="o">|</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Yes</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">reply</span><span class="o">.</span><span class="n">setDefaultButton</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Yes</span><span class="p">)</span>
+            <span class="n">reply</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">reply</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Yes</span><span class="p">:</span>
+                <span class="n">remove</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="c"># save it back</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">setValue</span><span class="p">(</span><span class="s">&#39;lastpath&#39;</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span> <span class="n">filename</span> <span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="n">progress</span> <span class="o">=</span> <span class="n">SaveFileProgressDialog</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">checkin</span><span class="p">():</span>
+            <span class="n">new_path</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">checkin</span><span class="p">(</span> <span class="n">filename</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="n">remove</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">filename</span> <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">LOGGER</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;could not remove file&#39;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">return</span> <span class="k">lambda</span><span class="p">:</span><span class="n">on_finish</span><span class="p">(</span><span class="n">new_path</span><span class="p">)</span>
+
+        <span class="n">post</span><span class="p">(</span><span class="n">checkin</span><span class="p">,</span> <span class="n">progress</span><span class="o">.</span><span class="n">finish</span><span class="p">,</span> <span class="n">model_thread_exception_message_box</span><span class="p">)</span>
+        <span class="n">progress</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

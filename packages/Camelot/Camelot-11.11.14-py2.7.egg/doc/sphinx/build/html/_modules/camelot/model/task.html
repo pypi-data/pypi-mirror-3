@@ -1,0 +1,446 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.model.task &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.model.task</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+<span class="sd">&quot;&quot;&quot;Most users have the need to do some basic task tracking across various</span>
+<span class="sd">parts of the data model.</span>
+
+<span class="sd">These classes provide basic task tracking with configurable statuses, </span>
+<span class="sd">categories and roles.  They are presented to the user as &quot;Todo&#39;s&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">elixir</span> <span class="kn">import</span> <span class="n">Entity</span><span class="p">,</span> <span class="n">using_options</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">ManyToMany</span><span class="p">,</span> <span class="n">OneToMany</span><span class="p">,</span> <span class="n">ManyToOne</span><span class="p">,</span> <span class="n">entities</span><span class="p">,</span> <span class="n">ColumnProperty</span>
+<span class="kn">import</span> <span class="nn">sqlalchemy.types</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">sql</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="kn">import</span> <span class="n">backref</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">camelot.model</span> <span class="kn">import</span> <span class="n">metadata</span>
+<span class="kn">from</span> <span class="nn">camelot.model.authentication</span> <span class="kn">import</span> <span class="n">getCurrentAuthentication</span>
+<span class="kn">from</span> <span class="nn">camelot.model.type_and_status</span> <span class="kn">import</span> <span class="n">type_3_status</span><span class="p">,</span> <span class="n">create_type_3_status_mixin</span><span class="p">,</span> <span class="n">get_status_type_class</span><span class="p">,</span> <span class="n">get_status_class</span>
+<span class="kn">from</span> <span class="nn">camelot.admin.entity_admin</span> <span class="kn">import</span> <span class="n">EntityAdmin</span>
+<span class="kn">from</span> <span class="nn">camelot.core.document</span> <span class="kn">import</span> <span class="n">documented_entity</span>
+<span class="kn">from</span> <span class="nn">camelot.view</span> <span class="kn">import</span> <span class="n">forms</span>
+<span class="kn">from</span> <span class="nn">camelot.view.filters</span> <span class="kn">import</span> <span class="n">ComboBoxFilter</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls</span> <span class="kn">import</span> <span class="n">delegates</span>
+<span class="kn">import</span> <span class="nn">camelot.types</span>
+
+<span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="n">__metadata__</span> <span class="o">=</span> <span class="n">metadata</span>
+
+<div class="viewcode-block" id="task_has_id"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.task_has_id">[docs]</a><span class="k">def</span> <span class="nf">task_has_id</span><span class="p">(</span><span class="n">task</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">task</span><span class="o">.</span><span class="n">id</span>
+</div>
+<span class="n">task_status_type_features</span> <span class="o">=</span> <span class="p">[(</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">,</span> <span class="p">()),</span>
+                             <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">&#39;hidden&#39;</span><span class="p">,</span> <span class="s">&#39;Zichtbaar in lijst&#39;</span><span class="p">,</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="s">&#39;False&#39;</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">&#39;True&#39;</span><span class="p">))),</span>
+                             <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s">&#39;default&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">,</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="s">&#39;False&#39;</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">&#39;True&#39;</span><span class="p">)))]</span>
+<span class="n">task_status_type_features_enumeration</span> <span class="o">=</span> <span class="p">[(</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">task_status_type_features</span><span class="p">]</span>
+<span class="n">task_status_type_feature_descriptions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">f</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">task_status_type_features</span><span class="p">)</span>
+<span class="n">task_status_type_feature_values</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">f</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">task_status_type_features</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TaskType"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskType">[docs]</a><span class="k">class</span> <span class="nc">TaskType</span><span class="p">(</span> <span class="n">Entity</span> <span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task_type&#39;</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;rank&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">])</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">48</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="bp">True</span> <span class="p">)</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Integer</span><span class="p">(),</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span>
+    
+<div class="viewcode-block" id="TaskType.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskType.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Task Type&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;description&#39;</span><span class="p">,</span> <span class="s">&#39;rank&#39;</span><span class="p">]</span>
+</div></div>
+<div class="viewcode-block" id="TaskRoleType"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskRoleType">[docs]</a><span class="k">class</span> <span class="nc">TaskRoleType</span><span class="p">(</span> <span class="n">Entity</span> <span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task_role_type&#39;</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;rank&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">])</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">48</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="bp">True</span> <span class="p">)</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Integer</span><span class="p">(),</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span>
+    
+<div class="viewcode-block" id="TaskRoleType.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskRoleType.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Task Role Type&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;description&#39;</span><span class="p">,</span> <span class="s">&#39;rank&#39;</span><span class="p">]</span>
+        
+</div></div>
+<div class="viewcode-block" id="TaskRole"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskRole">[docs]</a><span class="k">class</span> <span class="nc">TaskRole</span><span class="p">(</span> <span class="n">Entity</span> <span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task_role&#39;</span><span class="p">)</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">party</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;Party&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">ondelete</span><span class="o">=</span><span class="s">&#39;restrict&#39;</span><span class="p">,</span> <span class="n">onupdate</span><span class="o">=</span><span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">described_by</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;TaskRoleType&#39;</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span> <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;restrict&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Integer</span><span class="p">(),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span> <span class="mi">256</span> <span class="p">)</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="TaskRole.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskRole.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Role within task&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;party&#39;</span><span class="p">,</span> <span class="s">&#39;described_by&#39;</span><span class="p">,</span> <span class="s">&#39;comment&#39;</span><span class="p">,</span> <span class="s">&#39;rank&#39;</span><span class="p">]</span>
+        <span class="n">field_attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;described_by&#39;</span><span class="p">:{</span><span class="s">&#39;name&#39;</span><span class="p">:</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Type&#39;</span><span class="p">),</span> <span class="s">&#39;delegate&#39;</span><span class="p">:</span><span class="n">delegates</span><span class="o">.</span><span class="n">ManyToOneChoicesDelegate</span><span class="p">},</span>
+                                 <span class="s">&#39;rank&#39;</span><span class="p">:{</span><span class="s">&#39;choices&#39;</span><span class="p">:[(</span><span class="n">i</span><span class="p">,</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">5</span><span class="p">)]},</span>
+                                 <span class="p">}</span>
+</div></div>
+<div class="viewcode-block" id="TaskNote"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskNote">[docs]</a><span class="k">class</span> <span class="nc">TaskNote</span><span class="p">(</span> <span class="n">Entity</span> <span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task_note&#39;</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;-created_at&#39;</span><span class="p">]</span> <span class="p">)</span>
+    <span class="n">of</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">onupdate</span><span class="o">=</span><span class="s">&#39;cascade&#39;</span><span class="p">,</span> <span class="n">ondelete</span><span class="o">=</span><span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Date</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span> <span class="p">)</span>
+    <span class="n">created_by</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;AuthenticationMechanism&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span> <span class="p">)</span>
+    <span class="n">note</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">RichText</span><span class="p">()</span> <span class="p">)</span>
+  
+<div class="viewcode-block" id="TaskNote.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskNote.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Note&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;created_at&#39;</span><span class="p">,</span> <span class="s">&#39;created_by&#39;</span><span class="p">]</span>
+        <span class="n">form_display</span> <span class="o">=</span> <span class="n">list_display</span> <span class="o">+</span> <span class="p">[</span><span class="s">&#39;note&#39;</span><span class="p">]</span>
+</div></div>
+<div class="viewcode-block" id="TaskDocumentType"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskDocumentType">[docs]</a><span class="k">class</span> <span class="nc">TaskDocumentType</span><span class="p">(</span> <span class="n">Entity</span> <span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task_document_type&#39;</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;rank&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">])</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">48</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="bp">True</span> <span class="p">)</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Integer</span><span class="p">(),</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span>
+    
+<div class="viewcode-block" id="TaskDocumentType.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskDocumentType.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Document Type&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;description&#39;</span><span class="p">,</span> <span class="s">&#39;rank&#39;</span><span class="p">]</span>
+  </div></div>
+<div class="viewcode-block" id="TaskDocument"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskDocument">[docs]</a><span class="k">class</span> <span class="nc">TaskDocument</span><span class="p">(</span> <span class="n">Entity</span> <span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task_document&#39;</span><span class="p">)</span>
+    <span class="n">of</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">onupdate</span><span class="o">=</span><span class="s">&#39;cascade&#39;</span><span class="p">,</span> <span class="n">ondelete</span><span class="o">=</span><span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Date</span><span class="p">(),</span> <span class="n">default</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">)</span>
+    <span class="n">created_by</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;AuthenticationMechanism&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;TaskDocumentType&#39;</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span> <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;restrict&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">document</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">File</span><span class="p">(),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span> <span class="p">)</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span> <span class="p">)</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">RichText</span><span class="p">()</span> <span class="p">)</span>
+        
+<div class="viewcode-block" id="TaskDocument.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskDocument.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Document&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;document&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">,</span> <span class="s">&#39;type&#39;</span><span class="p">]</span>
+        <span class="n">form_display</span> <span class="o">=</span> <span class="n">list_display</span> <span class="o">+</span> <span class="p">[</span><span class="s">&#39;created_at&#39;</span><span class="p">,</span> <span class="s">&#39;created_by&#39;</span><span class="p">,</span> <span class="s">&#39;summary&#39;</span><span class="p">]</span>
+        <span class="n">field_attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;type&#39;</span><span class="p">:{</span><span class="s">&#39;delegate&#39;</span><span class="p">:</span><span class="n">delegates</span><span class="o">.</span><span class="n">ManyToOneChoicesDelegate</span><span class="p">},</span>
+                            <span class="s">&#39;created_by&#39;</span><span class="p">:{</span><span class="s">&#39;default&#39;</span><span class="p">:</span><span class="n">getCurrentAuthentication</span><span class="p">}}</span>
+
+</div></div>
+<div class="viewcode-block" id="Task"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task">[docs]</a><span class="k">class</span> <span class="nc">Task</span><span class="p">(</span> <span class="n">Entity</span><span class="p">,</span> <span class="n">create_type_3_status_mixin</span><span class="p">(</span><span class="s">&#39;status&#39;</span><span class="p">)</span> <span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task&#39;</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;-creation_date&#39;</span><span class="p">,</span> <span class="s">&#39;id&#39;</span><span class="p">]</span> <span class="p">)</span>
+    <span class="n">creation_date</span>    <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Date</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span> <span class="p">)</span>
+    <span class="n">due_date</span>         <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Date</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span> <span class="p">)</span>
+    <span class="n">description</span>      <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">255</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span> <span class="p">)</span>
+    <span class="n">status</span>           <span class="o">=</span> <span class="n">OneToMany</span><span class="p">(</span> <span class="n">type_3_status</span><span class="p">(</span> <span class="s">&#39;Task&#39;</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">entities</span> <span class="p">),</span> <span class="n">cascade</span><span class="o">=</span><span class="s">&#39;all, delete, delete-orphan&#39;</span> <span class="p">)</span>
+    <span class="n">notes</span>            <span class="o">=</span> <span class="n">OneToMany</span><span class="p">(</span> <span class="s">&#39;TaskNote&#39;</span><span class="p">,</span> <span class="n">cascade</span><span class="o">=</span><span class="s">&#39;all, delete, delete-orphan&#39;</span> <span class="p">)</span>
+    <span class="n">documents</span>        <span class="o">=</span> <span class="n">OneToMany</span><span class="p">(</span> <span class="s">&#39;TaskDocument&#39;</span><span class="p">,</span> <span class="n">cascade</span><span class="o">=</span><span class="s">&#39;all, delete, delete-orphan&#39;</span> <span class="p">)</span>
+    <span class="n">roles</span>            <span class="o">=</span> <span class="n">OneToMany</span><span class="p">(</span> <span class="s">&#39;TaskRole&#39;</span><span class="p">,</span> <span class="n">cascade</span><span class="o">=</span><span class="s">&#39;all, delete, delete-orphan&#39;</span> <span class="p">)</span>
+    <span class="n">described_by</span>     <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span> <span class="s">&#39;TaskType&#39;</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span> <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;restrict&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">categories</span>       <span class="o">=</span> <span class="n">ManyToMany</span><span class="p">(</span> <span class="s">&#39;PartyCategory&#39;</span><span class="p">,</span>
+                                   <span class="n">tablename</span><span class="o">=</span><span class="s">&#39;party_category_task&#39;</span><span class="p">,</span> 
+                                   <span class="n">remote_colname</span><span class="o">=</span><span class="s">&#39;party_category_id&#39;</span><span class="p">,</span>
+                                   <span class="n">local_colname</span><span class="o">=</span><span class="s">&#39;task_id&#39;</span><span class="p">)</span>
+                             
+    <span class="n">Admin</span> <span class="o">=</span> <span class="bp">None</span>
+    
+    <span class="nd">@ColumnProperty</span>
+<div class="viewcode-block" id="Task.number_of_documents"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task.number_of_documents">[docs]</a>    <span class="k">def</span> <span class="nf">number_of_documents</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="n">sql</span><span class="o">.</span><span class="n">select</span><span class="p">(</span> <span class="p">[</span><span class="n">sql</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">(</span> <span class="n">TaskDocument</span><span class="o">.</span><span class="n">id</span> <span class="p">)</span> <span class="p">],</span>
+                            <span class="n">whereclause</span> <span class="o">=</span> <span class="n">TaskDocument</span><span class="o">.</span><span class="n">of_id</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="p">)</span>
+</div>
+    <span class="nd">@ColumnProperty</span>
+<div class="viewcode-block" id="Task.current_status_sql"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task.current_status_sql">[docs]</a>    <span class="k">def</span> <span class="nf">current_status_sql</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="n">status_class</span> <span class="o">=</span> <span class="n">get_status_class</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">)</span>
+        <span class="n">status_type_class</span> <span class="o">=</span> <span class="n">get_status_type_class</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sql</span><span class="o">.</span><span class="n">select</span><span class="p">(</span> <span class="p">[</span><span class="n">status_type_class</span><span class="o">.</span><span class="n">code</span><span class="p">],</span>
+                           <span class="n">whereclause</span> <span class="o">=</span> <span class="n">sql</span><span class="o">.</span><span class="n">and_</span><span class="p">(</span> <span class="n">status_class</span><span class="o">.</span><span class="n">status_for_id</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                                                   <span class="n">status_class</span><span class="o">.</span><span class="n">status_from_date</span> <span class="o">&lt;=</span> <span class="n">sql</span><span class="o">.</span><span class="n">functions</span><span class="o">.</span><span class="n">current_date</span><span class="p">(),</span>
+                                                   <span class="n">status_class</span><span class="o">.</span><span class="n">status_thru_date</span> <span class="o">&gt;=</span> <span class="n">sql</span><span class="o">.</span><span class="n">functions</span><span class="o">.</span><span class="n">current_date</span><span class="p">()</span> <span class="p">),</span>
+                           <span class="n">from_obj</span> <span class="o">=</span> <span class="p">[</span><span class="n">status_type_class</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">status_class</span><span class="o">.</span><span class="n">table</span> <span class="p">)]</span> <span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</div>
+    <span class="nd">@ColumnProperty</span>
+<div class="viewcode-block" id="Task.hidden"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task.hidden">[docs]</a>    <span class="k">def</span> <span class="nf">hidden</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">status_class</span> <span class="o">=</span> <span class="n">get_status_class</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">)</span>
+        <span class="n">status_type_class</span> <span class="o">=</span> <span class="n">get_status_type_class</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">)</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="n">sql</span><span class="o">.</span><span class="n">select</span><span class="p">(</span> <span class="p">[</span><span class="n">TaskStatusTypeFeature</span><span class="o">.</span><span class="n">value</span><span class="p">],</span>
+                            <span class="n">whereclause</span> <span class="o">=</span> <span class="n">sql</span><span class="o">.</span><span class="n">and_</span><span class="p">(</span> <span class="n">status_class</span><span class="o">.</span><span class="n">status_for_id</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                                                    <span class="n">status_class</span><span class="o">.</span><span class="n">status_from_date</span> <span class="o">&lt;=</span> <span class="n">sql</span><span class="o">.</span><span class="n">functions</span><span class="o">.</span><span class="n">current_date</span><span class="p">(),</span>
+                                                    <span class="n">status_class</span><span class="o">.</span><span class="n">status_thru_date</span> <span class="o">&gt;=</span> <span class="n">sql</span><span class="o">.</span><span class="n">functions</span><span class="o">.</span><span class="n">current_date</span><span class="p">(),</span>
+                                                    <span class="n">TaskStatusTypeFeature</span><span class="o">.</span><span class="n">described_by</span> <span class="o">==</span> <span class="s">&#39;hidden&#39;</span> <span class="p">),</span>
+                            <span class="n">from_obj</span> <span class="o">=</span> <span class="p">[</span><span class="n">status_type_class</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">status_class</span><span class="o">.</span><span class="n">table</span> <span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">TaskStatusTypeFeature</span><span class="o">.</span><span class="n">table</span> <span class="p">)]</span> <span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sql</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">coalesce</span><span class="p">(</span> <span class="n">query</span><span class="o">.</span><span class="n">as_scalar</span><span class="p">(),</span> <span class="mi">0</span> <span class="p">)</span>
+        </div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="Task.role_query"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task.role_query">[docs]</a>    <span class="k">def</span> <span class="nf">role_query</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">role_type_rank</span> <span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">camelot.model.authentication</span> <span class="kn">import</span> <span class="n">Party</span>
+        <span class="k">return</span> <span class="n">sql</span><span class="o">.</span><span class="n">select</span><span class="p">(</span> <span class="p">[</span><span class="n">Party</span><span class="o">.</span><span class="n">full_name</span><span class="p">],</span>
+                            <span class="n">sql</span><span class="o">.</span><span class="n">and_</span><span class="p">(</span> <span class="n">Party</span><span class="o">.</span><span class="n">id</span> <span class="o">==</span> <span class="n">TaskRole</span><span class="o">.</span><span class="n">party_id</span><span class="p">,</span>
+                                      <span class="n">TaskRole</span><span class="o">.</span><span class="n">task_id</span> <span class="o">==</span> <span class="n">columns</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                                      <span class="n">TaskRoleType</span><span class="o">.</span><span class="n">id</span> <span class="o">==</span> <span class="n">TaskRole</span><span class="o">.</span><span class="n">described_by_id</span><span class="p">,</span>
+                                      <span class="n">TaskRoleType</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="n">role_type_rank</span> <span class="p">)</span> <span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    </div>
+    <span class="nd">@ColumnProperty</span>
+<div class="viewcode-block" id="Task.role_1"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task.role_1">[docs]</a>    <span class="k">def</span> <span class="nf">role_1</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">role_query</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="mi">1</span> <span class="p">)</span>
+    </div>
+    <span class="nd">@ColumnProperty</span>
+<div class="viewcode-block" id="Task.role_2"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task.role_2">[docs]</a>    <span class="k">def</span> <span class="nf">role_2</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">role_query</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="mi">2</span> <span class="p">)</span>
+    </div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Task.documents_icon"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.Task.documents_icon">[docs]</a>    <span class="k">def</span> <span class="nf">documents_icon</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">number_of_documents</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">documents</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s">&#39;document&#39;</span>
+</div>
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span>
+    
+    <span class="k">def</span> <span class="nf">_get_first_note</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">notes</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">notes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">note</span>
+
+    <span class="k">def</span> <span class="nf">_set_first_note</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">note</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">note</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">notes</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">notes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">note</span> <span class="o">=</span> <span class="n">note</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">notes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">TaskNote</span><span class="p">(</span> <span class="n">note</span><span class="o">=</span><span class="n">note</span><span class="p">,</span> <span class="n">created_by</span><span class="o">=</span><span class="n">getCurrentAuthentication</span><span class="p">()</span> <span class="p">)</span> <span class="p">)</span>
+ 
+    <span class="n">note</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span> <span class="n">_get_first_note</span><span class="p">,</span> <span class="n">_set_first_note</span> <span class="p">)</span>
+                                
+            </div>
+<span class="n">TaskStatusType</span> <span class="o">=</span> <span class="n">get_status_type_class</span><span class="p">(</span> <span class="s">&#39;Task&#39;</span> <span class="p">)</span>
+<span class="n">Task</span> <span class="o">=</span> <span class="n">documented_entity</span><span class="p">()(</span> <span class="n">Task</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="TaskStatusTypeAdmin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskStatusTypeAdmin">[docs]</a><span class="k">class</span> <span class="nc">TaskStatusTypeAdmin</span><span class="p">(</span><span class="n">TaskStatusType</span><span class="o">.</span><span class="n">Admin</span><span class="p">):</span>
+<div class="viewcode-block" id="TaskStatusTypeAdmin.get_delete_message"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskStatusTypeAdmin.get_delete_message">[docs]</a>    <span class="k">def</span> <span class="nf">get_delete_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;All tasks that are related to this status will be effected by this removal.</span><span class="se">\n\n</span><span class="s">&#39;</span> <span class="o">+</span>
+                 <span class="s">&#39;Are you sure you want to remove this status?&#39;</span><span class="p">)</span>
+                  </div></div>
+<span class="n">TaskStatusType</span><span class="o">.</span><span class="n">Admin</span> <span class="o">=</span> <span class="n">TaskStatusTypeAdmin</span>
+<span class="n">TaskStatusType</span><span class="o">.</span><span class="n">Admin</span><span class="o">.</span><span class="n">delete_mode</span> <span class="o">=</span> <span class="s">&#39;on_confirm&#39;</span>
+
+<div class="viewcode-block" id="TaskAdmin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskAdmin">[docs]</a><span class="k">class</span> <span class="nc">TaskAdmin</span><span class="p">(</span> <span class="n">EntityAdmin</span> <span class="p">):</span>
+    <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">)</span>
+    <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Tasks&#39;</span><span class="p">)</span>
+    <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;creation_date&#39;</span><span class="p">,</span> <span class="s">&#39;due_date&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">,</span> <span class="s">&#39;described_by&#39;</span><span class="p">,</span> <span class="s">&#39;current_status_sql&#39;</span><span class="p">,</span> <span class="s">&#39;role_1&#39;</span><span class="p">,</span> <span class="s">&#39;role_2&#39;</span><span class="p">,</span> <span class="s">&#39;documents_icon&#39;</span><span class="p">]</span>
+    <span class="n">list_filter</span>  <span class="o">=</span> <span class="p">[</span><span class="n">ComboBoxFilter</span><span class="p">(</span><span class="s">&#39;described_by.description&#39;</span><span class="p">),</span> 
+                    <span class="n">ComboBoxFilter</span><span class="p">(</span><span class="s">&#39;current_status_sql&#39;</span><span class="p">),</span> 
+                    <span class="n">ComboBoxFilter</span><span class="p">(</span><span class="s">&#39;categories.name&#39;</span><span class="p">),</span> <span class="s">&#39;hidden&#39;</span><span class="p">]</span>
+    <span class="n">form_state</span> <span class="o">=</span> <span class="s">&#39;maximized&#39;</span>
+    <span class="n">form_display</span> <span class="o">=</span> <span class="n">forms</span><span class="o">.</span><span class="n">TabForm</span><span class="p">(</span> <span class="p">[</span> <span class="p">(</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Task&#39;</span><span class="p">),</span> <span class="p">[</span><span class="s">&#39;description&#39;</span><span class="p">,</span> <span class="s">&#39;described_by&#39;</span><span class="p">,</span> <span class="s">&#39;current_status&#39;</span><span class="p">,</span> 
+                                                  <span class="s">&#39;creation_date&#39;</span><span class="p">,</span> <span class="s">&#39;due_date&#39;</span><span class="p">,</span>  <span class="s">&#39;note&#39;</span><span class="p">,]),</span>
+                                    <span class="p">(</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Category&#39;</span><span class="p">),</span> <span class="p">[</span><span class="s">&#39;categories&#39;</span><span class="p">]</span> <span class="p">),</span>
+                                    <span class="p">(</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Roles&#39;</span><span class="p">),</span> <span class="p">[</span><span class="s">&#39;roles&#39;</span><span class="p">]</span> <span class="p">),</span>
+                                    <span class="p">(</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Documents&#39;</span><span class="p">),</span> <span class="p">[</span><span class="s">&#39;documents&#39;</span><span class="p">]</span> <span class="p">),</span>
+                                    <span class="p">(</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Status&#39;</span><span class="p">),</span> <span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span> <span class="p">)</span> <span class="p">]</span> <span class="p">)</span>
+    <span class="n">field_attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;note&#39;</span><span class="p">:{</span><span class="s">&#39;delegate&#39;</span><span class="p">:</span><span class="n">delegates</span><span class="o">.</span><span class="n">RichTextDelegate</span><span class="p">,</span>
+                                <span class="s">&#39;editable&#39;</span><span class="p">:</span><span class="k">lambda</span> <span class="bp">self</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">},</span>
+                        <span class="s">&#39;described_by&#39;</span><span class="p">:{</span><span class="s">&#39;delegate&#39;</span><span class="p">:</span><span class="n">delegates</span><span class="o">.</span><span class="n">ManyToOneChoicesDelegate</span><span class="p">,</span> <span class="s">&#39;name&#39;</span><span class="p">:</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Type&#39;</span><span class="p">)},</span>
+                        <span class="s">&#39;role_1&#39;</span><span class="p">:{</span><span class="s">&#39;editable&#39;</span><span class="p">:</span><span class="bp">False</span><span class="p">},</span>
+                        <span class="s">&#39;role_2&#39;</span><span class="p">:{</span><span class="s">&#39;editable&#39;</span><span class="p">:</span><span class="bp">False</span><span class="p">},</span>
+                        <span class="s">&#39;description&#39;</span><span class="p">:{</span><span class="s">&#39;minimal_column_width&#39;</span><span class="p">:</span><span class="mi">50</span><span class="p">},</span>
+                        <span class="s">&#39;current_status_sql&#39;</span><span class="p">:{</span><span class="s">&#39;name&#39;</span><span class="p">:</span><span class="s">&#39;Current status&#39;</span><span class="p">,</span>
+                                              <span class="s">&#39;editable&#39;</span><span class="p">:</span><span class="bp">False</span><span class="p">}}</span>
+    
+<div class="viewcode-block" id="TaskAdmin.get_field_attributes"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskAdmin.get_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_name</span><span class="p">):</span>
+        <span class="n">field_attributes</span> <span class="o">=</span> <span class="n">EntityAdmin</span><span class="o">.</span><span class="n">get_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">field_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;role_1&#39;</span><span class="p">,</span> <span class="s">&#39;role_2&#39;</span><span class="p">]:</span>
+            <span class="n">name_query</span> <span class="o">=</span> <span class="n">sql</span><span class="o">.</span><span class="n">select</span><span class="p">(</span> <span class="p">[</span><span class="n">TaskRoleType</span><span class="o">.</span><span class="n">description</span><span class="p">],</span> <span class="n">TaskRoleType</span><span class="o">.</span><span class="n">rank</span> <span class="o">==</span> <span class="nb">int</span><span class="p">(</span><span class="n">field_name</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">TaskRoleType</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span> <span class="n">name_query</span> <span class="p">)</span>
+            <span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">field_attributes</span>
+</div>
+<div class="viewcode-block" id="TaskAdmin.flush"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskAdmin.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set the status of the agreement to draft if it has no status yet&quot;&quot;&quot;</span>
+        <span class="c">#if not len(obj.status):</span>
+            <span class="c">#obj.status.append(self.get_field_attributes(&#39;status&#39;)[&#39;target&#39;](status_from_date=datetime.date.today(),</span>
+                                                                            <span class="c">#status_thru_date=end_of_times(),</span>
+                                                                            <span class="c">#classified_by=TaskStatusType.query.order_by(TaskStatusType.).first()))</span>
+        <span class="n">EntityAdmin</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+  </div></div>
+<span class="n">Task</span><span class="o">.</span><span class="n">Admin</span> <span class="o">=</span> <span class="n">TaskAdmin</span>                      
+
+<div class="viewcode-block" id="TaskStatusTypeFeature"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskStatusTypeFeature">[docs]</a><span class="k">class</span> <span class="nc">TaskStatusTypeFeature</span><span class="p">(</span><span class="n">Entity</span><span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;task_status_type_feature&#39;</span><span class="p">)</span>
+    <span class="n">task_status_type_id</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span> <span class="n">TaskStatusType</span><span class="p">,</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">,</span>
+                                     <span class="n">backref</span><span class="o">=</span><span class="n">backref</span><span class="p">(</span><span class="s">&#39;available_with&#39;</span><span class="p">,</span> <span class="n">cascade</span><span class="o">=</span><span class="s">&quot;all, delete-orphan&quot;</span><span class="p">))</span>
+    <span class="n">described_by</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Enumeration</span><span class="p">(</span><span class="n">task_status_type_features_enumeration</span><span class="p">),</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">default</span> <span class="o">=</span> <span class="s">&quot;hidden&quot;</span><span class="p">)</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span> <span class="mi">256</span> <span class="p">)</span> <span class="p">)</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Integer</span><span class="p">()</span> <span class="p">)</span>
+    
+<div class="viewcode-block" id="TaskStatusTypeFeature.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.task.TaskStatusTypeFeature.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;TaskStatusTypeFeature&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;described_by&#39;</span><span class="p">,</span> <span class="s">&#39;comment&#39;</span><span class="p">,</span> <span class="s">&#39;value&#39;</span><span class="p">]</span>
+        <span class="n">form_display</span> <span class="o">=</span> <span class="n">list_display</span> <span class="o">+</span> <span class="p">[</span><span class="s">&#39;comment&#39;</span><span class="p">]</span>
+        <span class="n">field_attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;described_by&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s">&#39;name&#39;</span><span class="p">:</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Feature&#39;</span><span class="p">),</span> 
+                                             <span class="s">&#39;tooltip&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">o</span><span class="p">:</span><span class="n">task_status_type_feature_descriptions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">described_by</span><span class="p">,</span> <span class="bp">None</span><span class="p">)},</span>
+                            <span class="s">&#39;value&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s">&#39;choices&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span><span class="n">task_status_type_feature_values</span><span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="n">described_by</span><span class="p">]},</span>
+                            <span class="p">}</span>
+                            </div></div>
+<span class="n">TaskStatusType</span><span class="o">.</span><span class="n">Admin</span><span class="o">.</span><span class="n">form_display</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;available_with&#39;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

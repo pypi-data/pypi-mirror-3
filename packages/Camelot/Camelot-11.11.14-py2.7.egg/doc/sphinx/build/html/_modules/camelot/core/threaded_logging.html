@@ -1,0 +1,333 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.core.threaded_logging &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.core.threaded_logging</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Logging is an important aspect of every application, as logs provide valuable</span>
+<span class="sd">feedback to developers and first line support.  Camelot adds some</span>
+<span class="sd">additional functions on top of the standard Python logging library.</span>
+
+<span class="sd">The added functionallity is needed for two reasons :</span>
+<span class="sd">    </span>
+<span class="sd">    * Camelot applications are often installed in a distributed fashion.  Thus</span>
+<span class="sd">      the log files need to be collected to provide meaningfull information to</span>
+<span class="sd">      the developer.</span>
+<span class="sd">      </span>
+<span class="sd">    * Logging should never slow down/freeze the application.  Even when logging</span>
+<span class="sd">      to files this may happen, since the application never knows for sure if</span>
+<span class="sd">      a file is really local, and network connections may turn slow at any</span>
+<span class="sd">      time.</span>
+
+<span class="sd">Both issues are resolved by using a logging handler that collects all logs, and</span>
+<span class="sd">periodically sends them to an http server in the background::</span>
+<span class="sd">    </span>
+<span class="sd">    handler = ThreadedHttpHandler(&#39;www.example.com:80&#39;, &#39;/my_logs/&#39;)</span>
+<span class="sd">    handler.setLevel(logging.INFO)</span>
+<span class="sd">    logging.root.addHandler(handler)</span>
+
+<span class="sd">The logging url could include a part indentifying the user and as such assisting</span>
+<span class="sd">first line support.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="kn">import</span> <span class="nn">getpass</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">logging</span> <span class="kn">import</span> <span class="n">handlers</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.core.logging&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ThreadedTimer"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedTimer">[docs]</a><span class="k">class</span> <span class="nc">ThreadedTimer</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Thread that checks every interval milli seconds if there </span>
+<span class="sd">    are logs to be sent to the server&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">handler</span><span class="p">):</span>
+        <span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_timer</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_interval</span> <span class="o">=</span> <span class="n">interval</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handler</span> <span class="o">=</span> <span class="n">handler</span>
+
+<div class="viewcode-block" id="ThreadedTimer.run"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedTimer.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_timer</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QTimer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_timer</span><span class="o">.</span><span class="n">timeout</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handler</span><span class="o">.</span><span class="n">timeout</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_timer</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_interval</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div></div>
+<div class="viewcode-block" id="ThreadedHttpHandler"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedHttpHandler">[docs]</a><span class="k">class</span> <span class="nc">ThreadedHttpHandler</span><span class="p">(</span><span class="n">handlers</span><span class="o">.</span><span class="n">HTTPHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;An Http Logging handler that does the logging itself in a different </span>
+<span class="sd">    thread, to prevent slow down of the main thread&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s">&#39;GET&#39;</span><span class="p">):</span>
+        <span class="n">handlers</span><span class="o">.</span><span class="n">HTTPHandler</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_threaded_timer</span> <span class="o">=</span> <span class="n">ThreadedTimer</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_threaded_timer</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="ThreadedHttpHandler.timeout"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedHttpHandler.timeout">[docs]</a>    <span class="k">def</span> <span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span><span class="p">):</span>
+            <span class="n">record</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">handlers</span><span class="o">.</span><span class="n">HTTPHandler</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ThreadedHttpHandler.emit"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedHttpHandler.emit">[docs]</a>    <span class="k">def</span> <span class="nf">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="ThreadedAwsHandler"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedAwsHandler">[docs]</a><span class="k">class</span> <span class="nc">ThreadedAwsHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Handler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A logging handler that sends the logs to an AWS queue through the</span>
+<span class="sd">    SQS, this handler requires the boto library&quot;&quot;&quot;</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">access_key</span><span class="p">,</span> <span class="n">secret_access_key</span><span class="p">,</span> <span class="n">queue_name</span><span class="p">,</span> 
+                 <span class="n">revision</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">connection_kwargs</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="sd">&quot;&quot;&quot;:param connection_kwargs: arguments to be used when creating the</span>
+<span class="sd">        underlying boto connection to aws&quot;&quot;&quot;</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">Handler</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_access_key</span> <span class="o">=</span> <span class="n">access_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_secret_access_key</span> <span class="o">=</span> <span class="n">secret_access_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connection_kwargs</span> <span class="o">=</span> <span class="n">connection_kwargs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_queue_name</span> <span class="o">=</span> <span class="n">queue_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_queue</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_threaded_timer</span> <span class="o">=</span> <span class="n">ThreadedTimer</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_threaded_timer</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;win&#39;</span><span class="p">):</span>
+                <span class="c"># on windows getuser() uses the USERNAME env var</span>
+                <span class="c"># from sys.getfilesystemencoding documentation:</span>
+                <span class="c"># On Windows NT+, file names are Unicode natively, so no conversion is performed. </span>
+                <span class="c"># getfilesystemencoding() still returns &#39;mbcs&#39;, as this is the encoding that applications </span>
+                <span class="c"># should use when they explicitly want to convert Unicode strings </span>
+                <span class="c"># to byte strings that are equivalent when used as file names.</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_user</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;mbcs&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_user</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_user</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;ascii&#39;</span><span class="p">,</span> <span class="s">&#39;ignore&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_revision</span> <span class="o">=</span> <span class="n">revision</span>
+        
+<div class="viewcode-block" id="ThreadedAwsHandler.emit"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedAwsHandler.emit">[docs]</a>    <span class="k">def</span> <span class="nf">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="c"># inspired by the code in logging.handlers.SocketHandler</span>
+        <span class="kn">import</span> <span class="nn">json</span>
+        <span class="n">ei</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">exc_info</span>
+        <span class="c">#</span>
+        <span class="c"># prevent infinite loops when the boto lib logs something when</span>
+        <span class="c"># a log is sent to the queue</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">record</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;boto&#39;</span><span class="p">):</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">ei</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+            <span class="n">record</span><span class="o">.</span><span class="n">exc_info</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">record_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span> <span class="n">user</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_user</span><span class="p">,</span> <span class="n">revision</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_revision</span> <span class="p">)</span>
+        <span class="n">record_dict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span> <span class="n">record</span><span class="o">.</span><span class="n">__dict__</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span> <span class="n">record_dict</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">ei</span><span class="p">:</span>
+            <span class="n">record</span><span class="o">.</span><span class="n">exc_info</span> <span class="o">=</span> <span class="n">ei</span>  <span class="c"># for next handler</span>
+        </div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="ThreadedAwsHandler.timeout"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.ThreadedAwsHandler.timeout">[docs]</a>    <span class="k">def</span> <span class="nf">timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">boto.sqs.message</span> <span class="kn">import</span> <span class="n">Message</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_queue</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">boto.sqs.connection</span> <span class="kn">import</span> <span class="n">SQSConnection</span>
+                <span class="n">sqs_connection</span> <span class="o">=</span> <span class="n">SQSConnection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_access_key</span><span class="p">,</span> 
+                                               <span class="bp">self</span><span class="o">.</span><span class="n">_secret_access_key</span><span class="p">,</span>
+                                               <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_connection_kwargs</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_queue</span> <span class="o">=</span> <span class="n">sqs_connection</span><span class="o">.</span><span class="n">get_queue</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_queue_name</span> <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">LOGGER</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;Could not connect to logging queue </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="bp">self</span><span class="o">.</span><span class="n">_queue_name</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span><span class="p">:</span>
+            <span class="n">record</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records_to_emit</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_queue</span><span class="o">.</span><span class="n">write</span><span class="p">(</span> <span class="n">Message</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">record</span><span class="p">)</span> <span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="CloudLaunchHandler"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.threaded_logging.CloudLaunchHandler">[docs]</a><span class="k">class</span> <span class="nc">CloudLaunchHandler</span><span class="p">(</span><span class="n">ThreadedAwsHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A logging handler that sends the logs to the Cloud Launch service,</span>
+<span class="sd">    requires the cloudlaunch library, and only works with applications tested</span>
+<span class="sd">    or deployed through cloudlaunch</span>
+<span class="sd">    </span>
+<span class="sd">    The cloudlaunch record can be obtained using the get_cloud_record</span>
+<span class="sd">    method of the cloudlaunch.resources module.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cloud_record</span><span class="p">,</span> <span class="n">connection_kwargs</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="sd">&quot;&quot;&quot;:param cloud_record: the cloud record describing the application</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">queue_name</span> <span class="o">=</span> <span class="s">&#39;cloudlaunch-</span><span class="si">%s</span><span class="s">-</span><span class="si">%s</span><span class="s">-logging&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">cloud_record</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">,</span><span class="s">&#39;_&#39;</span><span class="p">),</span> <span class="n">cloud_record</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">,</span><span class="s">&#39;_&#39;</span><span class="p">)</span> <span class="p">)</span>
+        <span class="n">ThreadedAwsHandler</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                                    <span class="n">cloud_record</span><span class="o">.</span><span class="n">public_access_key</span><span class="p">,</span> 
+                                    <span class="n">cloud_record</span><span class="o">.</span><span class="n">public_secret_key</span><span class="p">,</span> 
+                                    <span class="n">queue_name</span><span class="p">,</span>
+                                    <span class="n">revision</span> <span class="o">=</span> <span class="n">cloud_record</span><span class="o">.</span><span class="n">revision</span><span class="p">,</span>
+                                    <span class="n">connection_kwargs</span> <span class="o">=</span> <span class="n">connection_kwargs</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

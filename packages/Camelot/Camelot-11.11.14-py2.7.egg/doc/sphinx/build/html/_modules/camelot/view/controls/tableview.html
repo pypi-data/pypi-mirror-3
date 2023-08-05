@@ -1,0 +1,999 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.controls.tableview &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../../index.html" />
+    <link rel="up" title="Module code" href="../../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.controls.tableview</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;Tableview&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span> <span class="s">&#39;camelot.view.controls.tableview&#39;</span> <span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+<span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">Qt</span>
+<span class="kn">from</span> <span class="nn">PyQt4.QtGui</span> <span class="kn">import</span> <span class="n">QSizePolicy</span>
+
+<span class="kn">from</span> <span class="nn">camelot.admin.action.list_action</span> <span class="kn">import</span> <span class="n">ListActionGuiContext</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span> <span class="k">as</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">camelot.view.proxy.queryproxy</span> <span class="kn">import</span> <span class="n">QueryTableProxy</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.view</span> <span class="kn">import</span> <span class="n">AbstractView</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.user_translatable_label</span> <span class="kn">import</span> <span class="n">UserTranslatableLabel</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.progress_dialog</span> <span class="kn">import</span> <span class="n">ProgressDialog</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">post</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">gui_function</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">model_function</span>
+<span class="kn">from</span> <span class="nn">camelot.view</span> <span class="kn">import</span> <span class="n">register</span>
+
+<span class="kn">from</span> <span class="nn">search</span> <span class="kn">import</span> <span class="n">SimpleSearchControl</span>
+
+<div class="viewcode-block" id="FrozenTableWidget"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.FrozenTableWidget">[docs]</a><span class="k">class</span> <span class="nc">FrozenTableWidget</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QTableView</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A table widget to be used as the frozen table widget inside a table</span>
+<span class="sd">    widget.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">columns_frozen</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FrozenTableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setSelectionBehavior</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">SelectRows</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setEditTriggers</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">SelectedClicked</span> <span class="o">|</span>
+                              <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">DoubleClicked</span> <span class="o">|</span>
+                              <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">CurrentChanged</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span> <span class="o">=</span> <span class="n">columns_frozen</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">)</span>
+<div class="viewcode-block" id="FrozenTableWidget.currentChanged"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.FrozenTableWidget.currentChanged">[docs]</a>    <span class="k">def</span> <span class="nf">currentChanged</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">current</span><span class="p">,</span> <span class="n">previous</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;When the current index has changed, prevent it to jump to</span>
+<span class="sd">        a column that is not frozen&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">current</span><span class="o">.</span><span class="n">column</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span><span class="p">:</span>
+            <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="n">current</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">previous</span><span class="o">.</span><span class="n">column</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span><span class="p">:</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="n">previous</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="o">-</span><span class="mi">1</span> <span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FrozenTableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">currentChanged</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="n">previous</span><span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="TableWidget"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget">[docs]</a><span class="k">class</span> <span class="nc">TableWidget</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QTableView</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A widget displaying a table, to be used within a TableView.  This is a</span>
+<span class="sd">pumped up version of the QTableView widget providing extra functions such as</span>
+<span class="sd">frozen columns.  But it does not rely on the model being Camelot specific, or</span>
+<span class="sd">a Collection Proxy.</span>
+
+<span class="sd">.. attribute:: margin</span>
+
+<span class="sd">margin, specified as a number of pixels, used to calculate the height of a row</span>
+<span class="sd">in the table, the minimum row height will allow for this number of pixels below</span>
+<span class="sd">and above the text.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="n">margin</span> <span class="o">=</span> <span class="mi">5</span>
+    
+    <span class="n">keyboard_selection_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">columns_frozen</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">lines_per_row</span> <span class="o">=</span> <span class="mi">1</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">:param columns_frozen: the number of columns on the left that don&#39;t scroll</span>
+<span class="sd">:param lines_per_row: the number of lines of text that should be viewable in a single row.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QTableView</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;create TableWidget&#39;</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span> <span class="o">=</span> <span class="n">columns_frozen</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setSelectionBehavior</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">SelectRows</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setEditTriggers</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">SelectedClicked</span> <span class="o">|</span>
+                              <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">DoubleClicked</span> <span class="o">|</span>
+                              <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">CurrentChanged</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setSizePolicy</span><span class="p">(</span> <span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span><span class="p">,</span> <span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">setClickable</span><span class="p">(</span> <span class="bp">True</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header_font_required</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">font</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header_font_required</span><span class="o">.</span><span class="n">setBold</span><span class="p">(</span> <span class="bp">True</span> <span class="p">)</span>
+        <span class="n">line_height</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFontMetrics</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">font</span><span class="p">())</span><span class="o">.</span><span class="n">lineSpacing</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_minimal_row_height</span> <span class="o">=</span> <span class="n">line_height</span> <span class="o">*</span> <span class="n">lines_per_row</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">margin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verticalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">setDefaultSectionSize</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_minimal_row_height</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setHorizontalScrollMode</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">ScrollPerPixel</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setVerticalScrollMode</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">ScrollPerPixel</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">sectionClicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">horizontal_section_clicked</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">columns_frozen</span><span class="p">:</span>
+            <span class="n">frozen_table_view</span> <span class="o">=</span> <span class="n">FrozenTableWidget</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns_frozen</span><span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">verticalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">setDefaultSectionSize</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_minimal_row_height</span> <span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">verticalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">setResizeMode</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QHeaderView</span><span class="o">.</span><span class="n">Fixed</span><span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">sectionClicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">horizontal_section_clicked</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">sectionResized</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_section_width</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">verticalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">sectionResized</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_section_height</span> <span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">verticalScrollBar</span><span class="p">()</span><span class="o">.</span><span class="n">valueChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">verticalScrollBar</span><span class="p">()</span><span class="o">.</span><span class="n">setValue</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">verticalScrollBar</span><span class="p">()</span><span class="o">.</span><span class="n">valueChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">verticalScrollBar</span><span class="p">()</span><span class="o">.</span><span class="n">setValue</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewport</span><span class="p">()</span><span class="o">.</span><span class="n">stackUnder</span><span class="p">(</span><span class="n">frozen_table_view</span><span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="s">&quot;QTableView { border: none;}&quot;</span><span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setHorizontalScrollBarPolicy</span><span class="p">(</span><span class="n">Qt</span><span class="o">.</span><span class="n">ScrollBarAlwaysOff</span><span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setVerticalScrollBarPolicy</span><span class="p">(</span><span class="n">Qt</span><span class="o">.</span><span class="n">ScrollBarAlwaysOff</span><span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setVerticalScrollMode</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">ScrollPerPixel</span><span class="p">)</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_update_section_width</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logical_index</span><span class="p">,</span> <span class="n">_int</span><span class="p">,</span> <span class="n">new_size</span><span class="p">):</span>
+        <span class="n">frozen_table_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">logical_index</span><span class="o">&lt;</span><span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span> <span class="ow">and</span> <span class="n">frozen_table_view</span><span class="p">:</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setColumnWidth</span><span class="p">(</span> <span class="n">logical_index</span><span class="p">,</span> <span class="n">new_size</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_frozen_table</span><span class="p">()</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_update_section_height</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logical_index</span><span class="p">,</span> <span class="n">_int</span><span class="p">,</span> <span class="n">new_size</span><span class="p">):</span>
+        <span class="n">frozen_table_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">frozen_table_view</span><span class="p">:</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setRowHeight</span><span class="p">(</span><span class="n">logical_index</span><span class="p">,</span> <span class="n">new_size</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TableWidget.setItemDelegate"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.setItemDelegate">[docs]</a>    <span class="k">def</span> <span class="nf">setItemDelegate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item_delegate</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">setItemDelegate</span><span class="p">(</span><span class="n">item_delegate</span><span class="p">)</span>
+        <span class="n">frozen_table_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">frozen_table_view</span><span class="p">:</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setItemDelegate</span><span class="p">(</span><span class="n">item_delegate</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableWidget.resizeEvent"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.resizeEvent">[docs]</a>    <span class="k">def</span> <span class="nf">resizeEvent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">resizeEvent</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_frozen_table</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="TableWidget.moveCursor"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.moveCursor">[docs]</a>    <span class="k">def</span> <span class="nf">moveCursor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cursorAction</span><span class="p">,</span> <span class="n">modifiers</span><span class="p">):</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">moveCursor</span><span class="p">(</span><span class="n">cursorAction</span><span class="p">,</span> <span class="n">modifiers</span><span class="p">)</span>
+        <span class="n">frozen_table_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">frozen_table_view</span><span class="p">:</span>
+            <span class="n">frozen_width</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">last_frozen</span> <span class="o">=</span>  <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">columnCount</span><span class="p">())</span>
+            <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">last_frozen</span><span class="p">):</span>
+                <span class="n">frozen_width</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">columnWidth</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">cursorAction</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QAbstractItemView</span><span class="o">.</span><span class="n">MoveLeft</span> <span class="ow">and</span> <span class="n">current</span><span class="o">.</span><span class="n">column</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">last_frozen</span> <span class="ow">and</span> \
+               <span class="bp">self</span><span class="o">.</span><span class="n">visualRect</span><span class="p">(</span><span class="n">current</span><span class="p">)</span><span class="o">.</span><span class="n">topLeft</span><span class="p">()</span><span class="o">.</span><span class="n">x</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">frozen_width</span><span class="p">:</span>
+                <span class="n">new_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizontalScrollBar</span><span class="p">()</span><span class="o">.</span><span class="n">value</span><span class="p">()</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">visualRect</span><span class="p">(</span><span class="n">current</span><span class="p">)</span><span class="o">.</span><span class="n">topLeft</span><span class="p">()</span><span class="o">.</span><span class="n">x</span><span class="p">()</span> <span class="o">-</span> <span class="n">frozen_width</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">horizontalScrollBar</span><span class="p">()</span><span class="o">.</span><span class="n">setValue</span><span class="p">(</span><span class="n">new_value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">current</span>
+</div>
+<div class="viewcode-block" id="TableWidget.scrollTo"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.scrollTo">[docs]</a>    <span class="k">def</span> <span class="nf">scrollTo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">hint</span><span class="p">):</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">&gt;=</span><span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span><span class="p">):</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">TableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">scrollTo</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableWidget.edit"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.edit">[docs]</a>    <span class="k">def</span> <span class="nf">edit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">trigger</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="c">#</span>
+        <span class="c"># columns in the frozen part should never be edited, because this might result</span>
+        <span class="c"># in an editor opening below the frozen column that contains the old value</span>
+        <span class="c"># which will be committed again when closed</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">trigger</span><span class="o">==</span><span class="bp">None</span> <span class="ow">and</span> <span class="n">event</span><span class="o">==</span><span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">super</span><span class="p">(</span> <span class="n">TableWidget</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">edit</span><span class="p">(</span> <span class="n">index</span> <span class="p">)</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span> <span class="n">TableWidget</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">edit</span><span class="p">(</span> <span class="n">index</span><span class="p">,</span> <span class="n">trigger</span><span class="p">,</span> <span class="n">event</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">_update_frozen_table</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">frozen_table_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">frozen_table_view</span><span class="p">:</span>
+            <span class="n">selection_model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">selectionModel</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">selection_model</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span> 
+                <span class="c"># explicitly check if there is a selection model, because</span>
+                <span class="c"># setting the selection model to None will cause an assertion</span>
+                <span class="c"># failure in Qt</span>
+                <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setSelectionModel</span><span class="p">(</span> <span class="n">selection_model</span> <span class="p">)</span>
+            <span class="n">last_frozen</span> <span class="o">=</span>  <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">columnCount</span><span class="p">())</span>
+            <span class="n">frozen_width</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">last_frozen</span><span class="p">):</span>
+                <span class="n">frozen_width</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">columnWidth</span><span class="p">(</span> <span class="n">column</span> <span class="p">)</span>
+                <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setColumnWidth</span><span class="p">(</span> <span class="n">column</span><span class="p">,</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">columnWidth</span><span class="p">(</span><span class="n">column</span><span class="p">)</span> <span class="p">)</span>
+            <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">last_frozen</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">columnCount</span><span class="p">()):</span>
+                <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setColumnHidden</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setGeometry</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">verticalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">width</span><span class="p">()</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">frameWidth</span><span class="p">(),</span>
+                                           <span class="bp">self</span><span class="o">.</span><span class="n">frameWidth</span><span class="p">(),</span>
+                                           <span class="n">frozen_width</span><span class="p">,</span>
+                                           <span class="bp">self</span><span class="o">.</span><span class="n">viewport</span><span class="p">()</span><span class="o">.</span><span class="n">height</span><span class="p">()</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">height</span><span class="p">()</span> <span class="p">)</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="nb">int</span> <span class="p">)</span>
+<div class="viewcode-block" id="TableWidget.horizontal_section_clicked"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.horizontal_section_clicked">[docs]</a>    <span class="k">def</span> <span class="nf">horizontal_section_clicked</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">logical_index</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update the sorting of the model and the header&quot;&quot;&quot;</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">Qt</span><span class="o">.</span><span class="n">AscendingOrder</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">header</span><span class="o">.</span><span class="n">isSortIndicatorShown</span><span class="p">():</span>
+            <span class="n">header</span><span class="o">.</span><span class="n">setSortIndicatorShown</span><span class="p">(</span> <span class="bp">True</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">header</span><span class="o">.</span><span class="n">sortIndicatorSection</span><span class="p">()</span><span class="o">==</span><span class="n">logical_index</span><span class="p">:</span>
+            <span class="c"># apparently, the sort order on the header is already switched</span>
+            <span class="c"># when the section was clicked, so there is no need to reverse it</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">sortIndicatorOrder</span><span class="p">()</span>
+        <span class="n">header</span><span class="o">.</span><span class="n">setSortIndicator</span><span class="p">(</span> <span class="n">logical_index</span><span class="p">,</span> <span class="n">order</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span> <span class="n">logical_index</span><span class="p">,</span> <span class="n">order</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableWidget.close_editor"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.close_editor">[docs]</a>    <span class="k">def</span> <span class="nf">close_editor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Close the active editor, this method is used to prevent assertion</span>
+<span class="sd">        failures in QT when an editor is still open in the view for a cell</span>
+<span class="sd">        that no longer exists in the model</span>
+<span class="sd">        </span>
+<span class="sd">        those assertion failures only exist in QT debug builds.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">current_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">currentIndex</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">current_index</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">current_index</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">&gt;=</span><span class="bp">self</span><span class="o">.</span><span class="n">_columns_frozen</span><span class="p">):</span>
+            <span class="n">table_widget</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">table_widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">table_widget</span><span class="p">:</span>
+            <span class="n">table_widget</span><span class="o">.</span><span class="n">closePersistentEditor</span><span class="p">(</span> <span class="n">current_index</span> <span class="p">)</span>
+                </div>
+<div class="viewcode-block" id="TableWidget.setModel"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.setModel">[docs]</a>    <span class="k">def</span> <span class="nf">setModel</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">model</span> <span class="p">):</span>
+        <span class="c">#</span>
+        <span class="c"># An editor might be open that is no longer available for the new</span>
+        <span class="c"># model.  Not closing this editor, results in assertion failures</span>
+        <span class="c"># in qt, resulting in segfaults in the debug build.</span>
+        <span class="c">#</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close_editor</span><span class="p">()</span>
+        <span class="c">#</span>
+        <span class="c"># Editor, closed. it should be safe to change the model</span>
+        <span class="c">#</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QTableView</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">model</span> <span class="p">)</span>
+        <span class="n">frozen_table_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;frozen_table_view&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">frozen_table_view</span><span class="p">:</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">layoutChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_frozen_table</span> <span class="p">)</span>
+            <span class="n">frozen_table_view</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span> <span class="n">model</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_frozen_table</span><span class="p">()</span>
+        <span class="n">register</span><span class="o">.</span><span class="n">register</span><span class="p">(</span> <span class="n">model</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selectionModel</span><span class="p">()</span><span class="o">.</span><span class="n">currentChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">activated</span> <span class="p">)</span>
+        </div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">)</span>
+<div class="viewcode-block" id="TableWidget.activated"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.activated">[docs]</a>    <span class="k">def</span> <span class="nf">activated</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">selectedIndex</span><span class="p">,</span> <span class="n">previousSelectedIndex</span> <span class="p">):</span>
+        <span class="n">option</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QStyleOptionViewItem</span><span class="p">()</span>
+        <span class="n">new_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">itemDelegate</span><span class="p">(</span> <span class="n">selectedIndex</span> <span class="p">)</span><span class="o">.</span><span class="n">sizeHint</span><span class="p">(</span> <span class="n">option</span><span class="p">,</span>
+                                                                <span class="n">selectedIndex</span> <span class="p">)</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="n">selectedIndex</span><span class="o">.</span><span class="n">row</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">previousSelectedIndex</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">previous_row</span> <span class="o">=</span> <span class="n">previousSelectedIndex</span><span class="o">.</span><span class="n">row</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">setRowHeight</span><span class="p">(</span> <span class="n">previous_row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_minimal_row_height</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setRowHeight</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span> <span class="n">new_size</span><span class="o">.</span><span class="n">height</span><span class="p">(),</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">_minimal_row_height</span> <span class="p">)</span> <span class="p">)</span>
+                                     </div>
+<div class="viewcode-block" id="TableWidget.keyPressEvent"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableWidget.keyPressEvent">[docs]</a>    <span class="k">def</span> <span class="nf">keyPressEvent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">hasFocus</span><span class="p">()</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">key</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Key_Enter</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Key_Return</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">keyboard_selection_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">TableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">keyPressEvent</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> 
+</div></div>
+<div class="viewcode-block" id="AdminTableWidget"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.AdminTableWidget">[docs]</a><span class="k">class</span> <span class="nc">AdminTableWidget</span><span class="p">(</span><span class="n">TableWidget</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A table widget that inspects the admin class and changes the behavior</span>
+<span class="sd">    of the table as specified in the admin class&quot;&quot;&quot;</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">admin</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AdminTableWidget</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="n">columns_frozen</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">list_columns_frozen</span><span class="p">,</span>
+                                                <span class="n">lines_per_row</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">lines_per_row</span><span class="p">,</span>
+                                                <span class="n">parent</span><span class="o">=</span><span class="n">parent</span> <span class="p">)</span>
+                                   
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="AdminTableWidget.delete_selected_rows"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.AdminTableWidget.delete_selected_rows">[docs]</a>    <span class="k">def</span> <span class="nf">delete_selected_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;delete selected rows called&#39;</span> <span class="p">)</span>
+        <span class="n">confirmed</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">selectedIndexes</span><span class="p">()</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">rows</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_admin</span><span class="o">.</span><span class="n">get_delete_mode</span><span class="p">()</span><span class="o">==</span><span class="s">&#39;on_confirm&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">question</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                          <span class="n">_</span><span class="p">(</span><span class="s">&#39;Please confirm&#39;</span><span class="p">),</span>
+                                          <span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_admin</span><span class="o">.</span><span class="n">get_delete_message</span><span class="p">(</span><span class="bp">None</span><span class="p">)),</span>
+                                          <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Yes</span><span class="p">,</span>
+                                          <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">No</span><span class="p">)</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">No</span><span class="p">:</span>
+                <span class="n">confirmed</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">if</span> <span class="n">confirmed</span><span class="p">:</span>
+            <span class="c">#</span>
+            <span class="c"># if there is an open editor on a row that will be deleted, there</span>
+            <span class="c"># might be an assertion failure in QT, or the data of the editor </span>
+            <span class="c"># might be pushed to the row that replaces the deleted one</span>
+            <span class="c">#</span>
+            <span class="n">progress_dialog</span> <span class="o">=</span> <span class="n">ProgressDialog</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Removing&#39;</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">rows_removed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="n">progress_dialog</span><span class="o">.</span><span class="n">finished</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">exception_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="n">progress_dialog</span><span class="o">.</span><span class="n">exception</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">close_editor</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">remove_rows</span><span class="p">(</span> <span class="nb">set</span><span class="p">(</span> <span class="n">rows</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="n">progress_dialog</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="AdminTableWidget.copy_selected_rows"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.AdminTableWidget.copy_selected_rows">[docs]</a>    <span class="k">def</span> <span class="nf">copy_selected_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>            
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span> <span class="nb">map</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">selectedIndexes</span><span class="p">()</span> <span class="p">)</span> <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">copy_row</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        </div></div>
+<div class="viewcode-block" id="RowsWidget"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.RowsWidget">[docs]</a><span class="k">class</span> <span class="nc">RowsWidget</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLabel</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Widget that is part of the header widget, displaying the number of rows</span>
+<span class="sd">    in the table view&quot;&quot;&quot;</span>
+
+    <span class="n">_number_of_rows_font</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">font</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">parent</span> <span class="p">):</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QLabel</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setFont</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_of_rows_font</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="RowsWidget.setNumberOfRows"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.RowsWidget.setNumberOfRows">[docs]</a>    <span class="k">def</span> <span class="nf">setNumberOfRows</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">rows</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;(</span><span class="si">%i</span><span class="s"> rows)&#39;</span><span class="p">)</span><span class="o">%</span><span class="n">rows</span> <span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="HeaderWidget"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.HeaderWidget">[docs]</a><span class="k">class</span> <span class="nc">HeaderWidget</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;HeaderWidget for a tableview, containing the title, the search widget,</span>
+<span class="sd">    and the number of rows in the table&quot;&quot;&quot;</span>
+
+    <span class="n">search_widget</span> <span class="o">=</span> <span class="n">SimpleSearchControl</span>
+    <span class="n">rows_widget</span> <span class="o">=</span> <span class="n">RowsWidget</span>
+
+    <span class="n">filters_changed_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+
+    <span class="n">_title_font</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">font</span><span class="p">()</span>
+    <span class="n">_title_font</span><span class="o">.</span><span class="n">setBold</span><span class="p">(</span> <span class="bp">True</span> <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">admin</span> <span class="p">):</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="n">layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="n">widget_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QHBoxLayout</span><span class="p">()</span>
+        <span class="n">search</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">search_widget</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+        <span class="n">search</span><span class="o">.</span><span class="n">expand_search_options_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">expand_search_options</span> <span class="p">)</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="n">UserTranslatableLabel</span><span class="p">(</span> <span class="n">admin</span><span class="o">.</span><span class="n">get_verbose_name_plural</span><span class="p">(),</span>
+                                       <span class="bp">self</span> <span class="p">)</span>
+        <span class="n">title</span><span class="o">.</span><span class="n">setFont</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_title_font</span> <span class="p">)</span>
+        <span class="n">widget_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">title</span> <span class="p">)</span>
+        <span class="n">widget_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">search</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows_widget</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">number_of_rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows_widget</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+            <span class="n">widget_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">number_of_rows</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">number_of_rows</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span> <span class="n">widget_layout</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_filters_created</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">layout</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setSizePolicy</span><span class="p">(</span> <span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Minimum</span><span class="p">,</span> <span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Fixed</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setNumberOfRows</span><span class="p">(</span> <span class="mi">0</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">search</span> <span class="o">=</span> <span class="n">search</span>
+
+    <span class="k">def</span> <span class="nf">_fill_expanded_search_options</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Given the columns in the table view, present the user</span>
+<span class="sd">        with more options to filter rows in the table</span>
+<span class="sd">        :param columns: a list of tuples with field names and attributes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls.filter_operator</span> <span class="kn">import</span> <span class="n">FilterOperator</span>
+        <span class="n">layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QHBoxLayout</span><span class="p">()</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">setSpacing</span><span class="p">(</span> <span class="mi">2</span> <span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">setMargin</span><span class="p">(</span> <span class="mi">2</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">attributes</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">columns</span><span class="p">):</span>
+            <span class="k">if</span> <span class="s">&#39;operators&#39;</span> <span class="ow">in</span> <span class="n">attributes</span> <span class="ow">and</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;operators&#39;</span><span class="p">]:</span>
+                <span class="n">box</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QGroupBox</span><span class="p">()</span>
+                <span class="n">box_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+                <span class="n">box_layout</span><span class="o">.</span><span class="n">setMargin</span><span class="p">(</span> <span class="mi">2</span> <span class="p">)</span>
+                <span class="n">widget</span> <span class="o">=</span> <span class="n">FilterOperator</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_admin</span><span class="o">.</span><span class="n">entity</span><span class="p">,</span>
+                                         <span class="n">field</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span>
+                                         <span class="n">box</span> <span class="p">)</span>
+                <span class="n">box_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">widget</span> <span class="p">)</span>
+                <span class="n">box</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">box_layout</span> <span class="p">)</span>
+                <span class="n">widget</span><span class="o">.</span><span class="n">filter_changed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_filter_changed</span> <span class="p">)</span>
+                <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">box</span> <span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addStretch</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">layout</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_filters_created</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">def</span> <span class="nf">_filter_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filters_changed_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+
+<div class="viewcode-block" id="HeaderWidget.decorate_query"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.HeaderWidget.decorate_query">[docs]</a>    <span class="k">def</span> <span class="nf">decorate_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Apply expanded filters on the query&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_filters_created</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">count</span><span class="p">()):</span>
+                <span class="n">box</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">itemAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">widget</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">box</span><span class="p">:</span>
+                    <span class="n">widget</span> <span class="o">=</span> <span class="n">box</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">itemAt</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">widget</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">widget</span><span class="p">:</span>
+                        <span class="n">query</span> <span class="o">=</span> <span class="n">widget</span><span class="o">.</span><span class="n">decorate_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">query</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="HeaderWidget.expand_search_options"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.HeaderWidget.expand_search_options">[docs]</a>    <span class="k">def</span> <span class="nf">expand_search_options</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="o">.</span><span class="n">isHidden</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_filters_created</span><span class="p">:</span>
+                <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_admin</span><span class="o">.</span><span class="n">get_expanded_search_fields</span><span class="p">,</span> 
+                      <span class="bp">self</span><span class="o">.</span><span class="n">_fill_expanded_search_options</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_expanded_search</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="HeaderWidget.setNumberOfRows"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.HeaderWidget.setNumberOfRows">[docs]</a>    <span class="k">def</span> <span class="nf">setNumberOfRows</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">rows</span> <span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">number_of_rows</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">number_of_rows</span><span class="o">.</span><span class="n">setNumberOfRows</span><span class="p">(</span> <span class="n">rows</span> <span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="SplitterHandle"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.SplitterHandle">[docs]</a><span class="k">class</span> <span class="nc">SplitterHandle</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QSplitterHandle</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Custom implementation of QSplitterHandle to provide more functions, </span>
+<span class="sd">    such as hiding a widget by clicking the handle&quot;&quot;&quot;</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">splitter</span><span class="p">,</span> <span class="n">widget_to_hide</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SplitterHandle</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span> <span class="p">(</span><span class="n">orientation</span><span class="p">,</span> <span class="n">splitter</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setToolTip</span><span class="p">(</span><span class="s">&#39;Click to close&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_widget_to_hide</span> <span class="o">=</span> <span class="n">widget_to_hide</span>
+        
+<div class="viewcode-block" id="SplitterHandle.mousePressEvent"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.SplitterHandle.mousePressEvent">[docs]</a>    <span class="k">def</span> <span class="nf">mousePressEvent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="n">splitter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="p">()</span>
+        <span class="k">print</span> <span class="n">splitter</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+        <span class="n">splitter</span><span class="o">.</span><span class="n">widget</span><span class="p">(</span> <span class="n">splitter</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span> <span class="p">)</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+        </div></div>
+<div class="viewcode-block" id="Splitter"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.Splitter">[docs]</a><span class="k">class</span> <span class="nc">Splitter</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QSplitter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Custom implementation of QSplitter to use the custom SplitterHandle&quot;&quot;&quot;</span>
+    
+<div class="viewcode-block" id="Splitter.createHandle"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.Splitter.createHandle">[docs]</a>    <span class="k">def</span> <span class="nf">createHandle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">SplitterHandle</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">orientation</span><span class="p">(),</span> <span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_widget_to_hide</span> <span class="p">)</span>
+    </div></div>
+<div class="viewcode-block" id="TableView"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView">[docs]</a><span class="k">class</span> <span class="nc">TableView</span><span class="p">(</span> <span class="n">AbstractView</span>  <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A generic tableview widget that puts together some other widgets.  The behaviour of this class and</span>
+<span class="sd">  the resulting interface can be tuned by specifying specific class attributes which define the underlying</span>
+<span class="sd">  widgets used ::</span>
+
+<span class="sd">    class MovieRentalTableView(TableView):</span>
+<span class="sd">      title_format = &#39;Grand overview of recent movie rentals&#39;</span>
+
+<span class="sd">  The attributes that can be specified are :</span>
+
+<span class="sd">  .. attribute:: header_widget</span>
+
+<span class="sd">  The widget class to be used as a header in the table view::</span>
+
+<span class="sd">    header_widget = HeaderWidget</span>
+
+<span class="sd">  .. attribute:: table_widget</span>
+
+<span class="sd">  The widget class used to display a table within the table view ::</span>
+
+<span class="sd">  table_widget = TableWidget</span>
+
+<span class="sd">  .. attribute:: title_format</span>
+
+<span class="sd">  A string used to format the title of the view ::</span>
+
+<span class="sd">  title_format = &#39;%(verbose_name_plural)s&#39;</span>
+
+<span class="sd">  .. attribute:: table_model</span>
+
+<span class="sd">  A class implementing QAbstractTableModel that will be used as a model for the table view ::</span>
+
+<span class="sd">    table_model = QueryTableProxy</span>
+
+<span class="sd">  - emits the row_selected signal when a row has been selected</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+    <span class="n">header_widget</span> <span class="o">=</span> <span class="n">HeaderWidget</span>
+    <span class="n">AdminTableWidget</span> <span class="o">=</span> <span class="n">AdminTableWidget</span>
+
+    <span class="c">#</span>
+    <span class="c"># The proxy class to use</span>
+    <span class="c">#</span>
+    <span class="n">table_model</span> <span class="o">=</span> <span class="n">QueryTableProxy</span>
+    <span class="c">#</span>
+    <span class="c"># Format to use as the window title</span>
+    <span class="c">#</span>
+    <span class="n">title_format</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%(verbose_name_plural)s</span><span class="s">&#39;</span>
+
+    <span class="n">row_selected_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">admin</span><span class="p">,</span> <span class="n">search_text</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span> <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TableView</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_title</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">change_title</span> <span class="p">)</span>
+        <span class="n">widget_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_widget</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_widget</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">admin</span> <span class="p">)</span>
+            <span class="n">widget_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">search_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">startSearch</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">cancel_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">cancelSearch</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">on_arrow_down_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">focusTable</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">search_text</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">search</span><span class="p">(</span> <span class="n">search_text</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">widget_layout</span><span class="o">.</span><span class="n">setSpacing</span><span class="p">(</span> <span class="mi">0</span> <span class="p">)</span>
+        <span class="n">widget_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">splitter</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QSplitter</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+        <span class="n">splitter</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s">&#39;splitter&#39;</span><span class="p">)</span>
+        <span class="n">widget_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">splitter</span> <span class="p">)</span>
+        <span class="n">table_widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+        <span class="n">filters_widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_layout</span><span class="o">.</span><span class="n">setSpacing</span><span class="p">(</span> <span class="mi">0</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span><span class="o">.</span><span class="n">setSpacing</span><span class="p">(</span> <span class="mi">0</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">table_widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_layout</span> <span class="p">)</span>
+        <span class="n">filters_widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span> <span class="p">)</span>
+        <span class="c">#filters_widget.hide()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_admin</span><span class="p">(</span> <span class="n">admin</span> <span class="p">)</span>
+        <span class="n">splitter</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">table_widget</span> <span class="p">)</span>
+        <span class="n">splitter</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">filters_widget</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">widget_layout</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">search_filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">q</span><span class="p">:</span> <span class="n">q</span>
+        <span class="n">shortcut</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QShortcut</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QKeySequence</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QKeySequence</span><span class="o">.</span><span class="n">Find</span><span class="p">),</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="n">shortcut</span><span class="o">.</span><span class="n">activated</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">activate_search</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_widget</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">filters_changed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">rebuild_query</span> <span class="p">)</span>
+        <span class="c"># give the table widget focus to prevent the header and its search control to</span>
+        <span class="c"># receive default focus, as this would prevent the displaying of &#39;Search...&#39; in the</span>
+        <span class="c"># search control, but this conflicts with the MDI, resulting in the window not</span>
+        <span class="c"># being active and the menus not to work properly</span>
+        <span class="c">#table_widget.setFocus( QtCore.Qt.OtherFocusReason )</span>
+        <span class="c">#self.setFocusProxy(table_widget)</span>
+        <span class="c">#self.setFocus( QtCore.Qt.OtherFocusReason )</span>
+        <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_subclass_tree</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">setSubclassTree</span> <span class="p">)</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="TableView.activate_search"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.activate_search">[docs]</a>    <span class="k">def</span> <span class="nf">activate_search</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">search</span><span class="o">.</span><span class="n">setFocus</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">ShortcutFocusReason</span><span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="TableView.get_title"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.get_title">[docs]</a>    <span class="k">def</span> <span class="nf">get_title</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">title_format</span> <span class="o">%</span> <span class="p">{</span><span class="s">&#39;verbose_name_plural&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_verbose_name_plural</span><span class="p">()}</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.setSubclassTree"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.setSubclassTree">[docs]</a>    <span class="k">def</span> <span class="nf">setSubclassTree</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">subclasses</span> <span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span> <span class="n">subclasses</span> <span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">inheritance</span> <span class="kn">import</span> <span class="n">SubclassTree</span>
+            <span class="n">splitter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;splitter&#39;</span> <span class="p">)</span>
+            <span class="n">class_tree</span> <span class="o">=</span> <span class="n">SubclassTree</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="p">,</span> <span class="n">splitter</span> <span class="p">)</span>
+            <span class="n">splitter</span><span class="o">.</span><span class="n">insertWidget</span><span class="p">(</span> <span class="mi">0</span><span class="p">,</span> <span class="n">class_tree</span> <span class="p">)</span>
+            <span class="n">class_tree</span><span class="o">.</span><span class="n">subclass_clicked_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_admin</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<div class="viewcode-block" id="TableView.sectionClicked"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.sectionClicked">[docs]</a>    <span class="k">def</span> <span class="nf">sectionClicked</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">section</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;emits a row_selected signal&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">list_action</span><span class="o">.</span><span class="n">gui_run</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">gui_context</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.copy_selected_rows"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.copy_selected_rows">[docs]</a>    <span class="k">def</span> <span class="nf">copy_selected_rows</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Copy the selected rows in this tableview&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;delete selected rows called&#39;</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span> <span class="nb">map</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">selectedIndexes</span><span class="p">()</span> <span class="p">)</span> <span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">copy_row</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.select_all_rows"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.select_all_rows">[docs]</a>    <span class="k">def</span> <span class="nf">select_all_rows</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">selectAll</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="TableView.create_table_model"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.create_table_model">[docs]</a>    <span class="k">def</span> <span class="nf">create_table_model</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">admin</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a table model for the given admin interface&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_model</span><span class="p">(</span> <span class="n">admin</span><span class="p">,</span>
+                                 <span class="bp">None</span><span class="p">,</span>
+                                 <span class="n">admin</span><span class="o">.</span><span class="n">get_columns</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.get_admin"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.get_admin">[docs]</a>    <span class="k">def</span> <span class="nf">get_admin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span>
+</div>
+<div class="viewcode-block" id="TableView.get_model"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.get_model">[docs]</a>    <span class="k">def</span> <span class="nf">get_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="nb">object</span> <span class="p">)</span>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.set_admin"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.set_admin">[docs]</a>    <span class="k">def</span> <span class="nf">set_admin</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">admin</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Switch to a different subclass, where admin is the admin object of the</span>
+<span class="sd">        subclass&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;set_admin called&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">layoutChanged</span><span class="o">.</span><span class="n">disconnect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">tableLayoutChanged</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table_layout</span><span class="o">.</span><span class="n">removeWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">deleteLater</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">deleteLater</span><span class="p">()</span>
+        <span class="n">splitter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;splitter&#39;</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AdminTableWidget</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="p">,</span> <span class="n">splitter</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s">&#39;AdminTableWidget&#39;</span><span class="p">)</span>
+        <span class="n">new_model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_table_model</span><span class="p">(</span> <span class="n">admin</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span> <span class="n">new_model</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">verticalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">sectionClicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">sectionClicked</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">keyboard_selection_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">on_keyboard_selection_signal</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">layoutChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">tableLayoutChanged</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tableLayoutChanged</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_layout</span><span class="o">.</span><span class="n">insertWidget</span><span class="p">(</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gui_context</span> <span class="o">=</span> <span class="n">ListActionGuiContext</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gui_context</span><span class="o">.</span><span class="n">admin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gui_context</span><span class="o">.</span><span class="n">item_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span>
+
+        <span class="k">def</span> <span class="nf">get_filters_and_actions</span><span class="p">():</span>
+            <span class="k">return</span> <span class="p">(</span> <span class="n">admin</span><span class="o">.</span><span class="n">get_filters</span><span class="p">(),</span> <span class="n">admin</span><span class="o">.</span><span class="n">get_list_actions</span><span class="p">()</span> <span class="p">)</span>
+
+        <span class="n">post</span><span class="p">(</span> <span class="n">get_filters_and_actions</span><span class="p">,</span>  <span class="bp">self</span><span class="o">.</span><span class="n">set_filters_and_actions</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="TableView.on_keyboard_selection_signal"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.on_keyboard_selection_signal">[docs]</a>    <span class="k">def</span> <span class="nf">on_keyboard_selection_signal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sectionClicked</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">currentIndex</span><span class="p">()</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.tableLayoutChanged"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.tableLayoutChanged">[docs]</a>    <span class="k">def</span> <span class="nf">tableLayoutChanged</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;tableLayoutChanged&#39;</span><span class="p">)</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">setNumberOfRows</span><span class="p">(</span> <span class="n">model</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span> <span class="p">)</span>
+        <span class="n">item_delegate</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">getItemDelegate</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">item_delegate</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">setItemDelegate</span><span class="p">(</span> <span class="n">item_delegate</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span> <span class="n">model</span><span class="o">.</span><span class="n">columnCount</span><span class="p">()</span> <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">setColumnWidth</span><span class="p">(</span> <span class="n">i</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">headerData</span><span class="p">(</span> <span class="n">i</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">Horizontal</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">SizeHintRole</span> <span class="p">)</span><span class="o">.</span><span class="n">toSize</span><span class="p">()</span><span class="o">.</span><span class="n">width</span><span class="p">()</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.deleteSelectedRows"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.deleteSelectedRows">[docs]</a>    <span class="k">def</span> <span class="nf">deleteSelectedRows</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;delete the selected rows in this tableview&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">delete_selected_rows</span><span class="p">()</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.newRow"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.newRow">[docs]</a>    <span class="k">def</span> <span class="nf">newRow</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a new row in the tableview&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.workspace</span> <span class="kn">import</span> <span class="n">show_top_level</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">create_new_view</span><span class="p">(</span> <span class="n">related_collection_proxy</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">get_model</span><span class="p">(),</span>
+                                           <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span> <span class="p">)</span>
+        <span class="n">show_top_level</span><span class="p">(</span> <span class="n">form</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.closeEvent"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.closeEvent">[docs]</a>    <span class="k">def</span> <span class="nf">closeEvent</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">event</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;reimplements close event&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;tableview closed&#39;</span> <span class="p">)</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="TableView.selectTableRow"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.selectTableRow">[docs]</a>    <span class="k">def</span> <span class="nf">selectTableRow</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">row</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects the specified row&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">selectRow</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.makeImport"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.makeImport">[docs]</a>    <span class="k">def</span> <span class="nf">makeImport</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+<span class="c">#        for row in data:</span>
+<span class="c">#            o = self.admin.entity()</span>
+<span class="c">#            #For example, setattr(x, &#39;foobar&#39;, 123) is equivalent to x.foobar = 123</span>
+<span class="c">#            # if you want to import all attributes, you must link them to other objects</span>
+<span class="c">#            #for example: a movie has a director, this isn&#39;t a primitive like a string</span>
+<span class="c">#            # but a object fetched from the db</span>
+<span class="c">#            setattr(o, object_attributes[0], row[0])</span>
+<span class="c">#            name = row[2].split( &#39; &#39; ) #director</span>
+<span class="c">#            o.short_description = &quot;korte beschrijving&quot;</span>
+<span class="c">#            o.genre = &quot;&quot;</span>
+<span class="c">#            from sqlalchemy.orm.session import Session</span>
+<span class="c">#            Session.object_session(o).flush([o])</span>
+<span class="c">#</span>
+<span class="c">#    post( makeImport )</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.selectedTableIndexes"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.selectedTableIndexes">[docs]</a>    <span class="k">def</span> <span class="nf">selectedTableIndexes</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns a list of selected rows indexes&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">selectedIndexes</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="TableView.getColumns"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.getColumns">[docs]</a>    <span class="k">def</span> <span class="nf">getColumns</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return the columns to be displayed in the table view&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_columns</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="TableView.getData"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.getData">[docs]</a>    <span class="k">def</span> <span class="nf">getData</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;generator for data queried by table model&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">getData</span><span class="p">():</span>
+            <span class="k">yield</span> <span class="n">d</span>
+</div>
+<div class="viewcode-block" id="TableView.getTitle"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.getTitle">[docs]</a>    <span class="k">def</span> <span class="nf">getTitle</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return the name of the entity managed by the admin attribute&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="TableView.viewFirst"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.viewFirst">[docs]</a>    <span class="k">def</span> <span class="nf">viewFirst</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects first row&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selectTableRow</span><span class="p">(</span> <span class="mi">0</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.viewLast"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.viewLast">[docs]</a>    <span class="k">def</span> <span class="nf">viewLast</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects last row&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selectTableRow</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.viewNext"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.viewNext">[docs]</a>    <span class="k">def</span> <span class="nf">viewNext</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects next row&quot;&quot;&quot;</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">selectedTableIndexes</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="nb">next</span> <span class="o">=</span> <span class="p">(</span> <span class="n">first</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span> <span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selectTableRow</span><span class="p">(</span> <span class="nb">next</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.viewPrevious"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.viewPrevious">[docs]</a>    <span class="k">def</span> <span class="nf">viewPrevious</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects previous row&quot;&quot;&quot;</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">selectedTableIndexes</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="p">(</span> <span class="n">first</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span> <span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selectTableRow</span><span class="p">(</span> <span class="n">prev</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_set_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_getter</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">(),</span> <span class="n">QueryTableProxy</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">setQuery</span><span class="p">(</span><span class="n">query_getter</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">clearSelection</span><span class="p">()</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="TableView.refresh"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.refresh">[docs]</a>    <span class="k">def</span> <span class="nf">refresh</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Refresh the whole view&quot;&quot;&quot;</span>
+        <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_admin</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_admin</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="TableView.rebuild_query"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.rebuild_query">[docs]</a>    <span class="k">def</span> <span class="nf">rebuild_query</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;resets the table model query&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">filterlist</span> <span class="kn">import</span> <span class="n">FilterList</span>
+
+        <span class="k">def</span> <span class="nf">rebuild_query</span><span class="p">():</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_query</span><span class="p">()</span>
+            <span class="c"># a table view is not required to have a header</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="p">:</span>
+                <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">decorate_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+            <span class="n">filters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">FilterList</span><span class="p">,</span> <span class="s">&#39;filters&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">filters</span><span class="p">:</span>
+                <span class="n">query</span> <span class="o">=</span> <span class="n">filters</span><span class="o">.</span><span class="n">decorate_query</span><span class="p">(</span> <span class="n">query</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">search_filter</span><span class="p">:</span>
+                <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">search_filter</span><span class="p">(</span> <span class="n">query</span> <span class="p">)</span>
+            <span class="n">query_getter</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span><span class="n">query</span>
+            <span class="k">return</span> <span class="n">query_getter</span>
+
+        <span class="n">post</span><span class="p">(</span> <span class="n">rebuild_query</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_query</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+<div class="viewcode-block" id="TableView.startSearch"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.startSearch">[docs]</a>    <span class="k">def</span> <span class="nf">startSearch</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">text</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;rebuilds query based on filtering text&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.search</span> <span class="kn">import</span> <span class="n">create_entity_search_query_decorator</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;search </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">text</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">search_filter</span> <span class="o">=</span> <span class="n">create_entity_search_query_decorator</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rebuild_query</span><span class="p">()</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="TableView.cancelSearch"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.cancelSearch">[docs]</a>    <span class="k">def</span> <span class="nf">cancelSearch</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;resets search filtering to default&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;cancel search&#39;</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">search_filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">q</span><span class="p">:</span> <span class="n">q</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rebuild_query</span><span class="p">()</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.get_selection_getter"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.get_selection_getter">[docs]</a>    <span class="k">def</span> <span class="nf">get_selection_getter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: a function that when called return an iterable with all the </span>
+<span class="sd">        objects corresponding to the selected rows in the table.&quot;&quot;&quot;</span>
+        <span class="n">selected_rows</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span> <span class="nb">map</span><span class="p">(</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">selectedIndexes</span><span class="p">()</span> <span class="p">)</span> <span class="p">)</span>
+        
+        <span class="k">def</span> <span class="nf">selection_getter</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">selected_rows</span><span class="p">):</span>
+            <span class="n">selection</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">selected_rows</span><span class="p">:</span>
+                <span class="n">selection</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">model</span><span class="o">.</span><span class="n">_get_object</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="p">)</span>
+            <span class="k">return</span> <span class="n">selection</span>
+        
+        <span class="k">return</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span> <span class="n">selection_getter</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">,</span> <span class="n">selected_rows</span> <span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.get_collection_getter"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.get_collection_getter">[docs]</a>    <span class="k">def</span> <span class="nf">get_collection_getter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: a list with all the objects corresponding to the rows in the table</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="k">def</span> <span class="nf">get_collection</span><span class="p">(</span><span class="n">table</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span>
+        
+        <span class="k">return</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span> <span class="n">get_collection</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TableView.set_filters_and_actions"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.set_filters_and_actions">[docs]</a>    <span class="k">def</span> <span class="nf">set_filters_and_actions</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">filters_and_actions</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;sets filters for the tableview&quot;&quot;&quot;</span>
+        <span class="n">filters</span><span class="p">,</span> <span class="n">actions</span> <span class="o">=</span> <span class="n">filters_and_actions</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls.filterlist</span> <span class="kn">import</span> <span class="n">FilterList</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls.actionsbox</span> <span class="kn">import</span> <span class="n">ActionsBox</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;setting filters for tableview&#39;</span> <span class="p">)</span>
+        <span class="n">filters_widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">FilterList</span><span class="p">,</span> <span class="s">&#39;filters&#39;</span><span class="p">)</span>
+        <span class="n">actions_widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">ActionsBox</span><span class="p">,</span> <span class="s">&#39;actions&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">filters_widget</span><span class="p">:</span>
+            <span class="n">filters_widget</span><span class="o">.</span><span class="n">filters_changed_signal</span><span class="o">.</span><span class="n">disconnect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">rebuild_query</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span><span class="o">.</span><span class="n">removeWidget</span><span class="p">(</span><span class="n">filters_widget</span><span class="p">)</span>
+            <span class="n">filters_widget</span><span class="o">.</span><span class="n">deleteLater</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">actions_widget</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span><span class="o">.</span><span class="n">removeWidget</span><span class="p">(</span><span class="n">actions_widget</span><span class="p">)</span>
+            <span class="n">actions_widget</span><span class="o">.</span><span class="n">deleteLater</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">filters</span><span class="p">:</span>
+            <span class="n">splitter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;splitter&#39;</span> <span class="p">)</span>
+            <span class="n">filters_widget</span> <span class="o">=</span> <span class="n">FilterList</span><span class="p">(</span> <span class="n">filters</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">splitter</span> <span class="p">)</span>
+            <span class="n">filters_widget</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s">&#39;filters&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">filters_widget</span> <span class="p">)</span>
+            <span class="n">filters_widget</span><span class="o">.</span><span class="n">filters_changed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">rebuild_query</span> <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># filters might have default values, so we can only build the queries now</span>
+        <span class="c">#</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rebuild_query</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">actions</span><span class="p">:</span>
+            <span class="n">actions_widget</span> <span class="o">=</span> <span class="n">ActionsBox</span><span class="p">(</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="p">,</span>
+                                         <span class="n">gui_context</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gui_context</span> <span class="p">)</span>
+            <span class="n">actions_widget</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span> <span class="s">&#39;actions&#39;</span> <span class="p">)</span>
+            <span class="n">actions_widget</span><span class="o">.</span><span class="n">set_actions</span><span class="p">(</span> <span class="n">actions</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filters_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">actions_widget</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.to_html"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.to_html">[docs]</a>    <span class="k">def</span> <span class="nf">to_html</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;generates html of the table&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">():</span>
+            <span class="n">query_getter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">get_query_getter</span><span class="p">()</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="p">[[</span><span class="nb">getattr</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_columns</span><span class="p">()]</span>
+                     <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">query_getter</span><span class="p">()</span><span class="o">.</span><span class="n">all</span><span class="p">()]</span>
+            <span class="n">context</span> <span class="o">=</span> <span class="p">{</span>
+              <span class="s">&#39;title&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_verbose_name_plural</span><span class="p">(),</span>
+              <span class="s">&#39;table&#39;</span><span class="p">:</span> <span class="n">table</span><span class="p">,</span>
+              <span class="s">&#39;columns&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">_field</span><span class="p">,</span> <span class="n">field_attributes</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_columns</span><span class="p">()],</span>
+            <span class="p">}</span>
+            <span class="kn">from</span> <span class="nn">camelot.view.templates</span> <span class="kn">import</span> <span class="n">loader</span>
+            <span class="kn">from</span> <span class="nn">jinja2</span> <span class="kn">import</span> <span class="n">Environment</span>
+            <span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span> <span class="n">loader</span> <span class="o">=</span> <span class="n">loader</span> <span class="p">)</span>
+            <span class="n">tp</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">get_template</span><span class="p">(</span> <span class="s">&#39;table_view.html&#39;</span> <span class="p">)</span>
+            <span class="k">return</span> <span class="n">tp</span><span class="o">.</span><span class="n">render</span><span class="p">(</span> <span class="n">context</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableView.importFromFile"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.importFromFile">[docs]</a>    <span class="k">def</span> <span class="nf">importFromFile</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;&quot;import data : the data will be imported in the activeMdiChild &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span> <span class="s">&#39;call import method&#39;</span> <span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.wizard.importwizard</span> <span class="kn">import</span> <span class="n">ImportWizard</span>
+        <span class="n">wizard</span> <span class="o">=</span> <span class="n">ImportWizard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="p">)</span>
+        <span class="n">wizard</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="TableView.focusTable"><a class="viewcode-back" href="../../../../api2/camelot.view.controls.html#camelot.view.controls.tableview.TableView.focusTable">[docs]</a>    <span class="k">def</span> <span class="nf">focusTable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">model</span><span class="p">()</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">setFocus</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">selectRow</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

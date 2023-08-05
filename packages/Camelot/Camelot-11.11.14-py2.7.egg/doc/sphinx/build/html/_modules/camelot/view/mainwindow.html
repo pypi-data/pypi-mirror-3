@@ -1,0 +1,620 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.mainwindow &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.mainwindow</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.mainwindow&#39;</span><span class="p">)</span>
+
+<span class="c">#</span>
+<span class="c"># Dummy imports to fool the windows installer and force</span>
+<span class="c"># it to include the right packages</span>
+<span class="c">#</span>
+<span class="c"># from sqlalchemy.databases import sqlite</span>
+<span class="c"># import sqlite3</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">Qt</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span><span class="p">,</span> <span class="n">QtCore</span>
+
+<span class="kn">from</span> <span class="nn">camelot.view.action</span> <span class="kn">import</span> <span class="n">ActionFactory</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.navpane2</span> <span class="kn">import</span> <span class="n">NavigationPane</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.progress_dialog</span> <span class="kn">import</span> <span class="n">ProgressDialog</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">post</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span> <span class="k">as</span> <span class="n">_</span>
+
+<div class="viewcode-block" id="addActions"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.addActions">[docs]</a><span class="k">def</span> <span class="nf">addActions</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">actions</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;add action objects to menus, menubars, and toolbars</span>
+<span class="sd">    if action is None, add a separator.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">actions</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">action</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">target</span><span class="o">.</span><span class="n">addSeparator</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">target</span><span class="o">.</span><span class="n">addAction</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow">[docs]</a><span class="k">class</span> <span class="nc">MainWindow</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QMainWindow</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Main window GUI&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_admin</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">workspace</span> <span class="kn">import</span> <span class="n">DesktopWorkspace</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;initializing main window&#39;</span><span class="p">)</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QMainWindow</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span> <span class="o">=</span> <span class="n">app_admin</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;setting up workspace&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workspace</span> <span class="o">=</span> <span class="n">DesktopWorkspace</span><span class="p">(</span><span class="n">app_admin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;setting child windows dictionary&#39;</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;setting central widget to our workspace&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setCentralWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="o">.</span><span class="n">view_activated_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">updateMenus</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="o">.</span><span class="n">change_view_mode_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">change_view_mode</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="o">.</span><span class="n">last_view_closed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">unmaximize_view</span> <span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;creating navigation pane&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">createNavigationPane</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;creating all the required actions&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">createActions</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;creating the menus&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">createMenus</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;creating the toolbars&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">createToolBars</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;creating status bar&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">createStatusBar</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;updating menus&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">updateMenus</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;reading saved settings&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">readSettings</span><span class="p">()</span>
+        
+        <span class="n">windowtitle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_name</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;setting up window title: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">windowtitle</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="n">windowtitle</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">title_changed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">setWindowTitle</span> <span class="p">)</span>
+
+        <span class="c">#QtCore.QTimer.singleShot(0, self.doInitialization)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;initialization complete&#39;</span><span class="p">)</span>
+        
+<div class="viewcode-block" id="MainWindow.about"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.about">[docs]</a>    <span class="k">def</span> <span class="nf">about</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;showing about message box&#39;</span><span class="p">)</span>
+        <span class="n">abtmsg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_about</span><span class="p">()</span>
+        <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">about</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;About&#39;</span><span class="p">),</span> <span class="n">_</span><span class="p">(</span><span class="n">abtmsg</span><span class="p">))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;about message closed&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.whats_new"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.whats_new">[docs]</a>    <span class="k">def</span> <span class="nf">whats_new</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_whats_new</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">widget</span><span class="p">:</span>
+            <span class="n">widget</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.affiliated_website"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.affiliated_website">[docs]</a>    <span class="k">def</span> <span class="nf">affiliated_website</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">PyQt4.QtGui</span> <span class="kn">import</span> <span class="n">QDesktopServices</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_affiliated_url</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">url</span><span class="p">:</span>
+            <span class="n">QDesktopServices</span><span class="o">.</span><span class="n">openUrl</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.remote_support"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.remote_support">[docs]</a>    <span class="k">def</span> <span class="nf">remote_support</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">PyQt4.QtGui</span> <span class="kn">import</span> <span class="n">QDesktopServices</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_remote_support_url</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">url</span><span class="p">:</span>
+            <span class="n">QDesktopServices</span><span class="o">.</span><span class="n">openUrl</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="MainWindow.unmaximize_view"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.unmaximize_view">[docs]</a>    <span class="k">def</span> <span class="nf">unmaximize_view</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">navpane</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="MainWindow.change_view_mode"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.change_view_mode">[docs]</a>    <span class="k">def</span> <span class="nf">change_view_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">isHidden</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">navpane</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">navpane</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.readSettings"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.readSettings">[docs]</a>    <span class="k">def</span> <span class="nf">readSettings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">settings</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSettings</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">restoreGeometry</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="s">&#39;geometry&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">toByteArray</span><span class="p">())</span>
+        <span class="c"># Don&#39;t restore state, since it messes up the toolbar if stuff was</span>
+        <span class="c"># added</span>
+        <span class="c"># self.restoreState(settings.value(&#39;state&#39;).toByteArray())</span>
+</div>
+<div class="viewcode-block" id="MainWindow.writeSettings"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.writeSettings">[docs]</a>    <span class="k">def</span> <span class="nf">writeSettings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;writing application settings&#39;</span><span class="p">)</span>
+        <span class="n">settings</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSettings</span><span class="p">()</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">setValue</span><span class="p">(</span><span class="s">&#39;geometry&#39;</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">saveGeometry</span><span class="p">()))</span>
+        <span class="c">#settings.setValue(&#39;state&#39;, QtCore.QVariant(self.saveState()))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;settings written&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.display_exception_message_box"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.display_exception_message_box">[docs]</a>    <span class="k">def</span> <span class="nf">display_exception_message_box</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_info</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">controls.exception</span> <span class="kn">import</span> <span class="n">model_thread_exception_message_box</span>
+        <span class="n">model_thread_exception_message_box</span><span class="p">(</span><span class="n">exc_info</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.runAction"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.runAction">[docs]</a>    <span class="k">def</span> <span class="nf">runAction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="nb">callable</span><span class="p">):</span>
+        <span class="n">progress</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QProgressDialog</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Please wait&#39;</span><span class="p">),</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QString</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">progress</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">progress</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="n">post</span><span class="p">(</span>
+            <span class="nb">callable</span><span class="p">,</span>
+            <span class="n">progress</span><span class="o">.</span><span class="n">close</span><span class="p">,</span>
+            <span class="n">exception</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">display_exception_message_box</span>
+        <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.createActions"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.createActions">[docs]</a>    <span class="k">def</span> <span class="nf">createActions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backupAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">backup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">backup</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">restoreAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">restore</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">restore</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pageSetupAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">page_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pageSetup</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">previewAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">print_preview</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">previewDoc</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exitAct</span><span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">copyAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selectAllAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">select_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">select_all</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">separatorAct</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QAction</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">separatorAct</span><span class="o">.</span><span class="n">setSeparator</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">aboutAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">about</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">about</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">whats_new_action</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">whats_new</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">whats_new</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">affiliated_website_action</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">affiliated_website</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">affiliated_website</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">remote_support_action</span> <span class="o">=</span><span class="n">ActionFactory</span><span class="o">.</span><span class="n">remote_support</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">remote_support</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">helpAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">help</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">help</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">newAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">new</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">deleteAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewFirstAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">view_first</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewFirst</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewLastAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">view_last</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewLast</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewNextAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">view_next</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewNext</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewPreviousAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">view_previous</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewPrevious</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewFirstAct</span><span class="o">.</span><span class="n">setIconVisibleInMenu</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewLastAct</span><span class="o">.</span><span class="n">setIconVisibleInMenu</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewNextAct</span><span class="o">.</span><span class="n">setIconVisibleInMenu</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewPreviousAct</span><span class="o">.</span><span class="n">setIconVisibleInMenu</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">updateValueAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">update_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">updateValue</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mergeDocumentAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">merge_document</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_document</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exportToExcelAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">export_excel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">exportToExcel</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exportToWordAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">export_word</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">exportToWord</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exportToMailAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">export_mail</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">exportToMail</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">importFromFileAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">import_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">importFromFile</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sessionRefreshAct</span> <span class="o">=</span> <span class="n">ActionFactory</span><span class="o">.</span><span class="n">refresh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">refresh_session</span><span class="p">)</span>
+
+    <span class="c"># QAction slots and methods implementations</span>
+</div>
+<div class="viewcode-block" id="MainWindow.refresh_session"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.refresh_session">[docs]</a>    <span class="k">def</span> <span class="nf">refresh_session</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">elixir</span> <span class="kn">import</span> <span class="n">session</span>
+        <span class="kn">from</span> <span class="nn">camelot.core.orm</span> <span class="kn">import</span> <span class="n">refresh_session</span>
+        <span class="n">post</span><span class="p">(</span> <span class="n">functools</span><span class="o">.</span><span class="n">update_wrapper</span><span class="p">(</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span> <span class="n">refresh_session</span><span class="p">,</span> <span class="n">session</span> <span class="p">),</span> <span class="n">refresh_session</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.help"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.help">[docs]</a>    <span class="k">def</span> <span class="nf">help</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c">#</span>
+        <span class="c"># Import WebKit as late as possible, since it&#39;s the largest</span>
+        <span class="c"># part of the QT Library (15 meg on Ubuntu linux)</span>
+        <span class="c">#</span>
+        <span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtWebKit</span>
+        <span class="n">TOP_LEVEL</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view</span> <span class="o">=</span> <span class="n">QtWebKit</span><span class="o">.</span><span class="n">QWebView</span><span class="p">(</span><span class="n">TOP_LEVEL</span><span class="p">)</span>
+        <span class="c">#print self.app_admin.get_help_url()</span>
+        <span class="c">#print self.app_admin.get_help_base()</span>
+        <span class="c">#index_file = open(self.app_admin.get_help_url(),&#39;r&#39;)</span>
+        <span class="c">#self.view.setHtml (index_file.read(), self.app_admin.get_help_base())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_help_url</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Help Browser&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="o">.</span><span class="n">setWindowIcon</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">helpAct</span><span class="o">.</span><span class="n">icon</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.backup"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.backup">[docs]</a>    <span class="k">def</span> <span class="nf">backup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">backup</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.restore"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.restore">[docs]</a>    <span class="k">def</span> <span class="nf">restore</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">restore</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.saveAs"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.saveAs">[docs]</a>    <span class="k">def</span> <span class="nf">saveAs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="MainWindow.copy"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">copy_selected_rows</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.select_all"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.select_all">[docs]</a>    <span class="k">def</span> <span class="nf">select_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">select_all_rows</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.previewDoc"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.previewDoc">[docs]</a>    <span class="k">def</span> <span class="nf">previewDoc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">active</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="kn">from</span> <span class="nn">camelot.admin.action</span> <span class="kn">import</span> <span class="n">Action</span><span class="p">,</span> <span class="n">GuiContext</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.action_steps</span> <span class="kn">import</span> <span class="n">PrintHtml</span>
+
+        <span class="k">class</span> <span class="nc">PrintPreviewAction</span><span class="p">(</span> <span class="n">Action</span> <span class="p">):</span>
+            
+            <span class="k">def</span> <span class="nf">model_run</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">model_context</span> <span class="p">):</span>
+                <span class="k">yield</span> <span class="n">PrintHtml</span><span class="p">(</span> <span class="n">active</span><span class="o">.</span><span class="n">to_html</span><span class="p">()</span> <span class="p">)</span>
+
+        <span class="n">action</span> <span class="o">=</span> <span class="n">PrintPreviewAction</span><span class="p">()</span>
+        <span class="n">action</span><span class="o">.</span><span class="n">gui_run</span><span class="p">(</span> <span class="n">GuiContext</span><span class="p">()</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.new"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.new">[docs]</a>    <span class="k">def</span> <span class="nf">new</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">newRow</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.delete"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">deleteSelectedRows</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.pageSetup"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.pageSetup">[docs]</a>    <span class="k">def</span> <span class="nf">pageSetup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="MainWindow.viewFirst"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.viewFirst">[docs]</a>    <span class="k">def</span> <span class="nf">viewFirst</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects view&#39;s first row&quot;&quot;&quot;</span>
+        <span class="n">active</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="n">active</span><span class="o">.</span><span class="n">viewFirst</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.viewLast"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.viewLast">[docs]</a>    <span class="k">def</span> <span class="nf">viewLast</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects view&#39;s last row&quot;&quot;&quot;</span>
+        <span class="n">active</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="n">active</span><span class="o">.</span><span class="n">viewLast</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.viewNext"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.viewNext">[docs]</a>    <span class="k">def</span> <span class="nf">viewNext</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects view&#39;s next row&quot;&quot;&quot;</span>
+        <span class="n">active</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="n">active</span><span class="o">.</span><span class="n">viewNext</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.viewPrevious"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.viewPrevious">[docs]</a>    <span class="k">def</span> <span class="nf">viewPrevious</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;selects view&#39;s previous row&quot;&quot;&quot;</span>
+        <span class="n">active</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="n">active</span><span class="o">.</span><span class="n">viewPrevious</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.updateValue"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.updateValue">[docs]</a>    <span class="k">def</span> <span class="nf">updateValue</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.wizard.update_value</span> <span class="kn">import</span> <span class="n">UpdateValueWizard</span>
+
+        <span class="n">admin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">get_admin</span><span class="p">()</span>
+        <span class="n">selection_getter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">get_selection_getter</span><span class="p">()</span>
+        <span class="n">wizard</span> <span class="o">=</span> <span class="n">UpdateValueWizard</span><span class="p">(</span><span class="n">admin</span><span class="o">=</span><span class="n">admin</span><span class="p">,</span> <span class="n">selection_getter</span><span class="o">=</span><span class="n">selection_getter</span><span class="p">)</span>
+        <span class="n">wizard</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.merge_document"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.merge_document">[docs]</a>    <span class="k">def</span> <span class="nf">merge_document</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run the merge document wizard on the selection in the current</span>
+<span class="sd">        table view&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.wizard.merge_document</span> <span class="kn">import</span> <span class="n">MergeDocumentWizard</span>
+
+        <span class="n">selection_getter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">get_selection_getter</span><span class="p">()</span>
+        <span class="n">wizard</span> <span class="o">=</span> <span class="n">MergeDocumentWizard</span><span class="p">(</span><span class="n">selection_getter</span><span class="o">=</span><span class="n">selection_getter</span><span class="p">)</span>
+        <span class="n">wizard</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.exportToExcel"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.exportToExcel">[docs]</a>    <span class="k">def</span> <span class="nf">exportToExcel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;creates an excel file from the view&quot;&quot;&quot;</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">ProgressDialog</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Please wait&#39;</span><span class="p">))</span>
+        <span class="n">post</span><span class="p">(</span><span class="n">widget</span><span class="o">.</span><span class="n">export_to_excel</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">finished</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">exception</span><span class="p">)</span>
+        <span class="n">d</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.exportToWord"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.exportToWord">[docs]</a>    <span class="k">def</span> <span class="nf">exportToWord</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Use windows COM to export the active child window to MS word,</span>
+<span class="sd">        by using its to_html function&quot;&quot;&quot;</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">ProgressDialog</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Please wait&#39;</span><span class="p">))</span>
+        <span class="n">post</span><span class="p">(</span><span class="n">widget</span><span class="o">.</span><span class="n">export_to_word</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">finished</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">exception</span><span class="p">)</span>
+        <span class="n">d</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.exportToMail"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.exportToMail">[docs]</a>    <span class="k">def</span> <span class="nf">exportToMail</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">ProgressDialog</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Please wait&#39;</span><span class="p">))</span>
+        <span class="n">post</span><span class="p">(</span><span class="n">widget</span><span class="o">.</span><span class="n">export_to_mail</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">finished</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">exception</span><span class="p">)</span>
+        <span class="n">d</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.importFromFile"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.importFromFile">[docs]</a>    <span class="k">def</span> <span class="nf">importFromFile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activeMdiChild</span><span class="p">()</span><span class="o">.</span><span class="n">importFromFile</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="MainWindow.createMenus"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.createMenus">[docs]</a>    <span class="k">def</span> <span class="nf">createMenus</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_menu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">addMenu</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;&amp;File&#39;</span><span class="p">))</span>
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_menu</span><span class="p">,</span> <span class="p">(</span>
+            <span class="c">#self.closeAct,</span>
+            <span class="bp">None</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">backupAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">restoreAct</span><span class="p">,</span>
+            <span class="bp">None</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pageSetupAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">previewAct</span><span class="p">,</span>
+            <span class="bp">None</span>
+        <span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">exportMenu</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMenu</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Export To&#39;</span><span class="p">))</span>
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exportMenu</span><span class="p">,</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exportToExcelAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exportToWordAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exportToMailAct</span><span class="p">,</span>
+        <span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_menu</span><span class="o">.</span><span class="n">addMenu</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exportMenu</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">importMenu</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMenu</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Import From&#39;</span><span class="p">))</span>
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">importMenu</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">importFromFileAct</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_menu</span><span class="o">.</span><span class="n">addMenu</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">importMenu</span><span class="p">)</span>
+
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_menu</span><span class="p">,</span> <span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exitAct</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">editMenu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">addMenu</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;&amp;Edit&#39;</span><span class="p">))</span>
+
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">editMenu</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">copyAct</span><span class="p">,</span>
+                                   <span class="bp">self</span><span class="o">.</span><span class="n">selectAllAct</span><span class="p">,</span>
+                                   <span class="bp">self</span><span class="o">.</span><span class="n">updateValueAct</span><span class="p">,</span>
+                                   <span class="bp">self</span><span class="o">.</span><span class="n">mergeDocumentAct</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewMenu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">addMenu</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;View&#39;</span><span class="p">))</span>
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">viewMenu</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sessionRefreshAct</span><span class="p">,))</span>
+        <span class="n">gotoMenu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewMenu</span><span class="o">.</span><span class="n">addMenu</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Go To&#39;</span><span class="p">))</span>
+        <span class="n">addActions</span><span class="p">(</span><span class="n">gotoMenu</span><span class="p">,</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewFirstAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewPreviousAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewNextAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewLastAct</span>
+        <span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">addSeparator</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">helpMenu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">menuBar</span><span class="p">()</span><span class="o">.</span><span class="n">addMenu</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;&amp;Help&#39;</span><span class="p">))</span>
+
+        <span class="n">help_menu_actions</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">helpAct</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aboutAct</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_whats_new</span><span class="p">():</span>
+            <span class="n">help_menu_actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">whats_new_action</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_affiliated_url</span><span class="p">():</span>
+            <span class="n">help_menu_actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">affiliated_website_action</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_remote_support_url</span><span class="p">():</span>
+            <span class="n">help_menu_actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">remote_support_action</span><span class="p">)</span>
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">helpMenu</span><span class="p">,</span> <span class="n">help_menu_actions</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.updateMenus"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.updateMenus">[docs]</a>    <span class="k">def</span> <span class="nf">updateMenus</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Toggle the status of the menus, depending on the active view&quot;&quot;&quot;</span>
+        <span class="n">active_view</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="o">.</span><span class="n">active_view</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backupAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">restoreAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">pageSetupAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">previewAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">newAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">deleteAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">copyAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewFirstAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewPreviousAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewNextAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewLastAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">exportToWordAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exportToExcelAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exportToMailAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">importFromFileAct</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">separatorAct</span><span class="o">.</span><span class="n">setVisible</span><span class="p">(</span><span class="n">active_view</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.get_tool_bar"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.get_tool_bar">[docs]</a>    <span class="k">def</span> <span class="nf">get_tool_bar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span>
+</div>
+<div class="viewcode-block" id="MainWindow.createToolBars"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.createToolBars">[docs]</a>    <span class="k">def</span> <span class="nf">createToolBars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c">#</span>
+        <span class="c"># All actions are put in one toolbar, to ease unit testing and</span>
+        <span class="c"># generation of screenshots</span>
+        <span class="c">#</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">addToolBar</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Toolbar&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s">&#39;ToolBar&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span><span class="o">.</span><span class="n">setMovable</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span><span class="o">.</span><span class="n">setFloatable</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span><span class="p">,</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">newAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">copyAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">deleteAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewFirstAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewPreviousAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewNextAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">viewLastAct</span>
+        <span class="p">))</span>
+
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span><span class="p">,</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exportToExcelAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exportToWordAct</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exportToMailAct</span><span class="p">,</span>
+        <span class="p">))</span>
+
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">previewAct</span><span class="p">,))</span>
+
+        <span class="n">addActions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tool_bar</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">helpAct</span><span class="p">,))</span>
+
+    <span class="c"># Navigation Pane</span></div>
+<div class="viewcode-block" id="MainWindow.createNavigationPane"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.createNavigationPane">[docs]</a>    <span class="k">def</span> <span class="nf">createNavigationPane</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">navpane</span> <span class="o">=</span> <span class="n">NavigationPane</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="p">,</span>
+            <span class="n">workspace</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="p">,</span>
+            <span class="n">parent</span><span class="o">=</span><span class="bp">self</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addDockWidget</span><span class="p">(</span><span class="n">Qt</span><span class="o">.</span><span class="n">LeftDockWidgetArea</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">navpane</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.activeMdiChild"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.activeMdiChild">[docs]</a>    <span class="k">def</span> <span class="nf">activeMdiChild</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="o">.</span><span class="n">active_view</span><span class="p">()</span>
+
+    <span class="c"># Statusbar</span></div>
+<div class="viewcode-block" id="MainWindow.createStatusBar"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.createStatusBar">[docs]</a>    <span class="k">def</span> <span class="nf">createStatusBar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">controls.statusbar</span> <span class="kn">import</span> <span class="n">StatusBar</span>
+        <span class="n">statusbar</span> <span class="o">=</span> <span class="n">StatusBar</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setStatusBar</span><span class="p">(</span><span class="n">statusbar</span><span class="p">)</span>
+        <span class="n">statusbar</span><span class="o">.</span><span class="n">showMessage</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Ready&#39;</span><span class="p">),</span> <span class="mi">5000</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MainWindow.closeEvent"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.mainwindow.MainWindow.closeEvent">[docs]</a>    <span class="k">def</span> <span class="nf">closeEvent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">get_model_thread</span>
+        <span class="n">model_thread</span> <span class="o">=</span> <span class="n">get_model_thread</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workspace</span><span class="o">.</span><span class="n">close_all_views</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">writeSettings</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span> <span class="s">&#39;closing mainwindow&#39;</span> <span class="p">)</span>
+        <span class="n">model_thread</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">MainWindow</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">closeEvent</span><span class="p">(</span> <span class="n">event</span> <span class="p">)</span>
+        <span class="n">QtCore</span><span class="o">.</span><span class="n">QCoreApplication</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>
