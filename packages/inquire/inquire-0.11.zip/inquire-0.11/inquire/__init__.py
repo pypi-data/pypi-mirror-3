@@ -1,0 +1,1 @@
+from inquire import Query, __author__, __version__
