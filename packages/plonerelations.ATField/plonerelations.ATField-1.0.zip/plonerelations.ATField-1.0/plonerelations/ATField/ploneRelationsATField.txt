@@ -1,0 +1,91 @@
+Test
+====
+
+Prime tests, and set up our components and some basic content
+
+    >>> from plonerelations.ATField import tests
+    >>> tests.base_setup(portal)
+    >>> ob1 = portal['ob1']
+    >>> ob2 = portal['ob2']
+    >>> ob3 = portal['ob3']
+    >>> ob4 = portal['ob4']
+    >>> ob5 = portal['ob5']
+
+Import fields, create instance of it, make it multi valued
+
+    >>> from plonerelations.ATField.ploneRelationsATField import PloneRelationsATField
+    >>> multiValueATField = PloneRelationsATField ()
+    >>> multiValueATField.multiValued = True
+    >>> multiValueATField.relationship = 'test multi valued relationship'
+
+Make a single value one, for good measure
+
+    >>> singleValueATField = PloneRelationsATField ()
+    >>> singleValueATField.multiValued = False
+    >>> singleValueATField.relationship = 'test single relationship'
+
+Create an Interface
+
+    >>> from zope.interface import Interface
+    >>> class IMyInterface (Interface):
+    ...     pass
+
+set relationship_interface on ATFields
+
+    >>> multiValueATField.relationship_interface = IMyInterface
+    >>> singleValueATField.relationship_interface = IMyInterface
+
+make multi relationship from ob1 to objs 2 and 3, and a single relathionship from ob4 to ob5
+
+    >>> singleValueATField.set ( ob4, ob5 )
+    >>> multiValueATField.set ( ob1, [ob2,ob3] )
+
+test if get method returns right objects. Multi returns a list
+
+    >>> list (multiValueATField.get( ob1 ))
+    [<Demo ob2>, <Demo ob3>]
+
+    >>> list (multiValueATField.getRaw( ob1, aslist=False))
+    ['ob2', 'ob3']
+    >>> list (multiValueATField.getRaw( ob1, aslist=True ))
+    ['ob2', 'ob3']
+
+sinlge returns an object
+
+    >>> singleValueATField.get ( ob4 )
+    <Demo ob5>
+
+    >>> singleValueATField.getRaw( ob4, aslist=False )
+    'ob5'
+
+    >>> singleValueATField.getRaw( ob4, aslist=True )
+    ['ob5']
+
+double check if plone.app.interface returns the same
+
+    >>> from plone.app.relations import interfaces
+    >>> multiValueSource = interfaces.IRelationshipSource(ob1)
+    >>> singleValueSource = interfaces.IRelationshipSource(ob4)
+    >>> multiValueRelationships = list(multiValueSource.getRelationships())
+    >>> singleValueRelationship = list(singleValueSource.getRelationships())
+    >>> multiValueRelationships
+    [<Relationship 'test multi valued relationship' from (<Demo ob1>,) to (<Demo ob2>,)>, <Relationship 'test multi valued relationship' from (<Demo ob1>,) to (<Demo ob3>,)>]
+    >>> singleValueRelationship
+    [<Relationship 'test single relationship' from (<Demo ob4>,) to (<Demo ob5>,)>]
+
+check if relathionshiops provide Interfaces
+
+    >>> IMyInterface.providedBy (singleValueRelationship[0])
+    True
+    >>> IMyInterface.providedBy (multiValueRelationships[0])
+    True
+
+check if it deletes
+
+    >>> multiValueATField.set ( ob1, [ob2,ob5] )
+    >>> list(multiValueSource.getRelationships())
+    [<Relationship 'test multi valued relationship' from (<Demo ob1>,) to (<Demo ob2>,)>, <Relationship 'test multi valued relationship' from (<Demo ob1>,) to (<Demo ob5>,)>]
+    >>> singleValueATField.set ( ob4, ob1 )
+    >>> singleValueRelationship = list(singleValueSource.getRelationships())
+    >>> singleValueRelationship
+    [<Relationship 'test single relationship' from (<Demo ob4>,) to (<Demo ob1>,)>]
