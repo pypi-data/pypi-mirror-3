@@ -1,0 +1,173 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      xml:lang="en" lang="en"
+      metal:use-macro="context/prefs_main_template/macros/master"
+      i18n:domain="collective.simplesocial">
+
+<metal:block metal:fill-slot="top_slot"
+             tal:define="dummy python:request.set('disable_border', 1)"/>
+
+<body>
+
+<div metal:fill-slot="prefs_configlet_main">
+
+    <h1 class="documentFirstHeading"
+        i18n:translate="">Facebook Configuration</h1>
+
+    <a href=""
+        class="link-parent"
+        tal:attributes="href string:$portal_url/plone_control_panel"
+        i18n:domain="plone"
+        i18n:translate="label_up_to_plone_setup">
+            Up to Site Setup
+    </a>
+    
+    <div id="facebook-app-instructions">
+        <p>To use Facebook features, you must configure a Facebook application.</p>
+
+        <ul>
+            <li>
+                Go to the <a href="http://www.facebook.com/developers/">Facebook 
+                Developer application</a>. If necessary, allow it access to
+                your profile.
+            </li>
+            <li>
+                Click the <strong>Set Up New App</strong> button,
+                and enter these settings:
+                <blockquote>
+                    <strong>App Name:</strong>
+                    <span tal:content="context/Title">Site Name</span>
+                </blockquote>
+            </li>
+            <li>Read and agree to the terms of service, and create your app.</li>
+            <li>
+                In the Facebook application's settings, click on the
+                <strong>Web Site</strong> tab. Note the <strong>application
+                ID</strong>, and enter these settings:
+                <blockquote>
+                    <strong>Site URL:</strong>
+                    <span tal:content="context/@@plone_portal_state/portal_url|default">
+                        The URL of this site
+                    </span><br />
+                    <strong>Site Domain:</strong>
+                    <span tal:content="request/HTTP_HOST|default">
+                        The domain name of this site without http:// or trailing slash
+                    </span>
+                </blockquote>
+            </li>
+            <li>Save your changes. Then return to this control panel and
+                enter the application ID. If prompted, log into Facebook to
+                complete the configuration.
+            </li>
+        </ul>
+    </div>
+
+    <tal:form replace="structure view/contents">
+        Form
+    </tal:form>
+        
+    <script type="text/javascript">    
+    (function ($) {
+        function simplesocial_setupChoices(userId) {
+            var query_template = 'SELECT page_id, name from page where page_id in (SELECT page_id from page_admin where uid={0})';
+            var pages = FB.Data.query(query_template, userId);
+            var el = document.getElementById('form-widgets-page_id');
+            SimpleSocial.populateChoices(el, pages);
+        }
+        
+        function simplesocial_unsetupChoices() {
+            var el = document.getElementById('form-widgets-page_id');
+            SimpleSocial.unpopulateChoices(el);
+        }
+        
+        var status = jq('<span id="fb-connection-status" class="checking"' + '>Checking...<' + '/span>');
+        status.css('margin-left', '10px');
+        jq('#form-widgets-app_id').after(status).blur(function () {
+            var app_id_str = jq('#form-widgets-app_id').val();
+            if (!app_id_str) {
+                status.attr('class', 'not-connected');
+                status.text('Not connected. Enter a Facebook application ID.');
+            } else {
+                SimpleSocial.settings.app_id = parseInt(app_id_str);
+                SimpleSocial.connect(function (response) {
+                    if (response.connected) {
+                        var app_name = response.display_name;
+                        status.attr('class', 'connected');
+                        status.html('Connected to <' + 'strong>' + app_name + '<' + '/strong>.');
+                        if (!SimpleSocial.queue.processed) {
+                            SimpleSocial.processQueue();
+                        }
+                    } else {
+                        status.attr('class', 'not-connected');
+                        status.text('Not connected. Invalid application ID.');
+                    }
+                });
+            }
+        });
+        
+        SimpleSocial.queue.push(function () {
+            // Find the form fields that require login.
+            var fields = jq('#content form .field').not('#formfield-form-widgets-app_id').hide();
+            
+            // We only need to worry about login if we have more fields than
+            // just the application ID.
+            if (fields.length) {
+                // Set up the login button.
+                var login_block = jq('<'+ 'p' + '><' + '/p>');
+                var login_button = jq('<' + 'button' + '><' + '/button' + '>');
+                var login_instructions = jq('<span' + '><' + '/span>');
+                login_block.append(login_button, login_instructions).css('margin-top', '10px');
+                jq('#formfield-form-widgets-app_id').after(login_block);
+                
+                function simplesocial_updateLoginStatus(status, authResponse) {
+                    if (status === 'connected') {
+                        // The user logged in.
+                        fields.show();
+                        simplesocial_setupChoices(authResponse.userID);
+                        login_button.text('Logout of Facebook');
+                        login_instructions.text('');
+                        login_button.unbind('click').click(simplesocial_logout);
+                    } else {
+                        // The user logged out.
+                        simplesocial_unsetupChoices();
+                        login_button.text('Login to Facebook');
+                        login_instructions.text(' to continue configuring SimpleSocial.');
+                        login_button.unbind('click').click(simplesocial_login);
+                    }
+                }
+
+                function simplesocial_login() {
+                    FB.login(function (response) {
+                        simplesocial_updateLoginStatus(response.status, response.authResponse);
+                    });
+                    return false;
+                }
+
+                function simplesocial_logout() {
+                    FB.logout(function(response) {
+                        simplesocial_updateLoginStatus(response.status, response.authResponse);
+                    });
+                    return false;
+                }
+
+                simplesocial_updateLoginStatus();
+                
+                // Check to see if the user is already logged in.
+                FB.getLoginStatus(function (response) {
+                   simplesocial_updateLoginStatus(response.status, response.authResponse);
+                });
+            }
+            
+            // Set the connection status.
+            jq('#form-widgets-app_id').blur();
+
+        });
+    })(jQuery);
+    </script>
+
+</div>
+
+</body>
+</html>
