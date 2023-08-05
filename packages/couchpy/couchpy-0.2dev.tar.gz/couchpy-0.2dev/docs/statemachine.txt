@@ -1,0 +1,73 @@
+       /ST_ACTIVE_INVALID      |  I - instansiate()
+      / ST_ACTIVE_POST         |  C - post(),
+States  ST_ACTIVE_VALID        |  R - fetch(), attach.get(), attach.attach()
+      \ ST_ACTIVE_DIRTY        |  U - put(), side-effects(), attach.put(), attach.delete()
+       \ST_CACHE_INVALID       |  D - delete()
+
+
+ST_ACTIVE_INVALID :
+    Document is instantiated, but cannot be used until it is fetched from the
+    server. Either the latest revision needs to be fetched or one of its
+    previous revision needs to be fetched.
+
+ST_ACTIVE_POST :
+    Document is freshly instantiated, insert the document into database using a
+    post() call.
+
+ST_ACTIVE_VALID :
+    Document is instantiated and its content are fetched from the server,
+    hence its fields are consumable, modifiable.
+
+ST_ACTIVE_DIRTY :
+    An ST_ACTIVE_VALID document's content was modified but not yet commited to
+    the server.
+
+ST_CACHE_INVALID :
+    Once a document instace goes out of scope (like for eg, http-request
+    context) it is cached for future use.
+
+
+                        *-------------------------------------------*--------*
+                        |                                           |        |
+                        |                    *-------------*        |        |
+                        |                    |             |        |        |
+                        V                    V             |        |        |
+                *===================* *================*   |        |        |
+                | ST_ACTIVE_INVALID | | ST_ACTIVE_POST |   |        |        |
+                |      aget()       | |  side-effect() |   |        |        |
+                |      aput()       | |    attach()    |   |        |        |
+                |     adelete()     | *================*   |        |        |
+                |      delete()     |   |       |          |        |        |
+                *===================*   |       |          |        |        |
+                   ^        |    |    (try)     |         Instantiation      |
+                   |     fetch() |      |      post()     (without _rev)     |
+                   |        |    |      |     fetch()      |        |        |
+              invalidate()  |    |      |    delete()      |        |        |
+                delete()    |   DB-fetch()      |      *=======*    |        |
+                   |        V       |           |      | Start |    |        |
+                 *===============*  |           |      *=======*    |        |
+          *----->|ST_ACTIVE_VALID|<-*-----------*                   |        |
+          |      |    fetch()    |                                  |        |
+          |      |     aget()    |                                  |        |
+          |      |     aput()    |                                  |        |
+          |      |   adelete()   |                                  |        |
+          |      *===============*                                  |        |
+         put()                |                                     |        |
+          |              side-effects()                             |        |
+          |                changed()                                |        |
+  *=================*         |                                     |        |
+  | ST_ACTIVE_DIRTY |<--------*                                     |        |
+  |  side-effects() |                                               |        |
+  |     aget()      |                                  *==================*  |
+  |     aput()      |----- DB-commit() --------------->| ST_CACHE_INVALID |  |
+  |   adelete()     |                                  *==================*  |
+  *=================*                                           |            |
+                                                                |            |
+                                                                |            |
+                                                          Instantiation      |
+                                                           (with _rev)-------*
+                                                                |
+                                                                |
+                                                           *=======*
+                                                           | Start |
+                                                           *=======*
