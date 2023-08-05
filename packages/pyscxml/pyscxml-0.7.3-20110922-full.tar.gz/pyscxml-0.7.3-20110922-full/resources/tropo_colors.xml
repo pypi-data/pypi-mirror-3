@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<scxml version="1.0" xmlns="http://www.w3.org/2005/07/scxml"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.w3.org/2005/07/scxml http://www.w3.org/2011/04/SCXML/scxml.xsd">
+
+    <script><![CDATA[
+        import json
+        def get_json():
+            return _event.data["json_data"]
+        
+        def get_actions_attr(attr):
+            if not get_json().get("result"): return
+            return str(get_json()['result']['actions'][attr])
+            
+        ]]>
+    </script>
+    
+    <!--<state id="init">
+       <transition event="tropo.init" target="greeting" />
+    </state>-->
+    
+    <state id="greeting">
+        <onentry>
+            <send event="respond" target="#_scxml_tropo_server">
+                <content>
+                    {"say":{"value": "Welcome to the our simple dialog."}}
+                </content>
+            </send>
+        </onentry>
+        <transition target="dialog" event="tropo.answer.say" />
+    </state>
+    <state id="error">
+        <state id="nomatch">
+            <onentry>
+                <send event="respond" target="#_scxml_tropo_server">
+                    <content>
+                        {"say": {"value" : "I'm afraid I didn't quite get that."}}
+                    </content>
+                </send>
+            </onentry>
+        </state>
+        <state id="timeout">
+            <onentry>
+                <send event="respond" target="#_scxml_tropo_server">
+                    <content>
+                        {"say": {"value" : "I can't hear you."}}
+                    </content>
+                </send>
+            </onentry>
+        </state>
+        <transition event="tropo.answer.say" target="h" />
+    </state>
+    
+    <state id="dialog">
+        <history id="h" >
+            <transition target="colors" />
+        </history>
+       <transition event="tropo.timeout" target="timeout" />
+       <transition event="tropo.nomatch" target="nomatch" />
+            
+        
+        <state id="colors">
+            <state id="color_q" >
+                <onentry>
+                    <send event="respond" target="#_scxml_tropo_server">
+                    <content>
+                        {
+                            "ask": {
+                                "say": {
+                                    "value": "Which do you prefer, red or blue?" 
+                                },
+                                "choices": {
+                                    "value": "blue, red, quit" 
+                                },
+                                "name": "color" ,
+                                "bargein": false
+                            }
+                        }
+                   </content>
+                </send>
+                    
+                </onentry>
+                <transition event="tropo.answer.ask" 
+                            cond="get_actions_attr('interpretation') != 'quit'" 
+                            target="color_a">
+                            
+                    <script>
+                        interpretation = get_actions_attr('interpretation')
+                        confidence = get_actions_attr('confidence')                     
+                    </script>   
+                    <send event="respond" target="#_scxml_tropo_server">
+                    <content>
+                        {
+                        "say": [
+                            {"value": "You said %(interpretation)s"},
+                            {"value": "With a confidence of %(confidence)s"}
+                            ]
+                        }                    
+                    </content>
+               </send>
+                </transition>
+            </state>
+            
+            <state id="color_a">
+                <transition event="tropo.answer.say" target="sizes" />
+            </state>
+            
+        </state>
+        <state id="sizes">
+            <state id="size_q">
+                <onentry>
+                <send event="respond" target="#_scxml_tropo_server">
+                    <content>
+                        {
+                            "ask": {
+                                "say": {
+                                    "value": "Which do you prefer, small or large?" 
+                                },
+                                "choices": {
+                                    "value": "small, large, quit" 
+                                },
+                                "name": "size" ,
+                                "bargein": false
+                            }
+                        }
+                   </content>
+                   </send>
+                </onentry>
+                
+                <transition event="tropo.answer.ask" 
+                            cond="get_actions_attr('interpretation') != 'quit'" 
+                            target="size_a" >
+                    <script>confidence = get_actions_attr("confidence")</script>
+                    <send event="respond" target="#_scxml_tropo_server">
+                    <content>
+                        {"say": {"value": "You answered with a confidence of %(confidence)s"}}
+                   </content>
+                   </send>
+                </transition>
+            </state>
+            
+            <state id="size_a">
+                <transition event="tropo.answer.say" target="colors" />
+            </state>
+        </state>
+        <transition event="tropo.answer.ask"
+            cond="get_actions_attr('interpretation') == 'quit'" target="f">
+            <send event="respond" target="#_scxml_tropo_server">
+            <content>
+                {
+                    "say": {
+                        "value" : "Ok, thank you and goodbye!"
+                    }
+                    
+                },
+                {"hangup" : null}
+           </content>
+           </send>
+        </transition>
+    </state>
+    <final id="f" />
+</scxml>
+
