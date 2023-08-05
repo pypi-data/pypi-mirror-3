@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+import getopt
+import sys
+
+from libcloud.loadbalancer.base import LoadBalancer, Member
+
+from lctools.lc import get_lc
+from lctools.printer import Printer
+
+
+def usage(prog):
+    sys.stdout.write(("%s -n <name> [-p <profile> ]"
+        " [ -P <port> ] addr1:port1 add2:port2 ...\n\n") % prog)
+
+if __name__ == "__main__":
+    profile = "default"
+    port = 80
+    name = None
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "p:P:n:")
+    except getopt.GetoptError, err:
+        sys.stderr.write("%s\n" % str(err))
+        sys.exit(1)
+
+    for o, a in opts:
+        if o == "-p":
+            profile = a
+        elif o == "-P":
+            port = a
+        elif o == "-n":
+            name = a
+
+    conn = get_lc(profile, resource='loadbalancer')
+
+    members = []
+
+    for member in args:
+        addr, port = member.split(":")
+        members.append(Member(None, addr, port))
+
+    if name is None or len(members) == 0:
+        usage(sys.argv[0])
+        sys.exit(1)
+
+    balancer = conn.create_balancer(name=name, port=port, members=members)
+    print balancer

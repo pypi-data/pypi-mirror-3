@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+
+import getopt
+import sys
+
+from lctools.lc import get_lc
+from lctools.printer import Printer
+
+
+def usage(prog):
+    sys.stdout.write("%s -i <image_id> -s <size_id> -n <name> [-l <location>] ex_a1=ex_v1 ... ex_aN=ex_vN\n\n" % prog)
+
+def process_extra_args(args):
+    def value_to_native(value):
+        if isinstance(value, str) and value in ('true', 'false'):
+            return value == 'true'
+        else:
+            return value
+
+    extra_args = {}
+
+    for token in args:
+        k, v = token.split("=")
+
+        if k.startswith("ex_"):
+            key = k
+        else:
+            key = "ex_%s" % k
+
+        extra_args[key] = value_to_native(v)
+
+    return extra_args
+
+if __name__ == "__main__":
+    profile = "default"
+    image = size = location = name = None
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "p:i:l:n:s:")
+    except getopt.GetoptError, err:
+        sys.stderr.write("%s\n" % str(err))
+        sys.exit(1)
+
+    for o, a in opts:
+        if o == "-p":
+            profile = a
+        elif o == "-i":
+            image = a
+        elif o == "-l":
+            location = a
+        elif o == "-n":
+            name = a
+        elif o == "-s":
+            size = a
+
+    conn = get_lc(profile)
+
+    if image is None or name is None or size is None:
+        usage(sys.argv[0])
+        sys.exit(1)
+
+    nodeimage = filter(lambda img: str(img.id) == image, conn.list_images())[0]
+    nodesize = filter(lambda sz: str(sz.id).lower() == size.lower(),
+            conn.list_sizes())[0]
+
+    if location is not None:
+        nodelocation = filter(lambda loc: str(loc.id) == location,
+                conn.list_locations())[0]
+    else:
+        nodelocation = None
+
+    create_node_kwargs = {"name": name, "image": nodeimage,
+            "size": nodesize, "location": nodelocation}
+
+    create_node_kwargs.update(process_extra_args(args))
+
+    node = conn.create_node(**create_node_kwargs)
+    Printer.do(node)

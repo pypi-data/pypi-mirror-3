@@ -1,0 +1,54 @@
+#!/usr/bin/env python
+
+import getopt
+import sys
+
+from lctools.lc import get_lc
+from lctools.printer import Printer
+from lctools.utils import int_sequence, is_int_sequence
+
+def usage(progname):
+    sys.stdout.write("%s -i <node_id1,node_id2,...> [reboot|destroy]\n\n" % progname)
+
+if __name__ == "__main__":
+    profile = "default"
+    node_ids = None
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "p:i:")
+    except getopt.GetoptError, err:
+        sys.stderr.write("%s\n" % str(err))
+        sys.exit(1)
+
+    for o, a in opts:
+        if o == "-p":
+            profile = a
+        if o == "-i":
+            node_ids = a
+
+    if 0 == len(args):
+        usage(sys.argv[0])
+        sys.exit(1)
+
+    action = args[0]
+
+    if node_ids is None:
+        usage(sys.argv[0])
+        sys.exit(1)
+
+    conn = get_lc(profile)
+
+    if is_int_sequence(node_ids):
+        nodes_to_process = int_sequence(node_ids)
+    else:
+        nodes_to_process = node_ids.split(",")
+
+    for node_id in nodes_to_process:
+        try:
+            node = filter(lambda node: str(node.id) == str(node_id),
+                    conn.list_nodes())[0]
+        except IndexError:
+            sys.stderr.write("No node with id %s found, skipping\n" % node_id)
+            continue
+
+        getattr(node, action)()
