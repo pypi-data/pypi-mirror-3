@@ -1,0 +1,48 @@
+Juno for py3o
+=============
+
+py3o.renderers.juno is a Java driver for py3o to transform
+an OpenOffice document into a PDF
+
+Prerequisites
+=============
+
+Since this is a Java implementation you will need to install
+jpype and to have a recent Java runtime on the rendering machine.
+You will also need a running OpenOffice instance. (If you are on
+windows this can be addressed by using the py3o.renderserver
+Open Office service.)
+
+This has been tested to build correctly with:
+
+  - Oracle JDK 1.6 and OpenOffice 3.2.1 on Windows 7 and Windows server 2003
+  - Oracle JDK 1.6 and LibreOffice 3.4 on Windows 7 64bit
+  - OpenJDK and LibreOffice 3.4 on Linux (Ubuntu and RHEL 5)
+
+Usage
+=====
+
+::
+
+    from py3o.renderers.juno import start_jvm, Convertor, formats
+    import datetime
+
+    # first arg is the jvm.so or .dll
+    # second arg is the basedir where we can find the basis3.3/program/classes/unoil.jar
+    # third argument it the ure basedir where we can find ure/share/java/*.jar containing
+    # java_uno.jar, juh.jar, jurt.jar, unoloader.jar
+    # fourth argument is the max memory you want to give to the JVM
+    start_jvm(
+            "/usr/lib/jvm/java-6-openjdk/jre/lib/amd64/server/libjvm.so",
+            "/usr/lib64/libreoffice",
+            "/usr/lib",
+            "3.3",
+            140)
+    c = Convertor("127.0.0.1", "8997")
+
+    t1 = datetime.datetime.now()
+    c.convert("py3o_example.odt", "py3o_example.pdf", formats['PDF'])
+    t2 = datetime.datetime.now()
+
+For more information please read the example provided in the examples dir and read the API documentation.
+
