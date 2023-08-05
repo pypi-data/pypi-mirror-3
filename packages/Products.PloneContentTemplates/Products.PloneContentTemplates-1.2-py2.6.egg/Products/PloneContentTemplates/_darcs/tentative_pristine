@@ -1,0 +1,84 @@
+hunk ./Extensions/Install.py 1
+-from Products.Archetypes.Extensions.utils import install_subskin
+-from Products.PloneContentTemplates.config import GLOBALS
+-from cStringIO import StringIO
+-
+-def install(self):
+-    out = StringIO()
+-    install_subskin(self, out, GLOBALS)
+-    out.write('Installed skin')
+-    return out.getvalue()
++
+rmfile ./Extensions/Install.py
+rmdir ./Extensions
+hunk ./__init__.py 6
++from AccessControl import ModuleSecurityInfo
++
++from zope.i18nmessageid import MessageFactory
++PCTMessageFactory = MessageFactory('PloneContentTemplates')
++ModuleSecurityInfo('Products.PloneContentTemplates').declarePublic('PCTMessageFactory')
++
+hunk ./readme.txt 14
+-It was developed for Plone 2.5.x and overrides a default Plone
+-template, so it will probably not work with Plone 3.0 and beyond.
++It was developed for Plone 2.5.x and has been customized to work with
++Plone 3 as well and presumably works with Plone 4 and may not work for
++Plone 2.5 anymore.
++
++The old way of doing things was that the add from template option was
++in the bottom of the add object dropdown - now it is an object button
++instead, alongside copy, paste and so on.
++
++Has English and Norwegian translations.
+hunk ./skins/PloneContentTemplates/global_contentmenu.pt 4
++<!-- Used in Plone 2.5 -->
++  
+hunk ./skins/PloneContentTemplates/pct_add.pt 4
+-      i18n:domain="plone">
++      i18n:domain="PloneContentTemplates">
+hunk ./skins/PloneContentTemplates/pct_add.pt 23
+-		<input type="submit" value=" Add from template " />
++		<input type="submit" value="Add from template" i18n:attributes="value" />
+hunk ./skins/PloneContentTemplates/pct_add.pt 28
+-		<p>To add content from templates, create content first and set the keyword content-template
++		<p i18n:translate="">To add content from templates, create content first and set the keyword content-template
+hunk ./skins/PloneContentTemplates/pct_add_object.cpy 7
+-##parameters=template=None
++##parameters=template=None,new_object_context=None,count=0
+hunk ./skins/PloneContentTemplates/pct_add_object.cpy 13
+-template = context.restrictedTraverse(template)
++from Products.PloneContentTemplates import PCTMessageFactory as _
++
++if hasattr(template, 'startswith'):
++   # We have a path
++   template = context.restrictedTraverse(template)
++   redirect = True
++else:
++   # template=template
++   redirect = False
++
++if new_object_context is None:
++    new_object_context = context
++
++if template.absolute_url() == new_object_context.absolute_url():
++   context.plone_utils.addPortalMessage(_('Sorry, cannot add template in template'), type='error')
++   context.REQUEST.RESPONSE.redirect(context.absolute_url() + '/pct_add')
++   return
++
+hunk ./skins/PloneContentTemplates/pct_add_object.cpy 32
+-context.invokeFactory(template.portal_type, id)
+-new_object = context[id]
++new_object_context.invokeFactory(template.portal_type, id)
++new_object = new_object_context[id]
+hunk ./skins/PloneContentTemplates/pct_add_object.cpy 50
+-context.REQUEST.RESPONSE.redirect(new_object.absolute_url() + '/base_edit')
++if template.portal_type.lower().find('folder') > -1:
++    for object in template.contentValues():
++        new_object.pct_add_object(template=object,new_object_context=new_object,count=count)
++
++if redirect:
++   new_object_context.REQUEST.RESPONSE.redirect(new_object.absolute_url() + '/base_edit')
+hunk ./version.txt 1
+-1.0
++1.1
++
