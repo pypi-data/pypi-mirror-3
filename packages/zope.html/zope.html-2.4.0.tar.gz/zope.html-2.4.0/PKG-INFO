@@ -1,0 +1,432 @@
+Metadata-Version: 1.0
+Name: zope.html
+Version: 2.4.0
+Summary: HTML and XHTML Editing Support
+Home-page: http://cheeseshop.python.org/pypi/zope.html
+Author: Zope Foundation and Contributors
+Author-email: zope-dev@zope.org
+License: ZPL 2.1
+Description: This package contains support for editing HTML and XHTML inside a web
+        page using the FCKeditor as a widget.  This is a fairly simple
+        application of FCKeditor, and simply instantiates a pre-configured
+        editor for each widget.  There are no options to control the editors
+        individually.
+        
+        
+        Detailed Documentation
+        ======================
+        
+        
+        
+        =========================
+        HTML file editing support
+        =========================
+        
+        This package contains support for editing HTML and XHTML inside a web
+        page using the FCKeditor as a widget.  This is a fairly simple
+        application of FCKeditor, and simply instantiates a pre-configured
+        editor for each widget.  There are no options to control the editors
+        individually.
+        
+        In creating this, we ran into some limitations of the editor that are
+        worth being aware of.  Noting these as limitations does not mean that
+        other editors do any better; what's available seems to be a mixed bag.
+        
+        - The editor only deals with what can be contained inside a <body>
+          element; anything that goes outside that, including the <body> and
+          </body> tags, get lost or damaged.  If there's any way to configure
+          FCKeditor to deal with such material, it isn't documented.
+        
+        - There's no real control of the HTML source; whitespace is not
+          preserved as a programmer would expect.  That's acceptable in many
+          use cases, but not all.  Applications should avoid using this widget
+          if the original whitespace must be maintained.
+        
+        Implementation problems
+        -----------------------
+        
+        These are problems with the widget used to integrate FCKeditor rather
+        than problems with FCKeditor itself.  These should be dealt with.
+        
+        - The width of the editor is hardcoded; this should be either
+          configurable or the editor should stretch to fill the available
+          space.  The sample uses of the FCKeditor don't seem to exhibit this
+          problem, so it can be better than it is.
+        
+        - The height of the editor should be configurable in a way similar to
+          the configuration of the basic textarea widget.
+        
+        Ideas for future development
+        ----------------------------
+        
+        These ideas might be interesting to pursue, but there are no specific
+        plans to do so at this time:
+        
+        - Categorize the applications of the editor and provide alternate
+          toolbar configurations for those applications.  There's a lot of
+          configurability in the editor itself, so it can be made to do
+          different things.
+        
+        - Add support for some of the other fancy client-side HTML editors,
+          and allow a user preference to select which to use for what
+          applications, including the option of disabling the GUI editors when
+          detailed control over the HTML is needed (or for luddite users who
+          don't like the GUI editors).
+        
+          XINHA (http://xinha.python-hosting.com/) appears to be an
+          interesting option as well, and may be more usable for applications
+          that want more than editing of small HTML fragments, especially if
+          the user is fairly HTML-savvy.
+        
+          HTMLArea (http://www.dynarch.com/projects/htmlarea/) may become
+          interesting at some point, but a rough reading at this time
+          indicates that XINHA may be a more reasonable route.
+        
+        More information about FCKeditor
+        --------------------------------
+        
+        - http://www.fckeditor.net/
+        
+        - http://discerning.com/topics/software/ttw.html
+        
+        - http://www.phpsolvent.com/wordpress/?page_id=330
+        
+        
+        ======================================
+        Management of supplemental information
+        ======================================
+        
+        The `zope.html` package provides additional views on files containing
+        HTML and XHTML data that allow editing the files over the web.  The
+        files may contain either complete documents or fragments that may be
+        composed into larger documents.  Preview views are also provided.
+        
+        The editing and preview views rely on getting supplemental information
+        about the file being edited using the `IEditableHtmlInformation`
+        adapter for the file.  That adapter uses annotations on the content
+        object to store information that needs to be persisted.
+        
+        The `IEditableHtmlInformation` interface is very simple; there's only
+        one field defined, and it's a simple boolean value: whether the file
+        should be treated as a fragment or not.  Let's create a simple content
+        object that we can use for testing::
+        
+          >>> import zope.file.file
+          >>> import zope.interface
+          >>> import zope.annotation
+        
+          >>> class File(zope.file.file.File):
+          ...     zope.interface.implements(
+          ...         zope.annotation.IAttributeAnnotatable)
+          ...
+          ...     def __init__(self, text=None):
+          ...         super(File, self).__init__("text/html", {"charset": "utf-8"})
+          ...         f = self.open("w")
+          ...         f.write(text)
+          ...         f.close()
+        
+        Let's create a file and the corresponding `IEditableHtmlInformation`
+        object::
+        
+          >>> import zope.html.docinfo
+        
+          >>> file = File("This is a <em>fragment</em>.")
+          >>> info = zope.html.docinfo.EditableHtmlInformation(file)
+        
+        We can now check that the initial value of the `isFragment` attribute
+        is computed reasonably::
+        
+          >>> info.isFragment
+          True
+        
+        The user can cause the `isFragment` flag to be toggled from the UI, so
+        it should remember the current state of the flag::
+        
+          >>> info.isFragment = False
+          >>> info.isFragment
+          False
+        
+        A new instance of the `IEditableHtmlInformation` instance should also remember the last value of the setting::
+        
+          >>> zope.html.docinfo.EditableHtmlInformation(file).isFragment
+          False
+        
+        
+        ==============================
+        (X)HTML fragment editor widget
+        ==============================
+        
+        The widget included in this package is a simple application of the
+        FCKeditor control.  It is only expected to work for fragments, not for
+        arbitrary documents.  Let's create a field and a widget::
+        
+          >>> from zope.html import field
+          >>> from zope.html import widget
+          >>> from zope.publisher import browser
+        
+          >>> class Context(object):
+          ...     sample = u""
+        
+          >>> myfield = field.XhtmlFragment(
+          ...     __name__="sample",
+          ...     title=u"Sample Field",
+          ...     ).bind(Context())
+        
+          >>> request = browser.TestRequest()
+          >>> mywidget = widget.FckeditorWidget(myfield, request)
+          >>> mywidget.setPrefix("form")
+        
+          >>> mywidget.configurationPath = "/myconfig.js"
+          >>> mywidget.editorWidth = 360
+          >>> mywidget.editorHeight = 200
+          >>> mywidget.toolbarConfiguration = "mytoolbars"
+        
+          >>> print mywidget()
+          <textarea...></textarea>
+          <script...
+          "form.sample", 360, 200, "mytoolbars");
+          ...Config["CustomConfigurationsPath"] = "/myconfig.js";
+          ...
+          </script>
+          <BLANKLINE>
+        
+        We should also test the CkeditorWidget.
+        
+          >>> ckwidget = widget.CkeditorWidget(myfield, request)
+          >>> ckwidget.configurationPath = "/myconfig.js"
+          >>> ckwidget.editorHeight = 200
+        
+        The "fckVersion" attribute holds the version of CKEditor library.
+        
+          >>> ckwidget.fckVersion
+          '3.6.2'
+        
+          >>> print ckwidget()
+          <textarea...></textarea>
+          <script...
+          ...height: 200...
+          ...customConfig : "/myconfig.js"...
+          </script>
+          <BLANKLINE>
+        
+        
+        ======================
+        Views on editable HTML
+        ======================
+        
+        Let's start by uploading some HTML to create a file object::
+        
+          >>> import StringIO
+          >>> sio = StringIO.StringIO("This is a <em>fragment</em>."
+          ...                         "  There's one 8-bit Latin-1 character: \xd8.")
+        
+          >>> from zope.testbrowser.testing import Browser
+          >>> browser = Browser()
+          >>> browser.addHeader("Authorization", "Basic user:userpw")
+          >>> browser.addHeader("Accept-Language", "en-US")
+          >>> browser.open("http://localhost/@@+/zope.file.File")
+        
+          >>> ctrl = browser.getControl(name="form.data")
+          >>> ctrl.mech_control.add_file(sio, "text/html", "sample.html")
+          >>> browser.getControl("Add").click()
+        
+        We can see that the MIME handlers have marked this as HTML content::
+        
+          >>> import zope.mimetype.types
+          >>> file = getRootFolder()["sample.html"]
+          >>> zope.mimetype.types.IContentTypeTextHtml.providedBy(file)
+          True
+        
+        The "Edit" view can be used to check and modify the "Is fragment?"
+        field, which is stored by the views in an annotation on the object.
+        The particular fragment we uploaded here should be see as a fragment
+        by default::
+        
+          >>> browser.getLink("sample.html").click()
+          >>> browser.getLink("Edit").click()
+        
+          >>> browser.open("http://localhost/sample.html/@@htmledit.html")
+          >>> ctrl = browser.getControl(name="form.isFragment")
+          >>> ctrl.value
+          True
+        
+        The setting can be toggle by unchecking the checkbox and clicking
+        "Save"::
+        
+          >>> ctrl.value = False
+          >>> browser.getControl("Save").click()
+          >>> ctrl = browser.getControl(name="form.isFragment")
+          >>> ctrl.value
+          False
+        
+        The edit view also allows editing of the HTML content if the document
+        can be decoded.  If the encoding of the document is not known, the
+        document cannot be edited by the user is prompted to select an
+        encoding that should be used.
+        
+        Our example document does not have a specified encoding, so we expect
+        the form to indicate that the encoded is needed, and to allow the user
+        to select and encoding.  Let's reload the form to get rid of the
+        "Updated..." message so we can see what the user is told::
+        
+          >>> browser.getLink("Edit").click()
+        
+          >>> print browser.contents
+          <...Can't decode text for editing; please specify the document encoding...
+        
+          >>> ctrl = browser.getControl(name="form.encoding")
+          >>> ctrl.value
+          ['']
+        
+        The user can then select an encoding::
+        
+          >>> ctrl.value = ["utf-8"]
+          >>> browser.getControl("Save").click()
+        
+        Since we just selected an encoding that doesn't work with the Latin-1
+        data we uploaded for the file, we're told that that encoding is not
+        acceptable::
+        
+        
+          >>> print browser.contents
+          <...Selected encoding cannot decode document...
+        
+        We need to select an encoding that actually makes sense for the data
+        that we've uploaded::
+        
+          >>> ctrl = browser.getControl(name="form.encoding")
+          >>> ctrl.value = ["iso-8859-1"]
+          >>> browser.getControl("Save").click()
+        
+        Now that the encoding has been saved, the document can be encoded and
+        edited, and the encoding selection will no longer be available on the
+        form::
+        
+          >>> browser.getControl(name="form.encoding")
+          Traceback (most recent call last):
+            ...
+          LookupError: name 'form.encoding'
+        
+        Since our selected encoding does not support all Unicode characters,
+        there is an option available to allow re-encoding of the document if
+        the content being saved after editing cannot be encoded in the
+        original encoding of the document.  The value of this option defaults
+        to False since the user needs to be aware that the document encoding
+        may be modified::
+        
+          >>> browser.getControl(name="form.reencode").value
+          False
+        
+        If we edit the text such that characters are included that cannot be
+        encoded in the current encoding and try to save our changes without
+        allowing re-encoding, we see a notification that the document can't be
+        encoded in the original encoding and that re-encoding is needed::
+        
+          >>> ctrl = browser.getControl(name="form.text")
+          >>> ctrl.value = u"\u3060\u3051\u306e\u30b5\u30a4\u30c8".encode("utf-8")
+        
+          >>> browser.getControl("Save").click()
+        
+          >>> print browser.contents
+          <...Can't encode text in current encoding...
+        
+        At this point, we can select the "Re-encode" option to allow the text
+        to be saved in an encoding other than the original; this would allow
+        us to save any text::
+        
+          >>> browser.getControl(name="form.reencode").value = True
+          >>> browser.getControl("Save").click()
+        
+          >>> print browser.contents
+          <...Updated on ...
+        
+        If we now take a look at the "Content Type" view for the file, we see
+        that the encoding has been updated to UTF-8::
+        
+          >>> browser.getLink("Content Type").click()
+        
+          >>> browser.getControl(name="form.encoding").value
+          ['utf-8']
+        
+        
+        =======
+        CHANGES
+        =======
+        
+        2.4.0 (2012-01-26)
+        ------------------
+        
+        - Use CKEditor 3.5.2
+        - Using Python's ``doctest`` module instead of deprecated
+          ``zope.testing.doctest``.
+        
+        
+        2.3.0 (2011-02-22)
+        ------------------
+        
+        - Use CKEditor 3.5.2
+        
+        
+        2.2.0 (2010-11-19)
+        ------------------
+        
+        - Make the use of un-minified ckeditor source explicit
+        
+        
+        2.1.0 (2010-05-25)
+        ------------------
+        
+        - Use CKEditor 3.2.1
+        
+        - Added configuration to use un-minified version of CKEditor when using dev
+          mode.
+        
+        - Fixed import that caused test failures.
+        
+        
+        2.0.0 (2009-09-04)
+        ------------------
+        
+        - Add CKeditor 3.0 widget.
+        
+        
+        1.2.0 (2009-07-06)
+        ------------------
+        
+        - Use FCKeditor 2.6.4.1
+        
+        - Remove _samples directory and erect a barrier to its resurrection
+        
+        
+        1.1.0 (2008-06-18)
+        ------------------
+        
+        - Use FCKeditor 2.6
+        
+        - Use versioned directories for javascript to cache-bust
+        
+        
+        1.0.1 (2007-11-02)
+        ------------------
+        
+        - Package data update.
+        
+        - Updated code to work with packages in Zope 3.4 release.
+        
+        
+        1.0.0 (2007-10-29)
+        ------------------
+        
+        - Initial release.
+        
+Keywords: zope3 html widget fsck editor
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Zope Public License
+Classifier: Programming Language :: Python
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Framework :: Zope3
