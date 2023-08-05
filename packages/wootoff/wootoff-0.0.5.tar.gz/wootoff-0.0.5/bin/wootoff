@@ -1,0 +1,128 @@
+#!/usr/bin/env python
+
+# Copyright 2011 Josh Kearney
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""wootoff - Monitor a wootoff."""
+
+import optparse
+import subprocess
+import sys
+import time
+import urllib
+
+from BeautifulSoup import BeautifulSoup
+
+
+__VERSION__ = "wootoff v0.0.5 - https://github.com/jk0/wootoff"
+
+
+def build_options():
+    """Generate command line options."""
+    parser = optparse.OptionParser(version=__VERSION__)
+
+    parser.add_option("--keyword", help="watch for a specific keyword")
+    parser.add_option("--prowl", help="Prowl API key")
+    parser.add_option("--refresh_interval", default=60, type="int",
+            help="refresh interval of the woot fetcher")
+
+    return parser.parse_args()
+
+
+def fetch_url(url):
+    """Fetch and return the object of then given URL."""
+    class WootOffURLopener(urllib.FancyURLopener):
+        version = __VERSION__
+
+    urllib._urlopener = WootOffURLopener()
+
+    try:
+        return urllib.urlopen(url)
+    except IOError:
+        return None
+
+
+def get_wootoff_item():
+    """Get and return the current wootoff item."""
+    response = fetch_url("http://www.woot.com")
+    if not response:
+        return (None, None)
+
+    soup = BeautifulSoup(response.read())
+
+    item_desc = soup.find("h2", {"class": "fn"}).contents[0] or None
+    item_url = soup.find("a", {"id": ("ContentPlaceHolderLeadIn_ContentPlaceHo"
+            "lderLeadIn_SaleControl_HyperLinkWantOne")}).get("href") or None
+
+    return (item_desc, item_url)
+
+
+def check_keyword(keyword, item_desc, item_url, prowl):
+    """Check for a keyword match in the wootoff item description."""
+    if keyword:
+        keyword = keyword.upper()
+
+    if keyword in [word.upper() for word in item_desc.split(" ")]:
+        print "Keyword Match: %s => %s" % (item_desc, item_url)
+
+        subprocess.call(["open", item_url])
+        alert = "say keyword '%s' matched '%s', opening browser" % (keyword,
+                item_desc)
+        subprocess.call(alert.split(" "))
+
+        if prowl:
+            query = urllib.urlencode({"apikey": prowl, "priority": 2,
+                    "application": "wootoff", "event": item_desc,
+                    "description": item_url})
+            url = "http://prowlapp.com/publicapi/add?%s" % query
+
+            fetch_url(url)
+
+        return True
+
+
+def main():
+    """Main loop."""
+    options, args = build_options()
+
+    keyword = options.keyword
+    refresh_int = options.refresh_interval
+    prowl = options.prowl
+
+    # NOTE(jk0): We use this to keep track of the current item.
+    current_item = None
+
+    try:
+        while True:
+            item_desc, item_url = get_wootoff_item()
+            if not item_desc or not item_url:
+                continue
+
+            if current_item == item_desc:
+                # NOTE(jk0): If it's the same item, don't bother.
+                time.sleep(refresh_int)
+                continue
+            else:
+                current_item = item_desc
+
+            if not check_keyword(keyword, item_desc, item_url, prowl):
+                print "Current Item: %s => %s" % (item_desc, item_url)
+
+            time.sleep(refresh_int)
+    except KeyboardInterrupt:
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
