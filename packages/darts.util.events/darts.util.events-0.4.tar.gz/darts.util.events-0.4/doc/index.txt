@@ -1,0 +1,346 @@
+
+Motivation
+===========
+
+.. py:module:: darts.lib.utils.events
+
+A Tale of Three Classes
+-----------------------
+
+Let's assume, that you have some object `A`, which needs to know, whenever the
+value of an attribute in another object `B` changes. `A` might be some GUI component,
+and `B` is usually some kind of "model" object.
+
+So, the first approach might look like::
+
+    >>> class Observable(object):
+    ...
+    ...    def __init__(self, callback):
+    ...        self._title = None
+    ...        self._callback = callback
+    ...
+    ...    def title():
+    ...        def getter(self):
+    ...            return self._title
+    ...
+    ...        def setter(self, value):
+    ...            old_value = self._title
+    ...            if value != old_value:
+    ...                self._callback('title', 'before', old_value, value)
+    ...                self._title = value
+    ...                self._callback('title', 'before', old_value, value)
+    ...
+    ...        return property(getter, setter)
+    ...
+    ...    title = title()
+
+Now, our hypothetical GUI component could be set-up so, that the `callback` is
+actually some of its methods::
+
+    >>> gui_component = create_a_gui_component()
+    >>> model_object = Observable(gui_component._property_change_callback)
+
+and everything is fine, right? The method `_property_change_callback` is called,
+whenever someone changes the value of the `title` property, so that's what we 
+wanted. But, what if you have actually two or more views defined over the same
+model object, which all need to be notified?
+
+Well, simple::
+
+    >>> class Observable(object):
+    ...
+    ...    def __init__(self):
+    ...        self._title = None
+    ...        self.callbacks = []
+    ...
+    ...    def title():
+    ...        def getter(self):
+    ...            return self._title
+    ...
+    ...        def setter(self, value):
+    ...            old_value = self._title
+    ...            if value != old_value:
+    ...                for cb in self.callbacks:
+    ...                    cb('title', 'before', old_value, value)
+    ...                self._title = value
+    ...                for cb in self.callbacks:
+    ...                    cb('title', 'before', old_value, value)
+    ...
+    ...        return property(getter, setter)
+    ...
+    ...    title = title()
+
+and 
+
+    >>> gui_component_1 = create_a_gui_component()
+    >>> gui_component_2 = create_another_gui_component()
+    >>> model_object = Observable()
+    >>> model_object.callbacks.append(gui_component_1._callback)
+    >>> model_object.callbacks.append(gui_component_2._callback)
+
+so, that one was easy, too. However, there is one flaw in the design above: 
+the model will retain its callbacks indefinetly, i.e., even if the user of
+our hypothetical application closes one of the views, the callback will be 
+kept in the `callbacks` list, keeping the entire view object alive (and worse,
+receiving event notifications, even though the view might no longer be fit
+to process them...)
+
+We could (and actually should), of course, remove the callback from the list 
+when the view is closed. But that poses another problem::
+
+    >>> class Foo(object):
+    ...    def bar(self):
+    ...       pass
+    ... 
+    >>> foo = Foo()
+    >>> foo.bar is foo.bar
+    False
+
+though they are equal, of course::
+
+    >>> foo.bar == foo.bar
+    True
+
+So, we cannot remove the exact callback, unless we know it by identity. After
+all, it might be the case, that someone added the same function twice on purpose,
+which poses the question: which one is the one to remove [#Unusual]_?
+
+Also: having to remove the callback manually (and having to remember to do so)
+is error prone. So finally, before we introduce yet another version of the
+`Observable` class and try to fix the problem, let's see what the Darts Events
+library has to offer::
+
+    >>> from darts.lib.utils.event import Publisher, ReferenceRetention as RR
+    >>> class Observable(object):
+    ...
+    ...    def __init__(self):
+    ...        self._title = None
+    ...        self.on_property_change = Publisher()
+    ...
+    ...    def title():
+    ...        def getter(self):
+    ...            return self._title
+    ...
+    ...        def setter(self, value):
+    ...            old_value = self._title
+    ...            if value != old_value:
+    ...                self.on_property_change.publish('title', 'before', old_value, value)
+    ...                self._title = value
+    ...                self.on_property_change.publish('title', 'after', old_value, value)
+    ...
+    ...        return property(getter, setter)
+    ...
+    ...    title = title()
+
+Ok. This looks quite like our second version. How do we add our GUI components'
+callbacks?
+
+    >>> component_1 = create_a_gui_component()
+    >>> component_2 = create_another_gui_component()
+    >>> model_object = Observable()
+    >>> c1 = model_object.on_property_change.subscribe(component_1, '_callback', RR.WEAK)
+    >>> c2 = model_object.on_property_change.subscribe(component_2, '_callback', RR.WEAK)
+
+Hm. What did we gain? First of all, we can unambigously specify, which of the
+callbacks we want to remove. The result of the `subscribe` method is a special
+`Subscription` object, which provides us with a `cancel` method::
+
+    >>> c1.cancel()
+    True
+
+No guessing involved here. Further more, since we registered the callbacks using
+the `WEAK` retention policy, only a weak reference to each GUI component is tracked,
+allowing the instance to be reclaimed by Python's garbage collector, if all other
+regular references to it are gone.
+
+And third: we can register an arbitrary number of listeners with our `Publisher`
+instance; no limits there.
+
+Additional benefits: the :class:`Publisher` class is thread-safe and fully 
+reentrant. Callbacks (called listeners here) can be registered or and removed
+from within other listeners (i.e., as part of the action taken when actually
+called), so that's another thing you don't have to worry about.
+
+Yet another...? Really...?
+--------------------------
+
+There are quite a few libraries floating around in the Python universe, 
+whose goals are at least similar to what `darts.lib.utils.events` tries
+to accomplish. Off the top of my head
+
+* `Zope Event`_ 
+* `Louie`_
+* `PyDispatcher`_
+
+and possibly more. So, if you are alredy using one of these (or the 
+frameworks, they are associated with), then you might not need this library.
+However, if you are starting from scratch and are in need of an event 
+dispatcher: consider giving this library a whirl...
+
+This library has been written, because non of the other libraries 
+mentioned above was suitable for my actual use cases. The generic approach
+taken by `PyDispatcher`_ and derived implementations was too generic
+for my uses, and the `Zope Event`_ approach is overly simplistic.
+
+.. _Zope Event: http://pypi.python.org/pypi/zope.event
+.. _Louie: http://pypi.python.org/pypi/Louie
+.. _PyDispatcher: http://pydispatcher.sourceforge.net/
+
+
+Reference
+==========
+
+.. py:class:: Subscription
+
+   This class declares the methods and attributes available on "subscription
+   handles". A subscription handle essentially represents a subscription of
+   a listener to some :class:`Publisher` instance. Note, that publishers
+   will usually return some instance of a subclass of this class from their
+   :py:meth:`~Publisher.subscribe` method, but client applications should never rely on
+   the class of the actual result.
+
+   .. py:method:: cancel()
+
+      Undo an event subscription. This method cancels the subscription.
+      After this method has been called, the listener will no longer receive
+      event notifications for :py:meth:`~Publisher.publish` calls, which happen after
+      the call to this method. Whether the listener receives notifications
+      for :py:meth:`~Publisher.publish` calls active at the time of the call to
+      :py:meth:`cancel` is undefined.
+
+   .. py:attribute:: listener
+
+      This property contains the subscription's underlying listener
+      object. It may be `None`, if the subscription was created with
+      a retention policy of `WEAK`, and if the listener has been reclaimed
+      by the garbage collector. The property is read-only.
+
+      This property is primarily provided for the sake of publication 
+      exception handlers, which want to provide more information about 
+      the culprit in logs, etc.
+
+      Note, that the value of this property may actually be different
+      from the listener value passed to :py:meth:`~Publisher.subscribe`.
+      It should, however, be close enough an approximation to the original
+      value, that it should be possible to identify the actual listener.
+
+   .. py:attribute:: method
+
+      This property contains the name of the method to be called on
+      the subscription's underlying listener object during event 
+      dispatch. The property is read-only.
+
+      This property is primarily provided for the sake of publication 
+      exception handlers, which want to provide more information about 
+      the culprit in logs, etc.
+
+      Note, that the value of this property may actually be different
+      from the value passed to :py:meth:`~Publisher.subscribe`. It should, 
+      however, be close enough an approximation to the original value, 
+      that it should be possible to identify the actual listener.
+
+.. py:class:: Publisher([exception_handler])
+
+   Instances of this class act as event publishers. Interested parties may
+   register listener objects, which are notified, whenever an "event" occurs.
+
+   .. py:method:: subscribe(listener [, method [, reference_retention]])
+
+      This method registers a new event listener with this publisher. Whenever
+      an event occurs, the method named `method` of the listener instance is
+      invoked. The default value for `method` is `"__call__"`. The value of 
+      `reference_retention` determines, whether the publisher should use a 
+      regular strong reference or a weak reference to remember the listener. 
+      The value should be one of the class constants defined in 
+      :class:`ReferenceRetention`. The default value is 
+      :py:attr:`~ReferenceRetention.STRONG`.
+
+      The result of calling this method is a :class:`Subscription` instance,
+      that can be used to cancel the subscription when notifications are no
+      longer desired.
+
+   .. py:method:: publish(*args, **keys)
+
+      Publish an event, notifying the registered listeners. This method is
+      simply a convenience interface for :py:meth:`publish_safely`, which
+      uses the publisher's default exception handling policy.
+
+      This method always returns `None`.
+
+   .. py:method:: publish_safely(handler, *args, **keys)
+
+      Publish an event, notifying the registered listeners. This method
+      calls the notification method of each registered listener, passing
+      the given positional and keyword arguments along. If a listener 
+      raises an exception, then the `handler` function is called to
+      handle the exception.
+
+      The `handler` should be a function with the signature::
+
+          def exception_handler(exception, value, traceback, subscription, args, keys):
+             ...
+
+      The values of `exception`, `value`, and `traceback` provide all
+      information about the exception caught. The `subscription` argument
+      will be the subscription handle of the listener, which raised the
+      exception. The values of `args` and `keys` are passed along for the
+      sake of the handler and represent the original arguments supplied
+      to this method.
+
+      The handler may decide to handle the exception (say, by logging it)
+      and return normally, in which case the publication loop continues by
+      notifying any remaining listeners. It may also decide to re-raise 
+      the exception (or raise another exception). In this case, the
+      publication loop is aborted, and the exception will be propagated
+      to the caller of this method. 
+
+      This method always returns `None`.
+
+.. py:class:: ReferenceRetention
+
+   This class is intended as "pure" namespace for the documented
+   values, which should be treated as opaque values.
+
+   .. py:attribute:: WEAK
+
+      Specifies, that the publisher should use a weak reference to keep
+      track of the listener being registered. This allows the listener
+      to be reclaimed by the garbage collector despite it being still
+      subscribed to the publisher.
+
+      This value is a class constant and should be treated as opaque
+      by client applications.
+
+   .. py:attribute:: STRONG
+
+      Specifies, that the publisher should use a strong (regular) reference
+      to keep track of the listener being registered. The listener will
+      stay subscribed until it is explictely removed from the publisher
+      by cancelling the subscription.
+
+      This value is a class constant and should be treated as opaque
+      by client application.
+
+.. py:data:: WEAK
+
+   This is just an alternate name for the `WEAK` value defined as 
+   class constant on :class:`RetentionPolicy`.
+
+.. py:data:: STRONG
+
+   This is just an alternate name for the `STRONG` value defined as
+   class constant on :class:`RetentionPolicy`
+
+   basics
+
+Indices and tables
+===================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+
+.. rubric:: Footnotes
+
+.. [#Unusual] I admit, that this might be somewhat unusual, but how should 
+   the model object know?
