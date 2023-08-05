@@ -1,0 +1,430 @@
+=======================
+Using Buildout Versions
+=======================
+
+A minimal example would be to have a :file:`buildout.cfg` as follows::
+
+  [buildout]
+  extensions = buildout-versions
+  parts =
+
+.. -> buildout_cfg
+
+Since no versions have been pinned in a versions section, when the
+buildout is run the output would indicate those versions that were
+picked::
+
+  $ bin/buildout
+  Versions had to be automatically picked.
+  The following part definition lists the versions picked:
+  [versions]
+  buildout-versions = 1.2
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
+
+That output can be used to update the :file:`buildout.cfg`::
+
+  [buildout]
+  extensions = buildout-versions
+  versions = versions
+  parts =
+
+  [versions]
+  buildout-versions = 1.2
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0
+
+.. -> buildout_cfg
+
+Now, when the buildout is run, there will be no output::
+
+  $ bin/buildout
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
+
+Pinning the Python version
+--------------------------
+
+If you want to make sure that a buildout is only run with a specific
+version of python, then you can specify this in the versions section::
+
+  [buildout]
+  extensions = buildout-versions
+  versions = versions
+  parts =
+
+  [versions]
+  python = 2.6
+  buildout-versions = 1.2
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0
+
+.. -> buildout_cfg
+
+.. invisible-code-block: python
+
+  import sys
+  run_buildout(buildout_cfg.replace('2.6', sys.version.split()[0]),expected)
+
+This check is a substring check of the value specified, so you can be
+as specific as you want. If you need a bug fix that appeared in Python
+2.6.2, you could specify `python` as ``2.6.1``. If you need
+Enthought's python distribution, you could specify `python` as ``EPD 7.1-2``.
+
+The following :file:`buildout.cfg` contains a python version that
+doesn't match the python used to run the buildout::
+
+  [buildout]
+  extensions = buildout-versions
+  versions = versions
+  parts =
+
+  [versions]
+  python = 1.0
+  buildout-versions = 1.2
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0
+
+.. -> buildout_cfg
+
+When this file is used, buildout will fail with an error::
+
+  $ bin/buildout
+  While:
+    Installing.
+    Loading extensions.
+  Error: python version specified not found in sys.version: 1.0
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg, expected)
+
+
+Development packages
+--------------------
+
+Packages being developed will never be considered as unpinned. 
+Take the following :file:`buildout.cfg` as an example::
+
+  [buildout]
+  extensions = buildout-versions
+  develop = sample_package
+  parts =
+
+.. -> buildout_cfg
+
+When the buildout is run, :mod:`sample_package` will not be
+reported::
+
+  $ bin/buildout
+  Develop: '.../sample_package'
+  Versions had to be automatically picked.
+  The following part definition lists the versions picked:
+  [versions]
+  buildout-versions = 1.2
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
+
+Dependent packages
+------------------
+
+A :file:`buildout.cfg` may specify a :mod:`package-a` and pin
+it's version, as in the following example::
+
+  [buildout]
+  extensions = buildout-versions
+  find-links = <our index>
+  parts = sample
+  versions = versions
+  
+  [versions]
+  buildout-versions = 1.2
+  package-a = 1.0
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0
+  zc.recipe.egg = 1.2.0
+
+  [sample]
+  recipe = zc.recipe.egg
+  eggs = package-a
+
+.. -> buildout_cfg
+
+However, :mod:`package-a` may depend on :mod:`package-b`, which isn't
+pinned. When run, Buildout Versions will point this out and give an
+explanation of what package depends on it::
+
+  $ bin/buildout
+  Installing sample.
+  Getting distribution for 'package-a==1.0'.
+  Got package-a 1.0.
+  Getting distribution for 'package-b'.
+  Got package-b 2.0.
+  Versions had to be automatically picked.
+  The following part definition lists the versions picked:
+  [versions]
+
+  # Required by:
+  # package-a==1.0
+  package-b = 2.0
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
+
+Version specification files
+---------------------------
+
+It can be convenient to separate out the pinned versions into their
+own file. Buildout Versions supports this by allowing a file to
+which version information will be written to be specified in the
+`buildout_versions_file` option of the `[buildout]` section::
+
+  [buildout]
+  extensions = buildout-versions
+  buildout_versions_file = versions.cfg
+  find-links = <our index>
+  parts = sample
+
+  [sample]
+  recipe = zc.recipe.egg
+  eggs = package-a
+
+.. -> buildout_cfg
+
+When the above buildout is run, output is still written to the
+console::
+
+  $ bin/buildout
+  Installing sample.
+  Versions had to be automatically picked.
+  The following part definition lists the versions picked:
+  [versions]
+  buildout-versions = 1.2
+  package-a = 1.0
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0b2
+  zc.recipe.egg = 1.2.3b2
+
+  # Required by:
+  # package-a==1.0
+  package-b = 2.0
+  This information has been written to 'versions.cfg'
+
+.. -> expected
+
+However, the details of packages that weren't pinned will also be
+written to :file:`versions.cfg`, which will contain:: 
+
+  [versions]
+  buildout-versions = 1.2
+  package-a = 1.0
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0b2
+  zc.recipe.egg = 1.2.3b2
+
+  # Required by:
+  # package-a==1.0
+  package-b = 2.0
+
+.. -> expected_versions_cfg
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
+
+  from testfixtures import compare
+  compare(fix_buildout(expected_versions_cfg),
+          fix_buildout(buildout_dir.read('versions.cfg')))
+
+The resulting :file:`versions.cfg` can then be used in the buildout as
+follows::
+
+  [buildout]
+  extensions = buildout-versions
+  buildout_versions_file = versions.cfg
+  extends = versions.cfg
+  versions = versions
+  find-links = <our index>
+  parts = sample
+
+  [sample]
+  recipe = zc.recipe.egg
+  eggs = package-a
+
+.. -> buildout_cfg
+
+Since all the package versions are pinned, running this buildout will
+result in no output::
+
+  $ bin/buildout
+  Installing sample.
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
+
+A common way of working is to have multiple files containing version
+specifications layered on top of each other. For example, the
+:file:`versions.cfg` above might look like::
+
+  [buildout]
+  extends = base_versions.cfg
+
+  [versions]
+  package-a = 1.0
+
+.. -> versions_cfg
+
+The example doesn't pin :mod:`package-a`, so when the buildout is run,
+there will be output::
+
+  $ bin/buildout
+  Installing sample.
+  Versions had to be automatically picked.
+  The following part definition lists the versions picked:
+  [versions]
+
+  # Required by:
+  # package-a==1.0
+  package-b = 2.0
+  This information has been written to 'versions.cfg'
+
+.. -> expected
+
+Buildout Versions will also append the missing version to
+:file:`versions.cfg`, resulting in it containing the following::
+  
+  [buildout]
+  extends = base_versions.cfg
+
+  [versions]
+  package-a = 1.0
+
+  # Added by Buildout Versions at 2010-07-30 15:44:45.023559
+
+  # Required by:
+  # package-a==1.0
+  package-b = 2.0
+
+.. -> expected_versions_cfg
+
+.. invisible-code-block: python
+
+  buildout_dir.write('base_versions.cfg',fix_buildout('''
+  [versions]
+  buildout-versions = 1.2
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0b2
+  zc.recipe.egg = 1.2.3b2
+  '''))
+  buildout_dir.write('versions.cfg',versions_cfg)
+
+  run_buildout(buildout_cfg,expected)
+
+  from testfixtures import compare
+  compare(expected_versions_cfg,fix_buildout(buildout_dir.read('versions.cfg')))
+
+Distribution capitalisation
+---------------------------
+
+Setuptools, which Buildout uses for its package management, is
+agnostic to the capitalisation of distributions. Buildout, however, is
+case sensitive when it pins versions. Buildout Versions fixes this
+problem.
+
+For example, if :mod:`PackageC` depends on :mod:`PackageD`, but
+expresses this dependency as :mod:`packaged`, Buildout would normally
+ignore any version pins specified for PackageD, even though a version
+fo PackageD would be successfully installed.
+
+So, with a :file:`buildout.cfg` as follows::
+
+  [buildout]
+  find-links = <our index>
+  parts = sample
+  versions = versions
+  
+  [versions]
+  PackageC = 3.0
+  PackageD = 4.0
+
+  [sample]
+  recipe = zc.recipe.egg
+  eggs = PackageC
+
+.. -> buildout_cfg
+
+Buildout will pick the wrong version of PackageD::
+
+  $ bin/buildout
+  Installing sample.
+  Getting distribution for 'PackageC==3.0'.
+  Got PackageC 3.0.
+  Getting distribution for 'packaged'.
+  Got PackageD 5.0.
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
+
+The :file:`buildout.cfg` should be changed to use Buildout Versions as
+follows::
+
+  [buildout]
+  extensions = buildout_versions
+  find-links = <our index>
+  parts = sample
+  versions = versions
+  
+  [versions]
+  buildout-versions = 1.2
+  setuptools = 0.6c11
+  zc.buildout = 1.5.0
+  zc.recipe.egg = 1.2.0
+
+  PackageC = 3.0
+  PackageD = 4.0
+
+  [sample]
+  recipe = zc.recipe.egg
+  eggs = PackageC
+
+.. -> buildout_cfg
+
+Now, the correct version of PackageD will be used::
+
+  $ bin/buildout
+  Installing sample.
+  Getting distribution for 'packaged==4.0'.
+  Got PackageD 4.0.
+
+.. -> expected
+
+.. invisible-code-block: python
+
+  run_buildout(buildout_cfg,expected)
