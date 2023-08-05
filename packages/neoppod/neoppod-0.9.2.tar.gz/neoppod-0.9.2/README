@@ -1,0 +1,175 @@
+NEO is a distributed, redundant and scalable implementation of ZODB API.
+NEO stands for Nexedi Enterprise Object.
+
+Overview
+========
+
+A NEO cluster is composed of the following types of nodes:
+
+- "master" nodes (mandatory, 1 or more)
+
+  Takes care of transactionality. Only one master node is really active
+  (the active master node is called "primary master") at any given time,
+  extra masters are spares (they are called "secondary masters").
+
+- "storage" nodes (mandatory, 1 or more)
+
+  Stores data in a MySQL database, preserving history. All available storage
+  nodes are in use simultaneously. This offers redundancy and data distribution.
+  Other storage backends than MySQL are considered for future release.
+
+- "admin" nodes (mandatory for startup, optional after)
+
+  Accepts commands from neoctl tool and transmits them to the
+  primary master, and monitors cluster state.
+
+- "client" nodes
+
+  Well... Something needing to store/load data in a NEO cluster.
+
+ZODB API is fully implemented except:
+
+- pack: only old revisions of objects are removed for the moment
+        (full implementation is considered)
+- blobs: not implemented (not considered yet)
+
+There is a simple way to convert FileStorage to NEO and back again.
+
+See also http://www.neoppod.org/links for more detailed information about
+features related to scalability.
+
+Disclaimer
+==========
+
+In addition of the disclaimer contained in the licence this code is
+released under, please consider the following.
+
+NEO does not implement any authentication mechanism between its nodes, and
+does not encrypt data exchanged between nodes either.
+If you want to protect your cluster from malicious nodes, or your data from
+being snooped, please consider encrypted tunelling (such as openvpn).
+
+Requirements
+============
+
+- Linux 2.6 or later
+
+- Python 2.4 or later
+
+- For python 2.4: `ctypes <http://python.net/crew/theller/ctypes/>`_
+  (packaged with later python versions)
+
+  Note that setup.py does not define any dependency to 'ctypes' so you will
+  have to install it explicitely.
+
+- For storage nodes:
+
+  - MySQLdb: http://sourceforge.net/projects/mysql-python
+
+- For client nodes: ZODB 3.10.x but it should work with ZODB >= 3.4
+
+Installation
+============
+
+a. Make neo directory available for python to import (for example, by
+   adding its container directory to the PYTHONPATH environment variable).
+
+b. Choose a cluster name and setup a MySQL database
+
+c. Start all required nodes::
+
+    neomaster --cluster=<cluster name>
+    neostorage --cluster=<cluster name> --database=user:passwd@db
+    neoadmin --cluster=<cluster name>
+
+d. Tell the cluster it can provide service::
+
+    neoctl start
+
+How to use
+==========
+
+First make sure Python can import 'neo.client' package.
+
+In zope
+-------
+
+a. Edit your zope.conf, add a neo import and edit the `zodb_db` section by
+   replacing its filestorage subsection by a NEOStorage one.
+   It should look like::
+
+    %import neo.client
+    <zodb_db main>
+        # Main FileStorage database
+        <NEOStorage>
+            master_nodes 127.0.0.1:10000
+            name <cluster name>
+        </NEOStorage>
+        mount-point /
+    </zodb_db>
+
+b. Start zope
+
+In a Python script
+------------------
+
+Just create the storage object and play with it::
+
+  from neo.client.Storage import Storage
+  s = Storage(master_nodes="127.0.0.1:10010", name="main")
+  ...
+
+"name" and "master_nodes" parameters have the same meaning as in
+configuration file.
+
+Shutting down
+-------------
+
+There is no administration command yet to stop properly a running cluster.
+So following manual actions should be done:
+
+a. Make sure all clients like Zope instances are stopped, so that cluster
+   become idle.
+b. Stop all master nodes first with a SIGINT or SIGTERM, so that storage nodes
+   don't become in OUT_OF_DATE state.
+c. At last stop remaining nodes with a SIGINT or SIGTERM.
+
+Deployment
+==========
+
+NEO has no built-in deployment features such as process daemonization. We use
+`supervisor <http://supervisord.org/>`_ with configuration like below::
+
+  [group:neo]
+  programs=master_01,storage_01,admin
+
+  [program:storage_01]
+  priority=10
+  command=neostorage -c neo -s storage_01 -f /neo/neo.conf
+
+  [program:master_01]
+  priority=20
+  command=neomaster -c neo -s master_01 -f /neo/neo.conf
+
+  [program:admin]
+  priority=20
+  command=neoadmin -c neo -s admin -f /neo/neo.conf
+
+Developers
+==========
+
+Developers interested in NEO may refer to
+`NEO Web site <http://www.neoppod.org/>`_ and subscribe to following mailing
+lists:
+
+- `neo-users <http://mail.tiolive.com/mailman/listinfo/neo-users>`_:
+  users discussion
+- `neo-dev <http://mail.tiolive.com/mailman/listinfo/neo-dev>`_:
+  developers discussion
+- `neo-report <http://mail.tiolive.com/mailman/listinfo/neo-report>`_:
+  automated test results (read-only list)
+
+Commercial Support
+==================
+
+Nexedi provides commercial support for NEO: http://www.nexedi.com/
