@@ -1,0 +1,85 @@
+###########
+SQL Support
+###########
+
+Supported SQL statements
+========================
+
+Firebird package for PowerConsole should support **all** valid DSQL statements (see `Firebird documentation
+<http://www.firebirdsql.org/?op=doc>`_ for details).
+
+However, there are some exceptions and additions:
+
+  - SET TRANSACTION does not support table reservation options (yet).
+
+  - CREATE DATABASE and CONNECT support addtional optional argument AS <var> that
+    makes the :class:`~fbcore.Database` object accessible under specified name instead default alias "db"
+
+  - You can fill in parts of SQL statements using :ref:`Python expressions <interpolation>`.
+
+  - You may use SQL statements in Python code. For example next function deactivates indices::
+
+       >>> def deactivate(indices):
+       ...   for index in indices:
+       ...      alter index @index.name inactive;
+       ...
+       >>> connect 'employee' user 'sysdba' password 'masterkey'
+       Database employee as db, user sysdba
+       >>> deactivate(db.indices)
+
+  - You can get access to executed statements (cursor() object) from Python code. Next statement will
+    execute and store the openned :class:`cursor()` object in user namespace for further manipulation::
+
+      >>> connect 'employee' user 'sysdba' password 'masterkey'
+      Database employee as db, user sysdba
+      >>> select * from country >> c;
+
+    Now you can use the cursor stored under name "c" (see KInterbasDB documentation for details about
+    `cursor object <http://www.firebirdsql.org/devel/python/docs/3.3.0/Python-DB-API-2.0.html#cursor-objects>`_)::
+
+       >>> for row in c:
+       >>>   print row
+
+  - You can use parametrized SQL statemets and feed values to them from any Python iterable (including open
+    cursor() objects!)::
+
+       >>> connect 'employee' user 'sysdba' password 'masterkey'
+       Database employee as db, user sysdba
+       >>> rows = [('Utopia','none'),('Sirius','credits')]
+       >>> insert into country (country,currency) values (?,?) << rows
+
+.. Note:: 
+
+   All SQL statements must end with statement terminator sequence that defaults to semicolon character.
+   Use SET TERM statement to change the terminator to other character sequence to issue compound SQL
+   statements (like CREATE TRIGGER, EXECUTE BLOCK etc.).
+
+.. tip::
+
+   All attached databases are also :doc:`accessible through Python <python-objects>` :class:`~fbcore.Database`
+   objects installed into user namespace. You may access them directly from your Python code or use them as
+   parameters to many PowerConsole commands.
+
+This pack also supports many :doc:`ISQL statements or their functional equivalents <pwc-commands>`.
+
+.. _interpolation:
+
+Using Python expressions in SQL
+===============================
+
+Firebird Pack lets you quickly and conveniently interpolate values into SQL statements (in the flavour of Perl
+or Tcl, but with less extraneous punctuation). You get a bit more power than in the other languages, because
+it allows subscripting, slicing, function calls, attribute lookup, or arbitrary expressions. Variables and
+expressions are evaluated in the namespace of the caller (so if you use SQL statements in Python functions
+or classes, expressions are evaluated in their scope).
+
+Here are some examples how to fill in a table name into SELECT statement::
+
+    select * from @string ;
+    select * from @module.member ;
+    select * from @object.member ;
+    select * from @functioncall(with, arguments) ;
+    select * from @{arbitrary + expression} ;
+    select * from @array[3] ;
+    select * from @dictionary['member'] ;
+

@@ -1,0 +1,420 @@
+##############
+Python Objects
+##############
+
+.. currentModule:: fbcore
+
+Using database objects in PowerConsole
+======================================
+
+Firebird Pack uses library :mod:`fbcore` build on top of KInterbasDB_ database driver, that defines set
+of higher-level objects to work with Firebird databases instead `classic` `Python Database API`_, and above
+all, represents database metadata as Python objects.
+
+Each connected database (represented by :class:`Database` object) is also accessible in PowerConsole's
+user space for direct use. You may specify the name under which it would be available using :keyword:`AS`
+clause of :keyword:`CONECT` or :keyword:`CREATE DATABASE` statements, otherwise it would get the default
+name "db".
+
+You may use these objects directly at command propt, in your PowerConsole scripts or pass them as parameters
+to PowerConsole commands. Here are some examples:
+
+1. List names and owners of all user tables
+
+    >>> connect 'employee' user 'sysdba' password 'masterkey'
+    Database employee as db, user sysdba
+    >>> list name,owner_name in db.tables
+    name             owner_name
+    ================ ==========
+    COUNTRY          SYSDBA
+    JOB              SYSDBA
+    DEPARTMENT       SYSDBA
+    EMPLOYEE         SYSDBA
+    PROJECT          SYSDBA
+    CUSTOMER         SYSDBA
+    EMPLOYEE_PROJECT SYSDBA
+    PROJ_DEPT_BUDGET SYSDBA
+    SALARY_HISTORY   SYSDBA
+    SALES            SYSDBA
+
+2. List all indices on JOB table
+
+    >>> connect 'employee' user 'sysdba' password 'masterkey'
+    Database employee as db, user sysdba
+    >>> t = db.getTable('JOB')
+    >>> list t.indices
+    RDB$PRIMARY2 unique system index on JOB(JOB_CODE,JOB_GRADE,JOB_COUNTRY)
+    RDB$FOREIGN3 system(FK) index on JOB(JOB_COUNTRY)
+    MINSALX index on JOB(JOB_COUNTRY,MIN_SALARY)
+    MAXSALX index on JOB(JOB_COUNTRY,MAX_SALARY)
+
+3. Because Firebird Pack installs `object renderers` to your PowerConsole environment, you may see enhanced
+   output for these objects when they're `evaluated` on command prompt::
+
+    >>> t = db.getTable('JOB')
+    >>> t
+    Table JOB (129) owned by SYSDBA
+    JOB_CODE                          (JOBCODE) VARCHAR(5) Not Null
+                                      CHECK (VALUE > '99999')
+    JOB_GRADE                         (JOBGRADE) SMALLINT Not Null
+                                      CHECK (VALUE BETWEEN 0 AND 6)
+    JOB_COUNTRY                       (COUNTRYNAME) VARCHAR(15) Not Null
+    JOB_TITLE                         VARCHAR(25) Not Null
+    MIN_SALARY                        (SALARY) NUMERIC(10, 2) Not Null DEFAULT 0
+                                      CHECK (VALUE > 0)
+    MAX_SALARY                        (SALARY) NUMERIC(10, 2) Not Null DEFAULT 0
+                                      CHECK (VALUE > 0)
+    JOB_REQUIREMENT                   BLOB segment 400, subtype TEXT Nullable
+    LANGUAGE_REQ                      ARRAY OF [5] VARCHAR(15) Nullable
+    
+    Constraints:
+    PRIMARY KEY INTEG_10:
+    Index RDB$PRIMARY2(JOB_CODE,JOB_GRADE,JOB_COUNTRY)
+    FOREIGN KEY INTEG_11:
+    Index RDB$FOREIGN3(JOB_COUNTRY)
+    References COUNTRY RDB$PRIMARY1(COUNTRY)
+    CHECK INTEG_12:
+    CHECK (min_salary < max_salary)
+    
+    Indices:
+    RDB$PRIMARY2 unique system index on (JOB_CODE,JOB_GRADE,JOB_COUNTRY)
+    RDB$FOREIGN3 system(FK) index on (JOB_COUNTRY)
+    MINSALX index on (JOB_COUNTRY,MIN_SALARY)
+    MAXSALX index on (JOB_COUNTRY,MAX_SALARY)
+
+
+4. List all triggers that post events
+
+    >>> connect 'employee' user 'sysdba' password 'masterkey'
+    Database employee as db, user sysdba
+    >>> list name in (t for t in db.triggers if 'POST_EVENT' in t.source)
+    name
+    ==============
+    POST_NEW_ORDER
+
+5. Show procedures that are not in another database
+
+    >>> connect 'employee' user 'sysdba' password 'masterkey'
+    Database employee as db, user sysdba
+    >>> connect '/data/db/employee-copy.fdb' user 'sysdba' password 'masterkey' as db2
+    Database /data/db/employee-copy.fdb as db2, user sysdba
+    >>> ready db
+    Main database set to db
+    >>> list name in (p for p in db.procedures if db2.getProcedure(p.name) is None)
+    name
+    ==========
+    MAIL_LABEL
+    >>> list name in (p for p in db.procedures if not db2.getProcedure(p.name))
+    name
+    ==========
+    MAIL_LABEL
+
+6. Find out what procedures differ in source code and then show the differences::
+
+    >>> connect 'employee' user 'sysdba' password 'masterkey'
+    Database employee as db, user sysdba
+    >>> connect '/data/db/employee-copy.fdb' user 'sysdba' password 'masterkey' as db2
+    Database /data/db/employee-copy.fdb as db2, user sysdba
+    >>> ready db
+    Main database set to db
+    >>> common_proc = [p for p in db.procedures if db2.getProcedure(p.name)]
+    >>> list name in common_proc
+    name
+    ===============
+    GET_EMP_PROJ
+    ADD_EMP_PROJ
+    SUB_TOT_BUDGET
+    DELETE_EMPLOYEE
+    DEPT_BUDGET
+    ORG_CHART
+    SHIP_ORDER
+    SHOW_LANGS
+    ALL_LANGS
+    >>> different = [p for p in common_proc if p.source != db2.getProcedure(p.name).source] 
+    >>> list name in different
+    name
+    ===========
+    DEPT_BUDGET
+    >>> params = zip(different,map(db2.getProcedure,(p.name for p in different)))
+    >>> import difflib
+    >>> list difflib.ndiff(params[0][0].source.split('\n'),params[0][1].source.split('\n'))
+    -       DECLARE VARIABLE sumb DECIMAL(12, 2);
+    ? -
+
+    + DECLARE VARIABLE sumb DECIMAL(12, 2);
+            DECLARE VARIABLE rdno CHAR(3);
+            DECLARE VARIABLE cnt INTEGER;
+    BEGIN
+    -       tot = 0;
+    +       total = 0;
+    ?          ++
+
+
+    -       SELECT budget FROM department WHERE dept_no = :dno INTO :tot;
+    +       SELECT budget FROM department WHERE dept_no = :dno INTO :total;
+    ?                                                                   ++
+
+
+            SELECT count(budget) FROM department WHERE head_dept = :dno INTO :cnt;
+
+            IF (cnt = 0) THEN
+                    SUSPEND;
+
+            FOR SELECT dept_no
+                    FROM department
+                    WHERE head_dept = :dno
+                    INTO :rdno
+            DO
+                    BEGIN
+                            EXECUTE PROCEDURE dept_budget :rdno RETURNING_VALUES :sumb;
+    -                       tot = tot + sumb;
+    +                       total = total + sumb;
+    ?                          ++      ++
+
+                    END
+
+            SUSPEND;
+    END
+
+   If you want to use it more often, you can save a lot of typing with handy function::
+
+    >>> def source_diff(a,b):
+    ...   result = ['Procedure %s' % a.name] 
+    ...   result.extend(difflib.ndiff(a.source.split('\n'),b.source.split('\n')))
+    ...   return '\n'.join(result)
+    ...
+    >>> list map(source_diff,different,map(db2.getProcedure,(p.name for p in different)))
+    Procedure DEPT_BUDGET
+    -       DECLARE VARIABLE sumb DECIMAL(12, 2);
+    ? -
+    
+    + DECLARE VARIABLE sumb DECIMAL(12, 2);
+            DECLARE VARIABLE rdno CHAR(3);
+            DECLARE VARIABLE cnt INTEGER;
+    BEGIN
+    -       tot = 0;
+    +       total = 0;
+    ?          ++
+    
+    
+    -       SELECT budget FROM department WHERE dept_no = :dno INTO :tot;
+    +       SELECT budget FROM department WHERE dept_no = :dno INTO :total;
+    ?                                                                   ++
+    
+    
+            SELECT count(budget) FROM department WHERE head_dept = :dno INTO :cnt;
+    
+            IF (cnt = 0) THEN
+                    SUSPEND;
+    
+            FOR SELECT dept_no
+                    FROM department
+                    WHERE head_dept = :dno
+                    INTO :rdno
+            DO
+                    BEGIN
+                            EXECUTE PROCEDURE dept_budget :rdno RETURNING_VALUES :sumb;
+    -                       tot = tot + sumb;
+    +                       total = total + sumb;
+    ?                          ++      ++
+    
+                    END
+    
+            SUSPEND;
+    END
+
+   If you know that both databases have the same procedures that just differ in source, you may write::
+
+    >>> list map(source_diff,db.procedures,db2.procedures)
+
+   to list **all** procedures that differ in source including the diff report.
+
+   .. Tip:: You can create your own library from these functions and import them any time to the PowerConsole.
+            You can even use PowerConsole commands in these libraries, but in that case you have to install
+            them to your interactive session via PowerConsole's :keyword:`RUN` command.
+
+Available objects
+=================
+
+.. index:: 
+   pair: DATABASE; (python object)
+
+Database
+--------
+
+.. autoclass:: Database
+   :member-order: groupwise
+   :members:
+   :inherited-members:
+
+Database File
+-------------
+
+.. autoclass:: DbFile
+   :member-order: groupwise
+   :members:
+   :inherited-members:
+
+.. index:: 
+   pair: CHARACTER SET; (python object)
+
+Character Set
+-------------
+
+.. autoclass:: CharacterSet
+   :member-order: groupwise
+   :members:
+   :inherited-members:
+
+.. index:: 
+   pair: COLLATION; (python object)
+
+Collation
+---------
+
+.. autoclass:: Collation
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: DOMAIN; (python object)
+
+Domain
+------
+
+.. autoclass:: Domain
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: TABLE; (python object)
+
+Table
+-----
+
+.. autoclass:: Table
+   :member-order: groupwise
+   :members:
+
+Table Column
+------------
+
+.. autoclass:: TableColumn
+   :member-order: groupwise
+   :members:
+
+Table Constraint
+----------------
+
+.. autoclass:: Constraint
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: INDEX; (python object)
+
+Index
+-----
+
+.. autoclass:: Index
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: VIEW; (python object)
+
+View
+----
+
+.. autoclass:: View
+   :member-order: groupwise
+   :members:
+
+View Column
+-----------
+
+.. autoclass:: ViewColumn
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: TRIGGER; (python object)
+
+Trigger
+-------
+
+.. autoclass:: Trigger
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: PROCEDURE; (python object)
+
+Stored Procedure
+----------------
+
+.. autoclass:: Procedure
+   :member-order: groupwise
+   :members:
+
+Procedure Parameter
+-------------------
+
+.. autoclass:: ProcParameter
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: EXCEPTION; (python object)
+
+Exception
+---------
+
+.. autoclass:: Exception
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: GENERATOR; (python object)
+
+Generator
+---------
+
+.. autoclass:: Generator
+   :member-order: groupwise
+   :members:
+
+.. index:: 
+   pair: ROLE; (python object)
+
+Role
+----
+
+.. autoclass:: Role
+   :member-order: groupwise
+   :members:
+
+External Function
+-----------------
+
+.. autoclass:: Function
+   :member-order: groupwise
+   :members:
+
+Function argument
+-----------------
+
+.. autoclass:: FunctionArgument
+   :member-order: groupwise
+   :members:
+
+Dependencies between objects
+----------------------------
+
+.. autoclass:: Dependency
+   :member-order: groupwise
+   :members:
+
+.. _KInterbasDB: http://www.firebirdsql.org/index.php?op=devel&sub=python
+.. _Python Database API: http://www.python.org/topics/database/DatabaseAPI-2.0.html
+
