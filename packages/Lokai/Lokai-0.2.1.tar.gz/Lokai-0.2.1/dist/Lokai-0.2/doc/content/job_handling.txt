@@ -1,0 +1,255 @@
+..
+  nd_node:
+    nde_name: Job Management
+  parent: Documentation
+
+=======================================================================
+Job Management
+=======================================================================
+
+Lokia provides tools for running interconnected background jobs. These
+are aimed at data processing tasks, such as downloading data from
+websites, importing data into databases, periodic calculations and
+other such activities where there is some connection between the
+steps.
+
+There is no overall supervisory system. Each job runs independently of
+the others. Communication between jobs is arises when the output from
+one job becomes the input of the next job. This allows graphs of any
+complexity to be built up.
+
+Job processes must poll their input files to find work. This polling
+is done using whatever facilities are available in the operating
+system. Under Unix this is likely to be ``cron`` or the local
+equivalent.
+
+
+.. raw:: pdf
+
+   PageBreak
+
+..
+  nd_node:
+    nde_name: Inputs and Outputs
+  parent: Job Management
+
+-----------------------------------------------------------------------
+Inputs and Outputs
+-----------------------------------------------------------------------
+
+The available inputs and outputs are:
+
+:input: One or more input directories can be set up. Each input
+    directory may contain a further set of sub-directories.
+    ``JobEnvironment`` identifies the 'first' actual file in this
+    directory tree and presents it to the application for
+    processing. The file may simply indicate 'start processing', it
+    may define a set of parameters for the process, or it may be a
+    file of data to process.
+
+    The normal assumption would be that no input means no work to be
+    done.  Applications that monitor external events (dates, web-site
+    status and so on) may choose to run without an input file trigger.
+
+    The input file is opened using a ``MagicFile`` object so that,
+    when the file is closed, it is moved to a 'processed' directory
+    (see below).
+
+:pending: A directory structure where the immediate sub-directory
+    defines a date and time. The sub-directories are not explored for
+    files until after the given date/time. Thus it is possible to
+    queue actions into the future.
+
+    The pending directory can be used when a job finds that the
+    expected data is not available, perhaps because of an error when
+    accessing a web site. Placing a file in a pending slot gives the
+    remote site time to recover.
+
+:output: One or more output directories can be set up. A single output
+    file (opened using a ``MagicFile`` object) is duplicated under
+    each of the output directories. This provides fan-out so that the
+    completion of one application can trigger one or more follow-on
+    processes. The output file appears in the output directory when it
+    is closed. The output file is not visible until then.
+
+    The output file can be opened with a relative path. This path is
+    preserved underneath each of the output directories.
+
+:processed: One or more 'processed' directories can be set up. An
+    input file, opened using a ``MagicFile`` object, is moved to a
+    processed directory when the file is closed. If there is more than
+    one such directory the file is duplicated into each of them. This
+    provides fan-out so that the completion of one application can
+    trigger one or more follow-on processes.
+
+    The sub-directory structure from the input is maintained in this
+    rename process. Thus, if the input is
+    ``source_path/sub_1/my_file`` this will be placed into
+    ``processed_path/sub_1/my_file``.
+
+:error: A single error directory can be set up. If the application
+    detects an error (and calls the correct close function) the input
+    file is moved to this error directory. This has the effect of
+    removing the file from the input, so it is not reprocessed, and,
+    at the same time, isolating the problem file so that it can be
+    dealt with.
+                
+    The sub-directory structure from the input is maintained in this
+    rename process. Thus, if the input is
+    ``source_path/sub_1/my_file`` this will be placed into
+    ``error_path/sub_1/my_file``
+
+It is potentially possible for two process to access the same input
+directory at the same time, possibly by design, or because a new
+instance of the process is poling the input before the previous
+instance has finished. Consequently, it is possible for two processes
+to attempt to read the same file. To prevent multiple access the job
+environment automatically creates a hidden lock file (name starting
+with '.')  in the directory where the file is, using the base name of
+the file. This is then removed on close.
+
+.. raw:: pdf
+
+   PageBreak
+
+..
+  nd_node:
+    nde_name: Logging
+  parent: Job Management
+
+-----------------------------------------------------------------------
+Logging
+-----------------------------------------------------------------------
+
+The job environment supports new logging classes so that job progress,
+warning and error messages can be logged in useful ways. In addition
+to the straightforward file logging, we also have:
+
+:Recording logger: An extended logger class that records counts of the
+    different message types that pass through it. This is the basis
+    for all the logger classes used in the job environment. The
+    statistics can be used to manage the response of a program: for
+    example to decide whether to close the output normally or to
+    roll-back and not produce output.
+
+    This logger also supports an execute extension that can apply a
+    function to all the handlers registered to the logger. This gives
+    programmer access to functions that are necessarily defined in the
+    handler and are not directly available from the logger.
+
+:Bulk handler: Accumulates messages for subsequent output as a single
+    message. The handler maintains common header and footer details
+    that can be passed to the formatter. These attributes can be set
+    dynamically after the logger has been initialised. This allows the
+    header to reflect, for example, the name of the file being
+    processed.
+
+:Filter max: A filter that can be used to normal message filtering
+    process. Under normall logging, messages are excluded if their
+    numeric type code is >= the set level for the logger. Using this
+    filter we can process messages that are < the set level for the
+    logger. This is used in the logger intitialiser to direct CRITICAL
+    messages to a different email.
+
+:SMTP handler: A simple extension of the basic SMTP handler that
+    supports dynamic setting of email subject. This is used to output
+    the formatted result from a bulk handler.
+
+:Job Notifier: An extension of the bulk handler that supports the
+    attributes needed by the Job Manager Log Handler.
+
+:Job Manager Log Handler: A handler that takes the formatted result
+    from a bulk handler and stores it as a ``job_manager_logger`` node
+    in a Lokai database.
+
+.. raw:: pdf
+
+   PageBreak
+
+..
+  nd_node:
+    nde_name: Error and Logging Responses
+  parent: Logging
+
+-----------------------------------------------------------------------
+Error and Logging Responses
+-----------------------------------------------------------------------
+
+For completeness, this section covers the assumptions that
+``lk_job_manager`` makes when processing logging messages. We want to
+ensure that a program captures as many error situations as possible
+and handles them in a graceful way. Equally, a program is expected to
+validate as much of its input or generated output as possible so that
+users are given all the available information, and not just the first
+thing that arises.
+
+To start with, we assume that exceptions are trapped and logged. At
+the very least, ``lk_job_manager`` is designed to trap exceptions at
+the outermost level, but it is quite possible that an application will
+want to handle exceptions within the application code in order to
+report useful information.
+
+We classify errors and messages by the action taken:
+
+:disaster: A problem that happens before the program has been able to
+    set up its environment. This will generally be an exception that
+    is raised before logging has been initialised. There is not much
+    that a program can do under these circumstances, so we let the
+    exception take its course.
+
+:fatal: A problem with some parts of the environment or a
+    problem with command line options or configuration, or
+    any programing error that is trapped by the global
+    except clause.
+
+    The program logs the error, together with any data available
+    concerning the file being processed.
+
+    Logger messages are classed as CRITICAL.
+
+:operational: A problem relating to this specific run of the
+    program, such as the given filename not matching a real
+    file.
+
+    The program logs the error, together with any data available
+    concerning the file being processed.
+
+    Logger messages are classed as CRITICAL.
+
+:data error: The input file or source website cannot be
+    processed because the format is unrecognised or there
+    are serious processing errors (invalid date format,
+    letters instead of numbers, column missing, value
+    outside accptable range, data integrity failure).  The
+    program may raise many such messages for a single input.
+
+    The program logs the error, together with any data available
+    concerning the file being processed.  After the application
+    returns, all database transactions are abandoned (rollback),
+    any output file is abandoned and the input file is moved to the
+    ``error`` output directory.
+
+    Logger messages are classed as ERROR.
+
+:data warning: The input source contains valid data but the
+    values fail sense checks or the output from the program
+    fails sense checks.  The program may raise many such
+    messages for a single input.
+
+    The program logs the error, together with any data available
+    concerning the file being processed. After the application
+    returns, all database transactions are abandoned (rollback),
+    any output file is abandoned and the input file is moved to the
+    ``error`` output directory.).
+
+    Logger messages are classed as WARNING.
+
+:system notification: The program needs to add useful
+    information to the log (start time, and time, for
+    example).
+
+    Logger messages are classed as INFO.
+
+:debug: As defined by the programmer.
+
+    Logger messages are classed as DEBUG.
