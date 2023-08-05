@@ -1,0 +1,2 @@
+from widget.multiparagraphwidget import MultiParagraphWidget
+from field.multiparagraphfield import MultiParagraphField
