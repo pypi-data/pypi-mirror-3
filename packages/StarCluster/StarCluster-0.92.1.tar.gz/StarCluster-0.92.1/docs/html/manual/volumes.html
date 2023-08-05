@@ -1,0 +1,442 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Using EBS Volumes for Persistent Storage &mdash; StarCluster v0.92.1 documentation</title>
+    <link rel="stylesheet" href="../_static/pylons.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.92.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="StarCluster v0.92.1 documentation" href="../index.html" />
+    <link rel="up" title="StarCluster User Manual" href="index.html" />
+    <link rel="next" title="Launching a StarCluster on Amazon EC2" href="launch.html" />
+    <link rel="prev" title="StarCluster Configuration File" href="configuration.html" />
+<link rel="stylesheet" href="../_static/nobile.css" type="text/css" media="screen" charset="utf-8" />
+<link rel="stylesheet" href="../_static/neuton.css" type="text/css" media="screen" charset="utf-8" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="../_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+<link rel="shortcut icon" href="../_static/starcluster.ico"/>
+
+  </head>
+  <body>
+<div class="header-small">
+	
+	<div class="logo-small">
+		<a href="../index.html">
+      		<img class="logo" src="../_static/logo-small.png" alt="Logo"/>
+		</a>
+  	</div>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="launch.html" title="Launching a StarCluster on Amazon EC2"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="configuration.html" title="StarCluster Configuration File"
+             accesskey="P">previous</a> |</li>
+    	<li><a href="../index.html">Home</a> &raquo;</li>
+          <li><a href="../contents.html" >Master Table of Contents</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">StarCluster User Manual</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="using-ebs-volumes-for-persistent-storage">
+<h1>Using EBS Volumes for Persistent Storage<a class="headerlink" href="#using-ebs-volumes-for-persistent-storage" title="Permalink to this headline">¶</a></h1>
+<p>StarCluster supports using Amazon&#8217;s Elastic Block Storage (EBS) volumes for
+persistent storage. These volumes can be anywhere from 1GB to 1TB in size.
+StarCluster will attach each volume specified in a cluster template to the
+master node and then share the volume(s) to the rest of the nodes in the
+cluster via the network file system (NFS). Each volume will be mounted to the
+path specified by the <tt class="docutils literal"><span class="pre">MOUNT_PATH</span></tt> setting in the volume&#8217;s configuration
+section.</p>
+<p>For example, suppose we have the following configuration defined:</p>
+<div class="highlight-ini"><div class="highlight"><pre><span class="k">[vol myvol]</span>
+<span class="na">volume_id</span> <span class="o">=</span> <span class="s">vol-v9999999</span>
+<span class="na">mount_path</span> <span class="o">=</span> <span class="s">/data</span>
+
+<span class="k">[cluster smallcluster]</span>
+<span class="na">cluster_size</span><span class="o">=</span><span class="s">3</span>
+<span class="na">keyname</span><span class="o">=</span><span class="s">mykey</span>
+<span class="na">node_instance_type</span><span class="o">=</span><span class="s">m1.small</span>
+<span class="na">node_image_id</span><span class="o">=</span><span class="s">ami-8cf913e5</span>
+<span class="na">volumes</span><span class="o">=</span><span class="s">myvol</span>
+</pre></div>
+</div>
+<p>In this case, whenever a cluster is launched using the <tt class="docutils literal"><span class="pre">smallcluster</span></tt> template
+StarCluster will attach the EBS volume <tt class="docutils literal"><span class="pre">vol-v9999999</span></tt> to the <tt class="docutils literal"><span class="pre">master</span></tt> node on
+<tt class="docutils literal"><span class="pre">/data</span></tt> and then NFS-share <tt class="docutils literal"><span class="pre">/data</span></tt> to all the nodes in the cluster.</p>
+<p>It&#8217;s also possible to use multiple EBS volumes by specifying a list of volumes
+in a cluster template:</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Each volume specified in a cluster template <em>must</em> have a unique
+<tt class="docutils literal"><span class="pre">MOUNT_PATH</span></tt> otherwise an error will be raised.</p>
+</div>
+<div class="highlight-ini"><div class="highlight"><pre><span class="k">[vol cancerdata]</span>
+<span class="na">volume_id</span> <span class="o">=</span> <span class="s">vol-v8888888</span>
+<span class="na">mount_path</span> <span class="o">=</span> <span class="s">/data/cancer</span>
+
+<span class="k">[vol genomedata]</span>
+<span class="na">volume_id</span> <span class="o">=</span> <span class="s">vol-v9999999</span>
+<span class="na">mount_path</span> <span class="o">=</span> <span class="s">/data/genome</span>
+
+<span class="k">[cluster smallcluster]</span>
+<span class="na">cluster_size</span><span class="o">=</span><span class="s">3</span>
+<span class="na">keyname</span><span class="o">=</span><span class="s">mykey</span>
+<span class="na">node_instance_type</span><span class="o">=</span><span class="s">m1.small</span>
+<span class="na">node_image_id</span><span class="o">=</span><span class="s">ami-8cf913e5</span>
+<span class="na">volumes</span><span class="o">=</span><span class="s">cancerdata, genomedata</span>
+</pre></div>
+</div>
+<div class="section" id="create-and-format-a-new-ebs-volume">
+<span id="create-and-format-ebs-volumes"></span><h2>Create and Format a new EBS Volume<a class="headerlink" href="#create-and-format-a-new-ebs-volume" title="Permalink to this headline">¶</a></h2>
+<p>StarCluster&#8217;s <strong>createvolume</strong> command completely automates the process of
+creating a new EBS volume. This includes launching a host instance in the
+target zone, attaching the new volume to the host, and formatting the entire
+volume.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The <strong>createvolume</strong> command simply formats the <em>entire volume</em> using all
+of the space on the device rather than creating partitions. This makes it
+easier to resize the volume and expand the filesystem later on if you run
+out of diskspace.</p>
+</div>
+<p>To create and format a new volume simply specify a volume size in GB and the
+availability zone to create the volume in:</p>
+<div class="highlight-python"><pre>$ starcluster createvolume --name=my-data 20 us-east-1c</pre>
+</div>
+<p>The above command will launch a host instance in the us-east-1c availability
+zone, create a 20GB volume in us-east-1c, attach the new volume to the host
+instance, and format the entire volume. The <tt class="docutils literal"><span class="pre">--name</span></tt> option allows you name
+the volume for easy reference later on when using the <strong>listvolumes</strong> command
+or the <a class="reference external" href="http://aws.amazon.com/console">AWS web console</a>.</p>
+<p>If you wish to apply an arbitrary tag to the new volume use the <tt class="docutils literal"><span class="pre">--tag</span></tt>
+option:</p>
+<div class="highlight-python"><pre>$ starcluster createvolume --tag=mytag 20 us-east-1c</pre>
+</div>
+<p>If you want to create a key/value tag:</p>
+<div class="highlight-python"><pre>$ starcluster createvolume --tag mytag=myvalue 20 us-east-1c</pre>
+</div>
+<p>You can also use the <tt class="docutils literal"><span class="pre">--bid</span></tt> option to request a spot instance when creating
+the volume host:</p>
+<div class="highlight-python"><pre>$ starcluster createvolume 20 us-east-1c --bid 0.50</pre>
+</div>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">StarCluster does not terminate the host instance after creating a volume.
+This allows multiple volumes to be created in the same zone using a
+<em>single</em> host instance. You can pass the <tt class="docutils literal"><span class="pre">--shutdown-volume-host</span></tt> option
+to the <strong>createvolume</strong> command to if you&#8217;d rather automatically shutdown
+the volume host after creating the new volume.</p>
+</div>
+<p>Let&#8217;s look at an example of creating a 20GB volume in <tt class="docutils literal"><span class="pre">us-east-1c</span></tt>:</p>
+<div class="highlight-python"><pre>$ starcluster createvolume --name=myvol --bid=0.50 20 us-east-1c
+StarCluster - (http://web.mit.edu/starcluster)
+Software Tools for Academics and Researchers (STAR)
+Please submit bug reports to starcluster@mit.edu
+
+&gt;&gt;&gt; No keypair specified, picking one from config...
+&gt;&gt;&gt; Using keypair: jtriley
+&gt;&gt;&gt; Creating security group @sc-volumecreator...
+&gt;&gt;&gt; No instance in group @sc-volumecreator for zone us-east-1c,
+&gt;&gt;&gt; launching one now.
+&gt;&gt;&gt; Waiting for volume host to come up... (updating every 30s)
+&gt;&gt;&gt; Waiting for open spot requests to become active...
+1/1 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| 100%
+&gt;&gt;&gt; Waiting for all nodes to be in a 'running' state...
+1/1 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| 100%
+&gt;&gt;&gt; Waiting for SSH to come up on all nodes...
+1/1 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||| 100%
+&gt;&gt;&gt; Checking for required remote commands...
+&gt;&gt;&gt; Creating 1GB volume in zone us-east-1c
+&gt;&gt;&gt; New volume id: vol-2f3a5344
+&gt;&gt;&gt; Waiting for new volume to become 'available'...
+&gt;&gt;&gt; Attaching volume vol-2f3a5344 to instance i-fb9ceb95...
+&gt;&gt;&gt; Formatting volume...
+mke2fs 1.41.11 (14-Mar-2010)
+Filesystem label=
+OS type: Linux
+Block size=4096 (log=2)
+Fragment size=4096 (log=2)
+Stride=0 blocks, Stripe width=0 blocks
+65536 inodes, 262144 blocks
+13107 blocks (5.00%) reserved for the super user
+First data block=0
+Maximum filesystem blocks=268435456
+8 block groups
+32768 blocks per group, 32768 fragments per group
+8192 inodes per group
+Superblock backups stored on blocks:
+        32768, 98304, 163840, 229376
+
+Writing inode tables: done
+Creating journal (8192 blocks): done
+Writing superblocks and filesystem accounting information: done
+
+This filesystem will be automatically checked every 30 mounts or
+180 days, whichever comes first.  Use tune2fs -c or -i to override.
+&gt;&gt;&gt; Leaving volume vol-2f3a5344 attached to instance i-fb9ceb95
+&gt;&gt;&gt; Not terminating host instance i-fb9ceb95
+*** WARNING - There are still volume hosts running: i-fb9ceb95
+*** WARNING - Run 'starcluster terminate volumecreator' to terminate
+*** WARNING - *all* volume host instances once they're no longer needed
+&gt;&gt;&gt; Creating volume took 7.396 mins
+&gt;&gt;&gt; Your new 1GB volume vol-2f3a5344 has been created successfully</pre>
+</div>
+<p>In the above example we name the volume <tt class="docutils literal"><span class="pre">myvol</span></tt> and use a spot instance for
+the volume host. Notice the warning at the bottom of the above output.
+StarCluster will leave the host instance running with the new volume attached
+after creating and formatting the new volume. This allows multiple volumes to
+be created in a given availability zone without launching a new instance for
+each volume. To see the volume hosts simply run the <strong>listclusters</strong> command:</p>
+<div class="highlight-python"><pre>$ starcluster listclusters volumecreator
+StarCluster - (http://web.mit.edu/starcluster)
+Software Tools for Academics and Researchers (STAR)
+Please submit bug reports to starcluster@mit.edu
+
+-------------------------------------------------
+volumecreator (security group: @sc-volumecreator)
+-------------------------------------------------
+Launch time: 2011-06-13 13:51:25
+Uptime: 00:02:09
+Zone: us-east-1c
+Keypair: mykey
+EBS volumes: N/A
+Cluster nodes:
+    volhost-us-east-1c running i-fd9clb9z  (spot sir-2a8zb4lr)
+Total nodes: 1</pre>
+</div>
+<p>From the above example we see that we have a volume-host in <tt class="docutils literal"><span class="pre">us-east-1c</span></tt>
+called <tt class="docutils literal"><span class="pre">volhost-us-east-1c</span></tt>. Any volumes that were created will still be
+attached to the volume host until you terminate the <tt class="docutils literal"><span class="pre">volumecreator</span></tt> cluster.
+If you&#8217;d rather detach the volume after it&#8217;s been successfully created use the
+<tt class="docutils literal"><span class="pre">--detach-volume</span></tt> (<tt class="docutils literal"><span class="pre">-d</span></tt>) option:</p>
+<div class="highlight-python"><pre>$ starcluster createvolume --detach-volume 20 us-east-1c</pre>
+</div>
+<p>You can login to a volume host instance using:</p>
+<div class="highlight-python"><pre>$ starcluster sshnode volumecreator volhost-us-east-1c</pre>
+</div>
+<p>After logging in you can inspect the volume, upload data, etc.  When you&#8217;re
+done using the volumecreator cluster don&#8217;t forget to terminate it:</p>
+<div class="highlight-python"><pre>$ starcluster terminate volumecreator</pre>
+</div>
+<p>If you&#8217;d rather avoid having to terminate the volumecreator each time you can
+pass the <tt class="docutils literal"><span class="pre">--shutdown-volume-host</span></tt> (<tt class="docutils literal"><span class="pre">-s</span></tt>) option to the <strong>createvolume</strong>
+command to have StarCluster automatically terminate the host-instance after
+successfully creating the new volume:</p>
+<div class="highlight-python"><pre>$ starcluster createvolume --shutdown-volume-host 20 us-east-1c</pre>
+</div>
+</div>
+<div class="section" id="managing-ebs-volumes-with-starcluster">
+<span id="managing-ebs-volumes"></span><h2>Managing EBS Volumes with StarCluster<a class="headerlink" href="#managing-ebs-volumes-with-starcluster" title="Permalink to this headline">¶</a></h2>
+<p>In addition to creating and formatting new EBS volumes StarCluster also allows
+you to browse and remove your EBS volumes.</p>
+<div class="section" id="getting-volume-status">
+<h3>Getting Volume Status<a class="headerlink" href="#getting-volume-status" title="Permalink to this headline">¶</a></h3>
+<p>To get a list of all your volumes as well as their current status use the
+<strong>listvolumes</strong> command:</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes
+StarCluster - (http://web.mit.edu/starcluster)
+Software Tools for Academics and Researchers (STAR)
+Please submit bug reports to starcluster@mit.edu
+
+volume_id: vol-be279s08
+size: 5GB
+status: available
+availability_zone: us-east-1d
+create_time: 2011-10-22 16:18:57
+
+Total: 1</pre>
+</div>
+<p>To list details for a single volume by name use the <tt class="docutils literal"><span class="pre">--name</span></tt> (<tt class="docutils literal"><span class="pre">-n</span></tt>)
+option:</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes --name my-big-data</pre>
+</div>
+<p>To list details for a single volume by id use the <tt class="docutils literal"><span class="pre">--volume-id</span></tt>
+(<tt class="docutils literal"><span class="pre">-v</span></tt>):</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes -v vol-99999999</pre>
+</div>
+<p>If you&#8217;d like to see details for all volumes with a given tag use the <tt class="docutils literal"><span class="pre">--tag</span></tt>
+(<tt class="docutils literal"><span class="pre">-t</span></tt>) option:</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes -t my-big-data
+$ starcluster listvolumes -t mytag=myvalue</pre>
+</div>
+<p>You can also filter the volumes by status using the <tt class="docutils literal"><span class="pre">--status</span></tt> (<tt class="docutils literal"><span class="pre">-S</span></tt>)
+flag:</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes -S available</pre>
+</div>
+<p>and by volume size (in GB) using the <tt class="docutils literal"><span class="pre">--size</span></tt> (<tt class="docutils literal"><span class="pre">-s</span></tt>) option:</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes -s 20</pre>
+</div>
+<p>and also by attachment state using the <tt class="docutils literal"><span class="pre">--attach-status</span></tt> (<tt class="docutils literal"><span class="pre">-a</span></tt>) option:</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes -a attached</pre>
+</div>
+<p>Other filters are available, have a look at the help menu for more details:</p>
+<div class="highlight-python"><pre>$ starcluster listvolumes --help</pre>
+</div>
+</div>
+<div class="section" id="removing-volumes">
+<h3>Removing Volumes<a class="headerlink" href="#removing-volumes" title="Permalink to this headline">¶</a></h3>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">This process cannot be reversed!</p>
+</div>
+<p>To <strong>permanently</strong> remove an EBS volume use the <strong>removevolume</strong> command:</p>
+<div class="highlight-python"><pre>$ starcluster removevolume vol-99999999</pre>
+</div>
+</div>
+<div class="section" id="resizing-volumes">
+<h3>Resizing Volumes<a class="headerlink" href="#resizing-volumes" title="Permalink to this headline">¶</a></h3>
+<p>After you&#8217;ve created and used an EBS volume over time you may find that you
+need to add additional disk space to the EBS volume. Normally you would need to
+snapshot the volume, create a new, larger, volume from the snapshot, attach the
+new volume to an instance, and expand the filesystem to fit the new volume.
+Fortunately, StarCluster&#8217;s <strong>resizevolume</strong> command streamlines this process
+for you.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The EBS volume must either be unpartitioned or contain only a single
+partition. Any other configuration will be aborted.</p>
+</div>
+<p>For example, to resize a 10GB volume, say <tt class="docutils literal"><span class="pre">vol-99999999</span></tt>, to 20GB:</p>
+<div class="highlight-python"><pre>$ starcluster resizevolume vol-99999999 20</pre>
+</div>
+<p>The above command will create a <em>new</em>, larger, 20GB volume containing the data
+from the original volume vol-99999999. The new volume&#8217;s filesystem will also be
+expanded to fit the new volume size.</p>
+<p>Just like the <strong>createvolume</strong> command, the <strong>resizevolume</strong> command will also
+launch a host instance in order to attach the new volume and expand the
+volume&#8217;s filesystem. Similarly, if you wish to shutdown the host instance
+automatically after the new resized volume has been created, use the
+<tt class="docutils literal"><span class="pre">--shutdown-volume-host</span></tt> option:</p>
+<div class="highlight-python"><pre>$ starcluster resizevolume --shutdown-volume-host vol-99999999 20</pre>
+</div>
+<p>Otherwise, you will need to terminate the volume host manually after the
+<strong>resizevolume</strong> command completes.</p>
+</div>
+<div class="section" id="moving-volumes-across-availability-zones">
+<h3>Moving Volumes Across Availability Zones<a class="headerlink" href="#moving-volumes-across-availability-zones" title="Permalink to this headline">¶</a></h3>
+<p>In some cases you may need to replicate a given volume to another availability
+zone so that the data can be used with instances in a different data center.
+The <strong>resizevolume</strong> command supports creating a newly expanded volume within
+an alternate availability zone via the <tt class="docutils literal"><span class="pre">--zone</span></tt> (<tt class="docutils literal"><span class="pre">-z</span></tt>), flag:</p>
+<div class="highlight-python"><pre>$ starcluster resizevolume -z us-east-1d vol-9999999 20</pre>
+</div>
+<p>The above command will create a new 20GB volume in <tt class="docutils literal"><span class="pre">us-east-1d</span></tt> containing
+the data in <tt class="docutils literal"><span class="pre">vol-99999999</span></tt>. If you only want to move the volume data without
+resizing simply specify the same size as the original volume.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Using EBS Volumes for Persistent Storage</a><ul>
+<li><a class="reference internal" href="#create-and-format-a-new-ebs-volume">Create and Format a new EBS Volume</a></li>
+<li><a class="reference internal" href="#managing-ebs-volumes-with-starcluster">Managing EBS Volumes with StarCluster</a><ul>
+<li><a class="reference internal" href="#getting-volume-status">Getting Volume Status</a></li>
+<li><a class="reference internal" href="#removing-volumes">Removing Volumes</a></li>
+<li><a class="reference internal" href="#resizing-volumes">Resizing Volumes</a></li>
+<li><a class="reference internal" href="#moving-volumes-across-availability-zones">Moving Volumes Across Availability Zones</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="configuration.html"
+                        title="previous chapter">StarCluster Configuration File</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="launch.html"
+                        title="next chapter">Launching a StarCluster on Amazon EC2</a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="launch.html" title="Launching a StarCluster on Amazon EC2"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="configuration.html" title="StarCluster Configuration File"
+             >previous</a> |</li>
+    	<li><a href="../index.html">Home</a> &raquo;</li>
+          <li><a href="../contents.html" >Master Table of Contents</a> &raquo;</li>
+          <li><a href="index.html" >StarCluster User Manual</a> &raquo;</li> 
+      </ul>
+    </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2011, Software Tools for Academics and Researchers.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+
+
+<script type="text/javascript">
+//<![CDATA[
+    var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+    document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+    //]]>
+    </script><script type="text/javascript">
+//<![CDATA[
+    try{
+        var pageTracker = _gat._getTracker("UA-1048253-12");
+        pageTracker._trackPageview();
+    } catch(err) {}
+    //]]>
+    </script>
+
+  </body>
+</html>
