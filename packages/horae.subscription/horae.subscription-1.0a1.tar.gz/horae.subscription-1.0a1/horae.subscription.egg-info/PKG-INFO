@@ -1,0 +1,130 @@
+Metadata-Version: 1.0
+Name: horae.subscription
+Version: 1.0a1
+Summary: Provides functionality to subscribe to an object
+Home-page: UNKNOWN
+Author: Simon Kaeser
+Author-email: skaeser@gmail.com
+License: GPL
+Description: Introduction
+        ============
+        
+        ``horae.subscription`` provides generic subscription functionality for the
+        Horae resource planning system.
+        
+        Usage
+        =====
+        
+        Objects marked with the ``horae.subscription.interfaces.ISubscribeable``
+        interfaces receive the functionality of being subscribed to. Which means
+        a viewlet is displayed rendering all subscribers and a button to subscribe
+        and unsubscribe if an adapter implementing
+        ``horae.subscription.interfaces.ISubscriber`` and adapting the request is available.
+        
+        The subscribers of an ``horae.subscription.interfaces.ISubscribeable`` may be
+        notified by using the ``horae.subscription.interfaces.ISubscription`` adapter.
+        First some basic implementations are required::
+        
+        import grok
+        
+        from horae.subscription import interfaces
+        
+        class Subscriber(object):
+        grok.implements(interfaces.ISubscriber)
+        
+        def __init__(self, id, name, url=None):
+        self.id = id
+        self.name = name
+        self.url = url
+        
+        def notify(self, message, subject):
+        """ Sends the message to the subscriber
+        """
+        print self.name + ': (' + subject + ') ' + subject
+        
+        def available(self, context):
+        """ Whether this subscriber is currently available or not
+        """
+        return True
+        
+        class Message(object):
+        grok.implements(interfaces.IMessage)
+        
+        def __init__(self, subject, message):
+        self._subject = subject
+        self._message = message
+        
+        def subject(self):
+        """ Returns the subject of the notification to be sent
+        """
+        return self._subject
+        
+        def message(self, html=False):
+        """ Returns the notification message to be sent
+        """
+        return self._message
+        
+        class Subscribeable(grok.Model):
+        grok.implements(interfaces.ISubscribeable)
+        
+        With those implementations in place some subscriptions may be made and
+        a message may be sent to them.
+        
+        First we create a subscribeable object::
+        
+        >>> subscribeable = Subscribeable()
+        
+        Now we create two subscribers and subscribe them to the subscribeable::
+        
+        >>> subscriber1 = Subscriber('jsmith', 'John Smith')
+        >>> subscriber2 = Subscriber('jdoe', 'John Doe')
+        >>> subscription = interfaces.ISubscription(subscribeable)
+        >>> subscription.subscribe(subscriber1)
+        >>> subscription.subscribe(subscriber2)
+        
+        And send out a message::
+        
+        >>> message = Message('Test subject', 'Test message')
+        >>> sent, failed = subscription.notify(message)
+        John Smith: (Test subject) Test message
+        John Doe: (Test subject) Test message
+        >>> sent
+        2
+        >>> failed
+        0
+        
+        Unsubscription is also done using the subscription adapter::
+        
+        >>> subscription.unsubscribe(subscriber2.id)
+        >>> sent, failed = subscription.notify(message)
+        John Smith: (Test subject) Test message
+        >>> sent
+        1
+        >>> failed
+        0
+        
+        Dependencies
+        ============
+        
+        Horae
+        -----
+        
+        * `horae.core <http://pypi.python.org/pypi/horae.core>`_
+        * `horae.layout <http://pypi.python.org/pypi/horae.layout>`_
+        * `horae.ticketing <http://pypi.python.org/pypi/horae.ticketing>`_
+        
+        Third party
+        -----------
+        
+        * `grok <http://pypi.python.org/pypi/grok>`_
+        
+        Changelog
+        =========
+        
+        1.0a1 (2012-01-16)
+        ------------------
+        
+        - Initial release
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
