@@ -1,0 +1,286 @@
+Metadata-Version: 1.0
+Name: horae.layout
+Version: 1.0a1
+Summary: Provides the global layout for the Horae resource planning system
+Home-page: UNKNOWN
+Author: Simon Kaeser
+Author-email: skaeser@gmail.com
+License: GPL
+Description: Introduction
+        ============
+        
+        The ``horae.layout`` package provides the global layout for the Horae resource
+        planning system by defining base classes for views, forms (add, edit, delete and
+        display) and viewlets. Additionally the following features are provided:
+        
+        * Registration of several viewlet managers
+        * Integration of `megrok.navigation <http://pypi.python.org/pypi/megrok.navigation>`_
+        * Helper view to create tables
+        * Generic views for listing, adding, editing and deleting objects in a container
+        * Possibility to register `fanstatic <http://pypi.python.org/pypi/fanstatic>`_ resources
+        through named adapters
+        * Registration of the `horae.datetime <http://pypi.python.org/pypi/horae.datetime>`_
+        widgets
+        * Registration of rich text widgets using `megrok.form <http://pypi.python.org/pypi/megrok.form>`_
+        
+        Usage
+        =====
+        
+        Views
+        -----
+        
+        The aforementioned base classes for views, forms and viewlets are defined in
+        ``horae.layout.layout``. All the views defined there provide the functionality
+        to be called with two special parameters provided through GET or POST:
+        
+        ``plain``
+        If this parameter is set to any truth value only the views result
+        is rendered without the whole layout put around.
+        ``selector``
+        If this parameter is set to any CSS selector only the contents of the element
+        matching the selector is returned.
+        
+        Those base classes are also responsible for including the `fanstatic
+        <http://pypi.python.org/pypi/fanstatic>`_ resources provided by the named adapters
+        implementing ``horae.layout.interfaces.IResourceProvider``.
+        
+        Add forms
+        '''''''''
+        
+        Creating an add form using ``horae.layout`` is done by sub-classing from the provided
+        base class ``horae.layout.layout.AddForm`` and implementing the required methods::
+        
+        import grok
+        
+        from horae.layout import layout
+        from some.module.interfaces import ISampleContent, ISampleContainer
+        from some.module.content import SampleContent
+        
+        class AddSampleContent(layout.AddForm):
+        grok.context(ISampleContainer)
+        form_fields = grok.AutoFields(ISampleContent)
+        
+        def create(self, **data):
+        return SampleContent()
+        
+        def add(self, obj):
+        self.context[obj]
+        
+        This will render a form having a ``Add`` and ``Cancel`` button.
+        
+        Edit forms
+        ''''''''''
+        
+        Edit forms work pretty much the same as add forms. The only difference is the class to be
+        sub-classed and that there are no methods required to be implemented::
+        
+        class EditSampleContent(layout.EditForm):
+        grok.context(ISampleContent)
+        form_fields = grok.AutoFields(ISampleContent)
+        
+        This will render a form having a ``Save changes`` and ``Cancel`` button.
+        
+        Display forms
+        '''''''''''''
+        
+        Like edit forms display forms require no implementation at all::
+        
+        class DisplaySampleContent(layout.DisplayForm):
+        grok.context(ISampleContent)
+        form_fields = grok.AutoFields(ISampleContent)
+        
+        Delete forms
+        ''''''''''''
+        
+        Delete forms provide a confirmation view before actually deleting an object and are implemented
+        by sub-classing from ``horae.layout.layout.DeleteForm``::
+        
+        class DeleteSampleContent(layout.DeleteForm):
+        grok.context(ISampleContent)
+        
+        def item_title(self):
+        return self.context.title
+        
+        View extenders
+        ''''''''''''''
+        
+        Additionally the views sub-classing from those base classes may be extended by other
+        packages using so called view extenders, which are named adapters implementing
+        ``horae.layout.interfaces.IViewExtender`` and adapting the view itself. If for example
+        one would like to add an additional field to the aforementioned add form without
+        touching the form itself::
+        
+        from zope import schema
+        from horae.layout import interfaces
+        
+        class AddSampleContentExtender(grok.Adapter):
+        grok.context(AddSampleContent)
+        grok.implements(interfaces.IViewExtender)
+        grok.name('addsamplecontentextender')
+        
+        def pre_update(self):
+        """ Called before the views update is called
+        """
+        self.context.form_fields = self.context.form_fields + \
+        grok.Fields(additional_field=schema.TextLine(
+        title=u'Additional field'
+        ))
+        
+        def pre_setUpWidgets(self, ignore_request=False):
+        """ Called before the forms setUpWidgets is called
+        """
+        # set custom widgets for fields using this method
+        
+        def post_update(self):
+        """ Called after the views update is called
+        """
+        # set default values for fields using this method
+        
+        def apply(self, obj, **data):
+        """ Called when applying changes to an object
+        """
+        obj.additional_field = data.get('additional_field', None)
+        
+        def validate(self, action, data):
+        """ Called when validating a form
+        """
+        # do custom validation using this method
+        
+        Viewlet managers
+        ----------------
+        
+        The following viewlet managers are registered in ``horae.layout.viewlets``:
+        
+        ``TopManager``
+        Viewlet manager rendered on top
+        ``HeaderLeftManager``
+        Viewlet manager rendered on the left in the header
+        ``HeaderRightManager``
+        Viewlet manager rendered on the right in the header
+        ``ContentBeforeManager``
+        Viewlet manager rendered before the content
+        ``ContentAfterManager``
+        Viewlet manager rendered after the content
+        ``SidebarManager``
+        Viewlet manager rendered in the sidebar
+        ``FooterManager``
+        Viewlet manager rendered in the footer
+        
+        Navigation
+        ----------
+        
+        ``horae.layout`` registers several ``Menu``\ s using the `megrok.navigation
+        <http://pypi.python.org/pypi/megrok.navigation>`_ package. Those are defined
+        in ``horae.layout.navigation``:
+        
+        ``MainNavigation`` (``horae.layout.interfaces.interfaces.IMainNavigation``)
+        Main navigation holds global items and is rendered on the top left
+        ``GlobalManageMenu`` (``horae.layout.interfaces.interfaces.IGlobalManageMenu``)
+        Global manage menu part of the main navigation
+        ``EditNavigation`` (``horae.layout.interfaces.interfaces.IEditNavigation``)
+        Edit navigation holds sub menus and is rendered on the top right
+        ``ContextualManageMenu`` (``horae.layout.interfaces.interfaces.IContextualManageMenu``)
+        Contextual manage menu part of the edit navigation
+        ``ViewsMenu`` (``horae.layout.interfaces.interfaces.IViewsMenu``)
+        Views menu part of the edit navigation
+        ``ActionsMenu`` (``horae.layout.interfaces.interfaces.IActionsMenu``)
+        Actions menu part of the edit navigation
+        ``AddMenu`` (``horae.layout.interfaces.interfaces.IAddMenu``)
+        Add menu part of the edit navigation
+        ``MainActionsMenu`` (``horae.layout.interfaces.interfaces.IMainActionsMenu``)
+        Main actions menu rendered in the content area
+        
+        Table helper view
+        -----------------
+        
+        The table helper view is implemented in ``horae.layout.table`` and registered as
+        a view named ``table``. The view handles sorting, filtering and pagination of
+        tabular data. An example usage of the view may be found in
+        ``horae.layout.objects.ObjectOverview``.
+        
+        A simple usage may look like this::
+        
+        from zope.component import getMultiAdapter
+        from zope.schema import vocabulary
+        
+        class SampleTableView(grok.View):
+        
+        def render_table(self):
+        table = getMultiAdapter((self.context, self.request), name=u'table')
+        table.page_size = 10
+        table.columns = (
+        ('col1', u'Column 1'),
+        ('col2', u'Column 2')
+        )
+        table.sortable = {
+        'col1': 'col1',
+        'col2': 'col2'
+        }
+        table.filterable = {
+        'col1': vocabulary.SimpleVocabulary.fromValues([
+        'Group 1',
+        'Group 2',
+        'Group 3'
+        ])
+        }
+        rows = [
+        {'col1': 'Group 1', 'col2': 'Row 1'},
+        {'col1': 'Group 1', 'col2': 'Row 2'},
+        {'col1': 'Group 1', 'col2': 'Row 3'},
+        {'col1': 'Group 2', 'col2': 'Row 4'},
+        {'col1': 'Group 2', 'col2': 'Row 5'},
+        {'col1': 'Group 2', 'col2': 'Row 6'},
+        {'col1': 'Group 3', 'col2': 'Row 7'},
+        {'col1': 'Group 3', 'col2': 'Row 8'},
+        {'col1': 'Group 4', 'col2': 'Row 9'},
+        ]
+        filtering = table.filtering()
+        if 'col1' in filtering:
+        rows = [row for row in rows if row['col1'] in filtering['col1']]
+        sort, reverse = table.sorting()
+        if sort:
+        rows = sorted(rows, key=lambda row: row[sort])
+        if reverse:
+        rows = reversed(rows)
+        table.rows = rows
+        return table()
+        
+        This would result in a table of two columns and nine rows which is sortable by both
+        columns and the first column is filterable.
+        
+        Dependencies
+        ============
+        
+        Horae
+        -----
+        
+        * `horae.core <http://pypi.python.org/pypi/horae.core>`_
+        * `horae.datetime <http://pypi.python.org/pypi/horae.datetime>`_
+        
+        Third party
+        -----------
+        
+        * `grok <http://pypi.python.org/pypi/grok>`_
+        * `fanstatic <http://pypi.python.org/pypi/fanstatic>`_
+        * `zope.fanstatic <http://pypi.python.org/pypi/zope.fanstatic>`_
+        * `zc.relation <http://pypi.python.org/pypi/zc.relation>`_
+        * `js.jquery <http://pypi.python.org/pypi/js.jquery>`_
+        * `js.jqueryui <http://pypi.python.org/pypi/js.jqueryui>`_
+        * `BeautifulSoup <http://pypi.python.org/pypi/BeautifulSoup>`_
+        * `grokcore.chameleon <http://pypi.python.org/pypi/grokcore.chameleon>`_
+        * `megrok.navigation <http://pypi.python.org/pypi/megrok.navigation>`_
+        * `megrok.pagetemplate <http://pypi.python.org/pypi/megrok.pagetemplate>`_
+        * `megrok.form <http://pypi.python.org/pypi/megrok.form>`_
+        
+        Changelog
+        =========
+        
+        1.0a1 (2012-01-16)
+        ------------------
+        
+        * Initial release
+        
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
