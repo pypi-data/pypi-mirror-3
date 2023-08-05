@@ -1,0 +1,551 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sqlsoup &mdash; SQLSoup 0.9.0 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.9.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="SQLSoup 0.9.0 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">SQLSoup 0.9.0 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sqlsoup</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">Table</span><span class="p">,</span> <span class="n">MetaData</span><span class="p">,</span> <span class="n">join</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">schema</span><span class="p">,</span> <span class="n">sql</span><span class="p">,</span> <span class="n">util</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.engine.base</span> <span class="kn">import</span> <span class="n">Engine</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="kn">import</span> <span class="n">scoped_session</span><span class="p">,</span> <span class="n">sessionmaker</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> \
+                            <span class="n">class_mapper</span><span class="p">,</span> <span class="n">relationship</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span>\
+                            <span class="n">object_session</span><span class="p">,</span> <span class="n">attributes</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm.interfaces</span> <span class="kn">import</span> <span class="n">MapperExtension</span><span class="p">,</span> <span class="n">EXT_CONTINUE</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.sql</span> <span class="kn">import</span> <span class="n">expression</span>
+
+<span class="n">__version__</span> <span class="o">=</span> <span class="s">&#39;0.9.0&#39;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;SQLSoupError&#39;</span><span class="p">,</span> <span class="s">&#39;SQLSoup&#39;</span><span class="p">,</span> <span class="s">&#39;SelectableClassType&#39;</span><span class="p">,</span> <span class="s">&#39;TableClassType&#39;</span><span class="p">,</span> <span class="s">&#39;Session&#39;</span><span class="p">]</span>
+
+<span class="n">Session</span> <span class="o">=</span> <span class="n">scoped_session</span><span class="p">(</span><span class="n">sessionmaker</span><span class="p">())</span>
+<span class="sd">&quot;&quot;&quot;SQLSoup&#39;s default session registry.</span>
+
+<span class="sd">This is an instance of :class:`sqlalchemy.orm.scoping.ScopedSession`,</span>
+<span class="sd">and provides a new :class:`sqlalchemy.orm.session.Session`</span>
+<span class="sd">object for each application thread which refers to it.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="k">class</span> <span class="nc">AutoAdd</span><span class="p">(</span><span class="n">MapperExtension</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scoped_session</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scoped_session</span> <span class="o">=</span> <span class="n">scoped_session</span>
+
+    <span class="k">def</span> <span class="nf">instrument_class</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">class_</span><span class="p">):</span>
+        <span class="n">class_</span><span class="o">.</span><span class="n">__init__</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default__init__</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_default__init__</span><span class="p">(</span><span class="n">ext</span><span class="p">,</span> <span class="n">mapper</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">__init__</span>
+
+    <span class="k">def</span> <span class="nf">init_instance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">class_</span><span class="p">,</span> <span class="n">oldinit</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scoped_session</span><span class="p">()</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">attributes</span><span class="o">.</span><span class="n">instance_state</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">_save_impl</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">EXT_CONTINUE</span>
+
+    <span class="k">def</span> <span class="nf">init_failed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">class_</span><span class="p">,</span> <span class="n">oldinit</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">sess</span> <span class="o">=</span> <span class="n">object_session</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sess</span><span class="p">:</span>
+            <span class="n">sess</span><span class="o">.</span><span class="n">expunge</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">EXT_CONTINUE</span>
+
+<span class="k">class</span> <span class="nc">SQLSoupError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="k">class</span> <span class="nc">ArgumentError</span><span class="p">(</span><span class="n">SQLSoupError</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c"># metaclass is necessary to expose class methods with getattr, e.g.</span>
+<span class="c"># we want to pass db.users.select through to users._mapper.select</span>
+<div class="viewcode-block" id="SelectableClassType"><a class="viewcode-back" href="../api.html#sqlsoup.SelectableClassType">[docs]</a><span class="k">class</span> <span class="nc">SelectableClassType</span><span class="p">(</span><span class="nb">type</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represent a SQLSoup mapping to a :class:`sqlalchemy.sql.expression.Selectable`</span>
+<span class="sd">    construct, such as a table or SELECT statement.</span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SQLSoupError</span><span class="p">(</span>
+            <span class="s">&#39;SQLSoup can only modify mapped Tables (found: </span><span class="si">%s</span><span class="s">)&#39;</span> \
+              <span class="o">%</span> <span class="n">cls</span><span class="o">.</span><span class="n">_table</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__clause_element__</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_table</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="s">&#39;_query&#39;</span><span class="p">:</span>
+            <span class="c"># called during mapper init</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_query</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TableClassType"><a class="viewcode-back" href="../api.html#sqlsoup.TableClassType">[docs]</a><span class="k">class</span> <span class="nc">TableClassType</span><span class="p">(</span><span class="n">SelectableClassType</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represent a SQLSoup mapping to a :class:`sqlalchemy.schema.Table`</span>
+<span class="sd">    construct.</span>
+<span class="sd">    </span>
+<span class="sd">    This object is produced automatically when a table-name</span>
+<span class="sd">    attribute is accessed from a :class:`.SQLSoup` instance.</span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">o</span> <span class="o">=</span> <span class="n">cls</span><span class="p">()</span>
+        <span class="n">o</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">o</span>
+
+<div class="viewcode-block" id="TableClassType.relate"><a class="viewcode-back" href="../api.html#sqlsoup.TableClassType.relate">[docs]</a>    <span class="k">def</span> <span class="nf">relate</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">propname</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Produce a relationship between this mapped table and another</span>
+<span class="sd">        one. </span>
+<span class="sd">        </span>
+<span class="sd">        This makes usage of SQLAlchemy&#39;s :func:`sqlalchemy.orm.relationship`</span>
+<span class="sd">        construct.</span>
+<span class="sd">        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">class_mapper</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">_configure_property</span><span class="p">(</span><span class="n">propname</span><span class="p">,</span> <span class="n">relationship</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+</div></div>
+<span class="k">def</span> <span class="nf">_is_outer_join</span><span class="p">(</span><span class="n">selectable</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">selectable</span><span class="p">,</span> <span class="n">sql</span><span class="o">.</span><span class="n">Join</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    <span class="k">if</span> <span class="n">selectable</span><span class="o">.</span><span class="n">isouter</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span>
+    <span class="k">return</span> <span class="n">_is_outer_join</span><span class="p">(</span><span class="n">selectable</span><span class="o">.</span><span class="n">left</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_is_outer_join</span><span class="p">(</span><span class="n">selectable</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_selectable_name</span><span class="p">(</span><span class="n">selectable</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">selectable</span><span class="p">,</span> <span class="n">sql</span><span class="o">.</span><span class="n">Alias</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_selectable_name</span><span class="p">(</span><span class="n">selectable</span><span class="o">.</span><span class="n">element</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">selectable</span><span class="p">,</span> <span class="n">sql</span><span class="o">.</span><span class="n">Select</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_selectable_name</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">selectable</span><span class="o">.</span><span class="n">froms</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">selectable</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">selectable</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">selectable</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;_&#39;</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+<span class="k">def</span> <span class="nf">_class_for_table</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">engine</span><span class="p">,</span> <span class="n">selectable</span><span class="p">,</span> <span class="n">base_cls</span><span class="p">,</span> <span class="n">mapper_kwargs</span><span class="p">):</span>
+    <span class="n">selectable</span> <span class="o">=</span> <span class="n">expression</span><span class="o">.</span><span class="n">_clause_element_as_expr</span><span class="p">(</span><span class="n">selectable</span><span class="p">)</span>
+    <span class="n">mapname</span> <span class="o">=</span> <span class="s">&#39;Mapped&#39;</span> <span class="o">+</span> <span class="n">_selectable_name</span><span class="p">(</span><span class="n">selectable</span><span class="p">)</span>
+    <span class="c"># Py2K</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mapname</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span> 
+        <span class="n">engine_encoding</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">dialect</span><span class="o">.</span><span class="n">encoding</span> 
+        <span class="n">mapname</span> <span class="o">=</span> <span class="n">mapname</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">engine_encoding</span><span class="p">)</span>
+    <span class="c"># end Py2K</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">selectable</span><span class="p">,</span> <span class="n">Table</span><span class="p">):</span>
+        <span class="n">klass</span> <span class="o">=</span> <span class="n">TableClassType</span><span class="p">(</span><span class="n">mapname</span><span class="p">,</span> <span class="p">(</span><span class="n">base_cls</span><span class="p">,),</span> <span class="p">{})</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">klass</span> <span class="o">=</span> <span class="n">SelectableClassType</span><span class="p">(</span><span class="n">mapname</span><span class="p">,</span> <span class="p">(</span><span class="n">base_cls</span><span class="p">,),</span> <span class="p">{})</span>
+
+    <span class="k">def</span> <span class="nf">_compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">L</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">t1</span> <span class="o">=</span> <span class="p">[</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">L</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">t2</span> <span class="o">=</span> <span class="p">[</span><span class="nb">getattr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">L</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;unable to compare with </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">o</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span>
+
+    <span class="c"># python2/python3 compatible system of </span>
+    <span class="c"># __cmp__ - __lt__ + __eq__</span>
+
+    <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span> <span class="o">=</span> <span class="n">_compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">t1</span> <span class="o">&lt;</span> <span class="n">t2</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span> <span class="o">=</span> <span class="n">_compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">t1</span> <span class="o">==</span> <span class="n">t2</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">=</span><span class="si">%r</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">))</span>
+             <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+        <span class="k">return</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">(</span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="s">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">L</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;__eq__&#39;</span><span class="p">,</span> <span class="s">&#39;__repr__&#39;</span><span class="p">,</span> <span class="s">&#39;__lt__&#39;</span><span class="p">]:</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="nb">eval</span><span class="p">(</span><span class="n">m</span><span class="p">))</span>
+    <span class="n">klass</span><span class="o">.</span><span class="n">_table</span> <span class="o">=</span> <span class="n">selectable</span>
+    <span class="n">klass</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">expression</span><span class="o">.</span><span class="n">ColumnCollection</span><span class="p">()</span>
+    <span class="n">mappr</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span>
+                   <span class="n">selectable</span><span class="p">,</span>
+                   <span class="n">extension</span><span class="o">=</span><span class="n">AutoAdd</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>
+                   <span class="o">**</span><span class="n">mapper_kwargs</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">mappr</span><span class="o">.</span><span class="n">iterate_properties</span><span class="p">:</span>
+        <span class="n">klass</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">klass</span><span class="o">.</span><span class="n">_query</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">query_property</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">klass</span>
+
+<div class="viewcode-block" id="SQLSoup"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup">[docs]</a><span class="k">class</span> <span class="nc">SQLSoup</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represent an ORM-wrapped database resource.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">engine_or_metadata</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="nb">object</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize a new :class:`.SQLSoup`.</span>
+
+<span class="sd">        :param engine_or_metadata: a string database URL, :class:`.Engine` </span>
+<span class="sd">          or :class:`.MetaData` object to associate with. If the</span>
+<span class="sd">          argument is a :class:`.MetaData`, it should be *bound*</span>
+<span class="sd">          to an :class:`.Engine`.</span>
+<span class="sd">        :param base: a class which will serve as the default class for </span>
+<span class="sd">          returned mapped classes.  Defaults to ``object``.</span>
+<span class="sd">        :param session: a :class:`.ScopedSession` or :class:`.Session` with</span>
+<span class="sd">          which to associate ORM operations for this :class:`.SQLSoup` instance.</span>
+<span class="sd">          If ``None``, a :class:`.ScopedSession` that&#39;s local to this </span>
+<span class="sd">          module is used.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">session</span> <span class="ow">or</span> <span class="n">Session</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">=</span><span class="n">base</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">engine_or_metadata</span><span class="p">,</span> <span class="n">MetaData</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span> <span class="o">=</span> <span class="n">engine_or_metadata</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">engine_or_metadata</span><span class="p">,</span> <span class="p">(</span><span class="nb">basestring</span><span class="p">,</span> <span class="n">Engine</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span> <span class="o">=</span> <span class="n">MetaData</span><span class="p">(</span><span class="n">engine_or_metadata</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ArgumentError</span><span class="p">(</span><span class="s">&quot;invalid engine or metadata argument </span><span class="si">%r</span><span class="s">&quot;</span> <span class="o">%</span> 
+                                <span class="n">engine_or_metadata</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schema</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="SQLSoup.bind"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.bind">[docs]</a>    <span class="k">def</span> <span class="nf">bind</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The :class:`sqlalchemy.engine.base.Engine` associated with this :class:`.SQLSoup`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">bind</span>
+</div>
+    <span class="n">engine</span> <span class="o">=</span> <span class="n">bind</span>
+
+<div class="viewcode-block" id="SQLSoup.delete"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Mark an instance as deleted.&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.execute"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stmt</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Execute a SQL statement.</span>
+
+<span class="sd">        The statement may be a string SQL string,</span>
+<span class="sd">        an :func:`sqlalchemy.sql.expression.select` construct, or a </span>
+<span class="sd">        :func:`sqlalchemy.sql.expression.text` </span>
+<span class="sd">        construct.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">stmt</span><span class="p">,</span> <span class="n">bind</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bind</span><span class="p">),</span> <span class="o">**</span><span class="n">params</span><span class="p">)</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_underlying_session</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">,</span> <span class="n">session</span><span class="o">.</span><span class="n">Session</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">()</span>
+
+<div class="viewcode-block" id="SQLSoup.connection"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.connection">[docs]</a>    <span class="k">def</span> <span class="nf">connection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the current :class:`sqlalchemy.engine.base.Connection` in use by the current transaction.&quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_underlying_session</span><span class="o">.</span><span class="n">_connection_for_bind</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bind</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.flush"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Flush pending changes to the database.</span>
+
+<span class="sd">        See :meth:`sqlalchemy.orm.session.Session.flush`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.rollback"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.rollback">[docs]</a>    <span class="k">def</span> <span class="nf">rollback</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Rollback the current transction.</span>
+
+<span class="sd">        See :meth:`sqlalchemy.orm.session.Session.rollback`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.commit"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.commit">[docs]</a>    <span class="k">def</span> <span class="nf">commit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Commit the current transaction.</span>
+
+<span class="sd">        See :meth:`sqlalchemy.orm.session.Session.commit`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.expunge"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.expunge">[docs]</a>    <span class="k">def</span> <span class="nf">expunge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove an instance from the :class:`.Session`.</span>
+
+<span class="sd">        See :meth:`sqlalchemy.orm.session.Session.expunge`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">expunge</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.expunge_all"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.expunge_all">[docs]</a>    <span class="k">def</span> <span class="nf">expunge_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Clear all objects from the current :class:`.Session`.</span>
+
+<span class="sd">        See :meth:`.Session.expunge_all`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">expunge_all</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.map_to"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.map_to">[docs]</a>    <span class="k">def</span> <span class="nf">map_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrname</span><span class="p">,</span> <span class="n">tablename</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">selectable</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> 
+                    <span class="n">schema</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">mapper_args</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">immutabledict</span><span class="p">()):</span>
+        <span class="sd">&quot;&quot;&quot;Configure a mapping to the given attrname.</span>
+
+<span class="sd">        This is the &quot;master&quot; method that can be used to create any </span>
+<span class="sd">        configuration.</span>
+
+<span class="sd">        :param attrname: String attribute name which will be</span>
+<span class="sd">          established as an attribute on this :class:.`.SQLSoup`</span>
+<span class="sd">          instance.</span>
+<span class="sd">        :param base: a Python class which will be used as the</span>
+<span class="sd">          base for the mapped class. If ``None``, the &quot;base&quot;</span>
+<span class="sd">          argument specified by this :class:`.SQLSoup`</span>
+<span class="sd">          instance&#39;s constructor will be used, which defaults to</span>
+<span class="sd">          ``object``.</span>
+<span class="sd">        :param mapper_args: Dictionary of arguments which will</span>
+<span class="sd">          be passed directly to :func:`.orm.mapper`.</span>
+<span class="sd">        :param tablename: String name of a :class:`.Table` to be</span>
+<span class="sd">          reflected. If a :class:`.Table` is already available,</span>
+<span class="sd">          use the ``selectable`` argument. This argument is</span>
+<span class="sd">          mutually exclusive versus the ``selectable`` argument.</span>
+<span class="sd">        :param selectable: a :class:`.Table`, :class:`.Join`, or</span>
+<span class="sd">          :class:`.Select` object which will be mapped. This</span>
+<span class="sd">          argument is mutually exclusive versus the ``tablename``</span>
+<span class="sd">          argument.</span>
+<span class="sd">        :param schema: String schema name to use if the</span>
+<span class="sd">          ``tablename`` argument is present.</span>
+
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">attrname</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SQLSoupError</span><span class="p">(</span>
+                <span class="s">&quot;Attribute &#39;</span><span class="si">%s</span><span class="s">&#39; is already mapped to &#39;</span><span class="si">%s</span><span class="s">&#39;&quot;</span> <span class="o">%</span> <span class="p">(</span>
+                <span class="n">attrname</span><span class="p">,</span>
+                <span class="n">class_mapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">attrname</span><span class="p">])</span><span class="o">.</span><span class="n">mapped_table</span>
+            <span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">tablename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">ArgumentError</span><span class="p">(</span><span class="s">&quot;&#39;tablename&#39; argument must be a string.&quot;</span>
+                                    <span class="p">)</span>
+            <span class="k">if</span> <span class="n">selectable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ArgumentError</span><span class="p">(</span><span class="s">&quot;&#39;tablename&#39; and &#39;selectable&#39; &quot;</span>
+                                    <span class="s">&quot;arguments are mutually exclusive&quot;</span><span class="p">)</span>
+
+            <span class="n">selectable</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> 
+                                        <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="p">,</span> 
+                                        <span class="n">autoload</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> 
+                                        <span class="n">autoload_with</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bind</span><span class="p">,</span> 
+                                        <span class="n">schema</span><span class="o">=</span><span class="n">schema</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">schema</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ArgumentError</span><span class="p">(</span><span class="s">&quot;&#39;tablename&#39; argument is required when &quot;</span>
+                                <span class="s">&quot;using &#39;schema&#39;.&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">selectable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">selectable</span><span class="p">,</span> <span class="n">expression</span><span class="o">.</span><span class="n">FromClause</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">ArgumentError</span><span class="p">(</span><span class="s">&quot;&#39;selectable&#39; argument must be a &quot;</span>
+                                    <span class="s">&quot;table, select, join, or other &quot;</span>
+                                    <span class="s">&quot;selectable construct.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ArgumentError</span><span class="p">(</span><span class="s">&quot;&#39;tablename&#39; or &#39;selectable&#39; argument is &quot;</span>
+                                    <span class="s">&quot;required.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">selectable</span><span class="o">.</span><span class="n">primary_key</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">tablename</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SQLSoupError</span><span class="p">(</span>
+                            <span class="s">&quot;table &#39;</span><span class="si">%s</span><span class="s">&#39; does not have a primary &quot;</span>
+                            <span class="s">&quot;key defined&quot;</span> <span class="o">%</span> <span class="n">tablename</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SQLSoupError</span><span class="p">(</span>
+                            <span class="s">&quot;selectable &#39;</span><span class="si">%s</span><span class="s">&#39; does not have a primary &quot;</span>
+                            <span class="s">&quot;key defined&quot;</span> <span class="o">%</span> <span class="n">selectable</span><span class="p">)</span>
+
+        <span class="n">mapped_cls</span> <span class="o">=</span> <span class="n">_class_for_table</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="p">,</span>
+            <span class="n">selectable</span><span class="p">,</span>
+            <span class="n">base</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">,</span>
+            <span class="n">mapper_args</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">attrname</span><span class="p">]</span> <span class="o">=</span> <span class="n">mapped_cls</span>
+        <span class="k">return</span> <span class="n">mapped_cls</span>
+
+</div>
+<div class="viewcode-block" id="SQLSoup.map"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.map">[docs]</a>    <span class="k">def</span> <span class="nf">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">selectable</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">mapper_args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Map a selectable directly.</span>
+
+<span class="sd">        The class and its mapping are not cached and will</span>
+<span class="sd">        be discarded once dereferenced (as of 0.6.6).</span>
+
+<span class="sd">        :param selectable: an :func:`.expression.select` construct.</span>
+<span class="sd">        :param base: a Python class which will be used as the</span>
+<span class="sd">          base for the mapped class. If ``None``, the &quot;base&quot;</span>
+<span class="sd">          argument specified by this :class:`.SQLSoup`</span>
+<span class="sd">          instance&#39;s constructor will be used, which defaults to</span>
+<span class="sd">          ``object``.</span>
+<span class="sd">        :param mapper_args: Dictionary of arguments which will</span>
+<span class="sd">          be passed directly to :func:`.orm.mapper`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">_class_for_table</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="p">,</span>
+            <span class="n">selectable</span><span class="p">,</span>
+            <span class="n">base</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">,</span>
+            <span class="n">mapper_args</span>
+        <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.with_labels"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.with_labels">[docs]</a>    <span class="k">def</span> <span class="nf">with_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">selectable</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">mapper_args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Map a selectable directly, wrapping the </span>
+<span class="sd">        selectable in a subquery with labels.</span>
+
+<span class="sd">        The class and its mapping are not cached and will</span>
+<span class="sd">        be discarded once dereferenced (as of 0.6.6).</span>
+
+<span class="sd">        :param selectable: an :func:`.expression.select` construct.</span>
+<span class="sd">        :param base: a Python class which will be used as the</span>
+<span class="sd">          base for the mapped class. If ``None``, the &quot;base&quot;</span>
+<span class="sd">          argument specified by this :class:`.SQLSoup`</span>
+<span class="sd">          instance&#39;s constructor will be used, which defaults to</span>
+<span class="sd">          ``object``.</span>
+<span class="sd">        :param mapper_args: Dictionary of arguments which will</span>
+<span class="sd">          be passed directly to :func:`.orm.mapper`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c"># TODO give meaningful aliases</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+                    <span class="n">expression</span><span class="o">.</span><span class="n">_clause_element_as_expr</span><span class="p">(</span><span class="n">selectable</span><span class="p">)</span><span class="o">.</span>
+                            <span class="n">select</span><span class="p">(</span><span class="n">use_labels</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span><span class="o">.</span>
+                            <span class="n">alias</span><span class="p">(</span><span class="s">&#39;foo&#39;</span><span class="p">),</span> <span class="n">base</span><span class="o">=</span><span class="n">base</span><span class="p">,</span> <span class="o">**</span><span class="n">mapper_args</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.join"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.join">[docs]</a>    <span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">onclause</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">isouter</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> 
+                <span class="n">base</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">mapper_args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create an :func:`.expression.join` and map to it.</span>
+
+<span class="sd">        The class and its mapping are not cached and will</span>
+<span class="sd">        be discarded once dereferenced (as of 0.6.6).</span>
+
+<span class="sd">        :param left: a mapped class or table object.</span>
+<span class="sd">        :param right: a mapped class or table object.</span>
+<span class="sd">        :param onclause: optional &quot;ON&quot; clause construct..</span>
+<span class="sd">        :param isouter: if True, the join will be an OUTER join.</span>
+<span class="sd">        :param base: a Python class which will be used as the</span>
+<span class="sd">          base for the mapped class. If ``None``, the &quot;base&quot;</span>
+<span class="sd">          argument specified by this :class:`.SQLSoup`</span>
+<span class="sd">          instance&#39;s constructor will be used, which defaults to</span>
+<span class="sd">          ``object``.</span>
+<span class="sd">        :param mapper_args: Dictionary of arguments which will</span>
+<span class="sd">          be passed directly to :func:`.orm.mapper`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">j</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">onclause</span><span class="o">=</span><span class="n">onclause</span><span class="p">,</span> <span class="n">isouter</span><span class="o">=</span><span class="n">isouter</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="n">base</span><span class="p">,</span> <span class="o">**</span><span class="n">mapper_args</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="SQLSoup.entity"><a class="viewcode-back" href="../api.html#sqlsoup.SQLSoup.entity">[docs]</a>    <span class="k">def</span> <span class="nf">entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the named entity from this :class:`.SQLSoup`, or </span>
+<span class="sd">        create if not present.</span>
+
+<span class="sd">        For more generalized mapping, see :meth:`.map_to`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="n">ke</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">map_to</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">tablename</span><span class="o">=</span><span class="n">attr</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="p">(</span><span class="n">attr</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;SQLSoup(</span><span class="si">%r</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">SQLSoup 0.9.0 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2005-2012, Jonathan Ellis, Mike Bayer.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>
