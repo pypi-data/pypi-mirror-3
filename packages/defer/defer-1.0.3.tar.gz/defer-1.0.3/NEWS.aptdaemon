@@ -1,0 +1,314 @@
+API CHANGES 0.4X:
+
+* org.debian.aptdaemon D-Bus interface:
+
+ - Allow to specify the to be installed/removed version of package. The package
+   name and version are separated by "=", e.g. "xterm=258-1".
+   
+ - BREAK: The CommitPackage method has got a new argument to downgrade packages.
+   You have to specify the version of the to be downgraded packages.
+
+* console client:
+
+ - Add a --details option to show the version number of to be changed packages
+
+
+API CHANGES 0.3X
+
+* policykit1 Python module
+
+ - Raise an AuthorizationFailed exception in a non-interactive check if the 
+   user could obtain the privilege in interactive-mode (is_challenged)
+
+
+* errors Python module
+
+ - Make the AuthorizationFailed error an inheritance of NotAuthorizedError
+
+
+* PolicyKit1:
+
+ - Allow every active user to update the cache
+ - Merge install-packages, remove-packages and fix privilege into a new 
+   install-or-remove-packages one
+ - Merge add- and remove-vendor-key privileges into change-repository one
+ - Remove upgrade-system in favour of upgrade-packages
+ - Allow set-proxy and cancel-foreign only by auth_admin
+
+
+API CHANGES 0.32
+
+* PolicyKit1:
+
+ - Add a new privilege org.debian.apt.set-proxy which allows to set an http
+   proxy server for a transaction. Currently every active user is allowed to
+   set a proxy for his or her transactions.
+
+
+* entry points:
+
+ - Add modify_cache_before and modify_cache_after entry point which make
+   it possible for plugins to modify the to be installed or removed packages
+   of a transaction. See README.Plugins for further details.
+
+
+* client Python module:
+
+ - Allow to convert all methods into Deferreds by using the deferable_function
+   decorator, see below for more details.
+
+ - Add a downloads attribute to AptTransaction. It contains a dictionary of all
+   processed downloads. The key is the uri of the download. The value is a
+   tuple of status enum, short description, full size, downloaded size and a
+   status/error message
+
+ - Add a progress-download-changed signal to AptTransaction which is emitted
+   when a download progress information changed, see above.
+
+ - Implement the wait arguement in the AptClient methods which are transaction
+   based. If True the transaction will be started immediately and the method
+   call will return when the transaction is finished.
+
+ - Add add_vendor_key_from_keyserver method, see AddVendorKeyFromKeyserver
+
+
+* enums Python module:
+
+ - Add a set of DOWNLOAD_* status enumerations.
+
+ - Fix value of STATUS_DOWNLOADING: from status-downloadgin to 
+   status-downloading
+
+
+* defer Python module:
+
+ - Add inline_callbacks and return_value functions which allow to write
+   async code in a sync way. Works like the inlineCallbacks decorator from
+   the Twisted framework.
+
+ - Add deferable decorator which adds a defer attribute to the
+   decorated function and returns a Deferred instance. The callback of the 
+   Deferred will be passed as reply_handler argument and the errback as the 
+   error_handler argument to the decorated function.
+
+
+* gtkwidgets Python module:
+ 
+ - Add to the AptConfirmDialog two methods which allow to override the rendered
+   objects and icons: map_package and render_package_icon
+
+ - Add AptDownloadsView class, which allows to show the sub progress of each
+   download
+
+ - Rename AptTerminalExpander to AptDetailsExpander and add a terminal
+   attribute to the __init__ call, since the expander now also shows
+   the download sub-progresses.
+
+ - AptProgressWindow now sets the proxy and debconf frontend during the
+   run call instead of during the set_transaction call.
+
+
+* org.debian.aptdaemon.transaction D-Bus interface:
+
+  - Add a ProgressDownload property. It contains the last download progress
+    information that was recieved from APT. It is an array of uri, status enum,
+    short description, full size, downloaded size and an error/status message.
+
+  - Add AddVendorKeyFromKeyserver method to download and use a GnuPG which
+    is used for authenticating packages.
+
+
+API CHANGES 0.31
+
+* client Python module:
+  
+  - Add AptClient.enable_distro_component method, see EnableDistroComponent
+
+ 
+* org.debian.aptdaemon D-Bus interface:
+
+  - Add EnableDistroComponent method which enables a component for all distro
+    repositories, e.g. main or universe
+
+
+API CHANGES 0.30
+
+* client Python module:
+
+  - Change order of error_handler and reply_handler in the AptTransaction.run
+    method to be in sync with the other methods
+
+  - Add the dependencies, download and space attribute and the corresponding
+    *-changed signal to AptTransaction, see interface changes below
+
+  - Add a new AptTransaction.simulate() method, see interface changes below
+  
+  - The AptDaemonError stored in client.AptTransaction.error was replaced by
+    a errors.TransactionFailed error. The APtDaemonError has been removed
+    from the client module.
+
+  - The DBus exception will be converted to native ones which are shared
+    with the daemon. E.g. The DBusException with the error name
+    "org.debian.apt.TransactionRoleAlreadySet" will be a 
+    TransactionRoleAlreadySet instance instead. This makes error handling
+    easier since you can use try/except without having to compare the
+    _dbus_error_name attributes.
+
+
+* errors Python modules:
+
+  - Rename APTDError to AptDaemonError because of readabilty
+
+  - Add convert_dbus_exception decorator which converts DBus exception
+    raised in a function to native ones. Also takes asynchrous calls
+    into account.
+
+  - Move NotAuthorizedError from policykit1 to the errors module
+
+
+* enums Python module:
+ 
+  - Use strings instead of integers for STATUS_*, EXIT_*, ROLE_* and ERROR_*
+    enum. See interface changes for additional information
+
+  - Add new enum EXIT_UNFINISHED
+
+
+* org.debian.aptdaemon.transaction D-Bus interface:
+
+  - The Exit, Status, Role and Error property and the Finished signal now
+    use strings for the enums. This helps to make debugging a lot easier.
+
+  - Add Simulate method which calculates the dependencies, the download size
+    and the to be used disk space of the transaction. Furthermore it raises
+    a "org.debian.aptdaemon.errors.TransactionFailed" if the transaction
+    could not be performed.
+
+    The Simulate call also takes all previously queued or currently running
+    transactions into account. So you can simulate the removal a package
+    if the installation of it is still in the queue.
+
+  - Add new properties Dependencies, Download and Space, see above.
+
+
+API CHANGES 0.20
+
+You don't have to request a transaction, set it up and call the whished action
+on it aynmore. Instead you call the action, e.g. UpdateCache, on the daemon
+interface which will return the id of a newly created transaction. After settingit up you have to call its Run method.
+
+* org.debian.aptdaemon D-Bus interface:
+
+  - Add InstallPackages, InstallFile, RemovePackages, CommitPackages,
+    UpgradePackages, UpgradeSystem, AddVendorKey, RemoveVendorKey, UpdateCache
+    method. Each method creates a new transaction and returns its tid.
+
+  - Remove RequestTransaction method
+
+  - Add new FixIncompleteInstall method which basically runs dpkg --configure -a
+
+  - Add a new FixBrokenDepends method wich tries to correct dependencies
+
+
+* org.debian.aptdaemon.transaction D-Bus interface:
+
+  - Remove InstallPackages, InstallFile, RemovePackages, CommitPackages,
+    UpgradePackages, UpgradeSystem, AddVendorKey, RemoveVendorKey, UpdateCache
+    method. They are now part of the org.debian.aptdaemon interface.
+
+  - Add a Run method which queues the transaction.
+
+  - Add PropertyChanged signal - should be used instead of the deprecated
+    signals. Signal matchers are quite limited on the system bus by default.
+
+  - Add ProgressDetails, RequiredMedium, ConfigFilePrompt, ExitState, Error,
+    Locale, AllowUnauthenticated, Terminal, DebconfSocket, Packages,
+    MetaData and RemoveObsoletedDepends properties.
+
+    The Packages property keeps a lists of packages which should be installed,
+    reinstalled, removed, purged or upgraded. Currently this doesn't work for
+    UpgradeSystem.
+
+    The MetaData property allows clients to store additional meta data in the
+    transaction. See man page org.debian.apt.transaction(7) for the format.
+
+  - Rename the AllowCancel property to Cancellable and the AllowTerminal one
+    to TerminalAttached - helps to make a difference between allowing
+    from the client and daemon side e.g. AllowUnauthenticated.
+
+  - Remove Message signal and the concept of having non-critical fail states
+    on the daemon side. The decision is up to the client e.g. if a system
+    could not be fully updated.
+
+  - Remove the Role, Status, AllowCancel, AllowTerminal, StatusDetails,
+    Progress, ProgressDetails signal - PropertyChanged signal should be used
+    instead.
+
+  - Remove the Attach method - GetAll on the properties interface
+    should be used instead.
+
+  - Rename property ConfigFilePrompt to ConfigFileConflict and the method
+    AnswerConfigFilePrompt to ResolveConfigFileConflict
+
+
+* client Python module:
+
+  - The exit_handler was removed from the AptDaemonClient methods, instead it
+    now supports (reply|error)_handlers to call the method asynchronously and
+    furthermore a wait statement to return after the method is complete.
+
+  - Add public attributes to the Transaction class and remove get_* helpers:
+
+    role, error (stores an AptDaemonError instance), error_code, error_message,
+    exit_state, cancellable, term_attached, required_medium,
+    config_file_prompt, status, status_details, progress, progress_details,
+    paused, remove_obsoleted_depends
+
+    The properties are automatically updated by the PropertyChanged signal
+    matcher.
+ 
+ - Rename GObject signals of the Transaction class:
+
+    - role -> role-changed
+    - status -> status-changed
+    - allow-cancel -> cancellable-changed
+    - allow-terminal -> terminal-attached-changed
+    - status -> status-changed
+    - status-details -> status-details-changed
+    - progress -> progress-changed
+    - progress-details -> progress-details-changed
+    - config-file-prompt -> config-file-conflict
+
+ - Rename method config_file_prompt_answer to resolve_config_file_conflict
+ 
+ - Add GObject signals to the Transaction class:
+
+    - meta-data-changed
+    - paused
+    - resumed
+    - locale-changed
+    - allow-unauthenticated-changed
+    - remove-obsoleted-depends-changed
+    - debconf-socket-changed
+ 
+ - The methods Transaction.set_(locale|allow_unauthenticated|data|
+   debconf_socket|remove_obsoleted_depends) reply with the transaction
+   instance if called async. This makes queing much easier.
+ 
+ - Remove messages attribute from the Transaction class, see above
+
+ - Remove Transaction.attach method in favour of a new sync method which uses
+   the GetAll method on the D-Bus properties interface.
+
+ - Add set_meta_data method which accepts pairs of key=value
+
+
+* PyGTK widgtes:
+
+ - On the one hand the run method of AptProgressDialog doesn't provide a way
+   to wait until the transaction is done anymore (by iterating on pending gtk
+   events), but on the other hand it now allows to show an error dialog if
+   required (show_error argument) or to close the progress window 
+   automatically when the transaction is finished (close_on_finished arguement).
+
+ - Rename AptConfigFilePromptDialog to AptConfigFileConflictDialog
