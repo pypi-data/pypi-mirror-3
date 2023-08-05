@@ -1,0 +1,378 @@
+
+releases:
+
+  - release:  0.6.0
+    date:     ????
+    enhances:
+
+      - 'kookbook' variable is available in your cookbook.
+        Using it, you can do:
+
+	* Find recipe and manipulate it (see below).
+	* Load other cookbook (see below).
+	* Set default product (instead of 'kook_default_product').
+	* Set materials (instead of 'kook_materials').
+
+        Example::
+
+	    ## set default product
+	    kookbook.default = 'hello.o'
+
+	    ## set materials
+	    kookbook.materials = ['index.html']
+	    kookbook.materials.extend(['A.html', 'B.html'])
+
+      - Recipe meta-programming support.
+        You can find and manipulate recipes::
+
+	    @recipe('*.o', ['$(1).c'])
+	    def file_o(c):
+	        system(c%"gcc -c $(ingred)")
+
+	    ## find recipe and manipulate it
+	    r = kookbook['foo.o']
+	    print(r.product)   #=> 'foo.o'
+	    print(r.ingreds)   #=> ['foo.c']
+	    r.ingreds.append('foo.h')
+	    def file_foo_o(c):
+	        kookbook.get_recipe('*.o').method(c)  ## equivarent to file_o(c)
+	    r.method = file_hello_o
+
+      - Load other cookbooks by kookbook.load().
+        This enables you to split your Kookbook.py into several files.
+
+	    ## load recipes and properties from other cookbook
+	    kookbook.load('./book.py')        # load book in the same directory as Kookbook.py
+	    kookbook.load('../book.py')       # load book in the parent directory as Kookbook.py
+	    kookbook.load('../../book.py')    # load book in the parent's parent directory
+	    kookbook.load('.../book.py')      # search book in the parent directory recursively
+	    kookbook.load('~/book.py')        # load book in home directory
+	    kookbook.load('@foo/book.py')     # '@module' == dirname(module.__file__)
+
+	Notice that kookbook.load() loads only recipes and properties.
+	If you want to load everything, pass True as 2nd argument.
+
+	    kookbook.load('./foo.py')        # load recipes and properties
+	    kookbook.load('./foo.py', True)  # load all data (i.e share everything)
+
+        If you set '__export__' in foobar.py, data are imported into
+	your Kookbook.py.
+        See 'kook/books/clean.py' or 'kook/books/all.py' as examples.
+
+      - Support some useful task recipes: clean, sweep, and all.
+
+        * 'clean' is a recipe to remove by-products (such as *.o or *.java).
+        * 'sweep' is a recipe to remove products and by-products.
+        * 'all' is a recipe to produce all products.
+
+	Exaple::
+
+	    ## load cookbook
+	    ## ('@kook' is equivarent to 'os.path.dirname(kook.__file__)')
+	    kookbook.load("@kook/books/clean.py")
+	    kookbook.load("@kook/books/all.py")
+
+	    ## add file patterns to remove
+	    CLEAN.extend(["**/*.o", "**/*.class"])   # by-products
+	    SWEEP.extend(["*.egg", "*.war"])         # products
+
+	    ## add product names you want to produce
+	    ALL.extend(['product1', 'product2'])
+
+      - Namespace is now supported. It is called as 'Category' in Kook.
+        Category is just an class which is provided by Kook.
+        Category can be nested.
+
+        Ex::
+
+            class git(Category):             # outer namespace
+
+              class stash(Category):         # nested namespace
+
+                @recipe
+                def __index__(c):            # task recipe (default)
+                  """git stash list"""
+                  system("git stash list")
+
+                @recipe
+                def save(c):                 # task recipe
+                  """git stash save"""
+                  system("git stash save")
+
+                @recipe
+                def pop(c):                  # task recipe
+                  """git stash pop"""
+                  system("git stash pop")
+
+        Result::
+
+            bash> pykook -l
+            Properties:
+
+            Task recipes:
+              git:stash           : git stash list
+              git:stash:save      : git stash save
+              git:stash:pop       : git stash pop
+
+            File recipes:
+
+            bash> kk git:stash
+            ### * git:stash (recipe=__index__)
+            $ git stash list
+
+            bash> kk git:stash:save
+            ### * git:stash:save (recipe=save)
+            $ git stash save
+
+        Currently only task recipe is available in Category.
+
+      - Concatenation supported.
+        You can concatenate your cookbook and pyKook libraries into a file.
+	Using concatenated file, user doesn't need to install pyKook at all.
+        To concatenated files, add the following into your cookbook::
+
+	    kookbook.load('@kook/books/concatenate')
+	    #CONCATENATE_MODULES.append(foo.bar.module)  # if you want
+	    #CONCATENATE_BOOKS.append('foo/bar/book.py') # if you want
+
+	And type in terminal::
+
+	    bash> pykook -o yourscript Kookbook.py
+	    bash> chmod a+x yourscript
+	    bash> ./yourscript -l
+
+	If you don't specify 'Kookbook.py', it means that all pyKook
+	libraries are concatenated into a file. You can use it instead
+	of 'pykook' script.
+
+	    bash> pykook -o yourscript
+	    bash> chmod a+x yourscript
+	    bash> ./yourscript -h
+
+      - Argument description is available.
+        In the following example, the last argument of @spices() is
+	argument description of task_copy().
+
+        Ex (Kookbook.py)::
+
+	    @recipe
+	    @spices('-r: recursive', 'src dest')   # argument description
+	    def task_copy(c, *args, **kwargs):
+	        """copy files"""
+		if kwargs.get('r'):
+		    cp_pr(*args)
+		else:
+		    cp_p(*args)
+
+        Argument desription is displayed when '-l' or '-L' option is specified.
+
+        Ex (command-line)::
+
+	    $ kk -l
+	    Properties:
+
+	    Task recipes:
+	      copy src dest       : copy files
+	        -r                    recursive
+
+	    File recipes:
+
+      - Private spice option is available.
+        If you don't specify spice option's help message, it is regarded as
+	private and is not showin to users by command-line option '-l' or '-L'.
+        In the following example, spice options '-x' and '-y' are private
+	because they don't have help message.
+
+        Ex (Kookbook.py)::
+
+	    @recipe
+	    @spices('-x', '-y arg')   # private spice options
+	    def foo(c, *args, **kwargs):
+	        """dummy recipe"""
+		print(kwargs)
+
+        Ex (command-line)::
+
+            bash> kk -l    # notice that neither '-x' nor '-y' are shown
+            Properties:
+
+            Task recipes:
+              foo                 : dummy recipe
+
+            File recipes:
+
+      - New command 'pushd()' provided.
+        This is almost same as 'chdir()', but it can be used as decorator.
+
+	    ## for Python >= 2.5
+	    with pushd("tmp"):
+	        # ... do something in 'tmp' directory ...
+	    # ... back to previous directory automatically ...
+
+	    ## for Python <= 2.4
+	    @pushd("tmp")
+	    def do():     # called by pushd() automatically!
+	        # ... do something in 'tmp' directory ...
+	    # ... back to previous directory automatically ...
+
+
+  - release:  0.0.5
+    date:     2009-11-02
+    enhances:
+
+      - Command 'chdir()' can now take callable object as 2nd argument.
+        In this case, (1) change directory, (2) call callable object,
+	and (3) back to original directory.
+	This feature is provided for Python 2.4 or older which doesn't
+	support with-statement.
+
+            def f():
+	       system 'python test_all.py'
+	    chdir('test', f)
+            ## above is same as:
+	    #with chdir('test'):
+	    #    system 'python test_all.py'
+
+    changes:
+
+      - 'kk' command now searches Kookbook.py in parent directory recursively
+        without $KK_CLIMB=1 setting.
+
+
+  - release:  0.0.4
+    date:     2009-09-06
+    changes:
+
+      - Compact style of @recipe decorator supported.
+        ex::
+           ## normal style
+	   @recipe
+	   @product('*.o')
+	   @ingreds('$(1).c', '$(1).h')
+	   def file_o(c):
+	       system(c%"gcc -c $(ingre)")
+
+           ## compact style
+	   @recipe('*.o', ['$(1).c', '$(1).h'])
+	   def file_o(c):
+	       system(c%"gcc -c $(ingre)")
+
+      - 'kk' script supports '$KK_CLIMB' environment variable.
+        If you set it, 'kk' script searches parent directories
+        when 'Kookbook.py' is not found.
+        ex::
+           sh> ls -F
+           Kookbook.py    src/    test/
+           sh> cd src/foo/bar/
+           sh> kk clean                    # ERROR
+           kk: No kookbook found.
+           sh> export KK_CLIMB=1
+           sh> kk clean                    # OK
+           ### * clean (recipe=clean)
+           $ rm **/*.pyc
+
+      - New command-line option '-R' (recursively) supported.
+        If you specify '-R', pykook command searches Kookbook.py
+	in parent directory recursively.
+        ex::
+           sh> ls -F
+           Kookbook.py    src/    test/
+           sh> cd src/foo/bar/
+           sh> pykook clean                # ERROR
+           pykook: Kookbook.py: not found.
+           sh> pykook -R clean             # OK
+           ### * clean (recipe=clean)
+           $ rm **/*.pyc
+
+
+
+  - release:  0.0.3
+    date:     2009-08-09
+    changes:
+
+      - IMPORTANT!!
+        New '@recipe' decorator is required for each recipe function.
+        If function is decorated by '@recipe', 'task_' prefix is not necessary.
+
+        ex:
+          ## previous version
+          def task_clean(c):    # 'task_' prefix is required
+            rm_rf("*.o")
+
+          ## since this release
+          @release              # @release decorator is required
+          def clean(c):         # 'task_' prefix is not necessary
+            rm_rf("*.o")
+
+        See http://www.kuwata-lab.com/kook/pykook-users-guide.html#cookbook-recipekind
+        for details.
+
+      - Library codes are much refactored.
+
+    enhancements:
+
+      - IMPORTANT!!
+        New feature to support command-line script framework.
+        You can convert Kookbook.py into command-line script.
+        See http://www.kuwata-lab.com/kook/pykook-users-guide.html#topic-framework
+        for details.
+
+      - New command-line option '-n' (no exec) supported.
+        If you specify '-n', commands such as 'cp()' or 'rm()' are not executed.
+        In other words, '-n' means 'dry-run'.
+
+      - Add a lot of test scripts.
+
+    bugfixes:
+
+      - A bug related timestamp detection is now fixed.
+        There was a case that product file was not updated even when
+        ingredient files were updated.
+
+      - A bug about recipe tree is fixed. There was a case that the same recipe
+        can be invoke more than once when an intermediate recipe was required
+        from several recipes.
+
+
+  - release:  0.0.2
+    date:     2009-07-30
+    enhancements:
+
+      - Python 3 support.
+
+      - Add 'kk' script which is shortcat for kk command.
+
+    changes:
+
+      - Decorator '@cmdopts()' is renamed to '@spices()', and
+        there is no need to call parse_cmdopts().
+
+            ### prev version
+            @cmdopts('-v: verbose', '-f file: filename')
+            def task_example(c, *args):
+                opts, rests = c.parse_cmdopts(args)
+                verbose = opts.get('v', False):
+                fileame = opts.get('f', None)
+
+            ### since this release (0.0.2)
+            @spices('-v: verbose', '-f file: filename')
+            def task_example(c, *args, *kwargs):
+                opts, rests = kwarts, args
+                verbose = opts.get('v', False):
+                fileame = opts.get('f', None)
+
+      - Remove 'pyk' script
+
+      - Testing library is changed from Python's unittest library
+        into 'test/oktest.py'.
+
+    bugfixes:
+
+      - glob2() now recognizes files on current directory.
+
+
+  - release:  0.0.1
+    date:     2008-10-19
+    enhancements:
+
+      - First release
