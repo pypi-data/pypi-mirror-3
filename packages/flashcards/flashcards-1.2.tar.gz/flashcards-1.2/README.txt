@@ -1,0 +1,103 @@
+Copyright (c) 2012 Jose Luis Naranjo Gomez
+========================================================================
+LICENSE http://www.gnu.org/copyleft/gpl.html
+========================================================================
+
+Study has three components:
+
+quiz.py - data.py - quiz_maker.py - __main__.py
+
+
+========================================================================
+INSTALLATION
+========================================================================
+Use:
+    python setup.py install
+That should do the trick.
+
+
+========================================================================
+GENERAL USAGE
+========================================================================
+NOTE:
+importing flashcards creates a data.py file in the current working directory.
+flashcards uses the local data.py file in the cwd.
+flashcards may truncate the existing data.py, so be careful with your quizzes.
+
+If installed:
+    in the python shell:
+        import flashcards
+        #That should activate the menu UI
+    
+If not installed:
+    Run menu.py in flashcards/flashcards
+
+ALSO:
+
+For changes to take effect when editing data.py, you need to exit the program and re-enter.
+========================================================================
+1)quiz.py
+
+    This is the main script. It takes the questions and answers from data.py
+    and uses them to quiz the user. That is all.
+    
+2)data.py
+
+    This is data script. It uses two ordered lists, questions and answers. T
+    he index numbers in each list correspond to each other.
+    
+    questions:
+        This is a list of strings, containing the questions.
+        
+    answers:
+        This is a list of strings and/or tuples with strings in them. quiz.py
+        knows how to tell the difference between tuples and strings and handl
+        e them.
+    
+3)quiz_maker.py
+
+    All this script does is provide an interface for quickly writing questio
+    ns to data.py to make things easier. With this script, you won't even ne
+    ed to touch data.py yourself.
+    
+    USAGE
+    
+    QUESTION:
+        When the user is prompted to enter a question, it is stored as a string 
+        using the raw_input() statement.
+
+    ANSWER:
+        When the user is prompted to enter an answer, it is stored with the inp
+        ut() statement.
+        
+        ENTERING A SINGLE ANSWER:
+            Encapsulate the answer with apostrophes or quotation marks.
+            
+        ENTERING MULTIPLE ANSWERS:
+            Write the answer as a tuple.
+            
+            Encapsulate the whole statement with parentheses, and each value ne
+            eds to be encapsulated as if you were entering a single answer, with
+            apostrophes or quotation marks.
+            
+4) __main__.py
+
+    Just a menu interface for user convenience, it makes use of all the scripts in the package.
+
+========================================================================
+CHANGESv1.1
+========================================================================
+1) Added append mode for quiz_maker.py and gave it a menu.
+2) Fixed incorrect package name in README.txt
+3) Moved menu.py to __init__.py
+4) Added line breaks to menu UI in __main__.py
+5) Improved error handling with semantic errors.
+6) Improved documentation
+7) Commented on some code
+
+========================================================================
+CHANGESv1.2
+========================================================================
+1) Removed append mode (write only now).
+2) Reverted a bunch of changes - flashcards just wasn't ready yet for th
+    implementations.
