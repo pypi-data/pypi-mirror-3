@@ -1,0 +1,111 @@
+diff -ruN ZopeProfiler/DMprofile/DMstats.py ZopeProfiler.patched/DMprofile/DMstats.py
+--- ZopeProfiler/DMprofile/DMstats.py	2006-03-16 23:12:33.000000000 +0100
++++ ZopeProfiler.patched/DMprofile/DMstats.py	2007-11-09 11:36:46.000000000 +0100
+@@ -13,6 +13,7 @@
+ from pstats import Stats as pStats
+ from sys import stdout
+ from re import compile
++import locale
+ 
+ class Stats(pStats):
+   _out = stdout
+@@ -35,6 +36,18 @@
+     self._print(msg)
+     for f in fs: self._showCallers(f); self._print('\n')
+ 
++  def upload (self, w):
++    '''
++    upload self as a csv-file
++
++    @param w
++    CSV-writer as defined in module csv
++    '''
++    msg, fs = self._selectFunctions((len (self.stats), ))
++    w.writerow (['function', 'calls', 'pcalls', 'time', 'ctime', 'callers'])
++    for f in fs:
++      self._upload(f, w)
++
+   def _selectFunctions(self, amount):
+     if self.fcn_list:
+       l = self.fcn_list
+@@ -76,7 +90,24 @@
+     self._print('%4dc - %8.3fs %8.3fs/c - %8.3fs %8.3fs/c - %s\n' % (
+       s[1], s[2], s[2]/s[1], s[3], s[3]/s[1], self._formatFunction(ft),
+       )
+-                )
++    )
+ 
+   def _print(self, txt):
+     self._out.write(txt)
++
++  def _formatCallers(self, callers):
++    if callers == {('__Profiler__', 0, 'Profile'): 1}:
++      return ''
++
++    return ','.join([str (item) for item in callers.items()])
++
++  def _upload(self, ft, w):
++    s = self.stats[ft]
++    w.writerow ([
++      self._formatFunction (ft),
++      locale.str (s[0]),
++      locale.str (s[1]),
++      locale.str (s[2]),
++      locale.str (s[3]), 
++      self._formatCallers (s[4])
++    ])
+diff -ruN ZopeProfiler/showStatistics.dtml ZopeProfiler.patched/showStatistics.dtml
+--- ZopeProfiler/showStatistics.dtml	2006-03-16 22:25:28.000000000 +0100
++++ ZopeProfiler.patched/showStatistics.dtml	2007-11-09 09:50:02.000000000 +0100
+@@ -12,6 +12,7 @@
+   manage_tabs_message="REQUEST.get('save') and saveStatistics(what,filename)
+                        or REQUEST.get('reset') and resetStatistics(what)
+ 		       or REQUEST.get('resetAll') and resetStatistics('all')
++		       or REQUEST.get('upload') and uploadStatistics(what, REQUEST)
+ 		       "
+   stats="getStatistics(what,sort,limit,stripDirs,mode,stdnameRe)"
+ >
+@@ -62,6 +63,7 @@
+       <td><input name=filename size=40 value="<dtml-var "REQUEST.get('filename','')" html_quote>"><br>
+           <input type=submit name="save" value="Save to file">
+       </td>
++      <td><input type=submit name="upload" value="Upload"></td>
+       </dtml-if stats>
+     </tr>
+   </table>
+diff -ruN ZopeProfiler/ZopeProfiler.py ZopeProfiler.patched/ZopeProfiler.py
+--- ZopeProfiler/ZopeProfiler.py	2006-10-13 22:19:09.000000000 +0200
++++ ZopeProfiler.patched/ZopeProfiler.py	2007-11-09 10:54:34.000000000 +0100
+@@ -96,6 +96,7 @@
+                             'manageStatus',
+                             'manage_changeProperties',
+                             'resetStatistics',
++                            'uploadStatistics',
+                             'saveStatistics',
+                             'setTimer',
+                             )
+@@ -208,6 +209,24 @@
+     finally:
+       _lock.release()
+ 
++  def uploadStatistics(self, what, request):
++    '''upload the *what* statistics as a CSV file .'''
++    if not request: return "Don't know where to upload to"
++    stats = self._getStatistics (what)
++    if not stats: return 'Currently no statistics available'
++    response = request.RESPONSE
++    response.setHeader ('Content-type', 'text/csv')
++    response.setHeader (
++      'Content-disposition',
++      'inline; filename="%s.csv"' % what)
++
++    from csv import \
++         writer
++
++    w = writer (response, delimiter = ';')
++    stats.upload(w)
++    return 'Statistic uploaded'
++
+   def saveStatistics(self,what,filename):
+     '''save *what* statistics to *filename*.'''
+     stats= self._getStatistics(what)
