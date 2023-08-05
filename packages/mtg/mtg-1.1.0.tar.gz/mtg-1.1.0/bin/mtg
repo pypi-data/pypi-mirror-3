@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+"""
+Console-based access to the Gatherer Magic Card Database.
+
+Usage: %prog [options] [cardname]
+"""
+
+import logging
+import sys
+from logging import handlers, Formatter
+from optparse import OptionParser
+from mtglib.gatherer_request import SearchRequest
+from mtglib.card_extractor import CardExtractor, Card
+from mtglib.constants import card_flags, separator, readme
+
+def main(args):
+
+    # create logger
+    logger = logging.getLogger('mtg')
+    logger.setLevel(logging.INFO)
+
+    # create console handler and set level to debug
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+
+    # create formatter
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    # add formatter to ch
+    ch.setFormatter(formatter)
+
+    # add ch to logger
+    logger.addHandler(ch)
+    logger.debug('Starting main program')
+
+    parser = OptionParser(usage=readme)
+    parser.add_option("-t", "--text", dest="text",
+                      help="containing rules text TEXT", metavar="TEXT")
+    parser.add_option('--color', dest='color', help='cards matching COLOR (w, u, b, r, g, c)')
+    parser.add_option('--type', dest='type', help='cards matching TYPE or SUBTYPE (e.g. artifact, creature, legendary, snow, goblin, forest, plane)')
+    parser.add_option('--power', dest='power',
+                      help='cards with power POWER (uses <, >, =)')
+    parser.add_option('--tough', dest='tough',
+                      help='cards with toughness TOUGHNESS (uses <, >, =)')
+    parser.add_option('--block', dest='block',
+                      help='cards from block BLOCK')
+    parser.add_option('--set', dest='set',
+                      help='cards matching expansion set SET (e.g. unlimited)')
+    parser.add_option('--rarity', dest='rarity',
+                      help='cards matching rarity RARITY (c, u, r, m)')
+    parser.add_option('--cmc', dest='cmc', help='cards with converted mana '
+                      'cost CMC (uses <, >, =)')
+    parser.add_option('-r', '--reminder', dest='reminder', action='store_true',
+                      help='show reminder text')
+    parser.add_option('--hidesets', dest='hidesets', action='store_true',
+                      help='hide which sets the card was in')
+    parser.add_option('--rulings', dest='rulings', action='store_true',
+                      help='show rulings for the card')
+    parser.add_option('--special', dest='special', action='store_true',
+                      help='include special cards (e.g. planes, schemes)')
+    parser.add_option('--flavor', dest='flavor', action='store_true',
+                      help='show flavor text')
+    parser.add_option('-x', '--exclude-other-colors', dest='exclude',
+                      action='store_true', help='exclude colors not explicity specified')
+    logger.debug(args)
+    if len(args) < 2:
+        parser.print_help()
+        return 0
+
+    (options, args) = parser.parse_args(args[1:])
+    options.name =  ','.join(args)
+
+    card_options = {}
+    for a, b in zip(card_flags, map(vars(options).get, card_flags)):
+        if b:
+            card_options[a] = b
+    logger.debug(card_options)
+    request = SearchRequest(card_options, special=options.special,
+                            exclude_other_colors=options.exclude)
+
+
+    try:
+        cards = CardExtractor(request.url).cards
+    except KeyboardInterrupt:
+        return 0
+
+    if not cards:
+        return 0
+    for card in cards:
+        print separator
+        print card.show(rulings=options.rulings, reminders=options.reminder,
+                        flavor=options.flavor)
+    num_results = len(cards)
+    if num_results < 25:
+        print '\n{0} results found.'.format(num_results)
+    else:
+        print ('\n{0}+ results found.  First 25 displayed, narrow search for '
+               'more.'.format(num_results))
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
+
