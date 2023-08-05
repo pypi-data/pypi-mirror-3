@@ -1,0 +1,701 @@
+#!/usr/bin/env python
+
+"""Testing this
+
+.. moduleauthor:: Phil Weir
+"""
+
+import argparse
+
+argparser = argparse.ArgumentParser()
+argparser.add_argument('-n', '--non-interactive', action='store_true')
+argparser.add_argument('-f', '--glypher-xml')
+argparser.add_argument('-o', '--output-svg')
+args = argparser.parse_args()
+
+import aobject.paths as paths
+paths.setup("aesthete")
+
+import aobject.utils as utils
+utils.non_interactive_override = args.non_interactive
+
+import uuid
+import matplotlib
+import time
+matplotlib.use('GtkAgg')
+import os, math, sys, getopt, string
+import cProfile
+from aesthete import *
+import random
+import aesthete.tablemaker as tablemaker
+from gtk import gdk
+import threading
+import cairo, gtk, gobject
+import numpy, numpy.fft
+import scipy, scipy.interpolate, scipy.optimize
+from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as mpl_Canvas
+from matplotlib.backends.backend_gtkagg import NavigationToolbar2GTKAgg as mpl_Navbar
+import pylab
+from PIL import Image
+from aesthete.glypher.Widget import GlyphBasicGlypher as GBG, display as gly_disp
+from aesthete.glypher.Glypher import Glypher as G
+from aesthete.glancer.Glancer import Glancer
+from aesthete.glosser.Glosser import Glosser
+from aesthete.gluer.Gluer import Gluer
+from aesthete.sources import sources
+import aesthete.aesspreadsheet as aesspreadsheet
+import aesthete.aespythonconsole as aespythonconsole
+from aesthete.glypher.GlyphMaker import GlyphMaker as GM
+import aesthete.help_browser as help_browser
+from aobject.utils import debug_print, set_debug_print
+from aobject import aobject, alogger, details
+import lxml.etree as ET
+
+def filter_func(f, u) :
+    debug_print(f['groups'])
+    return True
+
+class Aesthete (gtk.Window, aobject.AObject):
+
+    __gsignals__ = { "key-press-event" : "override",
+                     'window-state-event' : 'override' }
+
+    terminal_pid = 0
+    active_plot = None
+    concise_property_notebook = True
+    show_logger = False
+    show_welcome = False
+    debug_print_on = False
+    maximize_on_start = False
+
+    def add_icons(self) :
+        icon_factory = gtk.IconFactory()
+
+        icon_names = ('glancer', 'glypher', 'gridder', 'glosser')
+
+        for icon_name in icon_names :
+            stock_id = 'aes-'+icon_name
+
+            source = gtk.IconSource()
+            source.set_filename(
+                paths.get_share_location() + 'images/icons/aesthete/' + icon_name + '.svg')
+            icon_set = gtk.IconSet()
+            icon_set.add_source(source)
+            icon_factory.add(stock_id, icon_set)
+
+        icon_factory.add_default()
+
+    last_auto_plotted = None
+    def plot_source(self, glypher, aname) :
+        max_dim = aobject.get_object_from_dictionary(aname).source_get_max_dim()
+
+        glancer = None
+
+        if max_dim in self.last_auto_plotted :
+            glancer = self.last_auto_plotted[max_dim]
+
+        if glancer is None :
+            glancer = Glancer(self.get_aenv())
+
+        glancer.source_action(aname)
+        self.last_auto_plotted[glancer.plotter.max_dim] = glancer
+
+    _full_screen_window = None
+    def toggle_full_screen(self) :
+        fullscreen = bool(self.get_window().get_state() & \
+                          gtk.gdk.WINDOW_STATE_FULLSCREEN)
+        toolbar = self.ui_manager.get_widget("/ToolBar")
+        view_notebook = aobject.get_object_dictionary().get_viewnotebook()
+        if fullscreen :
+            self.unfullscreen()
+            toolbar.show()
+            self._full_screen_window.hide()
+            if self.notebook.get_parent() :
+                self.notebook.get_parent().remove(self.notebook)
+            self.left_vpnd.pack1(self.notebook)
+            self.left_vpnd.show()
+            view_notebook.set_tab_pos(gtk.POS_TOP)
+        else :
+            self.fullscreen()
+            toolbar.hide()
+            self.left_vpnd.hide()
+            if self.notebook.get_parent() :
+                self.notebook.get_parent().remove(self.notebook)
+            self._full_screen_window.add(self.notebook)
+            self._full_screen_window.show()
+            view_notebook.set_tab_pos(gtk.POS_LEFT)
+
+        self.focus_to_view_notebook()
+
+    def __init__(self):
+        gtk.Window.__init__(self)
+        env = aobject.Env(logger = alogger.get_new_logger(), toplevel = self)
+        aobject.AObject.__init__(self, "Aesthete", env, show = False)
+
+        self.log(1, "=== Welcome to Aesthete ===")
+
+        self.add_icons()
+
+        aobject.get_object_dictionary().connect("add", lambda o,s,r : self.change_property('active_plot', s)\
+            if r=='Plot' else 0)
+
+        self.setup_window()
+
+        #GM(env=self.get_aenv())
+        #GBG(env=self.get_aenv())
+        #Gluer(self.get_aenv())
+        #self.glancer = Glancer(self.get_aenv())
+        glypher = G(env=self.get_aenv())
+
+        self.last_auto_plotted = {}
+
+        if not os.path.exists(paths.get_user_location()+'welcomed') :
+            self.show_welcome = True
+        if self.show_welcome :
+            dialog = gtk.Dialog('Welcome to Aesthete!', self,
+                                gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                                (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
+            vbox = dialog.get_content_area()
+            sw = gtk.ScrolledWindow()
+            sw.set_size_request(600, 400)
+            info_head_labl = gtk.Label()
+            info_head_labl.set_markup('<b>Glypher Tip</b>')
+            vbox.pack_start(info_head_labl, False)
+            info_labl = gtk.Label()
+            info_labl.set_line_wrap(True)
+            info_labl.set_size_request(600, -1)
+            info_labl.set_markup("""
+<i>Aesthete</i> is split up into a number of modules. One module in particular
+takes a little bit of getting used to, though we feel it's worthwhile!
+
+<i>Glypher</i> is the visual equation editing framework and computer algebra
+frontend. In simpler terms, it's a GUI for sympy. <i>Glypher</i> is a little
+misleading though; it looks like a basic text entry window, but as a cunningly
+disguised equation editor, it's a little more complex.
+
+<u>An equation in Glypher is a tree of components</u>. When you're in the Glypher
+window itself, you start with a 1-element "SpaceArray". You can insert a
+word, or equation here, but remember that pressing Space will add an element
+to this top-level array, so don't try and space out your equation this way!
+This strict structure makes entry of commands easy and unambiguous.
+
+For example, entering "E x p a n d <i>Space</i> x + 3 <i>Right</i> <i>Right</i> ^ 2" will
+give you a two element top-level SpaceArray. The first element is an
+instruction, the second, its argument. Next press Return and you should see
+the familiar binomial expansion!
+
+As well as remembering Space has a specific meaning, you should also remember
+that, instead of explicit bracketing, <i>Aesthete</i> gets your drift by
+operating on (squaring, multiplying, etc.) whatever expression is currently
+enclosed in blue Caret brackets. <i>Aesthete</i> will show brackets if it
+feels the need to avoid <i>visual</i> ambiguity, but they're always there
+implicitly. Trying to insert a parenthesis will bring up a tip explaining this.
+
+So, that should give you a gist to get you started. Fiddle around and you should
+find quite a number of possibilities, each of which we're gradually getting
+around to documenting...
+""")
+            sw.add_with_viewport(info_labl)
+            vbox.pack_start(sw)
+            noshow_hbox = gtk.HBox()
+            noshow_chbn = gtk.CheckButton()
+            noshow_hbox.pack_start(noshow_chbn, False)
+            noshow_hbox.pack_start(gtk.Label('Don\'t show this again'))
+            vbox.pack_start(noshow_hbox, False)
+            vbox.show_all()
+            try :
+                dialog.get_widget_for_response(gtk.RESPONSE_ACCEPT).grab_focus()
+            except :
+                dialog.get_action_area().get_children()[0].grab_focus()
+            dialog.run()
+            if noshow_chbn.get_active() :
+                with open(paths.get_user_location()+'welcomed', 'w') as f :
+                    f.write(details.get_version())
+                    f.write(str(time.time()))
+            dialog.destroy()
+            
+        #plot_window = plotter.get_new_plot_window(comp, plotref, runA, runB, timeA, timeB, left1, fabien_file, plateside, vertices, left2)
+        if self.get_maximize_on_start() :
+            self.maximize()
+        self._full_screen_window = gtk.Window()
+        self._full_screen_window.set_transient_for(self)
+        self._full_screen_window.set_opacity(0.8)
+        self._full_screen_window.hide()
+    
+        self.focus_to_view_notebook()
+
+    def __del__(self) :
+        aobject.AObject.__del__(self)
+
+    def focus_to_view_notebook(self) :
+        view_notebook = aobject.get_object_dictionary().get_viewnotebook()
+        if view_notebook.get_n_pages() > 0 :
+            view_notebook.get_nth_page(view_notebook.get_current_page()).grab_focus()
+
+    #PROPERTIES
+    def get_aesthete_properties(self):
+        return { 'active_plot' : [self.change_active_plot, self.get_active_plot, True], \
+             'concise_property_notebook' : [self.change_concise_property_notebook, self.get_concise_property_notebook, True], \
+             'show_logger' : [self.change_show_logger, self.get_show_logger, True], \
+             'debug_print' : [self.change_debug_print, self.get_debug_print, True], \
+             'maximize_on_start' : [self.change_maximize_on_start,
+                                    self.get_maximize_on_start, True], \
+				 'show_welcome' : [self.change_show_welcome, self.get_show_welcome, True] } 
+    #BEGIN PROPERTIES FUNCTIONS
+    def get_active_plot(self, val=None): return (self.active_plot.get_aname() if self.active_plot != None else '') if val==None else val
+    def change_active_plot(self, aname):
+        plot = aobject.get_object_from_dictionary(aname)
+        if (plot != None and plot.get_aname_root() == 'AesMPLFrame') : self.active_plot = plot
+    def get_concise_property_notebook(self, val=None) :
+        return self.concise_property_notebook if val==None else str(val)=='True'
+    def change_concise_property_notebook(self, val) :
+        aobject.get_object_dictionary().set_concise_notebook(val)
+        self.concise_property_notebook = val
+    def get_show_logger(self, val=None) :
+        return self.show_logger if val==None else str(val)=='True'
+    logger_view = None
+    def change_show_logger(self, val) :
+        if self.logger_view :
+            self.logger_view.show() if val else self.logger_view.hide()
+        self.show_logger = val
+    def get_show_welcome(self, val=None) :
+        return self.show_welcome if val==None else str(val)=='True'
+    def change_show_welcome(self, val) :
+        if self.show_welcome :
+            with open(paths.get_user_location()+'welcomed', 'w') as f :
+                    f.write(details.get_version())
+                    f.write(str(time.time()))
+        elif os.path.exists(paths.get_user_location()+'welcomed') :
+            os.remove(paths.get_user_location()+'welcomed')
+        self.show_welcome = val
+    def get_debug_print(self, val=None) :
+        return self.debug_print_on if val==None else str(val)=='True'
+    def change_debug_print(self, val) :
+        self.debug_print_on = val
+        set_debug_print(val)
+    def get_maximize_on_start(self, val=None) :
+        return self.maximize_on_start if val==None else str(val)=='True'
+    def change_maximize_on_start(self, val) :
+        self.maximize_on_start = val
+    #END PROPERTIES FUNCTIONS
+
+    def do_window_state_event(self, event) :
+        maximized = bool(self.get_window().get_state() & gtk.gdk.WINDOW_STATE_MAXIMIZED)
+        if maximized != self.get_maximize_on_start() :
+            self.set_preference('maximize_on_start', maximized)
+
+    def to_action_panel(self, window) :
+        vp = self.action_panel.vp
+        if len(vp.get_children())>0 :
+            old_window = vp.get_children()[0]
+            vp.remove(old_window)
+            old_window.hide()
+        vp.add(window)
+        self.action_panel.set_label(window.aes_title)
+        window.show()
+
+    def do_print(self) :
+        po = gtk.PrintOperation()
+        po.connect("begin-print", self.begin_print)
+        po.connect("draw-page", self.draw_page)
+        res = po.run(gtk.PRINT_OPERATION_ACTION_PRINT_DIALOG, self)
+    
+    def get_preferences_window(self) :
+        tm = tablemaker.PreferencesTableMaker()
+        tm.append_row("Concise property notebook", self.aes_method_check_button('concise_property_notebook'))
+        tm.append_row("Show logger window", self.aes_method_check_button('show_logger'))
+        tm.append_row("Show welcome dialogue on startup", self.aes_method_check_button('show_welcome'))
+        tm.append_row("Print debug output",
+                      self.aes_method_check_button('debug_print'))
+        win = tm.make_table()
+        return win
+
+    def do_preferences_response(self, dlog, resp) :
+        pass
+    def do_preferences(self, w) :
+        win = gtk.Dialog("Aesthete Preferences", self, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                                           (gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
+        win.vbox.pack_start(self.get_preferences_window(), False, False)
+        win.connect("response", self.do_preferences_response)
+        win.show_all()
+        win.set_size_request(300, 200)
+        win.run()
+        win.destroy()
+    
+    def begin_print(self, op, ct) :
+        op.set_n_pages(1)
+    def draw_page(self, op, pc, pn) :
+        if pn > 0 : return
+        aobject.get_active_object().print_out(op, pc, pn)
+
+    def explain_no_modules(self, what, missing) :
+        dia = gtk.Dialog("Missing package", self)
+        dia.pack_start(gtk.Label(what + ' requires the following package(s): ' + missing))
+        dia.show()
+        
+    def setup_window(self) :
+        #self.connect("logger", self.logger.get_new_signal_to_logger("Aesthete"))
+        self.connect("destroy", lambda w : gtk.main_quit())
+
+        main_vbox = gtk.VBox()
+        hbox = gtk.HBox()
+        hpaned = gtk.HPaned()
+        vbox = gtk.VBox()
+
+        hbox.pack_start(hpaned)
+
+        ui_manager = aobject.ui_manager
+        self.ui_manager = ui_manager
+        accel_group = ui_manager.get_accel_group()
+        self.add_accel_group(accel_group)
+
+        spreadsheet = lambda w : aesspreadsheet.AesSpreadsheet(self.get_aenv()) \
+                if aesspreadsheet.have_gtksheet else \
+                self.explain_no_module('Spreadsheet', 'gtksheet')
+        actiongroup = gtk.ActionGroup('Actions')
+        actions = []
+        add_actions = [ \
+            ('File', None, '_File'),
+            ('View', None, '_View'),
+            ('Tools', None, '_Tools'),
+            ('Sources', None, 'Sources'),
+            ('Help', None, '_Help'),
+            ('New', gtk.STOCK_NEW, '_New'),
+            ('Glypher', 'aes-glypher', '_Glypher', None, 'New Glypher', lambda w : G(env=self.get_aenv())),
+            ('Gluer', gtk.STOCK_PASTE, '_Gluer', None, 'New Gluer', lambda w : Gluer(env=self.get_aenv())),
+            ('GlyphMaker', gtk.STOCK_FIND_AND_REPLACE, '_GlyphMaker', None, 'New GlyphMaker', lambda w : GM(env=self.get_aenv())),
+            ('Plot', 'aes-glancer', '_Plot',
+                None, 'New Plot Window', lambda w :
+                Glancer(self.get_aenv())), 
+            ('Spreadsheet', 'aes-gridder', 'Spreadsheet',
+                None, 'New Spreadsheet Window',
+                lambda w :  aesspreadsheet.AesSpreadsheet(self.get_aenv())),
+            ('Presentation', 'aes-glosser', 'P_resentation',
+                None, 'New Presentation Window', lambda w :
+                Glosser(env=self.get_aenv())), 
+            ('Open', gtk.STOCK_OPEN, '_Open', None, None, lambda w :
+             self.do_open_aes()),
+            ('OpenRecent', gtk.STOCK_OPEN, '_Open Recent',
+                None, 'Recently used Aesthete files', None),
+            ('Save', gtk.STOCK_SAVE, '_Save', None, None, lambda w :
+             self.do_save_aes(self.last_aes_file)),
+            ('SaveAs', gtk.STOCK_SAVE, 'Save _As', None, None, lambda w :
+             self.do_save_aes()),
+            ('Print', gtk.STOCK_PRINT, '_Print', None, None, lambda w : self.do_print()),
+            ('Contents', gtk.STOCK_HELP, '_Contents', 'F1', None, lambda w : help_browser.launch_help()),
+            ('Quit', gtk.STOCK_QUIT, '_Quit', '<Alt>F4', None, lambda w : gtk.main_quit()),
+            ('Fullscreen', gtk.STOCK_FULLSCREEN, '_Full screen', 'F11', None,
+                lambda w : self.toggle_full_screen()),
+            ('Console', 'aes-python-console', 'Console',
+                None, 'New Python Console',
+                lambda w :  aespythonconsole.AesPythonConsole(self.get_aenv())),
+            ('Preferences', gtk.STOCK_PREFERENCES, 'Pref_erences', None, 'Set Aesthete preferences', self.do_preferences),
+            ('Import', gtk.STOCK_OPEN, '_Import Source...',
+                None, 'New Source',
+                lambda w : sources.SourceImporter.run_chooser(self.get_aenv())),
+            ('Recent', gtk.STOCK_OPEN, '_Recent',
+                None, 'Recently used sources', None)
+            ]
+        for tup in add_actions :
+            action = gtk.Action(tup[0], tup[2], None, tup[1])
+            if len(tup) >= 6 and tup[5] is not None :
+                action.connect("activate", tup[5])
+            actiongroup.add_action(action)
+
+        ui_manager.insert_action_group(actiongroup, 0)
+        ui_manager.add_ui_from_string("""
+            <menubar name="MenuBar">
+                <menu action="File">
+                    <menu action="New">
+                        <menuitem action="Glypher"/>
+                        <menuitem action="Plot"/>
+                        <menuitem action="Spreadsheet"/>
+                        <menuitem action="Presentation"/>
+                        <separator/>
+                        <menuitem action="Gluer"/>
+                        <menuitem action="GlyphMaker"/>
+                    </menu>
+                    <menuitem action="Open"/>
+                    <menuitem action="OpenRecent"/>
+                    <menuitem action="Save"/>
+                    <menuitem action="SaveAs"/>
+                    <separator/>
+                    <menuitem action="Print"/>
+                    <separator/>
+                    <menuitem action="Quit"/>
+                </menu>
+                <menu action="View">
+                    <menuitem action="Fullscreen"/>
+                </menu>
+                <menu action="Tools">
+                    <menuitem action="Console"/>
+                    <separator/>
+                    <menuitem action="Preferences"/>
+                </menu>
+                <menu action="Sources">
+                    <menuitem action="Import"/>
+                    <menuitem action="Recent"/>
+                </menu>
+                <menu action="Help">
+                    <menuitem action="Contents"/>
+                </menu>
+            </menubar>
+            <toolbar name="ToolBar">
+                <toolitem action="Glypher"/>
+                <toolitem action="GlyphMaker"/>
+                <toolitem action="Plot"/>
+                <toolitem action="Spreadsheet"/>
+                <toolitem action="Presentation"/>
+                <separator/>
+                <toolitem action="Import"/>
+                <toolitem action="Print"/>
+                <separator/>
+                <toolitem action="Preferences"/>
+                <toolitem action="Contents"/>
+            </toolbar>
+            """)
+        menubar = ui_manager.get_widget("/MenuBar")
+        main_vbox.pack_start(menubar, False, True, 0)
+        toolbar = ui_manager.get_widget("/ToolBar")
+        main_vbox.pack_start(toolbar, False, True, 0)
+
+        recman = gtk.recent_manager_get_default()
+
+        recent_sources = ui_manager.get_widget("/MenuBar/Sources/Recent")
+        recent_sources_rcmu = \
+            gtk.RecentChooserMenu(gtk.recent_manager_get_default())
+        recent_sources_rcfi = gtk.RecentFilter()
+        recent_sources_rcfi.add_group('AestheteSrc')
+        recent_sources_rcmu.add_filter(recent_sources_rcfi)
+        recent_sources_rcmu.connect('item-activated',
+            lambda c : sources.load_from_file(c.get_current_uri(),
+                                           c.get_current_item().get_display_name(),
+                                           self.get_aenv()))
+        recent_sources.set_submenu(recent_sources_rcmu)
+
+        recent_aes = ui_manager.get_widget("/MenuBar/File/OpenRecent")
+        recent_aes_rcmu = \
+            gtk.RecentChooserMenu(gtk.recent_manager_get_default())
+        recent_aes_rcfi = gtk.RecentFilter()
+        recent_aes_rcfi.add_group('AestheteAes')
+        recent_aes_rcmu.add_filter(recent_aes_rcfi)
+        recent_aes_rcmu.connect('item-activated',
+            lambda c : self.do_open_aes(c.get_current_uri()))
+        recent_aes.set_submenu(recent_aes_rcmu)
+
+        sources_trvw = sources.make_source_treeview()
+        sources_trvw.set_size_request(100, 0)
+        sources_trvw.set_tooltip_column(1)
+        sources_vbox = gtk.VBox()
+        sources_vbox.pack_start(sources_trvw)
+        sources_butt = gtk.Button("Update")
+        sources_butt.connect("clicked", lambda o : sources.reload_sources(ness=True))
+        sources_vbox.pack_start(sources_butt, False, False)
+        sources_vbox.show_all()
+        hbox.pack_end(sources_vbox, False)
+        
+        #plotter.connect("logger", self.logger.get_new_signal_to_logger("Plot Window"))
+        view_notebook = aobject.get_object_dictionary().view_notebook
+        vbox.pack_start(view_notebook)
+        view_notebook.show()
+        
+        logger_view = self.get_alogger().get_new_logger_view()
+        logger_view.show_all()
+        
+        notebook = gtk.Notebook()
+        notebook.append_page(logger_view, gtk.Label("Logger"))
+        notebook.show_all()
+        vbox.pack_start(notebook)
+        self.logger_view = notebook
+        if not self.get_show_logger() : notebook.hide()
+        
+        vbox.show()
+        hpaned.add2(vbox)
+
+        left_vpnd = gtk.VPaned()
+        self.left_vpnd = left_vpnd
+        #property_frame = gtk.Frame("Objects")
+        #property_frame.set_shadow_type(gtk.SHADOW_IN)
+        property_notebook = aobject.get_object_dictionary().get_notebook()
+        property_notebook.show()
+        self.notebook = property_notebook
+        #property_frame.add(property_notebook)
+        #property_frame.show()
+
+        action_panel = gtk.Frame("Action Panel")
+        sw = gtk.ScrolledWindow()
+        action_panel.add(sw)
+        vp = gtk.Viewport()
+        sw.add(vp)
+        action_panel.vp = vp
+        action_panel.to_action_panel = self.to_action_panel
+        self.env.action_panel = action_panel # Sets action panel for all objects inheriting this env
+        action_panel.set_shadow_type(gtk.SHADOW_IN)
+        action_panel.set_size_request(0, 100)
+        self.action_panel = action_panel
+        #action_panel_vbox = gtk.VBox()
+        #action_panel_vbox.pack_start(action_panel, False)
+        #action_panel_vbox.show()
+        action_panel.show_all()
+        #left_vpnd.pack1(property_frame, True, True)
+        left_vpnd.pack1(property_notebook, False, False)
+        left_vpnd.pack2(action_panel, True)
+        left_vpnd.show()
+        hpaned.pack1(left_vpnd, False)
+
+        hpaned.show()
+
+        hbox.show()
+
+        status = aobject.get_status_bar()
+        status.show()
+    
+        main_vbox.pack_start(hbox)
+        main_vbox.pack_start(status, False)
+        main_vbox.show()
+        self.add(main_vbox)
+
+    def do_key_press_event(self, event):
+        keyname = gtk.gdk.keyval_name(event.keyval)
+        #if keyname == "w" and (event.state & gtk.gdk.CONTROL_MASK) :
+        #    gtk.main_quit()            
+        gtk.Window.do_key_press_event(self, event)
+
+    def do_open_aes(self, uri=None) :
+        if uri is None :
+            chooser = gtk.FileChooserDialog(title="Open Aesthete file", action=gtk.FILE_CHOOSER_ACTION_OPEN,
+                          buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+
+            chooser.set_default_response(gtk.RESPONSE_OK)
+
+            all_ffil = gtk.FileFilter()
+            all_ffil.set_name("All files")
+            all_ffil.add_pattern("*")
+            chooser.add_filter(all_ffil)
+
+            aes_ffil = gtk.FileFilter()
+            aes_ffil.set_name("Aesthete XML files")
+            aes_ffil.add_mime_type("application/aes+xml")
+            aes_ffil.add_pattern("*.aes")
+            chooser.add_filter(aes_ffil)
+
+            resp = chooser.run()
+
+            if resp == gtk.RESPONSE_OK :
+                uri = chooser.get_uri()
+                chooser.destroy()
+            else :
+                chooser.destroy()
+                return
+
+        self.update_current_file(uri)
+
+        aobject.open_state(uri, env=self.get_aenv())
+
+    def do_save_aes(self, uri=None) :
+        if uri is None :
+            chooser = gtk.FileChooserDialog(\
+                          title="Save Aesthete file", action=gtk.FILE_CHOOSER_ACTION_SAVE,
+                          buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_SAVE,gtk.RESPONSE_OK))
+            chooser.set_default_response(gtk.RESPONSE_OK)
+            chooser.set_current_name('.aes')
+
+            all_ffil = gtk.FileFilter()
+            all_ffil.set_name("All files")
+            all_ffil.add_pattern("*")
+            chooser.add_filter(all_ffil)
+
+            aes_ffil = gtk.FileFilter()
+            aes_ffil.set_name("Aesthete XML files")
+            aes_ffil.add_mime_type("application/aes+xml")
+            aes_ffil.add_pattern("*.aes")
+            chooser.add_filter(aes_ffil)
+
+            resp = chooser.run()
+            self.grab_focus()
+
+            if resp == gtk.RESPONSE_OK :
+                uri = chooser.get_uri()
+                chooser.destroy()
+            else :
+                chooser.destroy()
+                return
+
+        self.update_current_file(uri)
+
+        aobject.save_state(uri)
+
+    last_aes_file = None
+
+    def update_current_file(self, uri=None, display_name=None) :
+        window_title = details.get_name() + ' : '
+        if uri is None :
+            self.set_title(window_title + details.get_description())
+        else :
+            if display_name is None :
+                display_name = uri.rsplit('/', 1)[1]
+            self.set_title(window_title + display_name)
+
+        self.last_aes_file = uri
+
+        if uri is None :
+            return
+
+        mime_type = 'application/aes+xml'
+        recman = gtk.recent_manager_get_default()
+        recman.add_full(uri, {'mime_type' : mime_type,
+                                   'app_name' : details.get_name(),
+                                   'app_exec' : details.get_command(),
+                                   'display_name' : display_name,
+                                   'description' : 'Aesthete object collection',
+                                   'is_private' : False,
+                                   "groups" : ['AestheteAes']})
+
+def visual_setup() :
+    window = Aesthete()
+    window.present()
+    #gobject.timeout_add(3000, window.present)
+    #window.set_size_request(-1, 700)
+    icon_location = paths.get_share_location()+'images/great_wave/great_wave.svg'
+    icon_sizes = (16, 32, 48, 64, 128, 256)
+    icon_pixbufs = []
+    for s in icon_sizes :
+      icon_pixbufs.append(gtk.gdk.pixbuf_new_from_file_at_size(icon_location, s, s))
+    window.set_icon_list(*icon_pixbufs)
+    window.update_current_file()
+    #window.maximize()
+    #cProfile.run('gtk.main()')
+    gtk.quit_add(0, aobject.get_preferencer().write_any_preferences)
+
+if not args.non_interactive :
+    splash = gtk.Window()
+    splash.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_SPLASHSCREEN)
+    splash.set_position(gtk.WIN_POS_CENTER_ALWAYS)
+    splash_imag = gtk.Image()
+    pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(\
+        paths.get_share_location()+'images/splash/splash.png',
+        800,500)
+    splash_imag.set_from_pixbuf(pixbuf)
+    splash.add(splash_imag)
+    splash.show_all()
+    splash.present()
+    while gtk.events_pending() :
+        gtk.main_iteration()
+
+    gobject.timeout_add(5000, splash.hide)
+
+    #gobject.idle_add(visual_setup)
+    visual_setup()
+
+    gtk.main()
+
+if args.glypher_xml is not None and args.output_svg is not None :
+    glypher_xml = ET.parse(args.glypher_xml)
+    ims = gly_disp.render(glypher_xml)
+    outfile = open(args.output_svg, 'w')
+    svgs = cairo.SVGSurface(outfile, ims.get_width(), ims.get_height())
+    cr = cairo.Context(svgs)
+    cr.set_source_surface(ims)
+    cr.paint()
+    svgs.finish()
+    outfile.close()
