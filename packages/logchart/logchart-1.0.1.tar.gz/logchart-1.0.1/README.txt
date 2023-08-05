@@ -1,0 +1,112 @@
+================================
+logchart nuxeo tool
+================================
+
+This tool generates a monitor report with charts from miscellaneous log files:
+
+* JVM Garbage collector logging (gc.log)
+* Java Virtual Machine logging (jvm.log)
+* JBoss threads logging (webthreads.log)
+* NuxeoDS Data source usage (nuxeo-ds.log)
+* jmxstat output (jmxstat.log)
+* Sysstat sar logging, cpu and disk activity (sysstat-sar.log)
+* PostgreSQL logs (pgsql.log)
+* PostgreSQL vacuum output (vacuum.log)
+
+  View a `report example <http://public.dev.nuxeo.com/~ben/logchart/monitor.html>`_.
+
+
+Requirements
+=============
+
+* python
+
+* python-docutils
+
+* gnuplot >= 4.2 (with png support)
+
+* sysstat sar, same version used during the monitor.
+
+* pgFouine for PostgreSQL log and vacuum analysis
+
+On Debian::
+
+  sudo aptitude install gnuplot sysstat python-docutils pgfouine
+
+
+Usage
+=========
+
+The ``logchart.py`` tool expects that all the logs are in the same
+directory and produce a detail report::
+
+   logchart.py [options] LOG_PATH REPORT_PATH
+
+
+The ``hudson.sh`` scripts can be used from an hudson job to scan other jobs
+and produces logchart monitor reports.
+
+
+
+How to setup monitoring on jboss/tomcat
+========================================
+
+The Nuxeo `monitorctl.sh <http://hg.nuxeo.org/nuxeo/nuxeo-distribution/file/5cb6bd1c0611/nuxeo-distribution-resources/src/main/resources/bin/monitorctl.sh>`_ script generates all the logs.
+
+Here are some details on how to do it by hand.
+
+
+Garbage collector monitoriing
+--------------------------------
+
+Using the jvm verbose:gc option::
+
+  JAVA_OPTS="$JAVA_OPTS -Xloggc:$JBOSS_HOME/server/default/log/gc.log  -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps"
+
+Disk and systeme monitoring
+------------------------------
+
+Using sysstat sar utility, just run something like::
+
+   sar -d -o $JBOSS_HOME/server/default/log/sysstat-sar.log 5 720 >/dev/null 2>&1 &
+
+This will monitor the activity every 5s during 1h.
+
+
+JBoss logging monitor
+--------------------------
+
+Check documentation http://doc.nuxeo.com/display/KB/Monitoring+Nuxeo+DM
+
+JMX logging
+----------------
+
+Using `jmxstat <https://github.com/bdelbosc/jmxstat>`_::
+
+  jmxstat localhost:1089 --contention  "Catalina:type=Manager,path=/nuxeo,host=localhost[activeSessions]"  > jmxstat.log 2>&1 &
+
+
+PostgreSQL monitoring
+------------------------------
+
+Visit the pgFouine tutorial to setup properly your PostgreSQL instance
+
+http://pgfouine.projects.postgresql.org/tutorial.html
+
+For instance log only request slower than 100ms::
+
+  log_min_duration_statement = 100
+
+
+PostgreSQL vacuum analysis
+------------------------------
+
+Just catch the vacuum output::
+
+   vacuumdb  -fzv database-name &> vacuum.log
+
+
+.. Local Variables:
+.. mode: rst
+.. End:
+.. vim: set filetype=rst:
