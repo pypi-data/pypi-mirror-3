@@ -1,0 +1,139 @@
+====================
+zeam.form.autofields
+====================
+
+The purpose of autofields is to collect fields from different
+location. There are group to a form by an interface:
+
+  >>> from zope.interface import Interface
+
+  >>> class IMyFieldSet(Interface):
+  ...    pass
+
+  >>> from zeam.form import autofields, base
+  >>> class MySpecialFields(autofields.AutoFields):
+  ...      autofields.group(IMyFieldSet)
+  ...      autofields.order(0)
+  ...      fields = base.Fields(base.Field('Title'), base.Field('Description'))
+
+And we need to Grok them:
+
+  >>> grok_component("fields", MySpecialFields)
+  True
+
+Now, you can create a form with a FieldCollector. It will collect all
+defined fields:
+
+  >>> class MyForm(base.Form):
+  ...   fields = autofields.FieldsCollector(IMyFieldSet)
+
+  >>> from zope.publisher.browser import TestRequest
+  >>> request = TestRequest()
+  >>> form = MyForm(object(), request)
+
+  >>> form.fields
+  <Fields>
+  >>> list(form.fields)
+  [<Field Title>, <Field Description>]
+
+You can't change those fields:
+
+  >>> form.fields = base.Fields()
+  Traceback (most recent call last):
+     ...
+  AttributeError
+
+The fields only work on an instance of a class, no fields will be
+found if you try to lookup from a class:
+
+  >>> MyForm.fields
+  <Fields>
+  >>> list(MyForm.fields)
+  []
+
+
+Cache
+-----
+
+The querying of the fields is cached. If you had new fields, you will
+only see them in a new form:
+
+  >>> class PersonalFields(autofields.AutoFields):
+  ...      autofields.group(IMyFieldSet)
+  ...      autofields.order(10)
+  ...      fields = base.Fields(base.Field('Name'), base.Field('Phone'))
+
+  >>> grok_component("fields", PersonalFields)
+  True
+
+  >>> list(form.fields)
+  [<Field Title>, <Field Description>]
+
+But on a new form:
+
+  >>> new_form = MyForm(object(), request)
+  >>> list(new_form.fields)
+  [<Field Title>, <Field Description>, <Field Name>, <Field Phone>]
+
+
+Form independence
+-----------------
+
+You can register fields only for a given form:
+
+  >>> class MyPrivateForm(MyForm):
+  ...     pass
+
+  >>> class MySpecialPrivateFields(autofields.AutoFields):
+  ...      autofields.view(MyPrivateForm)
+  ...      autofields.group(IMyFieldSet)
+  ...      autofields.order(30)
+  ...      fields = base.Fields(base.Field('SSN'))
+
+  >>> grok_component("fields", MySpecialPrivateFields)
+  True
+
+So now if you create a new advanced form:
+
+  >>> private_form = MyPrivateForm(object(), request)
+  >>> list(private_form.fields)
+  [<Field Title>, <Field Description>, <Field Name>, <Field Phone>, <Field SSN>]
+
+However generic form stays without the new specific fields:
+
+  >>> public_form = MyForm(object(), request)
+  >>> list(public_form.fields)
+  [<Field Title>, <Field Description>, <Field Name>, <Field Phone>]
+
+
+FieldCollector independence
+---------------------------
+
+You can have different collector on the same form:
+
+  >>> class IMyExtraFieldSet(Interface):
+  ...    pass
+
+  >>> class MyExtraFields(autofields.AutoFields):
+  ...      autofields.group(IMyExtraFieldSet)
+  ...      fields = base.Fields(base.Field('City'), base.Field('Country'))
+
+  >>> grok_component("fields", MyExtraFields)
+  True
+
+  >>> class CompleteForm(MyForm):
+  ...      extra_fields = autofields.FieldsCollector(IMyExtraFieldSet)
+
+  >>> complete_form = CompleteForm(object(), request)
+
+  >>> list(complete_form.fields)
+  [<Field Title>, <Field Description>, <Field Name>, <Field Phone>]
+  >>> list(complete_form.extra_fields)
+  [<Field City>, <Field Country>]
+
+  >>> list(complete_form.fields)
+  [<Field Title>, <Field Description>, <Field Name>, <Field Phone>]
+  >>> list(complete_form.extra_fields)
+  [<Field City>, <Field Country>]
+
+(We check it twice to be sure that one collector doesn't affect the other)
