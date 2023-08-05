@@ -1,0 +1,152 @@
+#!/usr/bin/python -tt
+# -*- coding: UTF-8 -*-
+# vim: sw=4 ts=4 et:
+#
+# Copyright (C) 2007 Andy Shevchenko
+#
+# Licensed under the Academic Free License version 2.1
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+
+"""
+Hardware Volume Manager.
+Script mounts any inserted removable storage via HAL.
+Used class is HALWrapper.
+"""
+
+__author__ = "Andy Shevchenko <andy@smile.org.ua>"
+__revision__ = "$Id: hvm 33 2007-10-19 16:11:36Z andy $"
+
+from optparse import OptionParser
+import time
+
+from minihallib.Log import logger
+from minihallib.HALWrapper import HALWrapper
+
+HAL_CAPABILITY = 'volume'
+
+class Volume:
+    """ Volume plugin for HALWrapper """
+    def __init__(self):
+        # define capability that will be compared with info.capability property
+        self.capability = HAL_CAPABILITY
+        # define 'PropertyModified' callback method
+        self.property_modified_cb = self.my_property_modified_cb
+        # define HAL events receiver
+        self.receiver = self.my_receiver
+
+        self.volumes = {}
+
+    def quit(self):
+        """ On exit callback """
+        # here you can either clear allocated resourses or unmount volumes
+        logger.debug(1, "Quiting... (%s)" % self.capability)
+
+    def my_property_modified_cb(self, hal_device, name, modified):
+        """ 'PropertyModified' callback """
+        logger.debug(100, "PropertyModified: %s (%s)" % (name, str(modified)))
+        if name == 'volume.is_mounted':
+            udi = hal_device.udi()
+            if self.volumes.has_key(udi):
+                if hal_device.get(name, False):
+                    print "%s is mounted" % udi
+                else:
+                    print "%s is unmounted" % udi
+
+    def do_cmd(self, udi, action, args=None):
+        """ Mount, unmount or eject given device via HAL """
+        hal_device = self.volumes[udi]
+        dev_if = hal_device.interface('org.freedesktop.Hal.Device.Volume')
+
+        if args is None:
+            args = []
+
+        if action == 'mount':
+            dev_if.Mount(hal_device.get('volume.label', ''), hal_device.get('volume.fstype', ''), args)
+        elif action == 'unmount':
+            dev_if.Unmount(args)
+        elif action == 'eject':
+            dev_if.Eject(args)
+        else:
+            logger.warning("Unknown action '%s'" % str(action))
+
+    def add_volume(self, udi, hal_device):
+        """ Add volume to list and send mount command """
+        if self.volumes.has_key(udi):
+            logger.warning("Try to add exists device (%s)" % udi)
+            return False
+
+        self.volumes[udi] = hal_device
+
+        has_audio = self.volumes[udi].get('volume.disc.has_audio')
+        if self.volumes[udi].get('volume.is_mounted') or has_audio:
+            logger.debug(5, "Device already mounted (%s)" % udi)
+        else:
+            self.do_cmd(udi, 'mount')
+        return True
+
+    def remove_volume(self, udi, hal_device):
+        """ Send unmount command and remove volume from list """
+        if not self.volumes.has_key(udi):
+            logger.warning("Try to remove non-exists device (%s)" % udi)
+            return False
+
+        if self.volumes[udi].get('volume.is_mounted'):
+            self.do_cmd(udi, 'unmount')
+
+        del self.volumes[udi]
+        return True
+
+    def my_receiver(self, packet):
+        """ HAL manager events receiver """
+        msg, hal_device = packet
+        udi = hal_device.udi()
+
+        if msg == 'device init':
+            parent = hal_device.get_parent()
+            # Add inserted hotpluggable devices
+            if parent.PropertyExists('storage.hotpluggable') and parent.GetProperty('storage.hotpluggable'):
+                self.add_volume(udi, hal_device)
+        elif msg == 'device added':
+            self.add_volume(udi, hal_device)
+        elif msg == 'device removed':
+            self.remove_volume(udi, hal_device)
+        else:
+            logger.warning("Received unknown message '%s'" % msg)
+
+def parse_cmd_line():
+    parser = OptionParser()
+    parser.add_option('', '--debug', dest='debug', type='int', default=0, help="set debug LEVEL", metavar='LEVEL')
+    return parser.parse_args()
+
+def main():
+    """ Main rountine """
+    (options, args) = parse_cmd_line()
+    logger.set_debug_level(options.debug)
+
+    wrapper = HALWrapper()
+    volume = Volume()
+    wrapper.register(volume)
+    try:
+        wrapper.start()
+        print "HAL wrapper is started. Insert hotpluggable device and enjoy by automount."
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        wrapper.stop()
+    
+if __name__ == "__main__":
+    main()
