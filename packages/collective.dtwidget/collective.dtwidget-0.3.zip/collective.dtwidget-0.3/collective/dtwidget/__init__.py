@@ -1,0 +1,1 @@
+from collective.dtwidget.dtwidget import dtwidget
