@@ -1,0 +1,169 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>11. Migrating cubicweb instances - benefits from a distributed architecture &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../index.html" />
+    <link rel="up" title="Administration" href="index.html" />
+    <link rel="next" title="12. Backups (mostly with postgresql)" href="additional-tips.html" />
+    <link rel="prev" title="10. Working with a distributed client (using Pyro)" href="pyro.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="additional-tips.html" title="12. Backups (mostly with postgresql)"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="pyro.html" title="10. Working with a distributed client (using Pyro)"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Administration</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">11. Migrating cubicweb instances - benefits from a distributed architecture</a><ul>
+<li><a class="reference external" href="#migrate-apache-cubicweb">11.1. Migrate apache &amp; cubicweb</a></li>
+<li><a class="reference external" href="#migrate-apache-cubicweb-with-pyro">11.2. Migrate apache &amp; cubicweb with pyro</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="pyro.html"
+                                  title="previous chapter">10. Working with a distributed client (using Pyro)</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="additional-tips.html"
+                                  title="next chapter">12. Backups (mostly with postgresql)</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../_sources/admin/migration.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="migrating-cubicweb-instances-benefits-from-a-distributed-architecture">
+<h1>11. Migrating cubicweb instances - benefits from a distributed architecture<a class="headerlink" href="#migrating-cubicweb-instances-benefits-from-a-distributed-architecture" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="migrate-apache-cubicweb">
+<h2>11.1. Migrate apache &amp; cubicweb<a class="headerlink" href="#migrate-apache-cubicweb" title="Permalink to this headline">¶</a></h2>
+<p><strong>Aim</strong> : do the migration for N cubicweb instances hosted on a server to another with no downtime.</p>
+<p><strong>Prerequisites</strong> : have an explicit definition of the database host (not default or localhost). In our case, the database is hosted on another host. You are not migrating your pyro server. You are not using multisource (more documentation on that soon).</p>
+<p><strong>Steps</strong> :</p>
+<ol class="arabic">
+<li><p class="first"><em>on new machine</em> : install your environment (<em>pseudocode</em>)</p>
+<div class="highlight-python"><pre>apt-get install cubicweb cubicweb-applications apache2</pre>
+</div>
+</li>
+<li><p class="first"><em>on old machine</em> : copy your cubicweb and apache configuration to the new machine</p>
+<div class="highlight-python"><pre>scp /etc/cubicweb.d/ newmachine:/etc/cubicweb.d/
+scp /etc/apache2/sites-available/ newmachine:/etc/apache2/sites-available/</pre>
+</div>
+</li>
+<li><p class="first"><em>on new machine</em> : give new ids to pyro registration so the new instances can register</p>
+<div class="highlight-python"><pre>cd /etc/cubicweb.d/ ; sed -i.bck 's/^pyro-instance-id=.*$/\02/' */all-in-one.conf</pre>
+</div>
+</li>
+<li><p class="first"><em>on new machine</em> : start your instances</p>
+<div class="highlight-python"><pre>cubicweb start</pre>
+</div>
+</li>
+<li><p class="first"><em>on new machine</em> : enable sites and modules for apache and start it, test it using by modifying your /etc/host file.</p>
+</li>
+<li><p class="first">change dns entry from your oldmachine to newmachine</p>
+</li>
+<li><p class="first">shutdown your <em>old machine</em> (if it doesn&#8217;t host other services or your database)</p>
+</li>
+<li><p class="first">That&#8217;s it.</p>
+</li>
+</ol>
+<p><strong>Possible enhancements</strong> : use right from the start a pound server behind your apache, that way you can add backends and smoothily migrate by shuting down backends that pound will take into account.</p>
+</div>
+<div class="section" id="migrate-apache-cubicweb-with-pyro">
+<h2>11.2. Migrate apache &amp; cubicweb with pyro<a class="headerlink" href="#migrate-apache-cubicweb-with-pyro" title="Permalink to this headline">¶</a></h2>
+<p>FIXME TODO</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="additional-tips.html" title="12. Backups (mostly with postgresql)"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="pyro.html" title="10. Working with a distributed client (using Pyro)"
+             >previous</a> |</li>
+        <li><a href="../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="index.html" >Administration</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
