@@ -1,0 +1,462 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      lang="en"
+      metal:use-macro="context/@@standard_macros/page"
+      i18n:domain="atreal.mailservices">
+
+<head>
+</head>
+
+<body>
+<div metal:fill-slot="body"
+     tal:define="context_state context/@@plone_context_state;
+                 portal context/@@plone_portal_state/portal;
+                 email_from_address portal/email_from_address;
+                 usermail_from_address view/usermail_from_address">
+
+    <div metal:define-macro="form">
+
+        <div id="viewspace" metal:define-slot="viewspace">
+
+            <metal:block define-macro="header">
+
+                <dl tal:define="status view/status"
+                     tal:condition="status"
+                     class="portalMessage error">
+                    <dt i18n:translate="" i18n:domain="plone">
+                        Error
+                    </dt>
+                    <dd tal:content="view/status" />
+                </dl>
+
+            </metal:block>
+
+            <h1 class="documentFirstHeading"
+                i18n:translate=""
+                tal:condition="view/label"
+                tal:content="view/label"
+                metal:define-slot="heading">
+                Do something
+            </h1>
+
+	    <a href=""
+	       class="link-parent"
+	       tal:attributes="href context/absolute_url"
+	       i18n:domain="plone"
+	       i18n:translate="go_to_contentrules_assignment_context">
+		Return
+	    </a>
+        
+        <div tal:condition="not:email_from_address">
+        
+		<p class="documentDescription"
+		   i18n:domain="plone"
+		   i18n:translate="text_no_email_setup">
+		    This site doesn't have a valid email setup, so you cannot use
+		    any contact forms. 
+		</p>
+        
+	    </div>
+        
+	    <div tal:condition="not:usermail_from_address">
+        
+		<p class="documentDescription"
+		   i18n:translate="text_no_usermail_setup">
+		    You don't have a valid email address, so you cannot use
+		    any contact forms. 
+		</p>
+        
+	    </div>
+        
+	    <div tal:condition="python:email_from_address and usermail_from_address">
+        
+		<p i18n:translate=""
+		   tal:condition="view/description"
+		   tal:content="view/description">
+		    Description
+		</p>
+        
+		<form action="."
+		      metal:define-macro="master"
+		      tal:define="is_fieldsets view/is_fieldsets"
+		      tal:attributes="action request/URL;
+				      class python: is_fieldsets and 'edit-form enableFormTabbing enableUnloadProtection' or default"
+		      method="post"
+		      class="edit-form enableUnloadProtection"
+		      enctype="multipart/form-data"
+		      id="zc.page.browser_form">
+    
+		    <input type="hidden"
+			   name="fieldset.current"
+			   value=""
+			   tal:attributes="value request/fieldset.current | string:" />
+    
+		    <div metal:define-slot="extra_info" tal:replace="nothing">
+		    </div>
+    
+		    <fieldset tal:condition="not: is_fieldsets">
+			<legend tal:define="form_name view/form_name|nothing"
+				tal:condition="form_name"
+				tal:content="form_name">Form name</legend>
+			<tal:block tal:repeat="widget view/widgets">
+    
+			    <div class="field"
+				 tal:define="description widget/hint;
+					     error widget/error"
+				 tal:attributes="class python:'field'+(error and ' error' or '')">
+			      
+				<label i18n:translate=""
+				       tal:attributes="for widget/name"
+				       tal:content="widget/label">
+				    label
+				</label>
+    
+				<span class="fieldRequired"
+				      title="Required"
+				      i18n:attributes="title title_required;"
+				      i18n:translate="label_required"
+				      tal:condition="widget/required">
+				    (Required)
+				</span>
+    
+				<div class="formHelp"
+				     i18n:translate=""
+				     tal:content="description"
+				     tal:condition="description">
+				    field description
+				</div>
+    
+				<div tal:condition="error"
+				     tal:content="structure error">
+				    The Error
+				</div>
+    
+				<div class="widget" tal:content="structure widget">
+				    <input type="text" />
+				</div>
+			    </div>
+    
+			</tal:block>
+    
+		    </fieldset>
+    
+		    <fieldset tal:attributes="id python:'fieldset-%s' % fieldset.id"
+			      tal:condition="is_fieldsets"
+			      tal:repeat="fieldset view/form_fields/fieldsets">
+			<legend tal:define="form_name fieldset/label"
+				tal:condition="form_name"
+				tal:attributes="id python:'fieldsetlegend-%s' % fieldset.id"
+				tal:content="form_name">Form name</legend>
+    
+			<p i18n:translate=""
+			   tal:condition="fieldset/description"
+			   tal:content="fieldset/description">
+			    Description
+			</p>
+    
+			<tal:groupsusers tal:condition="python:fieldset.id=='groupsusers'">
+
+            <div class="field">
+                <label i18n:translate="">Groups</label>
+                <div class="formHelp"
+                     i18n:translate="help_groups">
+                    Select groups to send mail.</div>
+
+                <div class="field">
+                    <input type="text"
+                           id="mailservices-group-search"
+                           size="30"
+                           name="search_group_term"
+                           title="Search for group"
+                           i18n:attributes="title"
+                           class="searchField inputLabel"
+                           value=""
+                           />
+                    <input type="submit"
+                           id="mailservices-save-group-button"
+                           name="form.button.Search"
+                           value="Search"
+                           class="searchButton allowMultiSubmit"
+                           i18n:attributes="value box_search"
+                           />
+                    <input type="submit"
+                           id="mailservices-searchall-group-button"
+                           class="searchButton allowMultiSubmit kssattr-type-searchallgroup"
+                           name="form.button.FindAllGroups"
+                           value="Show all"
+                           i18n:attributes="value label_showall;"
+                           tal:condition="not:site_properties/many_groups"
+                           />
+                </div>
+
+                <table metal:define-macro="group-mailservices" id="group-mailservices"
+                       class="listing"
+                       summary="Current mailservices recipients groups" 
+                       i18n:attributes="summary summary_mailservices_recipients_groups;"
+                       tal:define="group_settings view/groups_settings;
+                                   recipients view/recipients">
+
+                    <thead metal:define-macro="group-mailservices-head" id="group-mailservices-head">
+                        <tr tal:condition="python:len(recipients) > 0">
+                            <th class="nosort"
+                                i18n:translate="label_group">Group</th>
+                            <th class="nosort"
+                                tal:repeat="recipient recipients"
+                                tal:content="recipient/title"  />
+                        </tr>
+                        <tr>
+                            <th class="nosort"></th>
+                            <th class="nosort" tal:repeat="recipient recipients">
+                                <input class="noborder"
+                                       type="checkbox"
+                                       name="selectButton"
+                                       title="Select all items"
+                                       tal:attributes="onClick string:toggleSelect(this, 'groups.recipient_${recipient/id}:records');"
+                                       alt="Select all items"
+                                       i18n:attributes="title label_select_all_items; alt label_select_all_items;"/>
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody metal:define-macro="group-mailservices-settings" id="group-mailservices-settings">
+                        <tal:entries repeat="entry group_settings">
+                            <tr tal:define="disabled entry/disabled | python:False;
+                                            oddrow repeat/entry/odd;"
+                                tal:attributes="class python:oddrow and 'odd' or 'even'">
+                                <td>
+                                    <img tal:replace="structure context/group.gif" /> 
+                                    <span tal:replace="entry/title" />
+                                    <input
+                                        tal:condition="not:disabled"
+                                        type="hidden"
+                                        name="groups.id:records"
+                                        tal:attributes="value entry/id"
+                                        />
+                                    <input
+                                        tal:condition="not:disabled"
+                                        type="hidden"
+                                        name="groups.title:records"
+                                        tal:attributes="value entry/title"
+                                        />
+                                </td>
+                                <td class="listingCheckbox"
+                                    tal:repeat="recipient recipients">
+                                    <tal:block define="entry_recipient python:entry['recipients'][recipient['id']]">
+                                        <tal:block condition="python:entry_recipient in (True, False)">
+                                            <input class="noborder"
+                                                type="checkbox"
+                                                value="True"
+                                                tal:attributes="name string:groups.recipient_${recipient/id}:records;
+                                                                checked python:entry_recipient and 'checked' or None;
+                                                                disabled python:disabled or None"
+                                                />
+                                        </tal:block>
+                                    </tal:block>
+                                </td>
+                            </tr>
+                        </tal:entries>
+                    </tbody>
+                </table>
+
+            </div>
+
+            <div class="field">
+                <label i18n:translate="">Users</label>
+                <div class="formHelp"
+                     i18n:translate="help_users">
+                    Select users to send mail.</div>
+
+                <div class="field">
+                    <input type="text" 
+                           id="mailservices-user-search"
+                           size="30" 
+                           name="search_user_term"
+                           title="Search for user" 
+                           i18n:attributes="title"
+                           class="searchField inputLabel"
+                           value="" 
+                           />
+                    <input type="submit"
+                           id="mailservices-save-user-button" 
+                           name="form.button.Search"
+                           value="Search"
+                           class="searchButton allowMultiSubmit" 
+                           i18n:attributes="value box_search"
+                           />
+                    <input type="submit"
+                           id="mailservices-searchall-user-button" 
+                           class="searchButton allowMultiSubmit kssattr-type-searchalluser"
+                           name="form.button.FindAllUsers"
+                           value="Show all"
+                           i18n:attributes="value label_showall;"
+                           tal:condition="not:site_properties/many_users"
+                           />
+                </div>
+                <table metal:define-macro="user-mailservices" id="user-mailservices"
+                       class="listing"
+                       summary="Current mailservices recipients users" 
+                       i18n:attributes="summary summary_mailservices_recipients_users;"
+                       tal:define="user_settings view/users_settings;
+                                   recipients view/recipients">
+                    
+                    <thead metal:define-macro="user-mailservices-head" id="user-mailservices-head">
+                        <tr tal:condition="python:len(recipients) > 0">
+                            <th class="nosort"
+                                i18n:translate="label_user">User</th>
+                            <th class="nosort"
+                                tal:repeat="recipient recipients"
+                                tal:content="recipient/title"  />
+                        </tr>
+                        <tr>
+                            <th class="nosort"></th>
+                            <th class="nosort" tal:repeat="recipient recipients">
+                                <input class="noborder"
+                                       type="checkbox"
+                                       name="selectButton"
+                                       title="Select all items"
+                                       tal:attributes="onClick string:toggleSelect(this, 'users.recipient_${recipient/id}:records');"
+                                       alt="Select all items"
+                                       i18n:attributes="title label_select_all_items; alt label_select_all_items;"/>
+                            </th>
+                        </tr>
+                    </thead>
+                
+                    <tbody metal:define-macro="user-mailservices-settings" id="user-mailservices-settings">
+                        <tal:entries tal:condition="user_settings" repeat="entry user_settings">
+                            <tr tal:define="disabled entry/disabled | python:False;
+                                            oddrow repeat/entry/odd;"
+                                tal:attributes="class python:oddrow and 'odd' or 'even'">
+                                <td>
+                                    <img tal:replace="structure context/user.gif" /> 
+                                    <span tal:replace="entry/title" />
+                                    <input
+                                        tal:condition="not:disabled"
+                                        type="hidden"
+                                        name="users.id:records"
+                                        tal:attributes="value entry/id"
+                                        />
+                                    <input
+                                        tal:condition="not:disabled"
+                                        type="hidden"
+                                        name="users.title:records"
+                                        tal:attributes="value entry/title"
+                                        />
+                                </td>
+                                <td class="listingCheckbox"
+                                    tal:repeat="recipient recipients">
+                                    <tal:block define="entry_recipient python:entry['recipients'][recipient['id']]">
+                                        <tal:block condition="python:entry_recipient in (True, False)">
+                                            <input class="noborder"
+                                                type="checkbox"
+                                                value="True"
+                                                tal:attributes="name string:users.recipient_${recipient/id}:records;
+                                                                checked python:entry_recipient and 'checked' or None;
+                                                                disabled python:disabled or None"
+                                                />
+                                        </tal:block>
+                                    </tal:block>
+                                </td>
+                            </tr>
+                        </tal:entries>
+                    </tbody>
+                </table>
+                
+            </div>
+
+			</tal:groupsusers>
+
+			<tal:additionals tal:condition="python:fieldset.id=='additionals' and
+                                            view.mailservices_additionals()"
+                             tal:define="recipients view/recipients">
+                
+                <div class="field" 
+	 	                 tal:repeat="recipient recipients"> 
+	 	                <label tal:attributes="for string:email_${recipient/id};" 
+	 	                       i18n:translate="" 
+	 	                       tal:content="string:${recipient/title}"></label> 
+	 	                <div class="formHelp" 
+	 	                     i18n:translate="help_additional_recipient_type"> 
+	 	                    Add more direct recipients separated by ";".</div> 
+	 	                <textarea 
+	 	                    tal:attributes="name string:email_${recipient/id}; 
+	 	                                    id string:email_${recipient/id}"
+                            tal:content="python:request.form.get('email_'+recipient['id'])"></textarea> 
+	 	        </div> 
+			
+            </tal:additionals>
+            
+			<tal:block tal:repeat="widget fieldset/widgets">
+    
+			    <div class="field"
+				 tal:define="description widget/hint;
+					     error widget/error"
+				 tal:attributes="class python:'field'+(error and ' error' or '')">
+    
+				<label i18n:translate=""
+				       tal:define="name widget/name"
+				       tal:attributes="for widget/associateLabelWithInputControl|name"
+				       tal:content="widget/label">
+				    label
+				</label>
+    
+				<span class="fieldRequired"
+				      title="Required"
+				      i18n:attributes="title title_required;"
+				      i18n:translate="label_required"
+                      i18n:domain="plone"
+				      tal:condition="widget/required">
+				    (Required)
+				</span>
+    
+				<div class="formHelp"
+				     i18n:translate=""
+				     tal:content="description"
+				     tal:condition="description">
+				    field description
+				</div>
+    
+				<div tal:condition="error"
+				     tal:content="structure error">
+				    The Error
+				</div>
+    
+				<div class="widget" tal:content="structure widget">
+				    <input type="text" />
+				</div>
+			    </div>
+    
+			</tal:block>
+    
+		    </fieldset>
+    
+		    <metal:block define-slot="above_buttons" />
+    
+		    <div class="visualClear"><!-- --></div>
+    
+		    <div id="actionsView" class="formControls">
+			<span class="actionButtons"
+			      tal:condition="view/availableActions"
+			      metal:define-slot="bottom_buttons">
+			    <input tal:repeat="action view/actions"
+				   tal:replace="structure action/render" />
+			</span>
+		    </div>
+    
+		    <input tal:replace="structure context/@@authenticator/authenticator" />
+    
+		</form>
+	    
+	    </div>
+	    
+	</div>
+
+        <script type="text/javascript"
+            tal:define="extra_script view/extra_script | nothing"
+            tal:condition="extra_script"
+            tal:content="structure extra_script">
+        </script>
+
+    </div>
+
+</div>
+</body>
+</html>
