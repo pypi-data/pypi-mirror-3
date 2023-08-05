@@ -1,0 +1,81 @@
+## -*- coding: utf-8 -*-
+# Copyright © 2011-2012 Mike Fled <nonvenia@gmail.com>
+
+from ._constants import BLANK_LINE, BLANK_LINES
+
+connectionprofile_used = "Preparing to connect using connection profile:" + BLANK_LINE + "%r"
+
+err_extender_pre_connect = "Extender exception raised on_pre_connect."
+err_extender_session_start = "Extender exception raised on_session_start."
+err_extender_session_stop = "Extender exception raised on_session_stop."
+err_invalid_direction = "Invalid support tunnel direction, must be either 'Forward' or 'Reverse'."
+err_invalid_none = "None is not a valid value for '%s'."
+err_invalid_profile_name = "The profile name is required."
+err_invalid_ssh_port = "Invalid SSH port number, must be between 1 and 65535."
+err_invalid_ssh_server = "The SSH server is required."
+err_invalid_tcp_timeout = "Invalid TCP connection timeout in seconds, must be a positive number."
+err_invalid_vnc_exec = "Invalid VNC executable, must be a valid existing file path."
+err_invalid_vnc_port = "Invalid VNC port number, must be between 1 and 65535."
+err_logger_initialized = "The logger is already initialized."
+err_socket_fail_connect = "Error while connecting socket to address: %r"
+err_socket_fail_init = "Error while initializing socket for address: %r"
+err_socket_info = BLANK_LINES + "Error code: %d" + BLANK_LINES + "%s"
+err_ssh_auth_failed = "SSH client authentication failed." + BLANK_LINES + \
+                      "Either your username and/or password is incorrect." + \
+                      BLANK_LINE + "-or-" + BLANK_LINE + \
+                      "You have no valid private key for this SSH host."
+err_ssh_auth_password = "SSH authentication failed because a required password was not provided."
+err_ssh_auth_type_bad = "SSH authentication failed because the server does not support the attempted authentication type."
+err_ssh_auth_type_info = BLANK_LINES + "Allowed Types: %r"
+err_ssh_clientkeys_open = "Opening the given SSH client keyfile failed."
+err_ssh_connect_failed = "Connection to host '%s' on port '%d' failed."
+err_ssh_connected = "The SSH client is already connected."
+err_ssh_exec_cmd_failed = "Failed to execute command '%s' with buffering '%d' on the SSH server."
+err_ssh_forward_closing = "Error closing forward tunnel 'localhost:%d -> %s:%d'"
+err_ssh_forward_exists = "The requested local port number '%d' is already being forwarded."
+err_ssh_forward_failed = "Forwarding request from 'localhost:%d' to '%s:%d' failed; internal endpoint '%s'"
+err_ssh_forward_not_found = "No forward tunnel found from localhost:%d to %s:%d."
+err_ssh_forward_rejected = "Forwarding request from 'localhost:%d' to '%s:%d' was rejected by the server; internal endpoint '%s'"
+err_ssh_hostkey_invalid = "The local host key did not match the information returned by the server." + \
+                          BLANK_LINES + "Expected: %r" + BLANK_LINES + "Received: %r."
+err_ssh_hostkeys_create = "Unable to open or create the specified hostkeys file."
+err_ssh_hostkeys_read = "Opening the known SSH hostkeys file for reading failed."
+err_ssh_hostkeys_write = "Unable to save new SSH host key to hostkeys file."
+err_ssh_invoke_shell_failed = "Failed to invoke a shell on the SSH server of type '%s', width '%d', height '%d'."
+err_ssh_not_connected = "The SSH client is not connected."
+err_ssh_reverse_closing = "Error closing reverse tunnel '%s:%d -> %s:%d'"
+err_ssh_reverse_exists = "The requested remote port number '%d' is already being forwarded."
+err_ssh_reverse_failed = "Reverse forwarding request from %s:%d to %s:%d failed."
+err_ssh_reverse_not_found = "No reverse tunnel found from %s:%d to %s:%d."
+err_ssh_reverse_rejected = "Reverse forwarding request from %s:%d to %s:%d was rejected by the SSH server."
+err_unexpected = "An unexpected error has occurred."
+err_version_python = "Python 2.6 or greater required."
+err_vnc_kill = "An unknown error occurred while terminating the VNC process."
+
+extender_blocking_start = "Extender on_session_start thread is blocking the session stop request."
+extender_blocking_stop = "Extender on_session_start thread is no longer blocking, session stop proceeding."
+extender_pre_connect = "Running extender on_pre_connect logic."
+extender_session_start = "Running extender on_session_start logic."
+extender_session_stop = "Running extender on_session_stop logic."
+
+ssh_compress_na = "Ignoring SSH compression option in paramiko version %s. Compression requested?: %s"
+ssh_connect_closed = "Closed connection to host '%s' on port '%d'."
+ssh_connect_starting = "Starting SSH connection to host '%s' on port '%d'..."
+ssh_connect_success = "Successfully established SSH connection to '%s:%d'."
+ssh_forward_tunnel_connected = "Connected forward tunnel 'localhost:%d -> %s -> %s:%d'; internal endpoint '%s'"
+ssh_forward_tunnel_disconnected = "Disconnected forward tunnel 'localhost:%d -> %s -> %s:%d'; internal endpoint '%s'"
+ssh_forward_tunnel_shutdown = "Shutting down forward tunnel 'localhost:%d -> %s:%d' ..."
+ssh_forward_tunnel_starting = "Starting forward tunnel 'localhost:%d -> %s:%d' ..."
+ssh_host_key_added = "Added new %s SSH public key for host '%s' with fingerprint '%s'"
+ssh_host_key_rejected_auto = "SSH key for unknown host '%s' was rejected by policy." + \
+                             BLANK_LINES + "Key Type: %s" + BLANK_LINE + "Fingerprint: %s"
+ssh_host_key_rejected_user = "SSH key for unknown host '%s' was rejected by the user." + \
+                             BLANK_LINES + "Key Type: %s" + BLANK_LINE + "Fingerprint: %s"
+ssh_host_key_saved = "Saved SSH hostkeys to file '%s'"
+ssh_reverse_tunnel_connected = "Connected reverse tunnel '%s:%d -> %s -> %s:%d'"
+ssh_reverse_tunnel_disconnected = "Disconnected reverse tunnel '%s:%d -> %s -> %s:%d'"
+ssh_reverse_tunnel_shutdown = "Shutting down reverse tunnel '%s:%d -> %s:%d' ..."
+ssh_reverse_tunnel_starting = "Starting reverse tunnel '%s:%d -> %s:%d' ..."
+
+vnc_started = "VNC started -- process name: %s - process id: %d"
+vnc_terminated = "VNC terminated -- process name: %s - process id: %d"
