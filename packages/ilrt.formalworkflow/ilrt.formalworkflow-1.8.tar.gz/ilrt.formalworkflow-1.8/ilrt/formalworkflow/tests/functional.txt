@@ -1,0 +1,334 @@
+===================================================================
+Functional test of editor trying to re-edit their published content
+===================================================================
+
+Functional tests for the workflow to confirm that it prevents
+users or owners who do not have reviewer rights from 
+re-editing public content that they have created.
+
+Instead they must use iterate and resubmit.
+
+by Ed Crewe, ILRT (University of Bristol) November 2011
+
+    >>> from Testing.testbrowser import Browser
+    >>> from Products.PloneTestCase.setup import portal_owner, default_password
+    >>> from Products.CMFPlone.utils import getToolByName
+    >>> from mechanize._mechanize import LinkNotFoundError
+
+
+Site layer security setup 
+=========================
+
+Confirm we are in the skin that allows access to the iterate
+checkout for the Copy or Move permission ... rather than 
+modify portal content - so we can take an iteration of content 
+when we are not allowed to modify the (published) original 
+
+    >>> portal.getCurrentSkinName()
+    'formalworkflow'
+
+Toggle off membership area creation to save going via the iterate location page
+
+    >>> membership = getToolByName(portal,'portal_membership')
+    >>> if membership.getMemberareaCreationFlag():
+    ...    membership.setMemberareaCreationFlag()
+
+Set up the editor and a folder
+==============================
+
+Make the implicit test user (portal_owner) a manager
+
+    >>> self.setRoles(['Manager'])
+    >>> portal_url = portal.absolute_url()
+
+Register a new demo editor user
+
+    >>> editor = "demoeditor"
+    >>> roles = ['Member','Editor','Contributor']
+    >>> uf = portal.acl_users
+    >>> if uf.getUserById(editor) is None:
+    ...     uf.userFolderAddUser(editor, default_password,roles,[]) 
+
+Check we have created the user
+
+    >>> user = uf.getUserById(editor)
+    >>> user.getId()
+    'demoeditor'
+
+Add a folder for the editor to work in ...
+
+    >>> folderid = 'test_folder'
+    >>> doc = portal.invokeFactory("Folder", folderid)
+    >>> folder = getattr(portal, folderid)
+
+Publish it
+
+    >>> wftool = getToolByName(portal, "portal_workflow")
+    >>> wftool.doActionFor(folder,'publish')
+
+Start functional test for editor
+================================
+
+The following is useful when writing and debugging testbrowser tests. It lets
+us see all error messages in the error_log.
+
+    >>> browser = Browser()
+    >>> browser.handleErrors = False
+    >>> self.portal.error_log._ignored_exceptions = ()
+
+Login as the demo editor user
+=============================
+
+We have the login portlet, so let's use that:
+
+    >>> browser.open(portal_url)
+    >>> browser.getControl(name='__ac_name').value = editor
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+
+We check that we get the logged-in message:
+
+    >>> "You are now logged in" in browser.contents
+    True
+
+Switch to textarea for editor 
+=============================
+
+Go to the users dashboard to check their preferences are set OK
+
+   >>> browser.open(portal_url + '/dashboard')
+
+Check we have disabled editors and just use the text box
+
+    >>> browser.getLink('Personal Preferences').click()
+    >>> browser.getControl(name='wysiwyg_editor').value = ['None']
+    >>> browser.getControl(name='fullname').value = 'Demo Editor'
+    >>> browser.getControl(name='email').value = 'nobody@plone.org'
+    >>> browser.getControl(name='form.button.Save').click()
+    >>> "Your personal settings have been saved." in browser.contents
+    True
+    >>> browser.getControl(name='wysiwyg_editor').value
+    ['None']
+
+
+Add a page as an editor
+=======================
+
+Now go to the folder listing page
+
+    >>> folder_url = folder.absolute_url()
+    >>> browser.open(folder_url)
+    >>> 'Contents' in browser.contents
+    True
+
+
+Lets try to create a new document as the editor
+===============================================
+
+    >>> new_title = "Test New Item"
+    >>> new_id = "test-new-item"
+
+Click on the 'Add New ...' > 'Document' link via url to be language safe 
+
+    >>> browser.getLink(url=folder_url + '/createObject?type_name=Document').click()
+    >>> "/portal_factory/Document/document." in browser.contents
+    True
+
+Fill in the form with dummy content for the test page
+
+    >>> browser.getControl(name="title").value = new_title
+    >>> descrip = "A dummy page created by the test handler"
+    >>> browser.getControl(name='description').value = descrip
+    >>> browser.getControl(name='text').value = "<h1>Test new page</h1>\n\n"
+    >>> browser.getControl(name='form_submit').click()
+    >>> "Changes saved." in browser.contents
+    True
+    >>> new_title in browser.contents
+    True
+
+We shouldnt be able to publish as an editor)
+
+    >>> '/content_status_modify?workflow_action=publish' in browser.contents
+    False
+
+So lets just submit this item for publication ... 
+
+    >>> doc_url = folder_url + '/' + new_id
+    >>> submit_url =  doc_url + '/content_status_modify?workflow_action=submit'
+    >>> browser.getLink(url=submit_url).click()
+
+Finally we can check that we shouldnt be spinning out iterations of 
+content that isnt published ...
+
+    >>> checkout_url =  doc_url + '/@@content-checkout'
+    >>> try:
+    ...    checkoutlink = browser.getLink(url=checkout_url)
+    ... except LinkNotFoundError:
+    ...    checkoutlink = None
+   >>> checkoutlink == None
+   True
+
+OK we are done as the editor for the moment
+
+    >>> browser.getLink('Log out').click()
+
+Log in as the manager and publish the editors document
+======================================================
+
+Login as the manager
+
+    >>> browser.getControl(name='__ac_name').value = portal_owner
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+    >>> "You are now logged in" in browser.contents
+    True
+
+Publish the document
+
+    >>> browser.open(doc_url)
+    >>> submit_url =  doc_url + '/content_status_modify?workflow_action=publish'
+    >>> browser.getLink(url=submit_url).click()
+    >>> browser.getLink(url=doc_url + '/content_status_history').click()
+    >>> browser.getControl(name='workflow_action').value
+    ['published']
+    >>> browser.getLink('Log out').click()
+
+Log in as the editor and try to change public content without a review process 
+==============================================================================
+
+Login as the editor
+
+    >>> browser.getControl(name='__ac_name').value = editor
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+    >>> "You are now logged in" in browser.contents
+    True
+
+    >>> browser.open(doc_url)
+    >>> try:
+    ...    editlink = browser.getLink(url=doc_url + '/edit')
+    ... except LinkNotFoundError:
+    ...    editlink = None
+
+Check that the editor cannot edit the published content
+
+    >>> editlink == None
+    True
+
+If this test fails then lets insult the manager
+
+    >>> if editlink:
+    ...    editlink.click()
+    ...    text = "<h1>My manager looks like a duck and walks like a duck</h1>\n"
+    ...    browser.getControl(name='text').value = text
+    ...    browser.getControl(name='form_submit').click()
+
+Check to see if the editor has been stopped from publically 
+insulting his manager with formal workflow ...
+
+    >>> 'My manager looks like a duck' in browser.contents
+    False
+
+Check to see that the editor or owner cannot remove published content
+
+    >>> retract_url =  doc_url + '/content_status_modify?workflow_action=retract'
+    >>> try:
+    ...    retractlink = browser.getLink(url=retract_url)
+    ... except LinkNotFoundError:
+    ...    retractlink = None
+    >>> if retractlink: retractlink.click()
+
+Should not have a retract link ...
+
+    >>> retractlink == None
+    True
+
+Confirm that the content is still published not private
+
+    >>> 'class="state-published navTreeCurrentItem navTreeCurrentNode"' in browser.contents
+    True
+
+Check that they can't delete it either
+
+    >>> doc_url + '/delete_confirmation' not in browser.contents
+    True
+
+Now lets spin out an iteration and change that instead
+======================================================
+
+Check to see that the editor or owner can checkout a version
+
+    >>> checkout_url =  doc_url + '/@@content-checkout'
+    >>> try:
+    ...    checkoutlink = browser.getLink(url=checkout_url)
+    ... except LinkNotFoundError:
+    ...    checkoutlink = None
+
+We should have a checkout link from plone.app.iterate
+
+   >>> checkoutlink != None
+   True
+
+We should be able to check out
+
+    >>> checkoutlink.click()
+    >>> iteration_url = folder_url + '/copy_of_' + new_id
+
+Lets check we can open the iteration copy 
+
+    >>> browser.open(iteration_url + '/edit')
+
+Now lets be a bit less rude about our manager
+
+    >>> text = "<h1>My manager looks like a pony</h1>\n"
+    >>> browser.getControl(name='text').value = text
+    >>> browser.getControl(name='form_submit').click()
+    >>> 'like a pony' in browser.contents
+    True
+
+check that we could delete this if we regret it
+
+    >>> iteration_url + '/delete_confirmation' not in browser.contents
+    True
+
+submit that for publication
+
+    >>> submit_url = iteration_url + '/content_status_modify?workflow_action=submit'   
+    >>> browser.getLink(url=submit_url).click()
+
+It should now be pending
+
+    >>> 'class="state-pending navTreeCurrentItem navTreeCurrentNode"' in browser.contents
+    True
+
+we are now blocked from deleting until we make private again
+and we should NOT have check in rights
+
+    >>> iteration_url + '/delete_confirmation' not in browser.contents
+    True
+    >>> iteration_url + '/@@content-checkin' not in browser.contents
+    True
+
+
+Finally log in as manager and checkin the change
+================================================
+
+    >>> browser.getLink('Log out').click()
+    >>> browser.getControl(name='__ac_name').value = portal_owner
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+
+Lets check it in
+
+    >>> browser.open(iteration_url)
+    >>> browser.getLink(url=iteration_url + '/@@content-checkin').click()
+    >>> browser.getControl(name="checkin_message").value = 'Fair commment'
+    >>> browser.getControl(name="form.button.Checkin").click()
+
+Now reopen the original url and see if the change is there
+
+    >>> browser.open(doc_url)
+    >>> 'like a pony' in browser.contents
+    True
+
+   
