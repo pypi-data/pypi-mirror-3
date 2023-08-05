@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+
+import sys, os, logging
+
+# Extend PYTHONPATH with 'lib'
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), os.pardir, "lib")))
+
+from jasy.parser.Parser import parse
+
+from jasy.core import Permutation
+from jasy.core import DeadCode
+
+from jasy.optimizer import CombineDeclarations
+from jasy.optimizer import LocalVariables
+from jasy.optimizer import CryptPrivates
+from jasy.optimizer import BlockReducer
+from jasy.optimizer import UnusedCleaner
+
+from jasy.process.Variables import scan
+from jasy.process.Compressor import compress
+
+
+if __name__ == "__main__":
+    # TODO: get from args
+    level = logging.DEBUG
+    values = None
+    
+    # Run
+    logging.getLogger().setLevel(level)
+
+    for fname in sys.argv[1:]:
+        text = open(fname, encoding="utf-8").read()
+        tree = parse(text, fname)
+    
+        if values:
+            Permutation.Permutation(values).patch(tree)
+
+        DeadCode.cleanup(tree)
+        UnusedCleaner.optimize(tree)
+        CombineDeclarations.optimize(tree)
+        BlockReducer.optimize(tree)
+        LocalVariables.optimize(tree)
+        CryptPrivates.optimize(tree)
+    
+        print(compress(tree))
