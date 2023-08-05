@@ -1,0 +1,246 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      lang="en"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="pressroom">
+
+<body>
+
+    <div metal:fill-slot="main">
+    <metal:main-macro define-macro="main"
+                      tal:define="pr_view context/@@pr_view;
+                                  toLocalizedTime nocall:here/toLocalizedTime;
+                                  viewReleaseAmt context/getNum_releases | nothing;
+                                  viewClipAmt context/getNum_clips | nothing;
+                                  showContacts context/getShow_contacts;
+                                  showReleases context/getShow_releases;
+                                  showClips context/getShow_clips;">
+
+        <div metal:use-macro="here/document_actions/macros/document_actions">
+            Document actions (print, sendto etc)
+        </div>
+
+        <h1 tal:content="object_title" class="documentFirstHeading">
+            Title or id
+        </h1>
+
+        <p class="documentDescription"
+           tal:content="here/Description"
+           tal:condition="here/Description">
+            Description
+        </p>
+        <div class="stx">
+            <div tal:replace="structure here/getText | nothing" />
+        </div>
+                
+    <tal:pressContacts condition="showContacts">
+	    <div id="press-contacts-box"
+             tal:define="pressContactsCollection nocall:context/press-contacts/press-contacts|nothing;
+                         pressContacts pressContactsCollection/queryCatalog|python:[];
+                         canAddPressContacts pr_view/canAddPressContacts"
+             tal:condition="python: pressContacts or (canAddPressContacts and pressContactsCollection)">
+            <h3 class="pressroomSection">
+                <span tal:replace="pressContactsCollection/Title">Press Contacts</span>
+                <span tal:condition="canAddPressContacts" class="addPressRoomItem">
+                  <a href="./press-contacts/createObject?type_name=PressContact"
+                     i18n:translate="label_add_press_contact">[Add Press Contact]</a>
+                </span>
+            </h3>
+                        
+            <dl tal:condition="pressContacts">
+                <tal:pressContact tal:repeat="item pressContacts">
+                    <dt metal:define-macro="contactlist">
+                        <a tal:attributes="href item/getURL;
+                                           title item/Description|nothing"
+                           tal:content="item/pretty_title_or_id">
+                            [Contact's Name]
+                        </a>
+                    </dt>
+                    <dd tal:define="job item/getJobtitle|nothing"
+                        tal:condition="job">
+                        <strong tal:content="job">[Job Title]</strong>
+                    </dd>
+                    <dd tal:define="email item/getEmail|nothing"
+                        tal:condition="email">
+                        <a tal:replace="structure python: here.spamProtect(email)">[Spam-protected email]</a>
+                    </dd>
+                    <dd tal:define="phone item/getPhone|nothing"
+                        tal:condition="phone">
+                        <strong i18n:translate="label_phone">Phone:</strong>
+                        <span tal:content="phone">[Phone]</span>
+                    </dd>
+                    <dd tal:define="cell item/getCellphone|nothing"
+                        tal:condition="cell">
+                        <strong i18n:translate="label_cellphone">Cell:</strong>
+                        <span tal:content="cell">[Cellphone]</span>
+                    </dd>
+                    <dd class="discreet vcard-link">
+                        [<a title="Add this contact to your address book"
+                           tal:attributes="href string:${item/getURL}/vCard.vcf"
+                           i18n:attributes="title label_download_vcard">vCard <img tal:replace="structure here/vcard.gif" src="" alt="" /> </a>]
+                    </dd>
+                </tal:pressContact>
+            </dl>
+        </div>
+    </tal:pressContacts>
+    <tal:pressReleases condition="showReleases">
+        <div id='press-releases'
+             tal:define="pressReleasesCollection nocall:context/press-releases/all-press-releases|nothing;
+                         pressReleases pressReleasesCollection/queryCatalog|python:[];
+                         canAddPressReleases pr_view/canAddPressReleases"
+             tal:condition="python: pressReleases or (canAddPressReleases and pressReleasesCollection)">
+                      
+            <h3 class="pressroomSection">
+                <span tal:replace="pressReleasesCollection/Title">Recent Press Releases</span>
+                               
+                <span tal:condition="canAddPressReleases" 
+                      class="addPressRoomItem">
+                    <a href="./press-releases/createObject?type_name=PressRelease" i18n:translate="label_add_release">
+                        [Add Press Release]
+                    </a>
+                </span> 
+            </h3>
+            
+            <dl tal:condition="pressReleases">
+                <tal:entry tal:repeat="item python:pressReleases[:viewReleaseAmt]">
+                    <tal:block tal:define="item_description item/Description;
+                                           item_subhead item/getSubhead;
+                                           item_wf_state item/review_state|python: context.portal_workflow.getInfoFor(item, 'review_state', '');
+                                           item_wf_state_class python:'state-' + normalizeString(item_wf_state);
+                                           ">
+            
+                    <dt metal:define-macro="releaselistitem">
+        
+                        <div tal:attributes="class python: 'contenttype-' + normalizeString(item.portal_type)">
+                            <a href="#" 
+                               tal:attributes="href item/getURL|item/absolute_url;
+                                               class string:$item_wf_state_class visualIconPadding"
+                               tal:content="item/pretty_title_or_id">
+                                Item Title
+                            </a>
+                        </div>
+ 
+                        <div class="itemDate"
+                              tal:content="python:toLocalizedTime(item.getReleaseDate)">
+                            August 8, 2006
+                        </div>
+        
+                                
+                        <metal:description define-slot="description_slot">
+                            <tal:comment replace="nothing"> 
+                                Place custom listing info for custom types here
+                            </tal:comment>
+                        </metal:description>
+                    </dt>
+        
+                    <dd>
+                        <div tal:condition="item_subhead"
+                             tal:content="item_subhead"
+                             class="pressroomSubhead">
+                            Subheading
+                        </div>
+
+                        <div tal:omit-tag="" tal:condition="not:item_description"> 
+                                    &nbsp; 
+                        </div> 
+                        <div tal:omit-tag="" tal:content="item_description"> 
+                            description 
+                        </div> 
+                    </dd>
+                </tal:block>
+            </tal:entry>
+        </dl>
+
+        <p class="discreet"
+           tal:condition="not:pressReleases"
+           i18n:translate="description_no_items_in_folder">
+            There are currently no press releases.
+        </p>
+                          
+        <div class="morePressRoomItems"
+             tal:condition="python:len(pressReleases) > viewReleaseAmt">
+            <a href="./press-releases" i18n:translate="label_more_releases">
+                More Press Releases
+            </a>
+        </div>
+    </div>
+    </tal:pressReleases>
+    <tal:pressClips condition="showClips">
+        <div id="press-clips"
+             tal:define="pressClipsCollection nocall:context/press-clips/all-press-clips|nothing;
+                         pressClips pressClipsCollection/queryCatalog|python:[];
+                         canAddPressClips pr_view/canAddPressClips"
+             tal:condition="python: pressClips or (canAddPressClips and pressClipsCollection)">
+            <h3 class="pressroomSection">
+                <span tal:replace="pressClipsCollection/Title">Recent Press Clips</span>
+
+                <span tal:condition="canAddPressClips"
+                      class="addPressRoomItem">
+                      <a href="./press-clips/createObject?type_name=PressClip" i18n:translate="label_add_clip">
+                          [Add Press Clip]
+                      </a>
+                </span>  
+            </h3>
+
+            <dl tal:condition="pressClips">
+                <tal:entry tal:repeat="item python:pressClips[:viewClipAmt]">
+                    <tal:block tal:define="item_description item/Description;
+                                           item_wf_state item/review_state|python: context.portal_workflow.getInfoFor(item, 'review_state', '');
+                                           item_wf_state_class python:'state-' + normalizeString(item_wf_state);
+                                           ">
+
+                        <dt metal:define-macro="cliplistitem">
+
+                            <div tal:attributes="class python: 'contenttype-' + normalizeString(item.portal_type)">
+                                <a href="#" 
+                                   tal:attributes="href item/getURL|item/absolute_url;
+                                                   class string:$item_wf_state_class visualIconPadding"
+                                   tal:content="item/pretty_title_or_id">
+                                    Item Title
+                                </a>
+                                </div>
+
+                            <div class="itemDate"
+                                  tal:content="python:toLocalizedTime(item.getStorydate)">
+                                 Story Date
+                            </div>
+
+                            <div class="itemPublication"
+                                  tal:content="item/getPublication | nothing">
+                                 Publication
+                            </div>
+
+                        </dt>
+
+                        <dd>
+                            <span tal:omit-tag="" tal:condition="not:item_description"> 
+                                &nbsp; 
+                            </span> 
+                            <span tal:omit-tag="" tal:content="item_description"> 
+                                description 
+                            </span> 
+                        </dd>
+
+                    </tal:block>
+                </tal:entry>
+            </dl>
+
+            <p class="discreet"
+               tal:condition="not:pressClips"
+               i18n:translate="description_no_items_in_folder">
+               There are currently no press clips.
+            </p>
+
+            <div class="morePressRoomItems"
+                 tal:condition="python:len(pressClips) > viewClipAmt">
+                <a href="./press-clips" i18n:translate="label_more_clips">
+                    More Press Clips
+                </a>
+            </div>
+        </div>
+    </tal:pressClips>
+
+    </metal:main-macro>
+    </div>
+
+</body>
+</html>
