@@ -1,0 +1,252 @@
+##############
+Basic Concepts
+##############
+
+History of PowerConsole
+=======================
+
+PowerConsole began in 2006 as Firebird PowerTool when I've got tired of various 
+administration tools for databases, and particularly those for Firebird_ RDBMS.
+Don't get me wrong, there are many high quality tools for Firebird, but all these
+tools are either…
+
+1. Hard to use, or…
+2. Haven’t feature(s) you want right now, or…
+3. Are not flexible enough, or…
+4. Are hard to learn, or…
+5. Doesn’t work on your platform, or…
+6. Scalle badly, or…
+7. Disappoint you in any oter way.
+
+The real PowerTool™ I would like to have should…
+
+* Provide easy and obvious way to do frequent tasks. It's usually strong point of good GUI tools,
+  although they tend to lose it as their feature set grows over time.
+* Don’t bother you with things you don’t want. Advanced GUI tools tend to overwhelm you with things
+  you don't want to see right now, while CLI tools never bother you.
+* Be flexible to do almost anything you may want. CLI tools usually rule there.
+* Help you to achieve your goal. Good tools will assist you with right things when you need them.
+* Work on multiple platforms.
+* Provide set of “tools” for various tasks and means to combine them to solve more complex problems. 
+  This is also domain of CLI tools.
+* Be extensible.
+
+As you can see, the crux of all problems with any tool is in the limitations of the user interface model
+it uses. Simply in old GUI vs. CLI fight. Each tool unavoidably inherits some characteristics and limitations
+that couldn't escape no matter what according to the user interface paradigm it chooses:
+
+CLI tools
+
+    :Plus:  Very Flexible, multiplatform
+    :Minus: Poor presentation environment, often not powerful enough or powerful,
+            but complicated, hard to use or learn
+
+GUI tools
+
+    :Plus:  Rich presentation environment, good for in-place changes and common tasks
+    :Minus: Scale badly, WYSIWYG plague, not very flexible, often not multiplatform
+
+Web-based tools
+
+    :Plus:  Multiplatform
+    :Minus: “The worst from both worlds”
+
+But is it possible to create a tool that would have all advantages of both UI worlds without their limitations?
+Or it's just a dream, a Holy Grail of UI we all seek but can't really find? Probably, but I think that we can
+get very close to it, and it's not even necessary to invent new UI paradigm for it. If we would accept
+the advantages and limitations of GUI, CLI and Web interfaces and focus on abstracting the utility functions from
+them, we can start to build tools that can have all UI incarnations built around common core, so we could use
+the right one for given task while still working in well known environment.
+
+Certainly, this idea is not new. Any GUI or web frontend to CLI tool is built on this very idea. However,
+the frontend approach uses only loose coupling between UI and the execution core, so its capabilities are
+limited. Although it would be very hard to design a framework that would be multiplatform, simple, extensible,
+powerful and would allow us to build tools that seamlesly integrate with various user interfaces in languages
+like C++ or Java, I thought that it could be actually doable in dynamic language like Python. So I started to
+play with some ideas that resulted in prototype of Firebird PowerTool that was presented_ on Firebird Conference
+in 2006.
+
+The initial prototype was very promising, but it was written as throw-away prototype designed just to demonstrate
+the viability of the basic concept. It was tied to the GUI shell, not easily extended etc. PowerConsole is next
+iteration if this development.
+
+PowerConsole Design
+===================
+
+Functional packages
+-------------------
+
+First initial requirement was to have simple execution system that would allow pluggable packages of functions.
+The idea is that anyone can write domain or task-specific set of functions wrapped into self-contained package
+that could be easily deployed and used by end users. To achieve that, PowerConsole depends to externaly provided
+collection of Python objects with methods that the engine uses to learn about additional commands, help providers,
+text renderers etc. 
+
+Standard frontend applications to PowerConsole engine (consoles) utilize setuptools_ and resources_ to discover
+installed extension package objects, so extension package is a Python egg installed via *easy_install* that
+advertises itself via entry point defined in :file:`setup.py` of the package.
+
+Example setup.py for package::
+
+    from setuptools import setup, find_packages
+    
+    setup(
+        ...
+        entry_points = {
+            'powerconsole.package': [   
+                'firebird = pwc.fbcmd:packageFirebird'
+        },
+        ...
+        )
+
+When you're embedding PowerConsole into your own application or utility, you're free to use any method how
+extensions are defined, distributed, discovered, instantiated and passed to the PowerConsole engine. However,
+it's recommended to use or at least include the 'powerconsole.package' entry point in your extension discovery
+mechanism if you want seamless integration with extensions created by other developers.
+
+
+Execution engine
+----------------
+
+Because packages have to be self-contained, the main problem is the interface between functions in package and
+UI. CLI uses commands with arguments on command line that have (usually text) output to files (stdout is file
+too), while GUI and web interfaces use various widgets to collect input, call functions in the engine directly
+and render their output in various formats. If package would be just a set of functions or classes, then all
+this UI specific handling must be included in execution engine, which would make it overly complex. Moving it
+down to the package is not a solution either, unless the interface is not radically simplified. PowerConsole
+solves this problem by coupling single function with it's command-line definition (a command to invoke it), so
+there is only one entry point regardless of the UI type. Each command is defined as PyParsing_ grammar that
+automatically converts the input line into Python function call with parameters. Execution core then uses this
+information to create global grammar that's then used to process input into sequence of function calls in
+CLI-style processing. It can also call the entry point directly with required parameters when other UI style is
+used.
+
+So the functional unit in PowerConsole is a command, and a package can contain several commands. Each command
+is implemented as class inherited from :class:`~pwc.base.Command`. It defines the main entry point
+:meth:`~pwc.base.Command.execute` that has to be overriden by command developer and two public methods used by
+execution core: :meth:`~pwc.base.Command.getName` and :meth:`~pwc.base.Command.getGrammar`.
+
+But execution core can do more than processing of defined commands. Current executor is written on top
+of Python's code compiler so it can process valid Python code as well. You can even mix Python and user commands
+together. Because the input is first scanned for user commands that are then replaced with equivalent function
+calls before processing in Python code compiler, it's possible to use them *inside* Python functions and other
+code blocks. However, the current implementation has a limitation that user and python commands couldn't be
+mixed on the same line of code.
+
+Because executor is implemented as fully compatible replacement for standard :class:`code.InteractiveInterpreter`
+class (equivalent to :class:`code.InteractiveConsole` is also provided), it's possible to easily create custom
+Python intrepreters extendable with user defined commands. PowerConsole is currently distributed with simple
+interactive CLI console (*ipwc.py*), and more shells (wxPython and Qt-based) are planned for future releases.
+
+The executor also maintains an execution context (local and global namespace) for executed code and provides
+access to generic UI functions.
+
+Interface Provider
+------------------
+
+Executor is not tied to any particular user interface. Instead it uses externaly provided
+:class:`~pwc.base.UserInterfaceProvider`. This provider is then called by individual commands or python code to
+obtain access to specific UI elements. PowerConsole is currently distributed with interface provider that can
+accept external UI element factory object. If external factory is not provided, it uses internal factory that
+provides simple text-based UI elements suitable for CLI tools. Future releases may contain additional, more
+sophisticated providers, UI factories and UI handlers, but idea is that tool developers would make their own
+objects that would integrate the PowerConsole system with their own UI environment.
+
+There could be number of various UI element types (see next sections) according to function and data their
+handle, and each type could be accessed for different purpose. The *purpose* is defined as string name (`'main'`
+for example) and could be hierarchical using dot notation (for example `'main.stderr'`). The idea is that
+InterfaceProvider can use different widgets or configuration for various UI elements according to their use. For
+example separation of standard text output and standard error output.
+
+.. _display-abstraction:
+
+Generic UI output
+-----------------
+
+Output in PowerConsole is processed by abstract display. The display is "divided" into different areas by
+*purpose* and *writting method*. The actual display implementation can map these "slices" to single output or
+into various screens, widgets or files.
+
+The *purpose* is specified by code that requests access to the display as string name. There are no predefined
+purpose names beside (implicit) name 'main'.
+
+The *writting method* specification represents the interface requirements that display must handle. Code that
+needs access to the display may request more than one interface, but should ask only for interfaces that would
+be actually used. The rationale for *writting method* specification is that display implementors may use various
+widgets for different type of output (especially in GUI tools), for example grids for tables.
+
+PowerConsole currently defines next display interfaces:
+
+.. currentmodule:: pwc.base
+
+:UI_TEXT:       Basic text display. Supports methods :meth:`~Display.write`, :meth:`~Display.writeLine` and
+                :meth:`~Display.writeLines`.
+:UI_LIST:       Display that handles list of items. Supports method :meth:`~Display.writeList`
+:UI_OBJECT:     Display that handles object rendering. Support method :meth:`~Display.writeObject`
+:UI_OBJECTLIST: Display that handles list of objects. Supports method :meth:`~Display.writeObjectList`
+:UI_TABLE:      Display that handles tables. Supports method :meth:`~Display.writeTable`.
+
+Future PowerConsole releases may introduce additional interfaces.
+
+PowerConsole is distributed with basic :class:`Display` implementation that handles all interfaces and directs
+output to `stdout`.
+
+Object Renderes
+---------------
+
+Displays that handle objects should use or inherit from :class:`ObjectVisitor` to allow special rendering for
+specific objects. Command developers can register resources that can display processed object in more suitable
+way than default one (for example using PrettyPrint etc.). However, if this system should work as intended,
+the display must support additional interfaces that these renderers can use and not only the object ones.
+
+Generic UI input
+----------------
+
+Generic UI input is not yet defined. First release is planned for version 0.8.
+
+
+Help Providers
+--------------
+
+PowerConsole comes with several built-in commands. One of them is HELP command that shows information about
+installed commands and other usefull information about various topics that command and tools develoepers wants
+to provide to end users. The built-in help systems uses infromation extracted from `docstrings` and from
+registered :class:`HelpProvider` objects.
+
+Controller Extensions
+---------------------
+
+.. currentmodule:: pwc.interpreter
+
+Command developers could register code that can augment the execution engine (:class:`Interpreter`) during
+its initialization. It could be used to install shared data used by commands, check the environment etc.
+
+Command processing
+==================
+
+When PowerConsole processes input, it takes a whole line of text and analyzes it with so called `check grammar`.
+This grammar is a subset of `complete grammar` for each command that consists only minimal part of it to clearly
+identify a chunk of text as command. This approach is necessary to support commands that span over multiple
+lines without special support in grammar itself (which would make the grammar definition unnecessarily complex).
+PowerConsole supports two types of command definitions:
+
+1. Commands terminated with special text sequence - `terminator` (for example SQL commands has to be terminated
+   by ';')
+2. Commands without terminator sequence.
+
+The type of command is very important for multiline command handling. The terminated command is not considered
+complete until terminator sequence is found at the end of line, while non-terminated commands are considered complete
+if there is not a command continuation sequence at the end of line (line continuation marker, '\' by default).
+
+If command is not complete, PowerConsole adds next line to the code block and tries again, until command's
+completion. Complete command is then processed by `full grammar` to transform it into function call and feeds it
+to code compiler.
+
+Code compiler uses similar loop to complete Python command/code block. All additional lines are also preprocessed
+by internal commands "compiler".
+
+.. _PyParsing: http://pyparsing.wikispaces.com/
+.. _setuptools: http://peak.telecommunity.com/DevCenter/setuptools
+.. _resources: http://peak.telecommunity.com/DevCenter/PkgResources
+.. _presented: http://www.ibphoenix.cz/pwc/download/PowerTool-2006.pdf
+.. _Firebird: http://www.firebirdsql.org

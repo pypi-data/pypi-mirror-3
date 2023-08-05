@@ -1,0 +1,670 @@
+#############################
+How to implement new commands
+#############################
+
+.. currentmodule:: pwc.base
+
+Writting new commands is quite simple and straightforward process. The only one harder or trickier part
+is grammar definition for the command, which requires careful design and thinking. 
+
+Because PowerConsole uses PyParsing_ to process commands to Python function calls, you should start by
+familiarize yourself with it. PyParsing provides a library of classes that you can use to construct
+the grammar directly in Python code. The grammar representation is quite readable, owing to
+the self-explanatory class names, and the use of '+', '|' and '^' operator definitions.
+
+The PyParsing website and especially the distribution package itself contains documentation and quite
+a lot of examples.
+
+You will need :mod:`setuptools` installed. if you don't have setuptools yet, you can install it by
+downloading and running ez_setup.py_.
+
+Process Overview
+================
+
+To create a new command you need to do next steps:
+
+1. Create a new project (directory) for your command package.
+2. Define a `namespace` package 'pwc' in it. Simply create a subdirectory named :file:`pwc` and place the file
+   :file:`__init__.py` with next content to it::
+
+     __import__('pkg_resources').declare_namespace(__name__)
+
+   Actually, this step is not really necessary, but it's advised practice to use the namespace module instead
+   creating new modules.
+3. Create a new module in package 'pwc' for your commands. The module name needs a little bit of thinking
+   to avoid name collisions with command modules created by other developers.
+4. Create :file:`setup.py` for you package.
+5. Create a class inherited from :class:`pwc.base.Command` in your command module. Implement *four* methods.
+6. Define the *full* and *check* grammars for your command.
+7. Implement the command behavior.
+8. Install your command package.
+9. Profit.
+
+Grammar definition
+==================
+
+Grammar is defined in :meth:`__init__` method of your command class using PyParsing_ building blocks. These
+blocks compose a parsing tree, where some nodes may play a special role. You can define your grammar as you see
+fit for your purpose, but to define a grammar that could be sucessfuly used by PowerConsole, you have to
+follow few rules.
+
+1. One grammar node must be defined as *name* node for the command. It's typically a node that defines the
+   command's keyword, but it could be also an empty node. To define node as *name* node, call the inherited
+   method :meth:`~Command._makeNameNode` and pass the node as parameter.
+
+2. You have to wrap the complete grammar into single node and set its parsing action to inherited method
+   :meth:`~Command._compile`. This node must be returned by method :meth:`~Command._getGrammar`.
+
+3. You have to define initial fixed part of your grammar as separate node that defines the 'check' grammar.
+   This node must be returned by method :meth:`~Command._getCmdKeyword`.
+
+4. The method :meth:`~Command.execute` that implements the command actions can have named parameters. Grammar
+   nodes that define values for these parameters must have set the `results name` that's the same as parameter
+   name.
+
+One example is better than thousand words, so here are some example grammars:
+
+Simple command with parameters
+------------------------------
+
+This example shows the definition of built-in command LIST.
+
+Grammar::
+
+   LIST [<attribute>[,<attribute>] IN] <expression>
+
+Definition::
+
+    def __init__(self,controller):
+        ...
+        # Grammar
+        self.keyList = self._makeNameNode(CaselessKeyword('list'))
+        keyAttr = delimitedList(self.IDENT,combine=True).setResultsName('attr') + \
+                CaselessKeyword('in')
+        # LIST [<attribute>,<attribute> IN] <expression>
+        self.cmdList = self.keyList + Optional(keyAttr) + self.EXPR.setResultsName('expr')
+        self.cmdList.setParseAction(self._compile)
+
+    def _getGrammar(self):
+        return self.cmdList
+    def _getCmdKeyword(self):
+        return self.keyList
+
+    def execute(self,expr,attr=None):
+        ...
+
+The *check grammar* node is caseless keyword 'list'. It's also defined as *name node*. Because the expression
+is last element of the grammar and could potentially span over multiple lines, we can use inherited definition
+EXPR that's  defined in :class:`pwc.base.Command` for your convenience as follows::
+
+    CHUNK        = CharsNotIn('\n')
+    EXPR         = White().setName('<expr>').suppress() + OneOrMore(CHUNK + (
+                    (Optional(lineEnd.setParseAction(replaceWith(' '))) +
+                    FollowedBy(CHUNK)) ^
+                    Optional(lineEnd.suppress())
+                    )
+        ).setName('expr')
+
+We assigned the results name 'expr' to it, because our execute method expects one parameter with this name.
+Note that line end is replaced with space, so the expression is compiled as it would be on single line.
+The *full grammar* is cmdList and has assigned parse action :meth:`pwc.base.Command._compile`.
+
+
+Simple command with many parameters
+-----------------------------------
+
+Here is an example of simple command with many parameters, some of them optional.
+
+Grammar::
+
+    CONNECT 'dsn or db' [HOST host][USER 'user'][PASSWORD 'password'] [CACHE int ][ROLE 'role'][AS var]
+
+
+Definition::
+
+    def __init__(self, controller):
+        ...
+        self.keyConnect     = self._makeNameNode(CaselessKeyword('connect'))
+        # we don't need to keep next tokens as instance attributes
+        keyUser     = CaselessKeyword('user')
+        keyPassword = CaselessKeyword('password')
+        keyCache    = CaselessKeyword('cache')
+        keyRole     = CaselessKeyword('role')
+        keyAs       = CaselessKeyword('as')
+        keyHost     = CaselessKeyword('host')
+        optUser     = keyUser + QuotedString("'").setResultsName('user').setFailAction(self._fail)
+        optPassword = keyPassword + QuotedString("'").setResultsName('password').setFailAction(self._fail)
+        optCache    = keyCache + self.INTEGER.setResultsName('cache').setFailAction(self._fail)
+        optRole     = keyRole + QuotedString("'").setResultsName('role').setFailAction(self._fail)
+        optAs       = keyAs + self.IDENT.setResultsName('intoVar').setFailAction(self._fail)
+        optHost     = keyHost + self.IDENT.setResultsName('host').setFailAction(self._fail)
+
+        # CONNECT 'dsn' [USER 'user'][PASSWORD 'password']
+        #  [CACHE int ][ROLE 'role'][AS var]
+        self.cmdConnect  = self.keyConnect + self.FILENAME.setResultsName('db') \
+            + Optional(optHost) + Optional(optUser) + Optional(optPassword) \
+            + Optional(optCache) + Optional(optRole) + Optional(optAs)
+        self.cmdConnect.setParseAction(self._compile)
+
+    def _getGrammar(self):
+        return self.cmdConnect
+    def _getCmdKeyword(self):
+        return self.keyConnect
+    def execute(self,db,**kwargs):
+        ...
+
+The *check grammar* node is caseless keyword 'connect'. It's also defined as *name node*. *optXXX* are nodes
+for command options. The value part has assigned fail action to inherited :meth:`~pwc.base.Command._fail` to
+get nice error reporting if value is not entered. We also must assign a ResultsName for each value to name that
+our execute methoud would recognize. For file name we could utilize the inherited FILENAME node that's defined
+as follow::
+
+    FILENAME     = (Word(alphas + 
+                    alphas8bit + nums + '_/\-:.').setName('filename') | 
+                    QuotedString("'")).setName('filename')
+
+The *full grammar* is cmdConnect and has assigned parse action :meth:`pwc.base.Command._compile`.
+
+Handling multiple commands by single one
+----------------------------------------
+
+Sometimes, you want to handle several commands by single execute method (i.e. command class). For example
+it's pointless to implement each SQL command as separate command class. In case of SQL, we don't even need to
+define the *full grammar*, because SQL commands are terminated, we just need to define the *check grammar*.
+
+Grammar::
+
+    Selected SQL commands
+
+Definition::
+
+    usesTerminator = True
+
+    def __init__(self,controller):
+        ...
+        # Grammar
+        # SQL commands
+        keyCommit   = CaselessKeyword('commit')
+        keyRollback = CaselessKeyword('rollback')
+        keyAlter    = CaselessKeyword('alter')
+        keyCreate   = CaselessKeyword('create')
+        keyDelete   = CaselessKeyword('delete')
+        keyDrop     = CaselessKeyword('drop')
+        keyExecute  = CaselessKeyword('execute')
+        keyGrant    = CaselessKeyword('grant')
+        keyInsert   = CaselessKeyword('insert')
+        keyRecreate = CaselessKeyword('recreate')
+        keyRevoke   = CaselessKeyword('revoke')
+        keySavepoint= CaselessKeyword('savepoint')
+        keySelect   = CaselessKeyword('select')
+        keyUpdate   = CaselessKeyword('update')
+        keySet      = CaselessKeyword('set')
+
+        # Second level keywords
+        keyGenerator   = CaselessKeyword('generator')
+        keyStatistics  = CaselessKeyword('statistics')
+        
+        # Composite SQL commands
+        cmdSetGen      = (keySet + keyGenerator)
+        cmdSetStat     = (keySet + keyStatistics)
+
+        # Grammar trick to sink all SQL commands into this class
+        self.keySQL   = self._makeNameNode(Empty())
+
+        self.cmdAll  = (keySelect ^ keyCommit ^ keyRollback ^ keyAlter ^ keyCreate ^ 
+                        keyDelete ^ keyDrop ^ keyExecute ^ keyGrant ^ keyInsert ^
+                        keyRecreate ^ keyRevoke ^ keySavepoint ^ keyUpdate ^ 
+                        cmdSetGen ^ cmdSetStat
+            )
+
+        # Multiline SQL command
+        SQL = OneOrMore(CHUNK + (
+                        (Optional(lineEnd.setParseAction(replaceWith('\\n'))) +
+                        FollowedBy(CHUNK)) ^
+                        Optional(lineEnd.suppress())
+                        )
+            )
+        
+        self.cmdSQL  = self.keySQL + \
+            Combine(self.cmdAll + SQL).setResultsName('sql')
+        self.cmdSQL.setParseAction(self._compile)
+
+    def _getGrammar(self):
+        return self.cmdSQL
+    def _getCmdKeyword(self):
+        return self.keySQL + self.cmdAll
+
+    def execute(self,sql):
+        ...
+
+First, we need to set the class attribute *usesTerminator* to True, because SQL commands use command terminator.
+Next we define the *check grammar* cmdAll that would recognize all SQL commands we want to handle. The *full
+grammar* would be empty node so the whole command would be passed as 'sql' parameter to our execute method.
+The SQL command would consist from our SQL keywords + rest of the command that may span multiple lines (up to
+the terminator sequence) combined into one text node with results name 'sql'. Note that line ends are preserved
+in multiline command. That's ok, because the whole command would be quoted as string parameter, and we want to
+preserve the line ends in SQL command (for example when we'll define stored procedure, it does matter a lot).
+
+.. note::
+
+   We're using empty `name node` keySQL in both grammars, because bot must contain the name node.
+
+Complex commands
+----------------
+
+Sometimes you want to define command with keyword(s) that may very likely collide with other commands created
+by other command developers. In that case, you need to make it unique by introducing *domain* keyword(s). For
+example Firebird QA command pack contains command RUN, that will collide with standard command RUN. So all QA
+commands use keyword QA followed by command keyword.
+
+Grammar::
+
+    QA RUN [FORMAT {FULL | BRIEF | BATCH | STATS | NONE}] [ARCHIVE | test-name]
+
+Definition::
+
+    def __init__(self,controller):
+        ...
+        # Grammar
+        self.keyCmdName  = self._makeNameNode(Empty())
+        testName = Word(alphas,alphanums+'_-.')
+        # QA RUN [FORMAT {FULL | BRIEF | BATCH | STATS | NONE}] [ARCHIVE | test-name]
+        self.keyQARun = self._makeNameNode(Combine(
+            CaselessKeyword('QA') + White() +
+            CaselessKeyword('RUN')))
+        self.cmdQARun = self.keyCmdName +  self.keyQARun + \
+            Optional(CaselessKeyword('FORMAT') + 
+                oneOf('FULL BRIEF BATCH STATS NONE',caseless=True).setResultsName('format')) + \
+            Optional(CaselessKeyword('ARCHIVE').setResultsName('archive') | testName.setResultsName('test')) + \
+            Optional(lineEnd.suppress())
+        self.cmdQARun.setParseAction(self._compile)
+
+    def _getGrammar(self):
+        return self.cmdQARun
+    def _getCmdKeyword(self):
+        return self.keyQARun
+
+    def execute(self,format='brief',archive=None,test=None):
+        ...
+
+In this case you'll have to work around the "limitation" of PyParsing and how translation of command to python
+call works. The _compile method requires that there is a token 'cmd' that contains command name so it could
+construct the correct `_XXX_execute` call. This node is also used by execution engine to identify the command
+and look it up in command table. Hover, if your grammar node that defines the name is "structural" node like 
+Combine, it doesn't show up in parameters list and the routine fails. To work around that, you need to define
+two *name nodes*. The obvious one for your keywords in *check grammar*::
+
+        self.keyQARun = self._makeNameNode(Combine(CaselessKeyword('QA') + White() + CaselessKeyword('RUN')))
+
+and dummy one that will appear in full grammar::
+
+        self.keyCmdName  = self._makeNameNode(Empty())
+        self.cmdQARun = self.keyCmdName +  self.keyQARun + \
+            ...
+
+Debugging your Grammar
+----------------------
+
+Grammar definition could be tricky and it may happen you would not get it right from the start, especially
+when you would use any definition that can potentially match more than expected (some grammar nodes are
+"greedy" by design, like EXPR or ARG). In that case you would need to debug your grammar. To do so, you'll
+need to use the :file:`ipwc.py` CLI console distributed with PowerConsole. You *may* run it in your preferred
+debugger, but it's not necessary under normal circumstances.
+
+First and foremost, you may set the debug flag on your grammar by calling :meth:`setDebug` method on nodes
+you want to analyze, so you'd get the debigging printout when these nodes are matched againt the command line.
+Typically calling it on nodes returned by :meth:`~pwc.base.Command._getGrammar` and
+:meth:`~pwc.base.Command._getCmdKeyword` is what you would want.
+
+If you're using parse actions, you may trace their invocation with :func:`traceParseAction` decorator function
+from :mod:`Pyparsing` module.
+
+When your grammar is basically right but you want to test how various alternatives are compiled into Python
+function calls, you may run the :file:`ipwc.py` with :option:`-d` or :option:`--debug` command line option that
+will print out the preprocessed command line before it's passed to the Python code compiler, so you could see
+the whole function call definition (including actual parameters) before it's executed.
+
+Implementing the command
+========================
+
+Command implementation itself happens in method :meth:`~pwc.base.Command.execute` of your command class.
+However, to simplify command development, PowerConsole uses some convetions that you *should* follow.
+You can alway go your own route, but following these conventions would save you from typing and coding.
+There are also some constraints and conditions that your commnd implementation must satisfy to work properly.
+
+Command class
+-------------
+
+Your command class must inherit from :class:`pwc.base.Command` and define (override) next methods:
+
+1. :meth:`~pwc.base.Command.__init__`.
+   First and foremost, you must call the inherited one as first action and pass the `controller` to it.
+   You should define your grammar in this method.
+2. :meth:`~pwc.base.Command._getGrammar`.
+   This method must return full grammar definition for your command.
+3. :meth:`~pwc.base.Command._getCmdKeyword`.
+   This method must return a grammar that would uniquely identify your command on the command line.
+4. :meth:`~pwc.base.Command.execute`.
+   This method is called to perform your command.
+
+The :class:`pwc.base.Command` class defines some useful attributes and methods. Namely:
+
+1. Commonly used grammar elements like IDENT, FILENAME, EXPR, ARG, INTEGER etc.
+2. Required or commonly used parse actions.
+3. Attributes to access the execution engine (controller) and various command parameters (name, terminator use)
+4. Methods to get local and context namespaces and to write to controllers standard and error output.
+
+You may also implement the :meth:`getHelp` method that must return the help text for the command shown by
+builtin :ref:`help` command.
+
+Command name
+------------
+
+All commands have a name that's used internally to look up the command class in command dictionary. 
+
+1. This name must be unique. If you expect that your command name may collide with commands from other
+   developers, use domain or vendor-specific prefix in your command name.
+2. The name must be built into your grammar. You can use any type of PyParsing node for it except those that
+   define parameter values for your command (i.e. any keyword, structural or even empty node). This node must
+   have name 'cmd', and the command name must be defined as results name and node value itself (you can do that
+   by using :func:`pyparsing.replaceWith` parse action). Command class has a method
+   :meth:`~pwc.base.Command._makeNameNode` to make any grammar node to *name* node.
+
+The command name is internally stored in :attr:`~pwc.base.Command._name` attribute of your command class.
+The inherited :meth:`~pwc.base.Command.__init__` method initializes it to your class name (lowercased) with
+'cmd' prefix (if any) removed. You can change it to other value in your `__init__` method after that.
+
+The command name is also shown by builtin :ref:`help` command in list of available commands (if your command
+is documented directly by command class), so your command name should match the keyword(s) used to invoke it.
+
+Accessing user objects
+----------------------
+
+Your command is executed as normal Python function in PowerConsole's sandbox. Your may need to access objects
+defined in the sandbox namespace or execution context (for example when your command is executed from other
+function defined by user). The Command class has two useful methods for this purpose:
+
+   :meth:`~pwc.base.Command._getUserNamespace`
+      Returns dictionary with user objects (sandbox globals).
+
+   :meth:`~pwc.base.Command._getContextLocals`
+      Returns dictionary with local objects in execution context of your command or from specified frame context.
+      To access caller's locals (from user context) directly from your :meth:`~pwc.base.Command.execute` method
+      just call this method without parameter. However, if you'll call this function from inner calls (for
+      example from method called by your execute method), you have to specify the parameter value. The parameter
+      specifies the number of frames to skip (i.e. level of nesting from `execute` to this function call).
+
+
+Command output
+--------------
+
+For regular output, your command must use the :ref:`display abstraction <display-abstraction>`. For error and
+system reporting you may use methods :meth:`~pwc.interpreter.Interpreter.write` and
+:meth:`~pwc.interpreter.Interpreter.writeErr` inherited from Command class.
+
+To obtain a display for your output, call the appropriate method on :attr:`self.controler.ui_provider`. It's
+also a good practice to define the *purpose* string for your output. You should also document the display
+interfaces and purpose names your command(s) use, so tool developers could adapt their tools to allow
+customizations or specific handling to your output for end users.
+
+
+Documentation for your command
+------------------------------
+
+PowerConsole supports builtin :ref:`help` system that uses docstrings and special :class:`HelpProvider` objects
+to print documentation for your commands and other topics you want to offer to users directly from the
+PowerConsole. If you want to list your command directly in list of supported commands, you must either write
+a docstring for :meth:`~execute` method implementing your command or define :meth:`~getHelp` method in your
+command class. Otherwise your command will not be listed. So if you don't want to list your command (for example
+because you'll document it via special topic handled by Help Provider), don't create the docstring for
+the execute method.
+
+Installing command to PowerConsole
+----------------------------------
+
+To install command to the PowerConsole you must define each class as `powerconsole.commands` entry point
+in your :file:`setup.py`::
+
+   from setuptools import setup, find_packages
+
+   setup(
+       ...
+       entry_points = {
+           'powerconsole.commands': [   
+               '<cmd-name> = pwc.<your-module>:<cmd-class>',
+               ...
+            ],
+       }
+       ...
+   )
+
+
+Help Providers
+==============
+
+:class:`HelpProvider` is special object used by builtin :ref:`help` command to display information for any topic
+or command you want to present to the PowerConsole users.
+
+The simples way to install topics to the help system via Help Provider is to define your own class inherited
+from :class:`HelpProvider` with string attributes or methods with names staring with :data:`HELP_PREFIX` followed
+by name of the topic. While string attributes contain directly the help text for the topic, methods may simply
+return the help text or handle the help output by itself (for example Python Help Provider enters the Python
+builtin help system).
+
+Simple Help Povider example::
+
+    class helpMyProvider(HelpProvider):
+    """Help Provider for my PowerConsole commands and other topics"""
+
+        help_mylicense = """License text...
+        """
+        help_sql = """Help for SQL support in my package.
+        """
+
+        def help_mycomands(self):
+            ...
+            return help_text
+
+    Installed topics: mylicense, sql, mycommands
+
+If you want to create HelpProvider object with special handling, you have to implement (override) methods
+:meth:`~HelpProvider.canHandle`, :meth:`~HelpProvider.getTopics` and :meth:`~HelpProvider.getHelp`.
+
+Next Help Provider implements access to builtin Python help system::
+
+    class helpPython(HelpProvider):
+        """Help Provider that provides access to standard Python help system."""
+
+        def canHandle(self,topic):
+            """Return True if 'topic' starts with 'python'."""
+            return topic.startswith('python')
+
+        def getTopics(self):
+            """Return list of topics handled by provider."""
+           return ['python']
+
+        def getHelp(self, topic):
+           """Return python help for 'topic'."""
+
+            topic = topic[6:].strip()
+            if topic != '':
+                self._help(topic)
+            else:
+                self._help()
+
+Like commands, Help Providers must be registered as entry points in your :file:`setup.py`::
+
+   from setuptools import setup, find_packages
+
+   setup(
+       ...
+       entry_points = {
+           'powerconsole.help_providers': [   
+               '<provider-name> = pwc.<your-module>:<provider-class>',
+               ...
+            ],
+       }
+       ...
+   )
+
+
+Object Renderers
+================
+
+Some commands (yours or those created by other developers) may use :ref:`Object Display interface
+<display-abstraction>` to display objects to PowerConsole users. By default this interface displays string
+representation of the object (via str(<object>)), but PowerConsole supports more rich object rendering through
+user defined Object Renderers.
+
+Object Renderer is an ordinary new-style class that can extend the `Visitor Pattern` used by PowerConsole or
+know how to handle object(s) of certain type(s).
+
+The renderer must have the :meth:`__init__` method that accepts at least one parameter: the display where
+the output should be rendered.
+
+.. note::
+
+   Single renderer class can provide special printout for multiple object types.
+
+Using the Visitor Pattern
+-------------------------
+
+If your command or other package implements objects that are accessible to console users, you may adopt the
+visitor pattern for them. Using the pattern would allow your or other to handle your object in specific way
+generally, not only special output, so it should be preferred over special visualisation by objct type.
+
+To add Visitor pattern to your object, simply add next method to it::
+
+    def acceptVisitor(self,visitor):
+        visitor.visit<class-name>(self)
+
+The calling visitor must know how to handle your object, i.e. must have the corresponding 
+:meth:`.visit{class-name}` method or know how to handle it in generic way, but it shouldn't be the concern
+of your object. The Object Display used by PowerConsole will always know how to handle it. However, it doesn't
+know how to handle it in specific way (does not have the :meth:`.visit{class-name}` method), unless you or
+someone else will not provide the renderer that implements it.
+
+That's it, your renderer class must implement the :meth:`.visit{class-name}` method on behalf of the display,
+and use the display's interface(s) to write it out.
+
+.. warning::
+
+   Your renderer class should always check wheter particular interface is implemented by display before using it!
+
+
+Handling objects by type
+------------------------
+
+If you want to provide special printout of objects that doesn't and can't support the Visitor Pattern, you can
+create a renderer that handle object by the type. To do so, simply add next method to it::
+
+    def handle_<type-name>(self,obj):
+        ...
+
+This method will be called by display for objects that are **exactly** of specified type (i.e. not for
+descendants or type-like objects that conform to the interface of specified type).
+
+Here is the example renderer for list and dictionary objects that prettyprints them::
+
+    from pprint import pformat
+
+    class renderListDict(object):
+        def __init__(self, display):
+            self.display = display
+        def handle_list(self,obj):
+            self.display.writeLine(pformat(obj))
+        def handle_dict(self,obj):
+            self.display.writeLine(pformat(obj))
+
+
+Registering your renderer
+-------------------------
+
+Like commands or help providers, your object renderer must be registered in your :file:`setup.py` as
+'powerconsole.text_renderers' entry point::
+
+   from setuptools import setup, find_packages
+
+   setup(
+       ...
+       entry_points = {
+           'powerconsole.text_renderers': [   
+               '<renderer-name> = pwc.<your-module>:<renderer-class>',
+               ...
+            ],
+       }
+       ...
+   )
+
+
+Controller Extenders
+====================
+
+Controller extender is a convenient way how to perform any action during PowerConsole initialization. For example
+when you want to add objects to user execution namespace, install attributes for shared use to the controller
+itself (all commands have access to it, so you can use it as common storage for data shared among commands) etc.
+
+Extender is an ordinary new-style class that has the :meth:`__init__` method or ordinary function that accepts
+at least one parameter: the :class:`~pwc.interpreter.Interpreter` instance.
+
+Like commands or help providers, your controller extender must be registered in your :file:`setup.py` as
+'controller_extensions' entry point::
+
+   from setuptools import setup, find_packages
+
+   setup(
+       ...
+       entry_points = {
+           'controller_extensions': [   
+               '<extender-name> = pwc.<your-module>:<extender-class-or-function>',
+               ...
+            ],
+       }
+       ...
+   )
+
+
+Extending the SHOW command
+==========================
+
+PowerConsole comes with one extensible command: SHOW (which you can use as example how to implement your own
+extensible commands). The purpose of this command is to provide a convenient way how to print out various
+information. Core grammar definition supports only expressions that are evaluated and rendered on display
+as lines of text (for strings) or objects. You can write your own classes that extend the grammar to display
+any information you want. For example database package may define extension to support topics 'database' and
+'tables' to display information about connected database and available tables (via SHOW DATABASE and SHOW TABLES
+commands).
+
+Extenstions to SHOW command are created like normal commands, with few specifics:
+
+1. Your class descends from :class:`pwc.stdcmd.ShowExtender` class instead :class:`pwc.base.Command`.
+2. The :meth:`~pwc.base.Command.execute` method may handle the output directly or simply can return
+   the string(s) or object(s) to be displayed.
+3. It's registered as 'powerconsole.show_extensions' entry point instead 'powerconsole.commands'.
+
+Here is the example extension that can show information about database procedures::
+
+    class showTest(ShowExtender):
+    
+        def __init__(self,controller):
+            super(showTest,self).__init__(controller)
+            DBIDENT      = (Word(alphas,alphanums+'_$').setParseAction(upcaseTokens) | 
+                            QuotedString('"',escQuote='"',unquoteResults=False)).setName('dbident')
+            self.keyProcedure   = self._makeNameNode(Empty()) + \
+                (CaselessKeyword('procedure') 
+                | CaselessKeyword('procedures')).setResultsName('category').setParseAction(upcaseTokens)
+            self.cmdShow = (self.keyProcedure + Optional(DBIDENT.setResultsName('objname')))  
+
+        def _getGrammar(self):
+            return self.cmdShow
+        def _getCmdKeyword(self):
+            return self.keyProcedure
+        def execute(self,**kwargs):
+            """PROCEDURES | PROCEDURE <name>
+        Shows list of procedures or detail about procedure.
+            """
+            return 'Text to show...'
+
+
+.. _PyParsing: http://pyparsing.wikispaces.com/
+.. _ez_setup.py: http://peak.telecommunity.com/dist/ez_setup.py
