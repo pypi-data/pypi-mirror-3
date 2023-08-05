@@ -1,0 +1,76 @@
+import os
+
+from lizard_ui.settingshelper import setup_logging
+from lizard_ui.settingshelper import STATICFILES_FINDERS
+
+STATICFILES_FINDERS = STATICFILES_FINDERS
+
+DEBUG = True
+TEMPLATE_DEBUG = True
+DATABASES = {
+    'default': {'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': 'test.db'},
+    }
+SITE_ID = 1
+INSTALLED_APPS = [
+    'lizard_map',
+    'lizard_ui',
+    'staticfiles',
+    'compressor',
+    'django_nose',
+    'piston',
+    'south',
+    'debug_toolbar',
+    'django_extensions',
+    'django.contrib.gis',
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.sites',
+    ]
+ROOT_URLCONF = 'lizard_map.urls'
+
+TEST_RUNNER = 'django_nose.NoseTestSuiteRunner'
+
+# Used for django-staticfiles
+STATIC_URL = '/static_media/'
+TEMPLATE_CONTEXT_PROCESSORS = (
+    'lizard_map.context_processors.processor.processor',
+    # Default django 1.3 items.
+    "django.contrib.auth.context_processors.auth",
+    "django.core.context_processors.debug",
+    "django.core.context_processors.i18n",
+    "django.core.context_processors.media",
+    "django.core.context_processors.static",
+    "django.contrib.messages.context_processors.messages"
+    )
+
+MIDDLEWARE_CLASSES = (
+    #'debug_toolbar.middleware.DebugToolbarMiddleware',
+    #'lizard_map.profilemiddleware.ProfileMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    )
+INTERNAL_IPS = (
+    '127.0.0.1',
+    )
+
+SETTINGS_DIR = os.path.dirname(os.path.realpath(__file__))
+BUILDOUT_DIR = os.path.abspath(os.path.join(SETTINGS_DIR, '..'))
+MEDIA_ROOT = os.path.join(BUILDOUT_DIR, 'var', 'media')
+STATIC_ROOT = os.path.join(BUILDOUT_DIR, 'var', 'static')
+MEDIA_URL = '/media/'
+STATIC_URL = '/static_media/'
+
+LOGGING = setup_logging(BUILDOUT_DIR)
+
+
+try:
+    # Import local settings that aren't stored in svn.
+    from lizard_map.local_testsettings import *
+except ImportError:
+    pass
