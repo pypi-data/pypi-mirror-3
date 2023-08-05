@@ -1,0 +1,34 @@
+# Based on http://lincolnloop.com/django-best-practices/deployment/servers.html
+# Apache server
+upstream django {
+	server         {{HOST}}:9000;
+}
+
+# Redirect all requests on the www subdomain to the root domain
+server {
+	listen      80;
+	server_name www.{{HOST}};
+	rewrite ^/(.*) http://{{HOST}}/$1 permanent;
+}
+
+# Serve static files and redirect any other request to Apache
+server {
+	listen       80;
+	server_name  {{HOST}};
+	access_log  {{LOG_DIR}}/nginx_access.log;
+	error_log   {{LOG_DIR}}/nginx_error.log warn;
+	
+	proxy_redirect     off;
+	proxy_set_header   Host             $host;
+	proxy_set_header   X-Real-IP        $remote_addr;
+	proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+	
+	location / {
+		proxy_pass         http://django;
+	}
+	
+	location {{MEDIA_URL}} {
+		root {{PROJECT_ROOT}};
+	}
+}
+
