@@ -1,0 +1,214 @@
+================
+Portlet assignment
+================
+
+Based on tests/content.txt but focusing on assigning portlets for 
+the various portlet managers of the portlet page.
+
+The portlet pages are simple Archetypes content. Let's ensure that they can
+be created, using a test-browser test.
+
+First, some set-up.
+
+    >>> from Products.Five.testbrowser import Browser
+    >>> browser = Browser()
+    >>> portal_url = self.portal.absolute_url()
+    
+    >>> browser.handleErrors = False
+    >>> self.portal.error_log._ignored_exceptions = ()
+    
+We will log authorise as Manager user.
+    
+    >>> from Products.PloneTestCase.setup import default_password
+    >>> browser.open(portal_url+'/logout')
+    >>> browser.open(portal_url+'/login_form')
+    >>> browser.getControl(name='__ac_name').value = 'uber'
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl('Log in').click()
+    >>> 'You are now logged in' in browser.contents
+    True
+
+    
+Start on the portal root.
+    
+    >>> browser.open(portal_url)
+    
+Now add a portlet page.
+
+    >>> browser.getLink(id='portlet-page').click()
+    
+Make sure we're in the factory:
+
+    >>> 'portal_factory' in browser.url
+    True
+    
+Fill in the form and submit.
+    
+    >>> browser.getControl(name='title').value = "Portlet page"
+    >>> browser.getControl(name='description').value = "Portlet page description"
+    >>> browser.getControl(name='text').value = "<b>Portlet page body text</b>"
+    >>> browser.getControl('Save').click()    
+    
+Lets publish the portlet page.
+
+    >>> browser.getLink(id='workflow-transition-publish').click()
+
+We focus on the content column. So lets disable the left and right column
+
+    >>> from zope.component import getMultiAdapter, getUtility
+    >>> from plone.portlets.interfaces import IPortletManager
+    >>> from plone.portlets.interfaces import IPortletAssignmentMapping
+
+    >>> left_column = getUtility(IPortletManager, name=u"plone.leftcolumn")
+    >>> left_assignable = getMultiAdapter((self.portal, left_column), IPortletAssignmentMapping)
+    >>> for name in left_assignable.keys():
+    ...     del left_assignable[name]
+
+    >>> right_column = getUtility(IPortletManager, name=u"plone.rightcolumn")
+    >>> right_assignable = getMultiAdapter((self.portal, right_column), IPortletAssignmentMapping)
+    >>> for name in right_assignable.keys():
+    ...     del right_assignable[name]
+
+Check if the columns are turned off.
+
+    >>> url = '%s/portlet-page' % portal_url
+
+    >>> browser.open(url)
+    >>> '<td id="portal-column-one">' in browser.contents
+    False
+
+    >>> browser.open(url)
+    >>> '<td id="portal-column-two">' in browser.contents
+    False
+
+The portlet page package provides the following portlet managers according to 
+collective.portletpage/collective/portletpage/profiles/default/portlets.xml:
+    
+* collective.portletpage.toprow
+* collective.portletpage.firstcolumn
+* collective.portletpage.secondcolumn
+* collective.portletpage.bottomrow
+
+All these portlet managers are bound up to the ``collective.portletpage.interfaces.IPortletPageColumn`` 
+which is a sub class of ``plone.app.portlets.interfaces.IColumn``.
+
+So lets have a look at the markup / output for the whole page. 
+
+    >>> browser.open(url)
+
+The markup for the portlet page looks at least like this, even if no portlets are assigned yet.
+
+    >>> browser.contents
+    '...<div id="portletPageColumns">...</div>...'
+
+Having no portlet for now will not show any portlet container.
+
+    >>> 'portletPageTopRow' in browser.contents
+    False
+    >>> 'portletPageFirstColumn' in browser.contents
+    False
+    >>> 'portletPageSecondColumn' in browser.contents
+    False
+    >>> 'portletPageBottomColumn' in browser.contents
+    False
+
+Ok lets try to assign some portlets. We use the calendar portlet because it don't need any
+customization.
+
+    >>> browser.open(url+'/@@portlets')
+    >>> browser.url == url+'/@@portlets'
+    True
+    >>> radio = browser.getControl(name=':action', index=0)
+    >>> radio.value = ['/++contextportlets++collective.portletpage.toprow/+/portlets.Calendar']
+    >>> browser.getControl('Add portlet', index=1).click()
+    >>> browser.contents
+    '...<div class="portletHeader">...Calendar...</div>...'
+
+With a portlet defined, the render will now display the calendar *and* the column container
+
+    >>> browser.open(url)
+    >>> '<dl class="portlet portletCalendar">' in browser.contents
+    True
+    >>> 'portletPageTopRow' in browser.contents
+    True
+
+We can delete this calendar portlet now
+
+    >>> browser.open(url+'/@@portlets')
+    >>> browser.getLink('×').click()
+
+Let add a right column portlet
+
+    >>> radio = browser.getControl(name=':action', index=1)
+    >>> radio.value = ['/++contextportlets++collective.portletpage.secondcolumn/+/portlets.Calendar']
+    >>> browser.getControl('Add portlet', index=3).click()
+    >>> browser.contents
+    '...<div class="portletHeader">...Calendar...</div>...'
+
+With a portlet in the right column we can test that:
+
+* only the new column container is displayed
+* the column didn't get the "portletPageRightColumn" CSS class (so the portlet will fill all the space
+  available)
+
+    >>> browser.open(url)
+    >>> '<dl class="portlet portletCalendar">' in browser.contents
+    True
+    >>> 'portletPageSecondColumn' in browser.contents
+    True
+    >>> 'portletPageColumn' in browser.contents
+    True
+    >>> 'portletPageColumn portletPageRightColumn' in browser.contents
+    False
+
+Now add a portlet also in the left column
+
+    >>> browser.open(url+'/@@portlets')
+    >>> radio = browser.getControl(name=':action', index=2)
+    >>> radio.value = ['/++contextportlets++collective.portletpage.firstcolumn/+/portlets.Calendar']
+    >>> browser.getControl('Add portlet', index=5).click()
+
+We have now two Calendar Portlet, so two visible columns section
+
+    >>> browser.open(url)
+    >>> 'portletPageSecondColumn' in browser.contents
+    True
+    >>> 'portletPageFirstColumn' in browser.contents
+    True
+    >>> 'portletPageColumn portletPageRightColumn' in browser.contents
+    True
+    >>> 'portletPageColumn portletPageLeftColumn' in browser.contents
+    True
+
+Same behavior if we delete the right column. The left one will fill all the space available
+
+    >>> browser.open(url+'/@@portlets')
+    >>> browser.getLink('×', index=0).click()
+    >>> browser.open(url)
+    >>> 'portletPageSecondColumn' in browser.contents
+    False
+    >>> 'portletPageFirstColumn' in browser.contents
+    True
+    >>> 'portletPageColumn portletPageLeftColumn' in browser.contents
+    False
+
+Let now test if the "*Hide*" link feature works also with portlet inside portletpage.
+
+    >>> browser.open(url+'/@@portlets')
+    >>> browser.getLink('Hide').click()
+    >>> browser.open(url)
+    >>> browser.contents
+    '...<div id="portletPageColumns">...</div>...'
+
+This is like having no portlet, not show any portlet container.
+
+    >>> 'portletPageTopRow' in browser.contents
+    False
+    >>> 'portletPageFirstColumn' in browser.contents
+    False
+    >>> 'portletPageSecondColumn' in browser.contents
+    False
+    >>> 'portletPageBottomColumn' in browser.contents
+    False
+
+That's all!
