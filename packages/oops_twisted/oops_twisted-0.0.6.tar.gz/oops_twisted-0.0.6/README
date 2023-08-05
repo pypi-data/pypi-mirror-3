@@ -1,0 +1,124 @@
+**********************************************************
+python-oops-twisted: Error report integration with twisted
+**********************************************************
+
+    Copyright (c) 2011, Canonical Ltd
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, version 3 only.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    GNU Lesser General Public License version 3 (see the file LICENSE).
+
+The oops_twisted package provides integration glue between logged twisted
+errors (via the twisted.log api) and the oops error reporting system
+(http://pypi.python.org/pypi/oops).
+
+Dependencies
+============
+
+* Python 2.6+
+
+* oops (http://pypi.python.org/pypi/oops)
+
+* Twisted
+
+Testing Dependencies
+====================
+
+* subunit (http://pypi.python.org/pypi/python-subunit) (optional)
+
+* testtools (http://pypi.python.org/pypi/testtools)
+
+Usage
+=====
+
+OOPS Configuration
+++++++++++++++++++
+
+* Setup your configuration::
+
+  >>> from oops_twisted import Config
+  >>> config = Config()
+
+Note that you will probably want at least one publisher, or your reports will
+be silently discarded.
+
+* When adding publishers, either wrap 'normal' OOPS publishers in deferToThread
+  or similar, or use native Twisted publishers. For instance::
+
+ >>> from functools import partial
+ >>> config.publishers.append(partial(deferToThread, blocking_publisher))
+
+ A helper 'defer_publisher' is supplied to do this for your convenience.
+
+Catching log.err calls
+++++++++++++++++++++++
+
+* create an OOPS log observer::
+
+ >>> from oops_twisted import OOPSObserver
+ >>> observer = OOPSObserver(config)
+
+* And enable it::
+
+ >>> from twisted.log import addObserver
+ >>> addObserver(observer)
+
+* This is typically used to supplement regular logging, e.g. you might
+  initialize normal logging to a file first::
+
+ >>> twisted.log.startLogging(logfile)
+
+The OOPSObserver will discard all non-error log messages, and convert error log
+messages into OOPSes using the oops config.
+
+Optionally, you can provide OOPSObserver with a second observer to delegate
+too. Any event that is not converted into an OOPS is passed through unaltered.
+Events that are converted to OOPSes have a new event second to the second
+observer which provides the OOPS id and the failure name and value::
+
+ >>> observer = OOPSObserver(config, twisted.log.PythonLoggingObserver().emit)
+
+Extending WSGI
+++++++++++++++
+
+oops_twisted supports an extended WSGI contract where if the returned iterator
+for the body implements t.w.i.IBodyProducer, then the iterator that
+oops_twisted's WSGI wrapper returns will also implement IBodyProducer. This is
+useful with a customised Twisted WSGI resource that runs IBodyProducer
+iterators in the IO loop, rather than using up a threadpool thread. To use this
+pass tracker=oops_twisted.wsgi.body_producer_tracker when calling
+oops_wsgi.make_app. Note that a non-twisted OOPS Config is assumed because 
+the WSGI protocol is synchronous: be sure to provide the oops_wsgi make_app
+with a non-twisted OOPS Config.
+
+For more information see pydoc oops_twisted.
+
+Installation
+============
+
+Either run setup.py in an environment with all the dependencies available, or
+add the working directory to your PYTHONPATH.
+
+Development
+===========
+
+Upstream development takes place at https://launchpad.net/python-oops-twisted.
+To setup a working area for development, if the dependencies are not
+immediately available, you can use ./bootstrap.py to create bin/buildout, then
+bin/py to get a python interpreter with the dependencies available.
+
+To run the tests use the runner of your choice, the test suite is
+oops_twisted.tests.test_suite.
+
+For instance::
+
+  $ bin/py -m testtools.run oops_twisted.tests.test_suite
