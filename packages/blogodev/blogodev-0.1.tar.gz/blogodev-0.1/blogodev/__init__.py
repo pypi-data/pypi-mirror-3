@@ -1,0 +1,1 @@
+from blogodev import main
