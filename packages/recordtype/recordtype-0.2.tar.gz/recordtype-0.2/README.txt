@@ -1,0 +1,161 @@
+===========
+recordtype
+===========
+
+recordtype provides a factory function, named
+recordtype.recordtype. It is similar to collections.namedtuple, with
+the following differences:
+
+* recordtype instances are mutable.
+
+* recordtype supports per-field default values.
+
+* recordtype supports an optional "default default", to be used by all
+  fields do not have an explicit default value.
+
+Typical usage::
+
+    from recordtype import recordtype
+
+    Point = recordtype('Point', [('x', 0), ('y', 100)])
+    p = Point()
+    assert p.x == 0
+    assert p.y == 100
+
+In addition to per-field defaults, you can also specify a "default
+default" that will be used if a per-field default is not given::
+
+    Point = recordtype('Point', 'x y z', default_default=0)
+    p = Point(y=3)
+    assert p.x == 0
+    assert p.y == 3
+    assert p.z == 0
+
+Creating types
+==============
+
+Specifying Fields
+-----------------
+
+Fields can be specified as in namedtuple: as either a string specifing
+the field names, or as a list of field names. These two uses are
+equivalent::
+
+    Point = recordtype('Point', 'x y')
+    Point = recordtype('Point', ['x', 'y'])
+
+If using a string, commas are first converted to spaces. So these are
+equivalent::
+
+    Point = recordtype('Point', 'x y')
+    Point = recordtype('Point', 'x,y')
+
+
+Specifying Defaults
+-------------------
+
+Per-field defaults can be specified by supplying a 2-tuple (name,
+default_value) instead of just a string for the field name. This is
+only supported when you specify a list of field names::
+
+    Point = recordtype('Point', [('x', 0), ('y', 0)])
+    p = Point(3)
+    assert p.x == 3
+    assert p.y == 0
+
+In addition to, or instead of, these per-field defaults, you can also
+specify a "default default" which is used when no other default value
+is specified for a field::
+
+    Point = recordtype('Point', 'x y z', default_default=0)
+    p = Point(y=3)
+    assert p.x == 0
+    assert p.y == 3
+    assert p.z == 0
+
+    Point = recordtype('Point', [('x', 0), 'y', ('z', 0)], default_default=4)
+    p = Point(z=2)
+    assert p.x == 0
+    assert p.y == 4
+    assert p.z == 2
+
+
+Writing to values
+-----------------
+
+The objects retured by the factory function are fully writable, unlike
+the tuple-derived classes returned by namedtuple::
+
+    Point = recordtype('Point', 'x y')
+    p = Point(1, 2)
+    p.y = 4
+    assert p.x == 1
+    assert p.y == 4
+
+
+Specifying __slots__
+--------------------
+
+By default, the returned class sets __slots__, which initialized to
+the field names. While this decreases memory usage by eliminating the
+instance dict, it also means that you cannot create new instance
+members.
+
+To change this behavior, specify use_slots=False when creating the
+recordtype::
+
+    Point = recordtype('Point', 'x y', use_slots=False)
+    p = Point(0, 1)
+    p.z = 2
+    assert p.x == 0
+    assert p.y == 1
+    assert p.z == 2
+
+
+Additional class members
+------------------------
+
+recordtype classes contain these members:
+
+* _asdict(): Returns a dict which maps field names to their
+  corresponding values.
+
+* _source: A string with the pure Python source code used to create
+  the recordtype class. The source makes the recordtype
+  self-documenting. It can be printed, executed using exec(), or saved
+  to a file and imported.
+
+* ._fields: Tuple of strings listing the field names. Useful for introspection.
+
+
+Renaming invalid field names
+----------------------------
+
+This functionality is identical to namedtuple. If you specify
+rename=True, then any invalid field names are changed to _0, _1,
+etc. Reasons for a field name to be invalid are:
+
+* Zero length strings.
+
+* Containing characters other than alphanumerics and underscores.
+
+* A conflict with a Python reserved identifier.
+
+* Beginning with a digit.
+
+* Beginning with an underscore.
+
+* Using the same field name more than once.
+
+For example::
+
+    Point = recordtype('Point', 'x x for', rename=True)
+    assert Point._fields == ('x', '_1', '_2')
+
+
+Creating and using instances
+============================
+
+Because the type returned by recordtype is a normal Python class, you
+create instances as you would with any Python class.
+
