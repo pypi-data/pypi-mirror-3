@@ -1,0 +1,1 @@
+from south.db.postgresql_psycopg2 import *

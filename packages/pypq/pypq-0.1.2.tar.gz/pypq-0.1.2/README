@@ -1,0 +1,139 @@
+======
+ pypq
+======
+
+What is pypq
+------------
+
+*pypq* is a `DBAPI 2.0 <http://www.python.org/dev/peps/pep-0249/>`_
+compliant Python driver for `PostgreSQL <http://postgresql.org/>`_,
+made using `ctypes <http://docs.python.org/library/ctypes.html>`_ and
+`libpq.so <http://www.postgresql.org/docs/9.0/static/libpq.html>`_
+library.
+
+This means, that it can be used with `PyPy <http://pypy.org>`_, or any other circumstances,
+where ctypes is available, but *psycopg2*, the most popular PostgreSQL
+driver, is not.
+
+Features
+--------
+- full DBAPI 2.0 compliance
+- should be faster than pure python implementations, cause it uses
+  PostgreSQL c library *libpq.so*
+- a psycopg2-like extension API
+- has a Django backend
+- casting of all standard python types implemented, including
+  datetime, date and timedelta, except converting lists into postgres
+  arrays and vice versa
+
+Installation
+------------
+Just do::
+    
+    easy_install pypq
+
+Or to download the most recent version from BitBucket::
+
+    hg clone ssh://hg@bitbucket.org/descent/pypq
+    cd pypyq
+    python setup.py install
+
+Example usage
+-------------
+Basic operations::
+
+   import pypq
+   connection = pypq.connect('dbname=dbname user=user host=host port=port password=password')
+   # or
+   connection = pypq.connect(dbname='dbname', user='user', host='host', \
+       port='port', password='password')
+   # for complete reference look at PQconnectdbParams section at
+   # http://www.postgresql.org/docs/9.1/static/libpq-connect.htm
+   cursor = connection.cursor()
+   cursor.execute('select * from mytable where x = %s', [x])
+   for row in cursor:
+       print row
+
+To use pypq as a django backend, simply change the 'ENGINE' line to
+**"pypq.django_backend"** in *settings.py* file. Something like::
+   
+    DATABASES = {
+        'default': {
+            'ENGINE': 'pypq.django_backend',
+            'NAME': 'dbname',
+            'USER': 'user',
+            'PASSWORD': 'password',
+            'HOST': 'host',
+            'PORT': '',
+        }
+    }
+
+    # If using south, change the database adapter
+
+    SOUTH_DATABASE_ADAPTERS = {'default': 'pypq.django_backend.south_adapter'}
+
+Extending with custom types is done in simimlar way to `psycopg2
+<http://initd.org/psycopg/docs/extensions.html#sql-adaptation-protocol-objects>`_. Here
+are some examples, but you can look at `pypq/datatypes.py
+<https://bitbucket.org/descent/pypq/src/tip/pypq/datatypes.py>`_ for
+additional ways of usage::
+
+    def adapter(myclass_instance):
+        """A function to adapt MyClass to postgres
+
+	It should return a string and a postgres OID of
+	resulting datatype or 0 if you do not know it
+	 (it's ok to do that)
+	"""
+	return adapted, oid
+	
+    # This will allow doing this:
+    # cursor.execute('select %s', [myclass_instance])
+    pypq.datatypes.register_adapter(MyClass, adapter)
+
+    # And this will allow doing this, if you have a special type
+    # in postgres which you want to handle manually, and for 
+    # which you know postgres OIDs:
+
+    # cursor.execute('create table test(a some_special_type)')
+    # cursor.execute('select * from test')
+    # and it will fetch your launch to_python(value)
+    # for every special instance
+
+    def to_python(value):
+        """A function to convert a postgres value into Python object""""
+
+    mytype = pypq.datatypes.new_type((1,2,3), 'MyAwesomeType', to_python))
+    pypq.datatypes.register_type(mytype)
+
+    # or
+    
+    class MyType(pypq.datatypes.PyPQDataType):
+
+        oids = (1,2,3)
+
+	@classmethod
+	def to_python(cls, value):
+	    return value
+
+Bugs
+----
+
+The project currently has some limitations
+
+- on PyPy produces a lot of such warnings "RuntimeWarning: C function
+  without declared arguments called"
+- this does not work somewhy, though it works in psycopg2::
+
+      cur.execute('select %s', [None])
+      DatabaseError: ERROR: could not determine data type of parameter $1
+
+- Internally, OID's are currently not passed to the database, when
+  executing PQexecParams. I am not sure, if it is ok, but django works
+  flawleslly this way, and if we pass the OID's to PQexecParams, it
+  does not, cause some postgres type casting fails.
+- not tested on other python versions than 2.7 and recent pypy
+- not tested on windows (it probably won't work)
+- not thread-safe, you cannot use same cursors or connections in
+  different threads
+
