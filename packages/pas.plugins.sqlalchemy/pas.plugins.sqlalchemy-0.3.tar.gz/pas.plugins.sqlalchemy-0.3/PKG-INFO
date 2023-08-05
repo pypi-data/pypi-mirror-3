@@ -1,0 +1,271 @@
+Metadata-Version: 1.0
+Name: pas.plugins.sqlalchemy
+Version: 0.3
+Summary: SQLAlchemy-based PAS user/group/prop store.
+Home-page: UNKNOWN
+Author: Malthe Borch and Stefan Eletzhofer
+Author-email: product-developers@lists.plone.org
+License: GNU GPL v2
+Description: SQLAlchemy PAS plugin
+        =====================
+        
+        This package provides a Zope 2 PAS plugin implementation (Pluggable
+        Authentication Service) based on the SQLAlchemy database abstraction
+        layer.
+        
+        It allows you to store and query users and groups using a SQL
+        database.
+        
+        This package replaces the `SQLPASPlugin
+        <http://plone.org/products/sqlpasplugin>`_ product and is technically
+        a fork of that codebase. Some tests have been rewritten but most are
+        preserved.
+        
+        Although not currently provided in a stable release, it's used in
+        production (tested against the `pysqlite` and PostgreSQL databases
+        only).
+        
+        Setup
+        -----
+        
+        To configure the plugin with a database, use ``z3c.saconfig`` and
+        define a named scoped session "pas.plugins.sqlalchemy" in your
+        configure.zcml or in the "zcml-additional" parameter of the
+        plone.recipe.zope2instance recipe in your buildout.
+        
+        Example::
+        
+          <configure xmlns="http://namespaces.zope.org/db">
+            <include package="z3c.saconfig" file="meta.zcml"/>
+        
+            <engine name="pas" url="postgresql://localhost/pas" />
+            <session name="pas.plugins.sqlalchemy" engine="pas" />
+        
+          </configure>
+        
+        Install the plugin using the included GenericSetup-profile. Note that
+        tables will be created automatically on installation.
+        
+        You can reinstall anytime to create non-existing tables. Note that
+        tables are preserved on uninstallation.
+        
+        Configuration from Plone
+        -------------------------
+        
+        As an alternative to specifying the database connection information in
+        zcml, you can use `collective.saconnect
+        <http://pypi.python.org/pypi/collective.saconnect>`_ to make your
+        connections configurable on the plone control panel.
+        
+        Install the package by adding it to your buildout, then install the
+        add-on it in your plone site through Plone's control panel. You now
+        have a new control panel that allows you to create and edit database
+        connections.
+        
+        To add connections with generic setup add a file "saconnections.xml"
+        to the generic setup profile of your site setup package, with the
+        following content::
+        
+          <?xml version="1.0"?>
+          <connections>
+               <connection
+                    name="pas.plugins.sqlalchemy"
+                    string="postgresql://USER:PASSWORD@localhost/DATABASE"
+               />
+          </connections>
+        
+        More information is available in the package description.
+        
+        
+        Custom principal, user and group model
+        --------------------------------------
+        
+        You can register your own SQLAlchemy-based model class for all three
+        categories.
+        
+        The required class interfaces (required methods and attributes) are
+        described in the ``interfaces`` module. Note that you can simply
+        subclass from the default models which implement the required
+        interfaces.
+        
+        The settings are accessible in the ZMI. You can also use a custom
+        setup handler.
+        
+        Example::
+        
+            def setup_pas_plugin(self):
+                pas = self.acl_users
+                plugin = pas['sql']
+        
+                plugin.manage_changeProperties(
+                   user_model="my_package.model.User",
+                   principal_model="my_package.model.Principal",
+                   group_model="my_package.model.Group"
+                   )
+        
+        You may need to make sure the plugins are prioritized higher than the
+        default ones (typically ZODB-based).
+        
+        
+        Wishlist
+        --------
+        
+        These items are on the to-do list:
+        
+        - Post-only security.
+        
+        - Review of implemented interfaces - is the implementation complete?
+        
+        - Handle groups title, description and email, to match newer versions
+          of Plone.
+        
+        - Tests for configuration of external model.
+        
+        
+        Credits
+        -------
+        
+        Authors
+        
+          - Rocky Burt <rocky@serverzen.com> of ServerZen Software
+        
+          - Nate Aune <natea@jazkarta.com> of Jazkarta
+        
+          - Stefan Eletzhofer <stefan.eletzhofer@inquant.de> of InQuant
+        
+          - Malthe Borch <mborch@gmail.com>
+        
+        Contributors
+        
+          - Ruda Porto Filgueiras <rudazz@gmail.com>
+        
+          - Daniel Nouri <daniel.nouri@gmail.com>
+        
+          - Dorneles Treméa <deo@jarn.com> of Jarn
+        
+          - Wichert Akkerman <wichert@wiggy.net> of Simplon
+        
+          - Riccardo Lemmi <riccardo@reflab.it> of Reflab Srl
+        
+          - Derek Broughton <auspex@pointerstop.ca>
+        
+          - Rigel Di Scala <zedr>
+        
+          - Sune Broendum Woeller <woeller@headnet.dk> of Headnet Aps
+        
+        Sponsors
+        
+          - Thanks to ChemIndustry.com Inc. for financing the development of
+            SQLPASPlugin
+        
+          - Thanks to Statens Byggeforskninginstitut (http://www.sbi.dk) for sponsoring
+            the caching support.
+        
+          - Thanks to Gis & Web S.r.l. (http://www.gisweb.it) for sponsoring
+            the groups management support.
+        
+          - Thanks to the Ocean Tracking Network
+            (http://oceantrackingnetwork.org/) for adding Group Capabilities
+            and migration of existing users.
+        
+        License
+        -------
+        
+          GNU GPL v2 (see LICENCE.txt for details)
+        
+        
+        Changelog
+        =========
+        
+        0.3 (2011-10-13)
+        ----------------
+        
+        - Fire `IPropertiesUpdated` (from PAS) event on `setPropertiesForUser`
+          to allow components to take action when user properties are updated.
+          [malthe]
+        
+        - Merged SVN repository (select branches) into the existing Github
+          repository to consolidate improvements.
+          [malthe]
+        
+        - Add title and description to groups.
+        
+          GetRolesForPrincipal needs to listen to __ignore_group_roles__ and
+          __ignore_direct_roles__ from the request to work with plone 4.
+          GetRolesForPrincipal needs to take group roles into account as
+          default.
+          [sunew]
+        
+        - Merged many changes from the branches: wichert-flexible,
+          wichert-flexible-pw-encryption, zedr-mysql-optimized, auspex.
+        
+          Version 0.3 is not compatible with the earlier versions, upgrading
+          will require some migration (not included).
+          [sunew]
+        
+        - Seperate user_id and login - as in PAS. (Not complete?)
+          [wichert]
+        
+        - Refactor user, group, and principal classes to enable more sharing
+          of functionality between groups and users.
+          [wichert]
+        
+        - Length of varchars to be compatible with MySQL
+          [auspex, wichert, sunew, zedr]
+        
+        - Cleaned up the properties - only the plone properties are in the
+          model now. Override the model if you need more fields.
+          [sunew]
+        
+        - Password and salt readonly.
+          [wichert, sunew]
+        
+        - remove IUpdatePlugin related stuff. Not used.
+          [wichert]
+        
+        - Make models configurable via dotted path zmi properties.
+          [wichert]
+        
+        - Also make the Principal class configurable.
+          [sunew]
+        
+        - Add missing security declarations (match those for the same methods
+          in PlonePAS and PluggableAuthService).
+          [sunew]
+        
+        - Fully implement IRoleAssignerPlugin: missed doRemoveRoleFromPrincipal.
+          [sunew]
+        
+        - More tests, tests pass for plone 4.0.7.
+          [sunew]
+        
+        
+        0.2.1 (unreleased)
+        ------------------------
+        
+        - Fixed some tests. Now tests passes on plone 4.0.7.
+          [sunew]
+        
+        - Convert to and from UTF-8 and unicode. Plone uses UTF-8 internally
+          and most Python deployments will coerce using the 'ascii' codec,
+          resulting in unicode decode errors. [mborch]
+        
+        0.2 (released 2009/7/17)
+        ------------------------
+        
+        - Changed the 'listed' and 'ext_editor' column type to 'Integer' match
+          the Plone model. [seletz]
+        
+        0.1 (released 2009/7/17)
+        ------------------------
+        
+        - Initial public release.
+        
+Keywords: web pas plone
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Application
