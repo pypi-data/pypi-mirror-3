@@ -1,0 +1,23 @@
+News
+====
+
+1.1
+---
+
+*Release date: 25 Nov 2011*
+
+* Adds support for pair-end reads
+
+1.0.1
+-----
+
+*Release date: 19 Oct 2011*
+
+* Added support for MongoDB authentication
+
+1.0
+---
+
+*Release date: 12 Oct 2011*
+
+* Initial release
