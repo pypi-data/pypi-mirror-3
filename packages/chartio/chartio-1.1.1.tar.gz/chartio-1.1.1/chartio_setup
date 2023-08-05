@@ -1,0 +1,942 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2011. All Right Reserved, http://chart.io/
+#
+# THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY 
+# KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
+# PARTICULAR PURPOSE.
+
+import ConfigParser
+import getpass
+import optparse
+import os
+import random
+import signal
+import string
+import subprocess
+import sys
+import time
+import urllib
+import urllib2
+
+try:
+    import json
+except ImportError:
+    try:
+        import simplejson as json
+    except ImportError:
+        print 'Please install simplejson module'
+        sys.exit(1)
+
+KEY = 'FEUUB1JB4MHNHZ474R14VW3K62XGNP466GPRMD1N3WF5ER047DTOXUO190KXR2VFBO31XTDOODU2H7XNDRL6EA8D5F5HUC52LMHW'
+BASE_URL = 'https://chart.io'
+# XXXwalrus revert !!!
+BASE_URL = 'http://chartio-ref.com'
+VERSION = 1
+PREFIX_DEFAULT = '~/.chartio.d'
+CONFIG_PATHS = None
+
+class ConfigPaths(object):
+    '''Yuck
+
+    Double Yuck. Needs to be kept in sync with chartio_connect to limit
+    PYTHONPATH dependencies.
+
+    '''
+    def __init__(self, prefix=None):
+        # Directories        
+        self.PREFIX = prefix or os.path.expanduser(PREFIX_DEFAULT)
+        self.LOG_DIRECTORY = os.path.join(self.PREFIX, 'logs')
+        self.RUN_DIRECTORY = os.path.join(self.PREFIX, 'run')
+        self.SSH_DIRECTORY = os.path.join(self.PREFIX, 'sshkey')
+        # Files
+        self.CONFIG_FILE = os.path.join(self.PREFIX, 'chartio.cfg')
+        self.SSH_KEY = os.path.join(self.SSH_DIRECTORY, 'id_rsa')
+        # Config file sections
+        self.SSHTUNNEL_SECTION = 'SSHTunnel'
+        # Ensure the directories exist. Exit if they do not (or cannot be created).
+        self.directory_create(self.PREFIX, 0755)
+        self.directory_create(self.LOG_DIRECTORY, 0755)
+        self.directory_create(self.RUN_DIRECTORY, 0755)
+        self.directory_create(self.SSH_DIRECTORY, 0700)
+
+    def directory_create(self, dir, mode):
+        '''Create a directory if it does not exist.
+
+        Exit if it exists and is not a directory (or symlink) or unable to create it.
+
+        '''
+        if os.path.exists(dir):
+            if os.path.isdir(dir):
+                try:
+                    os.chmod(dir, mode)
+                except Exception, exc:
+                    TermColor.print_error('Failed to change mode of %r. Exiting.' % (dir))
+                    TermColor.print_error(str(exc))
+                    sys.exit(1)
+            else:
+                TermColor.print_error('The path %r is not a directory. Exiting.' % (dir))
+                sys.exit(1)
+        else:
+            try:
+                os.makedirs(dir, mode)
+            except Exception, exc:
+                TermColor.print_error('Failed to create %r. Exiting.' % (dir))
+                TermColor.print_error(str(exc))
+                sys.exit(1)
+
+
+def config_paths_set(prefix):
+    global CONFIG_PATHS
+    CONFIG_PATHS = ConfigPaths(prefix)
+    print 'Installing into %r' % (CONFIG_PATHS.PREFIX)
+
+
+class TermColor(object):
+    '''Print colored text on a neutral background to the terminal'''
+    CLRS = {
+        'white': '\033[37m',
+        'green': '\033[92m',
+        'red': '\033[91m',
+        'bg': '\033[40m\033m'
+    }
+
+    END = '\033[0m'
+
+
+    @classmethod
+    def print_clr(cls, color, txt, newline=True):
+        sys.stdout.write(cls.CLRS.get(color, '')
+                         + cls.CLRS['bg']
+                         + txt
+                         + cls.END)
+        if newline:
+            sys.stdout.write('\n')
+
+    @classmethod
+    def print_header(cls, txt, newline=True):
+        cls.print_clr('white', txt, newline)
+
+    @classmethod
+    def print_ok(cls, txt, newline=True):
+        cls.print_clr('green', txt, newline)
+
+    @classmethod
+    def print_error(cls, txt, newline=True):
+        cls.print_clr('red', 'Error: ' + txt, newline)
+
+    @classmethod
+    def print_delay(cls, txt, newline=True):
+        cls.print_clr('red', '==> ', False)
+        cls.print_ok(txt, newline)
+
+
+def get_choice(question, choices, default=None):
+    ''' 
+    list a question and a bunch of choices for them
+
+    choice = get_choice('What fruit do you want?', ['apples', 'oranges'], 'apples')
+    print 'choice', choice
+    '''
+    TermColor.print_header(question)
+
+    for i, c in enumerate(choices):
+        TermColor.print_ok('    %d.' % (i + 1), False)
+        print ' %s' % c
+
+    prompt = ': '
+    if default is not None:
+        prompt = '[%d]: ' % (choices.index(default) + 1)
+
+    try:
+        num = int(raw_input(prompt)) - 1
+    except (TypeError, ValueError), e:
+        return default or get_choice(question, choices, default)
+
+
+    if num < 0 or num >= len(choices):
+        TermColor.print_error('ERROR: choice not in range\n')
+        return get_choice(question, choices, default)
+
+    return choices[num]
+
+
+def get_value(name, default=None, validate=None, validate_explanation=None, 
+        password=False):
+    ''' propmpts for a value from the user '''
+
+    if validate is None:
+        validate = lambda x: bool(x)
+
+    prompt = '%s: ' % name
+    if default:
+        prompt = '%s [%s]: ' % (name, default)
+
+    TermColor.print_header(prompt, False)
+    if password:
+        r = getpass.getpass('')
+    else:
+        r = raw_input()
+
+    if not r.strip() and default:
+        r = default
+
+    if validate:
+        if not validate(r):
+            TermColor.print_error(validate_explanation or 
+                'Invalid Input.  Please try again.')
+            return get_value(name, default, validate, validate_explanation)
+
+    return r
+
+
+def _valid_int(txt):
+    '''Confirm value is an integer'''
+    try:
+        int(txt)
+        return True
+    except (TypeError, ValueError), e:
+        return False
+
+
+def name_generate(db_name, max_length):
+    '''Generate a database user name which does not exceed a maximum length
+
+    If the name would exceed the maximum length, the name is shortened
+    and some random digits appended.
+
+    Return
+        string -- the generated name
+
+    Raises
+        RuntimeError -- if database name and maximum length values do not
+            permit generation of a useful name.
+
+    Arguments
+        db_name -- database name
+        max_length -- the inclusive size limit of the generated name
+
+    '''
+    PREFIX = 'chartio_'
+    RANDOM_SUFFIX_LENGTH = 5
+    MAX_REQUIRED = len(PREFIX) + min(len(db_name), RANDOM_SUFFIX_LENGTH)
+    if max_length < MAX_REQUIRED:
+        raise RuntimeError('Unable to generate a name with fewer than %d characters (%d specified).'
+                           % (MAX_REQUIRED, max_length))
+    name = ('%s%s' % (PREFIX, db_name.strip()))
+    if max_length < len(name):
+        name = name[:max_length]
+        chars = string.digits
+        name = (name[:(-1 * RANDOM_SUFFIX_LENGTH)]
+                + ''.join([random.choice(chars) for i in range(RANDOM_SUFFIX_LENGTH)]))
+    return name
+
+
+class DatasourceConfig(object):
+    ''' Configuration steps class. kvs in self.settings get sent as post 
+        params '''
+
+    def __init__(self):
+        self.settings = {}
+        self.temp = {}
+        self.use_localhost = True
+
+    def get_steps(self):
+        return []
+
+    def run_steps(self):
+        for step in self.get_steps():
+            step()
+
+    @staticmethod
+    def get_random_password(length=24):
+        pw = []
+        chars = string.letters + string.digits
+        for c in range(length):
+            pw.append(random.choice(chars))
+        return ''.join(pw)
+
+    def check_cmd_in_path(self, cmd, path_hint):
+        ret = subprocess.call(['which', cmd],
+                              stderr=subprocess.STDOUT,
+                              stdout=subprocess.PIPE)
+        if ret:
+            TermColor.print_error('Could not find %r command in path.'
+                                  ' Please update PATH and run again.' % (cmd))
+            TermColor.print_header('This can usually be fixed by finding'
+                                   ' your %r binary and appending the directory to your path.'
+                                   % (cmd))
+            TermColor.print_header('For example:')
+            TermColor.print_header('    $> PATH=$PATH:%s:.' % (path_hint))
+            sys.exit(1)
+        else:
+            TermColor.print_delay('%r command found' % (cmd))
+
+
+class MysqlConfig(DatasourceConfig):
+    USER_NAME_LIMIT = 16
+
+    def get_steps(self):
+        return [
+            self.welcome,
+            self.check_mysql_in_path,
+            self.get_port,
+            self.get_user_pass,
+            self.get_dbname,
+            self.create_user
+        ]
+
+    def welcome(self):
+        TermColor.print_header('MySQL database setup.')
+
+    def check_mysql_in_path(self):
+        self.check_cmd_in_path('mysql', '/usr/local/mysql/bin')
+
+    def get_user_pass(self):
+        tries = 3
+
+        while tries:
+            TermColor.print_header("Please enter the database administrator's" 
+                " username\nThis will only be used during setup to create a "
+                "read-only user.")
+            self.temp['superuser'] = get_value('Database username')
+
+            TermColor.print_header("Please enter the password for the database "
+                                    "administrator (Blank for none) ")
+            # validate any value to allow blank
+            self.temp['superuser_pw'] = get_value('Administrator\'s password',
+                                            password=True,
+                                            validate=lambda x: True)
+            test = self._run_sql('use mysql; select Grant_priv from user '
+                'where User="%s";' % self.temp['superuser'])
+            if isinstance(test, basestring) and 'y' in test.lower():
+                TermColor.print_delay("Admin user confirmed")
+                break
+            tries -= 1
+            if tries > 0:
+                TermColor.print_error("Admin name and/or password incorrect, "
+                    "or MySQL not listening on %s. Please re-enter." 
+                    % self.settings['port'])
+
+        if tries == 0:
+            TermColor.print_error("Please re-run once you know the admin "
+                "username and password for your MySQL install")
+            sys.exit(1)
+
+    def get_databases(self):
+        sql = 'SHOW DATABASES'
+        tbls = self._run_sql(sql)
+        if tbls is None:
+            TermColor.print_error("Could not load database tables using "
+                "SHOW DATABASES command")
+            sys.exit(1)
+        out = tbls.split()
+        return out[1:] # strip "Database" field
+
+    def get_dbname(self):
+        TermColor.print_header("\nSelect which database to add.")
+        self.settings['name'] = get_choice('Available databases',
+                                    self.get_databases())
+
+    def get_port(self):
+        port = get_value('Database listen port', '3306', validate=_valid_int)
+        self.settings['port'] = port
+        write_ssh_conf('localport', port)
+        TermColor.print_delay('Using port %s\n' % port)
+
+    def create_user(self):
+        dbname = self.settings['name']
+        user = name_generate(dbname, self.USER_NAME_LIMIT)
+        password = self.get_random_password()
+
+        TermColor.print_delay('Creating read-only user named %s to access '
+            'database %s' % (user, dbname))
+
+        sql = "GRANT SELECT ON %(dbname)s.* TO `%(user)s`@`127.0.0.1` " \
+              "IDENTIFIED BY '%(password)s'" % self._sanitize_sql_dict(locals())
+
+        out = self._run_sql(sql)
+
+        if out is None:
+            TermColor.print_error("Creating read-only user failed.")
+            print "Please execute the following command (in another window) " \
+                  "to create the user:"
+            print "    ", sql
+            print "Press enter once that's been done"
+            raw_input()
+        else:
+            TermColor.print_delay("Read only user created.")
+
+        self.settings['user'] = user
+        self.settings['passwd'] = password
+
+
+    def _sanitize_sql_dict(self, dict_):
+        out = {}
+        for k, v in dict_.items():
+            if isinstance(v, basestring):
+                v = v.replace("'", "''")
+            out[k] = v
+
+        return out
+
+    def _run_sql(self, sql, dbname=None):
+        if 'superuser' not in self.temp:
+            raise RuntimeError("Can only run after setting up superuser")
+        cmd = [
+            'mysql', 
+            '-u', self.temp['superuser'],
+            '--protocol=tcp',
+            '-P', self.settings['port'],
+        ]
+
+        # For blank password users, don't add password
+        if self.temp['superuser_pw'].strip():
+            cmd.append('--password=%s' % self.temp['superuser_pw'])
+
+        if dbname:
+            cmd.append(dbname)
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, 
+                stdout=subprocess.PIPE)
+        try:
+            proc.stdin.write(sql)
+        except IOError:
+            TermColor.print_error('Could not write SQL to process')
+            return None
+        proc.stdin.close()
+        out = proc.stdout.read()
+        proc.wait()
+
+        if proc.poll() > 0:
+            return None
+
+        return out
+
+
+class PostgresqlConfig(DatasourceConfig):
+    USER_NAME_LIMIT = 63
+
+    def get_steps(self):
+        return [self.welcome,
+                self.check_psql_in_path,
+                self.get_dbname,
+                self.get_port,
+                self.get_admin_pass,
+                self.create_user,
+                self.grant_access,
+                self.verify_database_access,
+                self.verify_table_access,
+                self.goodbye
+                ]
+
+    def welcome(self):
+        TermColor.print_header("PostgreSQL database setup.")
+
+    def goodbye(self):
+        TermColor.print_header("PostgreSQL database setup complete.")
+
+    def check_psql_in_path(self):
+        self.check_cmd_in_path('psql', '/usr/local/postgres/bin')
+
+    def get_dbname(self):
+        self.settings['name'] = get_value('Database name')
+
+    def get_port(self):
+        port = get_value('Database listen port', '5432')
+        self.settings['port'] = port
+        write_ssh_conf('localport', port)
+
+    def get_admin_pass(self):
+        ATTEMPT_LIMIT = 3
+        for attempt in range(ATTEMPT_LIMIT):
+            TermColor.print_header('Please enter the database administrator username\n'
+                                   'This will be used only during setup to create and configure\n'
+                                   'the read-only user account')
+            self.temp['superuser'] = get_value('Database administrator')
+            TermColor.print_header('Please enter the password for the database'
+                                   ' administrator (leave empty for none)')
+            # Validate any value to permit a blank password
+            self.temp['superuser_pw'] = get_value('Administrator password',
+                                                  password=True,
+                                                  validate=lambda x: True)
+            sql = ('''SELECT 'SUCCESS' FROM pg_roles WHERE rolname='%(superuser)s' '''
+                   ''' AND rolcreaterole='t';'''
+                   % (self.temp))
+            sql_retval = self._run_sql(sql, self.settings['name'], as_superuser=True)
+            if isinstance(sql_retval, basestring):
+                if 'SUCCESS' in sql_retval:
+                    # !!! Success. Early return
+                    TermColor.print_delay('Administrator confirmed')
+                    return
+                else:
+                    # !!! Insufficient access. Immediate exit
+                    TermColor.print_error('Administrator does not seem to be able to create users.'
+                                          ' Exiting.\n')
+                    sys.exit(1)
+            else:
+                TermColor.print_error('Administrator name/password combination is incorrect,'
+                                      ' or PostgreSQL is not listening on port %(port)s.\n'
+                                      'Please re-enter.' % (self.settings))
+        else:
+            # !!! Immediate exit
+            TermColor.print_error('Please re-run once you have the database superuser'
+                                  ' and password for your PostgreSQL installation')
+            sys.exit(1)
+
+    def farm_out_sql(self, goal, sql):
+        '''Request the user run some SQL directly.
+
+        Arguments
+            goal -- the end goal of executing the SQL
+            sql -- the statements to execute
+
+        '''
+        TermColor.print_header('In another window, please execute the following command'
+                               ' to %s:' % (goal))
+        TermColor.print_header('    ' + sql)
+        TermColor.print_header('Press enter once that is complete.')
+        raw_input()
+
+    def create_user(self):
+        '''Generate a user name/password combination and add it to the database.
+
+        If the add fails, prompt the administrator to create the user.
+
+        '''
+        db_name = self.settings['name']
+        user = name_generate(db_name.replace(' ', ''), self.USER_NAME_LIMIT)
+        password = self.get_random_password()
+        TermColor.print_delay('Creating read-only user named %s to access'
+                              ' database %s' % (user, db_name))
+        sql = ('''CREATE USER "%s" PASSWORD %r'''
+               ''' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;''' % (user, password))
+        sql_retval = self._run_sql(sql, db_name, as_superuser=True)
+        if isinstance(sql_retval, basestring):
+            result_str = sql_retval.strip()
+        else:
+            result_str = ''
+        if 'CREATE ROLE' != result_str:
+            TermColor.print_error('Creating read-only user failed.')
+            if result_str:
+                TermColor.print_error(result_str)
+            self.farm_out_sql('create the user', sql)
+        self.settings['user'] = user
+        self.settings['passwd'] = password
+
+    def grant_access(self):
+        db_name = self.settings['name']
+        user = self.settings['user']
+        TermColor.print_delay('Determining tables in database %r' % (db_name))
+        sql = ('''SELECT relname'''
+               ''' FROM pg_class JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace '''
+               ''' WHERE nspname = 'public' AND relkind IN ('r','v')'''
+               ''' ORDER BY relname ASC;''')
+        sql_result = self._run_sql(sql, db_name, as_superuser=True, echo=False)
+        if isinstance(sql_result, basestring):
+            tables = sql_result.strip().split()
+            self.grant_table_access(db_name, tables, user)
+        else:
+            # !!! Early exit
+            TermColor.print_error('Failed to determine tables in %r')
+            TermColor.print_header('Rerun after the admin user can execute:')
+            TermColor.print_header(sql)
+            sys.exit(1)
+
+    def grant_table_access(self, db_name, table_names, user):
+        tmpl = '''GRANT SELECT ON TABLE "%s" TO "%s";'''
+        self.settings['tables'] = []
+        user = self.settings['user']
+        for table in table_names:
+            TermColor.print_delay('Granting read-only access to table %r' % (table))
+            sql = tmpl % (table, user)
+            sql_retval = self._run_sql(sql, db_name, as_superuser=True, echo=False)
+            if isinstance(sql_retval, basestring):
+                result_str = sql_retval.strip()
+            else:
+                result_str = ''
+            if 'GRANT' != result_str:
+                TermColor.print_error('Granting read-only user access to %r failed.' % (table))
+                if result_str:
+                    TermColor.print_error(result_str)
+                self.farm_out_sql('grant read-only access', sql)
+        else:
+            self.settings['tables'] = table_names
+
+    def verify_database_access(self):
+        db_name = self.settings['name']
+        TermColor.print_delay('Verifying read-only user %r has access to database %r'
+                              % (self.settings['user'], db_name))
+        sql = 'SELECT 1;'
+        sql_retval = self._run_sql(sql, db_name)
+        if isinstance(sql_retval, basestring):
+            result_str = sql_retval.strip()
+        else:
+            result_str = ''
+        if '1' != result_str:
+            TermColor.print_error('Verifying read-only user database access failed.')
+            if result_str:
+                # !!! Early exit
+                TermColor.print_error(result_str)
+            TermColor.print_header('Unable to fix this. Exiting.')
+            sys.exit(1)
+
+    def verify_table_access(self):
+        table_names = self.settings.get('tables', tuple())
+        if table_names:
+            db_name = self.settings['name']
+            user = self.settings['user']
+            TermColor.print_delay('Verifying read-only access to all tables in database %r' % (db_name))
+            tmpl = 'SELECT COUNT(1) FROM "%s"'
+            for table in table_names:
+                sql = tmpl % (table)
+                sql_retval = self._run_sql(sql, db_name, echo=False)
+                if isinstance(sql_retval, basestring):
+                    result_str = sql_retval.strip()
+                    try:
+                        result = int(result_str)
+                    except ValueError:
+                        result = None
+                else:
+                    result = None
+                if result is None:
+                    TermColor.print_error('Failed to validate read-only user access'
+                                          ' to table %r.' % (table))
+                    if result_str:
+                        TermColor.print_error(result_str)
+                    grant_sql = 'GRANT SELECT ON TABLE "%s" TO "%s";' % (table, user)
+                    self.farm_out_sql('grant read-only access', grant_sql)
+
+    def _run_sql(self, sql, db_name, as_superuser=False, echo=False):
+        if 'superuser' not in self.temp:
+            raise RuntimeError('Can only run after setting up database admin')
+        cmd = []
+        if as_superuser:
+            user = self.temp['superuser']
+            pw = self.temp['superuser_pw'].strip()
+        else:
+            user = self.settings['user']
+            pw = self.settings['passwd']
+        if pw:
+            cmd.extend(['env', 'PGPASSWORD=%s' % (pw)])
+            del pw
+        cmd.extend(['psql',
+                    '-t',
+                    '-U', user,
+                    '-p', str(self.settings['port']),
+                    ])
+        if self.use_localhost:
+            cmd.extend(['-h', '127.0.0.1'])
+        cmd.append(db_name)
+        proc = subprocess.Popen(cmd,
+                                stdin=subprocess.PIPE,
+                                stderr=subprocess.STDOUT,
+                                stdout=subprocess.PIPE)
+        try:
+            if echo:
+                TermColor.print_header('Executing the following SQL against %r' % (db_name))
+                TermColor.print_header(sql)
+            out, unused = proc.communicate(sql)
+        except IOError:
+            # !!! Early return
+            proc.stdin.close()
+            TermColor.print_error('Could not write SQL to psql process')
+            return None
+        proc.stdin.close()
+        if out:
+            retval = out
+        else:
+            retval = None
+        return retval
+
+
+class Poster(object):
+    """ Class to handle logins with Chartio """ 
+
+    def __init__(self):
+        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor())
+        urllib2.install_opener(self.opener)
+
+    def post(self, url, data=None):
+        '''A simple POST request wrapper'''
+        if data is None:
+            data = {}
+        # XXXwalrus revert !!!
+        if not url.startswith('http'):
+            url = BASE_URL + url
+        data['key'] = KEY
+        encoded_args = urllib.urlencode(data)
+        try:
+            response = self.opener.open(url, encoded_args)
+        except urllib2.HTTPError, e:
+            TermColor.print_error('Problem connecting to the Chartio service.'
+                                  ' Please try again later.')
+            f = open('/tmp/chartio-error.html', 'w')
+            f.write(e.read())
+            f.close()
+            sys.exit(1)
+        return response.read()
+
+
+def create_config_directory():
+    dir = CONFIG_PATHS.PREFIX
+    if os.path.exists(dir):
+        if not os.path.isdir(dir):
+            TermColor.print_error('Install prefix %r is not a directory. Exiting.' % (dir))
+            sys.exit(1)
+    else:
+        try:
+            os.makedirs(dir, 0755)
+        except Exception, exc:
+            TermColor.print_error('Failed to create install prefix %r. Exiting.' % (dir))
+            TermColor.print_error(str(exc))
+            sys.exit(1)
+
+    
+def create_ssh_conf():
+    '''Attempt to create the config file.
+
+    Complains and exits if the attempt fails. Good luck testing.
+
+    '''
+    try:
+        f = open(CONFIG_PATHS.CONFIG_FILE, 'a')
+    except IOError, exc:
+        # !!! Early exit
+        sys.stderr.write('''Unable to write to config file '%s'\n''' % (CONFIG_PATHS.CONFIG_FILE))
+        sys.stderr.write('    %s\n' % (exc))
+        sys.stderr.write('Exiting.\n')
+        sys.exit(1)
+    else:
+        f.close()
+
+
+def write_ssh_conf(key, value):
+    '''Write a config key and value to a config file SSHTunnel section.
+
+    Argumnents
+    key -- the storage key
+    value -- the storage value
+
+    '''
+    conf = ConfigParser.ConfigParser()
+    if os.path.exists(CONFIG_PATHS.CONFIG_FILE):
+        conf.read(CONFIG_PATHS.CONFIG_FILE)
+    section = CONFIG_PATHS.SSHTUNNEL_SECTION
+    if section not in conf.sections():
+        conf.add_section(section)
+    conf.set(section, key, value)
+    try:
+        f = open(CONFIG_PATHS.CONFIG_FILE, 'w')
+    except IOError, exc:
+        # !!! Early exit
+        sys.stderr.write('Unable to open config file for writing: %s\n' % (exc))
+        sys.stderr.write('Exiting.\n')
+        sys.exit(1)
+    conf.write(f)
+    f.close()
+
+def get_ssh_conf_value(key):
+    '''Retrieve the value of a key from a config file SSHTunnel section.
+
+    Return
+    string or None -- the associated value on success; None if the
+        config file, section, or key was not found.
+
+    Arguments
+    key -- the lookup key
+    '''
+    conf = ConfigParser.ConfigParser()
+    if os.path.exists(CONFIG_PATHS.CONFIG_FILE):
+        conf.read(CONFIG_PATHS.CONFIG_FILE)
+        try:
+            retval = conf.get(CONFIG_PATHS.SSHTUNNEL_SECTION, key)
+        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError), e:
+            retval = None
+    else:
+        retval = None
+    return retval
+
+
+def _exit(*args):
+    print ""
+    TermColor.print_ok('Exiting')
+    sys.exit(0)
+
+
+def opt_args_gather():
+    parser = optparse.OptionParser()
+    parser.add_option('--prefix',
+                      help=('installation prefix for configuration'
+                            'and runtime information. Defaults to %r' % (PREFIX_DEFAULT)))
+    opt_args = parser.parse_args()
+    return opt_args
+
+
+def main():
+    # Handle control-c
+    signal.signal(signal.SIGINT, _exit)
+
+    print 'Welcome to the chart.io setup wizard.'
+
+    (options, args) = opt_args_gather()
+    config_paths_set(options.prefix)
+
+    # This exits on failure
+    create_config_directory()
+
+    # This exits on failure
+    create_ssh_conf()
+
+    # Confirm things have been installed
+    proc = subprocess.Popen(['which', 'chartio_connect'],
+                            stderr=subprocess.STDOUT,
+                            stdout=subprocess.PIPE)
+    NO_INPUT = None
+    (conn_location, which_err) = proc.communicate(NO_INPUT)
+    if 0 != proc.returncode:
+        TermColor.print_error('Chartio does not appear installed. Please run\n'
+                              '  easy_install chartio')
+    conn_location = os.path.abspath(conn_location).strip()
+
+    # Init api poster
+    chartio_api = Poster()
+
+    LOGIN_ATTEMPT_LIMIT = 3
+    for login_attempt in range(LOGIN_ATTEMPT_LIMIT):
+        email = get_value('Enter the email address registered with chart.io',
+                          validate = lambda x: 0 < x.find('@'),
+                          validate_explanation = 'This is not a valid email')
+        password = get_value('Enter your chart.io password', password=True)
+
+        # Login user
+        response = chartio_api.post('/connectionclient/login/',
+                                    {'email': email,
+                                     'password': password})
+
+        if response != 'success':
+            TermColor.print_error(response)
+        else:
+            TermColor.print_delay('Username and password confirmed')
+            break
+    else:
+        TermColor.print_error('Login tries exceeded.')
+        sys.exit(1)
+
+    TermColor.print_delay("Checking for existing SSH keys")
+    if os.path.exists(CONFIG_PATHS.SSH_KEY):
+        TermColor.print_delay("SSH key found. Using the existing SSH key.")
+    else:
+        TermColor.print_delay("Generating keys for SSH tunneling")
+        ret = subprocess.call([
+            'ssh-keygen',
+            '-q', # shhh!
+            '-N', '', # No passphrase
+            '-C', 'chart.io ssh tunneling',
+            '-t', 'rsa',
+            '-f', CONFIG_PATHS.SSH_KEY,
+        ])
+
+        if ret != 0:
+            TermColor.print_error('Failed to generate SSH key. Please confirm you have'
+                                  ' ssh-keygen installed.')
+            sys.exit(1)
+        TermColor.print_delay("SSH keys generated")
+
+    if not get_ssh_conf_value('client_id'):
+        TermColor.print_delay('''Creating tunnel account on chart.io's server.'''
+                              ''' This will take a moment.''')
+        ssh_key = open('%s.pub' % CONFIG_PATHS.SSH_KEY).read()
+        response = chartio_api.post('/connectionclient/create/',
+                                    {'email': email,
+                                     'password': password,
+                                     'ssh_key': ssh_key,
+                                     'version': VERSION
+                                     })
+
+        response = json.loads(response)
+
+        write_ssh_conf('remotehost', response['connection']['server_hostname'])
+        write_ssh_conf('remoteuser', response['connection']['server_username'])
+        write_ssh_conf('remoteport', response['connection']['port'])
+        write_ssh_conf('client_id', response['connection']['connectionclient_id'])
+        TermColor.print_delay('Tunnel account created')
+    else:
+        TermColor.print_delay("Connection tunnel already set up")
+
+    # Get the project
+    projects = json.loads(chartio_api.post('/connectionclient/projects/')).get('projects')
+    if not projects:
+        print ('\nNo projects for your account. You must define a project'
+               ' through the Chart.io web interface before running this.')
+        sys.exit(1)
+
+    project = projects[0]
+    if len(projects) > 1:
+        project_name = get_choice("\nYou have multiple projects. " 
+                "Which project would you like to attatch this database to?", 
+                [p['name'] for p in projects])
+
+        for p in projects:
+            if p['name'] == project_name:
+                project = p
+                break
+
+    # Get the type of database
+    response = json.loads(chartio_api.post('/connectionclient/databasetypes/'))
+    databases = response.get('databasetypes', [])
+    db_name = get_choice('\nWhat type of database are you hooking up?', 
+                         [dt['name'] for dt in databases],
+                         default='MySQL')
+    db = databases[0]
+    for d in databases:
+        if d['name'] == db_name:
+            db = d
+            break
+
+    TermColor.print_delay('%s database selected\n' % db['name'])
+
+    connection = response.get('connection', {})
+
+    # Run through datasource config class
+    config_cls = {
+        'MySQL': MysqlConfig,
+        'PostgreSQL': PostgresqlConfig,
+    }[db_name]
+
+    conf = config_cls()
+    conf.run_steps()
+    settings = conf.settings
+
+    register_args = {
+        'project_id': project['id'], 
+        'type': db['id'],
+        'connectionclient_id': get_ssh_conf_value('client_id'), 
+    }
+    register_args.update(settings)
+
+    # Launching chartio connect
+    TermColor.print_delay('Launching chartio_connect')
+    subprocess.Popen(['chartio_connect', '-d'])
+    time.sleep(5) # Let connection get established
+    TermColor.print_delay('chartio_connect running')
+    TermColor.print_delay('Registering datasource with Chartio. This will take a moment.')
+
+    reg_response = chartio_api.post('/connectionclient/register/', register_args)
+
+    if reg_response == 'success':
+        TermColor.print_delay('Datasource registered. chartio_connect is running.\n')
+        TermColor.print_ok('To ensure chartio reconnects after a reboot, add it to your crontab by typing:')
+        print 'crontab -e'
+        TermColor.print_ok('and entering this as an entry:')
+        print '@reboot %s -d' % (conn_location)
+        TermColor.print_ok('\nAnd then go to:\n')
+        print '  https://%s.chart.io/\n' % project['slug']
+        TermColor.print_ok('to explore your data.')
+    else:
+        TermColor.print_error('Problem setting up your datasource. If this'
+                              ' continues, please contact support@chart.io')
+
+
+if __name__ == '__main__':
+    main()
