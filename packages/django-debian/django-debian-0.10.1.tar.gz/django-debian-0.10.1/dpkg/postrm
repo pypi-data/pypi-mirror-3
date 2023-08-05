@@ -1,0 +1,126 @@
+# Copyright (C) 2011 Linaro Limited
+#
+# Author: Zygmunt Krynicki <zygmunt.krynicki@linaro.org>
+#
+# This file is part of django-debian.
+#
+# django-debian is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License version 3
+# as published by the Free Software Foundation
+#
+# django-debian is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with django-debian.  If not, see <http://www.gnu.org/licenses/>.
+
+
+# Source common django-debian stuff
+if [ -f /usr/share/django-debian/dpkg/common ]; then
+    . /usr/share/django-debian/dpkg/common
+else
+    # Fail silently if we cannot find the required stuff
+    # postrm scripts _must_ work when dependencies are
+    # not around anymore AFAIR.
+    return
+fi
+
+
+_django_debian_dbc_go() {
+    # Load dbconfig-common if it was requested
+    if [ "$django_debian_use_dbconfig_common" = "yes" ]; then
+
+        # Source dbconfig-common shell library and call the hook function
+        if [ -f /usr/share/dbconfig-common/dpkg/postrm ]; then
+            . /usr/share/dbconfig-common/dpkg/postrm 
+            dbc_go $@
+        fi
+
+        # Remove default database settings (generated with dbconfig-common)
+        if [ "$django_debian_command" = "purge" ]; then
+            _django_debian_debug "Removing default database configuration"
+            ucf -p "/etc/$django_debian_package/default_database.conf"
+            rm -f "/etc/$django_debian_package/default_database.conf"
+            # Cleanup directory if possible
+            rmdir --ignore-fail-on-non-empty "/etc/$django_debian_package/" || true
+        fi
+    fi
+}
+
+
+_django_debian_remove_secret_key() {
+    if [ "$django_debian_command" = "purge" ]; then
+        if [ -f "/etc/$django_debian_package/secret_key.conf" ]; then
+            # Remove the secret key used by django. Loose of this key is mostly
+            # harmless, at worse users will have to sign-in again and their old
+            # sessions will be invalidated.
+            _django_debian_debug "Removing SECRET_KEY"
+            rm -f "/etc/$django_debian_package/secret_key.conf"
+            # Cleanup directory if possible
+            rmdir --ignore-fail-on-non-empty "/etc/$django_debian_package/" || true
+        fi
+    fi
+}
+
+
+_django_debian_purge_media_files() {
+    if [ "$django_debian_command" = "purge" ]; then
+        if [ "$django_debian_purge_media_files" = "yes" ]; then
+            # This is quite extreme, all user-generated content is removed
+            # here. This is NOT enabled by default so packages most likely are
+            # not using it. In the future it should be a debconf question that
+            # we're asking when possible (defaulting to false)
+            _django_debian_debug "Removing uploaded and generated content"
+            rm -rf "/var/lib/$django_debian_package/media"
+            # Cleanup directory if possible
+            rmdir --ignore-fail-on-non-empty "/var/lib/$django_debian_package/" || true
+        fi
+    fi
+}
+
+
+_django_debian_remove_staticfiles() {
+    if [ "$django_debian_command" = "remove" ]; then
+        if [ "$django_debian_use_staticfiles" = "yes" ]; then
+            # We should clea up the cache of static files. It is always safe to
+            # remove as it's just a bunch of symlinks
+            _django_debian_debug "Removing cache of static files"
+            rm -rf "/var/lib/$django_debian_package/static"
+            # Cleanup directory if possible
+            rmdir --ignore-fail-on-non-empty "/var/lib/$django_debian_package/" || true
+        fi
+    fi
+}
+
+
+django_debian_go() {
+    _django_debian_debug "starting postrm script: $@"
+
+    # Setup configuration variables
+    _django_debian_config $@
+
+    # Run dbconfig-common integration
+    _django_debian_dbc_go $@
+
+    if [ "$django_debian_command" = "purge" ]; then
+        # Cleanup directory if possible
+        rmdir --ignore-fail-on-non-empty --parents "/etc/$django_debian_package/templates" || true
+    fi
+
+    # Deconfigure web server specific files
+    _django_debian_deconfigure_web_server_postrm
+
+    # Remove symlinks to static content if we are using django-staticfiles
+    # (on remove)
+    _django_debian_remove_staticfiles
+
+    # Remove uploaded and generated application content if requested
+    # (on purge)
+    _django_debian_purge_media_files
+
+    # Remove generated SECRET_KEY
+    # (on purge)
+    _django_debian_remove_secret_key
+}
