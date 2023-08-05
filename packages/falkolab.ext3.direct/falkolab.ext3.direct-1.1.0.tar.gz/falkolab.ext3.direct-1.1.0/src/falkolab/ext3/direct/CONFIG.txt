@@ -1,0 +1,72 @@
+=====================
+Configuration caching
+=====================
+
+  >>> from zope.configuration import xmlconfig  
+  >>> from falkolab.ext3.direct.decorator import directMethod
+   
+Let's register api and views:
+ 
+  >>> context = xmlconfig.string("""
+  ... <configure
+  ...     xmlns="http://namespaces.zope.org/zope"
+  ...     xmlns:extdirect="http://namespaces.zope.org/extdirect"
+  ...     >
+  ...   <include package="falkolab.ext3.direct" file="meta.zcml" />
+  ...
+  ...   <extdirect:api
+  ...       for="zope.app.folder.interfaces.IFolder"
+  ...       namespace = "my.app"       
+  ...       />   
+  ...
+  ...   <extdirect:view
+  ...       for="zope.app.folder.interfaces.IFolder"
+  ...       class="falkolab.ext3.direct.testing.AlbumList"
+  ...       permission="zope.ManageContent"
+  ...       name="albumlist"
+  ...       />
+  ... </configure>
+  ... """)
+  
+Some tests for direct config caching.
+Register RAM cache. 
+
+  >>> root = getRootFolder()
+  >>> from zope.interface.declarations import alsoProvides
+  >>> from zope.annotation.interfaces import IAttributeAnnotatable,IAnnotatable
+  >>> alsoProvides(root, IAttributeAnnotatable)
+  
+  >>> from zope.app.cache.ram import RAMCache
+  >>> from zope.app.cache.interfaces.ram import IRAMCache
+  >>> provideUtility(RAMCache(), provides=IRAMCache, name=u'ramcache')
+  
+  >>> from zope.app.cache.interfaces import ICacheable
+  >>> ICacheable(root).setCacheId(u'ramcache')
+  
+  >>> from falkolab.ext3.direct.interfaces import IDirectConfig
+  >>> IDirectConfig(root)()
+  {u'albumlist': [{'formHandler': True, 'name': 'add', 'len': 0}, {'name': 'getAll', 'len': 0}]}
+  
+Lets add new view:
+
+  >>> context = xmlconfig.string("""
+  ... <configure
+  ...     xmlns="http://namespaces.zope.org/zope"
+  ...     xmlns:extdirect="http://namespaces.zope.org/extdirect"
+  ...     >
+  ...   <extdirect:view
+  ...       for="zope.app.folder.interfaces.IFolder"
+  ...       class="falkolab.ext3.direct.testing.Contact"
+  ...       permission="zope.ManageContent"
+  ...       />
+  ... </configure>
+  ... """, context=context)
+  
+Config must be same:
+  >>> IDirectConfig(root)()
+  {u'albumlist': [{'formHandler': True, 'name': 'add', 'len': 0}, {'name': 'getAll', 'len': 0}]}
+
+Invalidate config:
+  >>> IDirectConfig(root)(invalidate=True) 
+  {'Contact': [{'name': 'getInfo', 'len': 1}], u'albumlist': [{'formHandler': True, 'name': 'add', 'len': 0}, {'name': 'getAll', 'len': 0}]} 
+ 
