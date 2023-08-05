@@ -1,0 +1,265 @@
+Dedun
+*****
+
+Dedun is a Python client for the RESTful API of `API.Leipzig
+<http://www.apileipzig.de/>`_. This API gives access to the public data of the
+city of Leipzig. At the moment Dedun can only be used to read from the API.
+
+Dedun was a Nubian god worshipped during ancient times and was depicted as a
+lion. The lion is also part of the coat of arms of the city of Leipzig.
+
+Installation
+============
+
+Use ``pip`` or ``easy_install`` to install the package::
+
+    $ pip install dedun
+
+Or install from the sources::
+
+    $ wget http://pypi.python.org/packages/source/d/dedun/dedun-0.3.tar.gz
+    $ tar xzf dedun-0.3.tar.gz
+    $ cd dedun-0.3
+    $ python setup.py install
+
+If you install from the sources or want to run the test suite you have to
+install the requirements manually::
+
+    $ pip install anyjson>=0.3.1
+
+Quick overview
+==============
+
+You need a personal API key to use Dedun. You can request an API key at the
+`API.Leipzig website <http://www.apileipzig.de/>`_.
+
+Create a Result object
+----------------------
+
+First create an instance of a Result class using your API key::
+
+>>> from dedun.resources import MediahandbookCompanies
+>>> comp = MediahandbookCompanies(api_key='XXXXXXXXXXXXXXXXXXXX')
+
+Fetch all items
+---------------
+
+Now you can fetch all mediahandbook companies using the all() method::
+
+    >>> companies = comp.all()
+    >>> print companies
+    1039 mediahandbook/companies items
+
+You can also use the count() method to get the total number of results::
+
+    >>> companies.count()
+    1039
+
+The Result object is a list consisting of MediahandbookCompaniesResult objects::
+
+    >>> companies[0]
+    MediahandbookCompaniesResult: Leipziger Universitätsverlag GmbH und Akademische Verlagsanstalt AVA
+    >>> print companies[0].get_attributes()
+    [u'phone_primary', u'people', u'past_customers', u'updated_at', u'street', u'postcode', u'id', u'city', u'email_secondary', u'fax_secondary', u'mobile_secondary', u'housenumber_additional', u'housenumber', u'fax_primary', u'resources', u'main_activity', u'old_id', u'sub_branches', u'sub_market_id', u'mobile_primary', u'url_primary', u'url_secondary', u'name', u'created_at', u'phone_secondary', u'products', u'email_primary', u'main_branch_id']
+    >>> print companies[0].name
+    Leipziger Universitätsverlag GmbH und Akademische Verlagsanstalt AVA
+    >>> print companies[0].id
+    1
+    >>> print companies[0].email_primary
+    info@univerlag-leipzig.de
+
+Each object can be retrieved in JSON::
+
+    >>> companies[0].get_json()
+    '{"phone_primary": "+49 341 9900440", "people": [1, 2], "past_customers": null, "updated_at": "2011-03-14T17:47:47+01:00", "street": "Oststra\\u00dfe", "postcode": "04317", "id": 1, "city": "Leipzig", "email_secondary": null, "fax_secondary": null, "mobile_secondary": null, "housenumber_additional": null, "housenumber": 41, "fax_primary": null, "resources": null, "main_activity": null, "old_id": 3, "sub_branches": [23], "sub_market_id": 3, "mobile_primary": null, "url_primary": "http://www.univerlag-leipzig.de", "url_secondary": "http://www.univerlag-leipzig.de", "name": "Leipziger Universit\\u00e4tsverlag GmbH und Akademische Verlagsanstalt AVA", "created_at": "2011-02-23T03:06:15+01:00", "phone_secondary": null, "products": null, "email_primary": "info@univerlag-leipzig.de", "main_branch_id": 17}'
+
+Result objects can be sorted and reverted::
+
+    >>> companies[0]
+    MediahandbookCompaniesResult: Leipziger Universitätsverlag GmbH und Akademische Verlagsanstalt AVA
+    >>> companies.reverse()
+    >>> companies[0]
+    MediahandbookCompaniesResult: Helden wider Willen e.V.
+    >>> companies.order_by('name')
+    1039 mediahandbook/companies items
+    >>> companies[0]
+    MediahandbookCompaniesResult: (type:g)publishing
+    >>> companies[-1]
+    MediahandbookCompaniesResult: Übersetzungsdienst Annett Koch
+
+You can also use slicing and iteration to get a part of the results::
+
+    >>> companies[:10]
+    [MediahandbookCompaniesResult: Leipziger Universitätsverlag GmbH und Akademische Verlagsanstalt AVA, MediahandbookCompaniesResult: Sittauer Mediendesign, MediahandbookCompaniesResult: Realdesign GmbH, MediahandbookCompaniesResult: Frauenkultur e.V. Leipzig, MediahandbookCompaniesResult: Jürgen Auge Atelier für Gebrauchs- und Werbegrafik, MediahandbookCompaniesResult: Leipziger Städtische Bibliotheken, MediahandbookCompaniesResult: Foto Pampel, MediahandbookCompaniesResult: AECom VERTRIEB,  Fachgroßhandel für Computerzubehör, MediahandbookCompaniesResult: Gesellschaft für Nachrichtenerfassung und Nachrichtenverbreitung, MediahandbookCompaniesResult: OCR Systeme GmbH]
+    >>> for c in companies[:10]:
+    ...     print c.name
+    ...
+    Leipziger Universitätsverlag GmbH und Akademische Verlagsanstalt AVA
+    Sittauer Mediendesign
+    Realdesign GmbH
+    Frauenkultur e.V. Leipzig
+    Jürgen Auge Atelier für Gebrauchs- und Werbegrafik
+    Leipziger Städtische Bibliotheken
+    Foto Pampel
+    AECom VERTRIEB,  Fachgroßhandel für Computerzubehör
+    Gesellschaft für Nachrichtenerfassung und Nachrichtenverbreitung
+    OCR Systeme GmbH
+
+
+
+Search for items
+----------------
+
+Search for items using the search() method::
+
+    >>> augen = comp.search(name='Auge')
+    >>> augen
+    2 mediahandbook/companies items
+    >>> for a in augen:
+    ...     print a.name
+    ...
+    Jürgen Auge Atelier für Gebrauchs- und Werbegrafik
+    Leipziger Wohnungs- und Baugesellschaft mbH
+    >>> leipzig_10 = comp.search(city='Leipzig', limit=10)
+    >>> print leipzig_10
+    10 mediahandbook/companies items
+
+Get a single item
+-----------------
+
+Fetch a single item using the get() method::
+
+    >>> auge = comp.get(name='Auge')
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+      File "dedun/resources.py", line 59, in get
+        raise exceptions.MultipleResults()
+    dedun.exceptions.MultipleResults: Your query had multiple results.
+    >>> auge = comp.get(name='Auge Atelier')
+    >>> print auge
+    MediahandbookCompaniesResult: Jürgen Auge Atelier für Gebrauchs- und Werbegrafik
+    >>> comp.get(id=232323)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+      File "dedun/resources.py", line 60, in get
+        return result[0]
+      File "dedun/results.py", line 103, in __getitem__
+        raise exceptions.ObjectNotFound('Item not found.')
+    dedun.exceptions.ObjectNotFound: Item not found.
+
+Activate debugging
+------------------
+
+Create a new instance to activate debugging::
+
+    >>> comp_debug = MediahandbookCompanies(api_key='XXXXXXXXXXXXXXXXXXXX', debug=True)
+    >>> comp_debug.all()
+    http://www.apileipzig.de/api/v1/mediahandbook/companies?api_key=XXXXXXXXXXXXXXXXXXXX&format=json
+    1039 mediahandbook/companies items
+    >>> comp_debug.get(id=23)
+    http://www.apileipzig.de/api/v1/mediahandbook/companies/search?api_key=XXXXXXXXXXXXXXXXXXXX&id=23&format=json
+    MediahandbookCompaniesResult: Kleines Werbeteam
+
+Available Resource classes
+--------------------------
+
+- CalendarEvents
+- CalendarHosts
+- CalendarVenues
+- DistrictDistricts
+- DistrictIhkcompanies
+- DistrictStatistics
+- DistrictStreets
+- MediahandbookBranches
+- MediahandbookCompanies
+- MediahandbookPeople
+
+Running the test suite
+======================
+
+To run the test suite you need the Dedun source code. There are two ways to
+obtain it.
+
+#. Clone the Mercurial repository from BitBucket_::
+
+    $ hg clone https://bitbucket.org/keimlink/dedun
+
+..  _BitBucket: https://bitbucket.org/keimlink/dedun
+
+#. Download the package from PyPI_ and unpack it::
+
+    $ wget http://pypi.python.org/packages/source/d/dedun/dedun-0.3.tar.gz
+    $ tar xzvf dedun-0.3.tar.gz
+
+..  _PyPI: http://pypi.python.org/pypi/dedun
+
+All test are written using `py.test`_. You can execute them without having
+py.test installed. The only prerequisite is the installation of the previously
+mentioned requirements::
+
+    $ pip install anyjson>=0.3.1
+
+..  _py.test: http://pytest.org/
+
+Run the test suite using ``python setup.py test`` (no py.test installation
+required). The tests requiring the local HTTP server will automatically be
+skipped::
+
+    $ python setup.py test
+    ================================================= test session starts ==================================================
+    platform darwin -- Python 2.6.1 -- pytest-2.1.2
+    collected 37 items
+
+    tests/test_resources.py ..sss...sss.
+    tests/test_results.py .........................
+
+    ========================================= 31 passed, 6 skipped in 0.40 seconds =========================================
+
+To run the tests which mock HTTP requests using a local test server you need
+additional packages::
+
+    $ pip install pytest pytest-localserver
+
+After installing the packages you can run all tests::
+
+    $ python setup.py test
+    ================================================= test session starts ==================================================
+    platform darwin -- Python 2.6.1 -- pytest-2.1.2
+    collected 37 items
+
+    tests/test_resources.py ............
+    tests/test_results.py .........................
+
+    ============================================== 37 passed in 3.47 seconds ===============================================
+
+If you want to skip the tests using the local HTTP server on purpose you can
+do it this way::
+
+    $ py.test --no-localserver
+    ================================================= test session starts ==================================================
+    platform darwin -- Python 2.6.1 -- pytest-2.1.3
+    collected 37 items
+
+    tests/test_resources.py ..sss...sss.
+    tests/test_results.py .........................
+
+    ========================================= 31 passed, 6 skipped in 0.41 seconds =========================================
+
+Reporting bugs
+==============
+
+If you find bugs or have ideas for new features please use the `issue tracker`_.
+
+..  _issue tracker: https://bitbucket.org/keimlink/dedun/issues
+
+Contributing
+============
+
+Development happens at BitBucket_. You are highly encouraged to participate in
+the development.
+
+License
+=======
+
+This software is licensed under the New BSD License. See the LICENSE file in
+the top distribution directory for the full license text.
