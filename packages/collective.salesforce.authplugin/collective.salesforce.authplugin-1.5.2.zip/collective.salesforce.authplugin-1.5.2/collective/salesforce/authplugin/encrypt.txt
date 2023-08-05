@@ -1,0 +1,65 @@
+Encryption Support (thanks to SQLPASPlugin)
+===============================
+
+Basically shows how the integration should behave in an installed
+PAS instance.
+
+Make sure the default encryption is 'plain'.
+
+  >>> plugin = self.acl.salesforceauthmultiplugin
+  >>> plugin.default_encryption
+  'plain'
+
+We begin simply by ensuring standard authentication works.
+
+  >>> self.testDoAddUser('foo', 'bar')
+  >>> plugin.authenticateCredentials({'login': 'foo',
+  ...                                 'password': 'bar'})
+  ('foo', 'foo')
+
+  >>> [x[plugin.getPasswordFieldName()] for x in plugin._getSFConnection().query("SELECT %s FROM %s WHERE %s='%s'" % (plugin.getPasswordFieldName(), plugin.getSFObjectType(), plugin.getLoginFieldName(), 'foo')).records]
+  ['bar']
+
+Now we test with an encryption we know isn't supported.
+
+  >>> plugin.default_encryption = 'rockyencrypt'
+
+  >>> self.testDoAddUser('foo2', 'bar2')
+  Traceback (most recent call last):
+    ...
+  LookupError: Could not find an encrypter for "rockyencrypt"
+
+Of course the SHA encryption should be working.
+
+  >>> plugin.default_encryption = 'sha'
+
+  >>> self.testDoAddUser('foo3', 'bar3')
+  >>> plugin.authenticateCredentials({'login': 'foo3',
+  ...                                 'password': 'bar3'})
+  ('foo3', 'foo3')
+
+  >>> [x[plugin.getPasswordFieldName()] for x in plugin._getSFConnection().query("SELECT %s FROM %s WHERE %s='%s'" % (plugin.getPasswordFieldName(), plugin.getSFObjectType(), plugin.getLoginFieldName(), 'foo3')).records]
+  ['89c76b7fd66cd4b165d1c31d2482ef2e6a89c384']
+
+And the MD5 encryption should be working.
+
+  >>> plugin.default_encryption = 'md5'
+
+  >>> self.testDoAddUser('foo4', 'bar4')
+  >>> plugin.authenticateCredentials({'login': 'foo4',
+  ...                                 'password': 'bar4'})
+  ('foo4', 'foo4')
+
+  >>> [x[plugin.getPasswordFieldName()] for x in plugin._getSFConnection().query("SELECT %s FROM %s WHERE %s='%s'" % (plugin.getPasswordFieldName(), plugin.getSFObjectType(), plugin.getLoginFieldName(), 'foo4')).records]
+  ['90f0b1eae66250e53b5ba13e70309916']
+
+As should SSHA.
+
+  >>> plugin.default_encryption = 'ssha'
+
+  >>> self.testDoAddUser('foo5', 'bar5')
+  >>> plugin.authenticateCredentials({'login': 'foo5',
+  ...                                 'password': 'bar5'})
+  ('foo5', 'foo5')
+
+  Since SSHA uses salt, we can't just compare.

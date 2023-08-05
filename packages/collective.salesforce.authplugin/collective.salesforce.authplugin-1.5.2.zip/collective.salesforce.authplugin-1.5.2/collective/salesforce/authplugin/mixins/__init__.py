@@ -1,0 +1,5 @@
+from collective.salesforce.authplugin.mixins.authmixin import AuthMixin
+from collective.salesforce.authplugin.mixins.useraddermixin import UserAdderMixin
+from collective.salesforce.authplugin.mixins.userenumerationmixin import UserEnumerationMixin
+from collective.salesforce.authplugin.mixins.usermgmtmixin import UserManagementMixin
+from collective.salesforce.authplugin.mixins.propertymgmtmixin import PropertyManagementMixin

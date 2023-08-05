@@ -1,0 +1,56 @@
+==========================
+Auth Configuration doctest
+==========================
+
+First, we must perform some setup. We use the testbrowser that is shipped
+with Five, as this provides proper Zope 2 integration. Most of the 
+documentation, though, is in the underlying zope.testbrower package.
+
+    >>> from Products.Five.testbrowser import Browser
+    >>> browser = Browser()
+    >>> self.app.acl_users.userFolderAddUser('root', 'secret', ['Manager'], [])
+    >>> browser.addHeader('Authorization', 'Basic root:secret')
+    >>> portal_url = self.portal.absolute_url()
+
+Now we become manager and navigate to our acl_user folder:
+    
+    >>> self.setRoles(('Manager',))
+    >>> browser.open("%s/acl_users/manage_main" % portal_url)
+    >>> "Select type to add..." in browser.contents
+    True
+    
+Make sure that we can add the auth plugin to our portal:
+
+    >>> "Salesforce Auth Multi Plugin" in browser.contents
+    True
+    >>> browser.getControl(name=':action').value = ['manage_addProduct/collective.salesforce.authplugin/salesforceAuthMultiPluginAddForm']
+    >>> browser.getControl(name="submit").click()
+
+Next we'll make sure we can actually fill out the needed data to successfully 
+configure our newly added Salesforce Authentication Plugin
+
+    >>> "Add a Salesforce Auth Multi Plugin for PAS" in browser.contents
+    True
+    >>> browser.getControl(name="id").value = "sfauth"
+    >>> browser.getControl(name="title").value = "sfauth"
+    >>> browser.getControl(name="submit").click()
+    
+Let's also edit our plugin, and add an authConditionClause and field mapping
+
+    >>> browser.url
+    'http://nohost/plone/acl_users/manage_main'
+    >>> browser.getLink(text='sfauth').click()
+    >>> browser.url
+    'http://nohost/plone/acl_users/sfauth/manage_configForm'
+    >>> browser.getControl(name="authConditionClause").value = "Email like '%@example.com'"
+    >>> browser.getControl(name="localToSFFieldMapping:lines").value="""assistant_name|AssistantName"""
+    >>> browser.getControl(name="submit_edit").click()
+
+Now let's go back to our plugin and make sure the values were correctly saved
+
+    >>> browser.getLink(text='sfauth').click()
+    >>> browser.getControl(name="authConditionClause").value
+    "Email like '%@example.com'"
+    >>> mapping = browser.getControl(name="localToSFFieldMapping:lines").value
+    >>> bool('assistant_name|AssistantName' in mapping.strip())
+    True
