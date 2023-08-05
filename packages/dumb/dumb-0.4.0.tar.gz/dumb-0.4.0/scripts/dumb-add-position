@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+
+""" 
+
+
+"""
+
+__author__ = 'Elena "of Valhalla" Grandi'
+__version__ = '20110119'
+__copyright__ = '2009-2011 Elena Grandi'
+__license__ = 'LGPL'
+
+import sys,optparse,datetime,logging,hashlib
+import dumb
+
+def print_bookmarks(bms):
+    for bm in bms:
+        bm_id = hashlib.md5(bm['url']).hexdigest()[:3]+":"
+        url = '<'+bm['url']+'>'
+        try:
+            title = bm['title']
+        except KeyError:
+            title = ""
+        print bm_id, title, url
+
+def find_bookmark(collection,url,bm_id):
+    if bm_id == None:
+        bms = collection.get_base_bookmarks(url)
+        if len(bms) == 1:
+            return bms[0]
+        elif len(bms) == 0:
+            sys.exit('No suitable bookmark in this collection')
+        else:
+            print "Multiple base bookmarks available, specify one with -b"
+            print_bookmarks(bms)
+            sys.exit(1)
+    else:
+        try:
+            return collection.fuzzy_get(bm_id)[0]
+        except IndexError:
+            sys.exit('No suitable bookmark in this collection')
+
+
+def main():
+    logging.getLogger('dumb').addHandler(logging.StreamHandler())
+    parser = optparse.OptionParser()
+    parser.add_option('--verbose','-v',action="store_true")
+    parser.add_option('--title','-t')
+    parser.add_option('--comment','-c')
+    parser.add_option('--bookmark','-b')
+    opt, arg = parser.parse_args()
+    
+    if len(arg) > 0:
+        url = arg[0]
+        if len(arg) > 1:
+            directory = arg[1]
+        else:
+            directory = '.'
+    else:
+        sys.exit('Usage:  dumb-add-position [-v] [-t Title] [-c Comment] [-u Base-URL] url [collection]')
+
+    if opt.verbose != None:
+        logging.getLogger('dumb').setLevel(logging.INFO)
+
+    collection = dumb.Collection(directory)
+    collection.load()
+    bm = find_bookmark(collection,url,opt.bookmark)
+    data = {}
+    pos = {}
+    if opt.title != None:
+        pos['title'] = opt.title
+    if opt.comment != None:
+        pos['comment'] = opt.comment
+    pos['added'] = datetime.datetime.now()
+    pos['url'] = url
+    data['positions'] = [pos]
+    bm.load_data(data)
+    collection.save()
+
+
+if __name__ == '__main__': main()
