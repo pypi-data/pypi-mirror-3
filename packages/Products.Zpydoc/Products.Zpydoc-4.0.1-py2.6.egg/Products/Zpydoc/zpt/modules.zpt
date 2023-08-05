@@ -1,0 +1,104 @@
+<span tal:replace="structure context/manage_page_header"/>
+
+    <span tal:replace="structure python:context.manage_tabs(help_topic='permissions.stx',
+                                                            help_product='Zpydoc')"/>
+
+    <p class="form-help">You must <i>explicitly</i> declare which modules are publicly available from
+       your Zpydoc instance.  By <i>publicly available</i>, we mean in conjunction with the <i>View</i>
+       permission in the Security Tab.</p>
+
+    <div tal:omit-tag="" tal:define="roles context/valid_roles;
+                                     name request/name | string:;
+                                     modules python: test(name, 
+                                                          context.module_tree(name=name, depth=1),
+                                                          context.module_tree(depth=0));
+                                     allow_roles python: not name or context.module_permitted(name)">
+
+
+<script tal:repeat="role roles" type="text/javascript" tal:content="structure python:'''
+\n<!--
+\nisSelected%s = false;
+\n
+\nfunction toggleSelect%s() {
+\n  if (isSelected%s == false) {
+\n    for (i = 0; i < document.form.%s.length; i=i+1)
+\n      document.form.%s[i].checked = true ;
+\n    isSelected%s = true;
+\n    document.form.select%sButton.value = 'Deselect All';
+\n    return isSelected%s;
+\n  }
+\n  else {
+\n    for (i = 0; i < document.form.%s.length; i=i+1)
+\n      document.form.%s[i].checked = false ;
+\n    isSelected%s = false;
+\n    document.form.select%sButton.value = 'Select All';
+\n    return isSelected%s;       
+\n  }
+\n}
+\n//-->
+\n''' % (role, role, role, role, role, role, role, 
+         role, role, role, role, role, role)" />
+
+    <div tal:define="parts python: name.split('.')"
+         tal:condition="parts">
+          <a href="" tal:attributes="href string:${context/absolute_url}/${template/getId}">/</a>
+       <tal:block tal:repeat="part parts">
+          &lArr;
+          <a href="" tal:attributes="href python: '%s/%s?name=%s' % (context.absolute_url(), template.getId(), '.'.join(parts[:repeat['part'].index]))"
+             tal:content="part"/>
+        </tal:block>
+    </div>
+
+    <form name="form" action="manage_updateModulePermissions" method="post">
+       <input type="hidden" name="name" value="" tal:attributes="value name" 
+              tal:condition="name"/>
+       <table width="100%" cellspacing="0" cellpadding="2" border="0" nowrap>
+          <tr class="list-header">
+             <td class="form-label">Module</td>
+             <td class="form-label" colspan="" 
+                 tal:attributes="colspan python: len(roles)">Role</td>
+          </tr>
+          <div tal:repeat="module modules">
+             <tal:block tal:define="name python: module[0];
+                                    subs python: module[1];">
+                <tr class="row-normal" tal:condition="python: repeat['module'].index % 10 == 0">
+                   <td>&nbsp;</td>
+                   <td class="list-item" tal:repeat="role roles">
+                       <a href="" tal:attributes="href string:manage_roleForm?role_to_manage=${role}"
+                                  tal:content="role"/>
+                   </td>
+                </tr>
+                <tr class=""
+                    tal:attributes="class python: test(repeat['module'].index % 2, 'row-normal', 'row-hilite')">
+                   <td class="list-item" tal:define="short_name python: name.split('.')[-1]">
+                       <span tal:condition="not: subs" tal:content="short_name"/>
+                       <a tal:condition="subs"
+                          tal:attributes="href string:${context/absolute_url}/manage_modules?name=${name}"
+                          tal:content="short_name"/>
+                   </td>
+                   <td class="list-item" tal:repeat="role roles">
+                      <input type="checkbox" name="" tal:condition="allow_roles" id="roles"
+                             tal:attributes="name string:${name}.${role}:record;
+                                             id role;
+                                             checked python:test(context.module_role(name, role),1,0)"/>
+                   </td>
+                </tr>
+              </tal:block>
+          </div>
+         <tr tal:condition="allow_roles">
+             <td>&nbsp;</td>
+             <td class="form-element" tal:repeat="role roles">
+               <input class="form-element" type="button" name="selectButton" 
+                         value="Select All" onclick="toggleSelect(); return false"
+                      tal:attributes="name string:select${role}Button; 
+                                      onclick python: 'toggleSelect%s()' % role" />
+             </td>
+         </tr>
+         <tr tal:condition="allow_roles">
+             <td><input type="submit" class="form-element" value=" Update "/></td>
+         </tr>
+       </table>
+    </form>
+
+</div>
+<span tal:replace="structure context/manage_page_footer"/>

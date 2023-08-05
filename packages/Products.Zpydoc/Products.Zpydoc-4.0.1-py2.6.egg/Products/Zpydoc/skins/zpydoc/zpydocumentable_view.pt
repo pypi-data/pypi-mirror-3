@@ -1,0 +1,211 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      lang="en"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="zpydoc">
+<body>
+ 
+  <metal:main fill-slot="main"
+         tal:define="info context/getPackageInfo;
+                     encode python: modules['Products.Zpydoc.utils'].pydoc_encode">
+
+      <h1><img src="" tal:attributes="src info/getIcon">&nbsp;<span tal:content="context/name"/>
+           &nbsp;<span tal:condition="info/version" tal:replace="string:(${info/version})"/></h1>
+
+        <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">
+        Up one level
+        </a>
+
+      <div id="portal-breadcrumbs"
+           tal:define="zpydoc_url context/aq_parent/absolute_url">
+         <a href="" tal:attributes="href zpydoc_url">
+             <img border="0" src="" tal:define="icon python: context.aq_parent.getIcon(1)"
+                  tal:attributes="src string:${utool}/${icon}">
+         </a>
+         <span tal:repeat="crumb context/nameParts">
+            <tal:last tal:define="is_last repeat/crumb/end">
+               <a href=""
+                  tal:attributes="href python: '%s/%s.html' % (zpydoc_url, crumb[1])"
+                  tal:condition="python:not is_last"
+ 
+                  tal:content="python: crumb[0]"/>
+               <span class="breadcrumbSeparator" tal:condition="not: is_last">&rarr;</span>
+               <span tal:condition="is_last" tal:content="python: crumb[0]"/>
+            </tal:last>
+         </span>
+      </div>
+
+      <div tal:condition="info/doc">
+         <small><tt tal:content="info/doc"/></small>
+      </div>
+
+      <fieldset tal:define="pkgs python: filter(lambda x: context.module_permitted(x.name()), info.packages())" 
+                tal:condition="nocall: pkgs">
+          <legend>Packages</legend>
+             <table width="100%"
+                    tal:define="cols python: 3;
+                                rows python: int(math.ceil(len(pkgs) / float(cols)));
+                                width python: '%i%%' % (100 / cols)">
+               <tr tal:repeat="row python: range(0, rows)">
+                   <td width="25%" valign=top tal:repeat="col python:range(0, cols)" nowrap
+                       tal:attributes="width width">
+                         <tal:block tal:on-error="string:"
+                              tal:define="index python: rows * col + row;
+                                          pkg python: pkgs[index];">
+                             <img src="package.png" 
+                                  tal:attributes="src string:${portal_url}/package.png"/>
+                             <a href=""
+                                tal:attributes="href python:'%s.html' % encode(pkg.name())"
+                                tal:content="pkg/title"/>
+                         </tal:block>
+                    </td>
+               </tr>
+             </table>
+      </fieldset>
+
+      <fieldset  tal:define="mods python: filter(lambda x: context.module_permitted(x.name(), user), info.modules())" 
+                 tal:condition="nocall: mods">
+         <legend>Modules</legend>
+             <table width="100%"
+                    tal:define="cols python: 4;
+                                rows python: int(math.ceil(len(mods) / float(cols)));
+                                width python: '%i%%' % (100 / cols)">
+               <tr tal:repeat="row python: range(0, rows)">
+                   <td width="25%" nowrap valign=top 
+                       tal:repeat="col python:range(0, cols)"
+                       tal:attributes="width width">
+                      <tal:block  tal:on-error="string:"
+                                  tal:define="index python: rows * col + row;
+                                  mod python: mods[index];
+                                  displayable python: context.module_permitted(mod.name())">
+                         <img src="file.png"
+                              tal:attributes="src string:${portal_url}/file.png"/>
+                         <a href="" tal:condition="displayable"
+                            tal:attributes="href string:${mod/name}.html"
+                            tal:content="mod/shortname"/>
+                         <span tal:condition="not: displayable" tal:replace="mod/shortname"/>
+                      </tal:block>
+                   </td>
+               </tr>
+             </table>
+      </fieldset>
+
+      <fieldset tal:define="classes info/classes" tal:condition="nocall: classes">
+          <legend>Classes</legend>
+          <!--dl tal:replace="structure info/classtree"/-->
+          <tal:block tal:repeat="cls classes">
+             <fieldset>
+                 <legend>
+                     <img src="class.png" tal:attributes="src string:${portal_url}/class.png">&nbsp; 
+                     <a name="" tal:attributes="name cls/id">class <strong tal:content="cls/id"/></a>
+                     ( <tal:block tal:repeat="parent cls/bases">
+                          <tal:block tal:define="link python: context.module_permitted(parent['module']);
+                                                 path_name string:${parent/module}.${parent/name}">
+                             <a href="" tal:define="cls_path string:${parent/module}.html#${parent/name};"
+                                        tal:attributes="href cls_path; title path_name"
+			                tal:condition="link"
+                                        tal:content="parent/name"/>
+                             <a name="#" tal:condition="not: link" tal:attributes="title path_name"
+                                tal:content="parent/name"/>
+                           </tal:block>
+                           <span tal:condition="not: repeat/parent/end" tal:replace="string: ,"/>
+                       </tal:block> )
+                  </legend>
+
+                   <div tal:condition="cls/doc" class="documentDescription" tal:content="cls/doc"/>
+
+                   <dl tal:condition="cls/productinfo/permission | nothing">
+                        <dd><small>
+                                <img src="plus.gif" tal:attributes="src string:${portal_url}/plus.gif">
+                                <img src="lock.gif" tal:attributes="src string:${portal_url}/lock.gif">&nbsp;
+                                <em><span tal:replace="cls/productinfo/permission"/></em>
+                              </small>
+                         </dd>
+                    </dl>
+
+
+                  <fieldset tal:define="productinfo cls/productinfo;
+                                        interfaces productinfo/interfaces | nothing"
+                                        tal:condition="nocall: interfaces">
+                      <legend>Implements</legend>
+                      <tal:block tal:repeat="intf interfaces">
+                          <tal:block tal:define="module intf/module;
+                                                 link python: context.module_permitted(module);
+                                                 name intf/name;">
+                             <a href=""
+                                tal:attributes="href string:./${module}.html#${name}"
+                                tal:condition="link"
+                                tal:content="name"/>
+                             <span tal:condition="not: link" tal:replace="name"/>
+                           </tal:block>
+                       </tal:block>
+                   </fieldset>
+ 
+                    <dl tal:repeat="func cls/public_methods"><dt>
+                         <img src="method.png" tal:attributes="src string:${portal_url}/method.png"/>
+                         <a name="" tal:attributes="name string:-${func/id}">
+                         <strong tal:content="func/id"/></a><span tal:replace="structure func/arguments"/>
+                         <dd tal:condition="func/permission">
+                               <small>
+                                 <img src="lock.gif" tal:attributes="src string:${portal_url}/lock.gif"/>
+                                   &nbsp;&nbsp;<em tal:content="func/permission"/>
+                               </small>
+                         </dd>
+                         <dd tal:condition="func/doc">
+                             <small><tt tal:content="func/doc"/></small>
+                         </dd>
+                     </dl>
+
+                     <dl tal:repeat="func cls/private_methods" 
+                            tal:condition="context/renderer/show_private|nothing"><dt>
+                            <img src="method.png" tal:attributes="src string:${portal_url}/method.png"/>
+                            <a name="" tal:attributes="name string:-${func/id}">
+                            <strong tal:content="func/id"/></a><span tal:replace="structure func/arguments"/>
+                            <dd tal:condition="func/permission">
+                               <small>
+                                   <img src="lock.gif" tal:attributes="src string:${portal_url}/lock.gif"/>
+                                    &nbsp;&nbsp;<em tal:content="func/permission"/>
+                               </small>
+                            </dd>
+                            <dd tal:condition="func/doc">
+                               <small><tt tal:content="func/doc"/></small>
+                            </dd>
+                     </dl>
+             </fieldset>
+          </tal:block>
+      </fieldset>
+
+      <fieldset tal:define="funcs info/functions" tal:condition="nocall: funcs">
+          <legend>Functions</legend>
+          <dl tal:repeat="f funcs">
+             <dt>
+             <img src="function.png" tal:attributes="src string:${portal_url}/function.png">
+             <a name="" tal:attributes="name string:-${f/id}"><strong tal:content="f/id"/></a>
+             <span tal:replace="structure f/arguments"/>
+             <dd tal:condition="f/doc">
+                <small><tt tal:content="f/doc"/></small>
+             </dd>
+          </dl>
+      </fieldset>
+
+      <fieldset tal:define="data info/data" 
+                tal:condition="python: context.show_data and data">
+           <legend>Data</legend>
+           <dd tal:repeat="datum data">
+                 <img src="global.png" tal:attributes="src string:${portal_url}/global.png"/>
+                 <strong tal:content="python: datum[0]"/> = <span tal:replace="python: datum[1]"/>
+           </dd>
+      </fieldset>
+
+      <div metal:use-macro="context/document_actions/macros/document_actions">
+           Document actions (print, sendto etc)
+      </div>
+ 
+  </metal:main>
+ 
+</body>
+</html>
