@@ -1,0 +1,166 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+ 
+ Baruwa - Web 2.0 MailScanner front-end.
+ Copyright (C) 2010-2011  Andrew Colin Kissa <andrew@topdog.za.net>
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License along
+ with this program; if not, write to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+-->
+{% load i18n %}
+<html xmlns="http://www.w3.org/1999/xhtml"> 
+<head>
+<title>.:. Baruwa :: {% block title %}{% endblock title %}</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="{{ MEDIA_URL }}css/style.css" rel="stylesheet" type="text/css" />
+<link rel="icon" href="{{ MEDIA_URL }}imgs/favicon.ico" type="image/x-icon" />
+<link rel="shortcut icon" href="{{ MEDIA_URL }}imgs/favicon.ico" type="image/x-icon" /> 
+{% block headers %}{% endblock headers %}
+</head>
+<body{%block body_class%}{%endblock body_class%}>
+    <div id="header">
+    	<div class="logo">
+			<a href="{% url index-page %}"><img src="{{ MEDIA_URL }}imgs/css/logo.jpg" alt="" /></a>
+		</div>
+        <div class="search">
+        	<div class="Link">
+                <ul>
+					<li>
+						{% trans "Status " %}<a href="{% url status-index %}">
+						{% if baruwa_status %}
+						<img id="statusimg" src="{{ MEDIA_URL }}imgs/active.png" alt="OK" />
+						{% else %}
+						<img id="statusimg" src="{{ MEDIA_URL }}imgs/inactive.png" alt="FAULTY" />
+						{% endif %}
+						</a>
+					</li>
+					<li>
+						{% trans "Msgs: " %}<a href="{% url status-index %}">
+								{% trans "Total" %} <span id="smailtotal">{{baruwa_mail_total}}</span>, {% trans "Spam" %} <span id="sspamtotal">{{baruwa_spam_total}}</span>, {% trans "Virus" %} <span id="svirustotal">{{baruwa_virus_total}}</span>
+							</a>
+					</li>
+					<li>
+						{% trans "In: " %}<a href="{% url mailq-inbound %}"><span id="inq">{{baruwa_in_queue}}</span></a> {% trans "Out: " %}<a href="{% url mailq-outbound %}"><span id="outq">{{baruwa_out_queue}}</span></a>
+					</li>
+					{% if user.is_authenticated %}
+					<li>{% trans "Signed in as " %}<a href="{% url user-profile user.id %}">{{user.username}}</a></li>
+                    <li><a href="{% url logout %}">{% trans "Logout" %}</a></li>
+					{% else %}
+					<li>{% trans "Not logged in :: " %}<a href="{% url please-login %}">{% trans "Login" %}</a></li>
+					{% endif %}
+                </ul>
+            </div>
+            <div class="clearer"></div>
+            <div class="search_box">
+				{% if user.is_authenticated %}
+                <form method="post" action="{% url message-search %}">
+					{% csrf_token %}
+            	    <div class="text_box"><input name="message_id" type="text" /></div>
+                    <div class="search_btn"><input name="submit" type="image" src="{{ MEDIA_URL }}imgs/css/search_btn.gif" /></div>
+                </form>
+				{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="clearer"></div>
+    <div class="Box_Mainnav"> <!-- Box_Mainnav start here -->
+        <div class="Mainnav"> <!-- Mainnav start here -->
+			{% if user.is_authenticated %}
+            <a href="{% url main-messages-index %}" class="topnav"><span>{% trans "Messages" %}</span></a> 
+            <a href="{% url lists-index %}" class="topnav"><span>{% trans "Lists" %}</span></a> 
+            <a href="{% url reports-index %}" class="topnav"><span>{% trans "Reports" %}</span></a>
+ 			{% ifnotequal user.get_profile.account_type 3  %}
+ 				<a href="{% url status-index %}" class="topnav"><span>{% trans "Status" %}</span></a>
+				{% if user.is_superuser %}
+				<a href="{% url settings-index %}" class="topnav"><span>{% trans "Settings" %}</span></a>
+				{% else %}
+				<a href="{% url accounts %}" class="topnav"><span>{% trans "Accounts" %}</span></a>
+				{% endif %}
+			{% else %}
+				<a href="{% url user-profile user.id %}" class="topnav"><span>{% trans "Account" %}</span></a>
+ 			{% endifnotequal %}
+			{% endif %}
+        </div> <!-- Mainnav end here -->
+   </div> <!-- Box_Mainnav end here -->
+   <div class="clearer"></div>
+   <div id="sub-menu-links" class="Sub_Nav">
+        {% block submenu %}{%endblock submenu %}
+   </div>
+   <div class="clearer"></div>
+   <div id="Main_Content">
+        <div class="Curb"><img src="{{ MEDIA_URL }}imgs/css/top_curb.gif" alt="" /></div>
+        <div class="heading">
+        <span id="heading">
+            {% block heading %}{% endblock heading %}
+        </span>
+        <div id="my-spinner"></div>
+        </div>
+        <div class="clearer" id="above-msgs"></div>
+		{% ifequal app 'lists' %}
+		{% ifnotequal order_by 'id'  %}
+		{% if filter_active %}
+		<div id="builtin-msg">
+			{% trans "Filtered by" %}
+			{% ifequal ordering 'to_address' %}
+				 {% trans "To address" %} 
+			{% else %}
+			     {% trans "From address" %} 
+			{% endifequal %}
+			{% ifequal request.session.query_type 1  %}
+				{% trans "containing" %} 
+			{% else %}
+				{% trans "NOT containing" %} 
+			{% endifequal %}
+			"{{ request.session.search_for }}"
+			<div id="dismiss"><a href="{% url rem-filter %}">{% trans "Remove" %}</a></div>
+		</div>			
+		{% endif %}		
+		{% endifnotequal %}	
+		{% endifequal %}
+		{% if messages %}
+		<div id="builtin-msg">
+			{% for message in messages %}
+			{{ message }}<br/>
+			{% endfor %}
+		</div>
+		{% endif %}
+        <div class="Grid_content"><!--GRID CONTAINER START HERE-->
+        {% block content %}{% endblock content %}	
+        {% block add_item %}{% endblock add_item %}
+        </div><!--GRID CONTAINER END HERE-->
+        {% block paging %}{% endblock paging %}
+        <div class="Curb"><img src="{{ MEDIA_URL }}imgs/css/footer_curb.gif" alt="" /></div>
+   </div>
+   <div id="Footer_container">
+	    <!-- 
+	
+		DO NOT REMOVE THE COPYRIGHT NOTICES
+		=====================================
+		
+		Removal of the notice is a violation of the licensing if you do,
+		do not expect any support from me and make sure you distribute
+		your modifications as per the terms of the GPL
+		
+		In short DONOT try and claim my work as your own.
+
+		-->
+        <div class="Copy_right">Baruwa &copy; 2010 Andrew Colin Kissa </div>
+        <div class="Links_footer">
+		</div>
+    </div>
+<script type="text/javascript" src="{% url django.views.i18n.javascript_catalog %}"></script>
+{% block scripts %}{% endblock scripts %}
+</body>
+</html>
