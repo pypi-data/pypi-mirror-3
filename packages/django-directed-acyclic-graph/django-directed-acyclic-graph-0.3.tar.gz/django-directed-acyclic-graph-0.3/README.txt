@@ -1,0 +1,1 @@
+To test: ./manage.py test --settings=dag.tests.settings
