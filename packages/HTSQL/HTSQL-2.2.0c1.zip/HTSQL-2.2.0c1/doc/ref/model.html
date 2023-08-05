@@ -1,0 +1,299 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Data Model &mdash; HTSQL v2.2.0c1 documentation</title>
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/htsqldoc.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '2.2.0c1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/htsqldoc.js"></script>
+    <link rel="top" title="HTSQL v2.2.0c1 documentation" href="../index.html" />
+    <link rel="up" title="HTSQL Reference" href="index.html" />
+    <link rel="next" title="Data Flows" href="flows.html" />
+    <link rel="prev" title="HTSQL Grammar" href="syntax.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="flows.html" title="Data Flows"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="syntax.html" title="HTSQL Grammar"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">HTSQL v2.2.0c1 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">HTSQL Reference</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="data-model">
+<h1>Data Model<a class="headerlink" href="#data-model" title="Permalink to this headline">¶</a></h1>
+<p>HTSQL is not a full-fledged database system.  As opposed to regular data
+stores, it does not include a storage layer, but relies on a relational
+database server to physically store and retrieve data.</p>
+<p>HTSQL is designed to work on top of existing relational databases and
+does not impose any restrictions on how information is modeled and
+stored there.  At the same time, HTSQL works best when the data in the
+database is highly normalized.</p>
+<p>Even though HTSQL wraps a relational database, it does not expose the
+relational model directly to the users.  Instead it derives <em>HTSQL data
+model</em> from the underlying database and uses this model when presenting
+data to the users and interpreting user queries.  HTSQL data model is
+very close to traditional <a class="reference external" href="http://en.wikipedia.org/wiki/Network_model">network data model</a> utilized by CODASYL, and
+various OODBMS and ORM systems.</p>
+<p>In the next sections, we describe HTSQL data model and how it is
+inferred from the relational model of the underlying database.</p>
+<div class="section" id="model-and-instances">
+<h2>Model and Instances<a class="headerlink" href="#model-and-instances" title="Permalink to this headline">¶</a></h2>
+<p>When describing how information is represented by HTSQL, we
+differentiate between <em>a database model</em> and <em>a database instance</em>.</p>
+<p>A database model specifies the structure of the database: what types of
+business entities are represented and how the entities may relate to
+each other.  A database instance is the actual data in the database
+and must satisfy the constraints imposed by the model.  The difference
+between a model and an instance is the difference between the shape
+of data and data itself.</p>
+<p>Let&#8217;s consider the model of a student enrollment system in a fictional
+university.  This model may contain schools, programs administered
+by a school, departments associated with a school, and courses offered
+by a department.  A concrete instance of this model may contain
+a school of <em>Engineering</em> with associated departments of <em>Computer
+Science</em>, <em>Electrical Engineering</em>, etc.:</p>
+<img class="diagram align-center" height="246" src="../_images/model-and-instance.png" width="693" />
+</div>
+<div class="section" id="classes-and-links">
+<h2>Classes and Links<a class="headerlink" href="#classes-and-links" title="Permalink to this headline">¶</a></h2>
+<p>HTSQL structures the data with <em>classes</em> and <em>links</em>, which together
+form <em>a model graph</em>.  Classes, which are the nodes in the model graph,
+represents types of entities.  Links, which are the arcs in the model
+graph, describe relations between entities.  Both classes and links
+have a name.</p>
+<p>Among classes we distinguish <em>domain classes</em> and <em>record classes</em>.
+Domain classes represent scalar data types such as <tt class="xref py py-obj docutils literal"><span class="pre">boolean</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">integer</span></tt>,
+<tt class="xref py py-obj docutils literal"><span class="pre">string</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">date</span></tt>.  Record classes represent types of business entities
+modeled by the database.  A student enrollment system in our example
+would have record classes such as <tt class="xref py py-obj docutils literal"><span class="pre">school</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">program</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">department</span></tt>,
+<tt class="xref py py-obj docutils literal"><span class="pre">course</span></tt>.</p>
+<p>Links are classified by the type of classes they connect.  A link from a
+record class to a domain class indicates that records of this class have
+an attribute, which type is specified by the domain class.  For example,
+<tt class="xref py py-obj docutils literal"><span class="pre">school</span></tt> class may have a link called <tt class="xref py py-obj docutils literal"><span class="pre">name</span></tt> to <tt class="xref py py-obj docutils literal"><span class="pre">string</span></tt> class, which
+indicates that each <em>school</em> record has a string attribute <em>name</em>.</p>
+<p>A link between two record classes indicates that records of these
+classes are related to each other.  For example, <tt class="xref py py-obj docutils literal"><span class="pre">department</span></tt> class
+has a link to <tt class="xref py py-obj docutils literal"><span class="pre">school</span></tt> class, which indicates that each <em>department</em>
+record may be associated with some <em>school</em> record.</p>
+<img class="diagram align-center" height="177" src="../_images/sample-model.png" width="546" />
+<p>Since different links may have the same name, we will use dotted
+notation <tt class="xref py py-obj docutils literal"><span class="pre">class.link</span></tt> to indicate links.  Here, <tt class="xref py py-obj docutils literal"><span class="pre">class</span></tt> is the name of a
+class, <tt class="xref py py-obj docutils literal"><span class="pre">link</span></tt> is the name of a link originating from the class.  Thus,
+<tt class="xref py py-obj docutils literal"><span class="pre">school.name</span></tt> and <tt class="xref py py-obj docutils literal"><span class="pre">department.school</span></tt> are links on the diagram.</p>
+</div>
+<div class="section" id="records-and-relations">
+<h2>Records and Relations<a class="headerlink" href="#records-and-relations" title="Permalink to this headline">¶</a></h2>
+<p>As we focus from the database model to a specific instance, classes
+are populated with values and records, and links are expanded to
+relations between individual items.</p>
+<p>On the instance level, a domain class is transformed into a set of all
+values of the respective type.  Thus, <tt class="xref py py-obj docutils literal"><span class="pre">boolean</span></tt> class contains two
+values: <tt class="docutils literal"><span class="pre">true</span></tt> and <tt class="docutils literal"><span class="pre">false</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">integer</span></tt> class contains all integer
+numbers, and so on.</p>
+<p>A record class becomes a set of records representing business entities
+of this class.</p>
+<p>It is convenient to depict an entity as a collection of attribute
+values, hence the word &#8220;record&#8221;.  Even though it is permitted for two
+different records to have the same set of attribute values, in practice,
+there often exists an attribute or a group of attributes which could
+uniquely identify a record.  We use the value of such an attribute
+enclosed in brackets to denote records in writing.  Thus, an instance of
+class <tt class="xref py py-obj docutils literal"><span class="pre">school</span></tt> may contain records <tt class="docutils literal"><span class="pre">[eng]</span></tt>, <tt class="docutils literal"><span class="pre">[la]</span></tt>, <tt class="docutils literal"><span class="pre">[ns]</span></tt>
+representing respectively schools of <em>Engineering</em>, of <em>Arts and
+Humanities</em>, and of <em>Natural Sciences</em>, assuming that we use attribute
+<tt class="xref py py-obj docutils literal"><span class="pre">school.code</span></tt> to uniquely identify records.</p>
+<img class="diagram align-center" height="47" src="../_images/sample-instance-1.png" width="684" />
+<p>A link between two classes is unwound into connections between elements
+of these classes.  If in the database model a link represents an entity
+attribute, in a specific instance a link connects records to attribute
+values.  A link between two record classes would connect records of
+these classes.</p>
+<p>For example, link <tt class="xref py py-obj docutils literal"><span class="pre">school.name</span></tt> connects a school record <tt class="docutils literal"><span class="pre">[eng]</span></tt> to a
+string value <tt class="docutils literal"><span class="pre">'School</span> <span class="pre">of</span> <span class="pre">Engineering'</span></tt>.  The record <tt class="docutils literal"><span class="pre">[eng]</span></tt> is also
+connected to department records <tt class="docutils literal"><span class="pre">[comp]</span></tt> and <tt class="docutils literal"><span class="pre">[ee]</span></tt> indicating that
+<em>Department of Computer Science</em> and <em>Department of Electrical
+Engineering</em> belong to <em>School of Engineering</em>.</p>
+<img class="diagram align-center" height="83" src="../_images/sample-instance-2.png" width="684" />
+<p>Some links may enforce constraints on connections between elements.
+We classify these constraints as follows:</p>
+<p>A link is called <em>singular</em> if any element of the origin class is
+connected to no more than one element of the target class.  Otherwise,
+the link is called <em>plural</em>.</p>
+<p>For example, all links representing attributes are singular; link
+<tt class="xref py py-obj docutils literal"><span class="pre">department.school</span></tt> is also singular because each department may be
+associated with just one school, but the <em>reverse</em> link
+<tt class="xref py py-obj docutils literal"><span class="pre">school.department</span></tt> is plural since a school may contain more than one
+department.</p>
+<img class="diagram align-center" height="170" src="../_images/singular-links.png" width="443" />
+<p>A link is called <em>total</em> if any element of the origin class is connected
+to at least one element of the target class.  Otherwise, the link is
+called <em>partial</em>.</p>
+<p>For example, we require that every school entity has a code, therefore
+attribute <tt class="xref py py-obj docutils literal"><span class="pre">school.code</span></tt> is total.  We also permit a department
+to lack an associated school, which means link <tt class="xref py py-obj docutils literal"><span class="pre">department.school</span></tt>
+is partial.</p>
+<img class="diagram align-center" height="167" src="../_images/total-links.png" width="443" />
+<p>A link is called <em>unique</em> if any element of the target class is
+connected to no more than one element of the origin class.  Otherwise,
+the link is <em>non-unique</em>.</p>
+<p>Attribute <tt class="xref py py-obj docutils literal"><span class="pre">school.name</span></tt> is unique since different school entities must
+have different names, but link <tt class="xref py py-obj docutils literal"><span class="pre">department.school</span></tt> is non-unique as
+different departments are allowed to be associated with the same school.</p>
+<img class="diagram align-center" height="170" src="../_images/unique-links.png" width="443" />
+<p>Note that links constraints are defined on the database model
+and applied to all instances of the model.</p>
+</div>
+<div class="section" id="correspondence-to-the-relational-model">
+<h2>Correspondence to the Relational Model<a class="headerlink" href="#correspondence-to-the-relational-model" title="Permalink to this headline">¶</a></h2>
+<p>In this section, we explain how underlying relation database model
+is translated to HTSQL data model.</p>
+<p>For the most part, translation of relational structure to HTSQL model
+is straightforward.  SQL data types become domain classes, SQL tables
+become record classes, table columns are class attributes.</p>
+<p>Column constraints are trivially translated to properties of the
+respective attributes.  <tt class="docutils literal"><span class="pre">NOT</span> <span class="pre">NULL</span></tt> constraint on a table column means,
+in HTSQL terms, that the respective class attribute is total.
+<tt class="docutils literal"><span class="pre">UNIQUE</span></tt> constraint on a column indicates that the respective
+attribute link is unique.  <tt class="docutils literal"><span class="pre">PRIMARY</span> <span class="pre">KEY</span></tt> constraint indicates that the
+attribute link is both total and unique.</p>
+<p>The link structure of the model graph is provided by foreign key
+constraints.  Specifically, a foreign key creates a singular link
+from the referring class to the referred class.</p>
+<p>Consider, for example, the following fragment of an SQL schema:</p>
+<div class="highlight-sql"><div class="highlight"><pre><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">ad</span><span class="p">.</span><span class="n">school</span> <span class="p">(</span>
+    <span class="n">code</span>                <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span> <span class="k">NOT</span> <span class="k">NULL</span><span class="p">,</span>
+    <span class="n">name</span>                <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span> <span class="k">NOT</span> <span class="k">NULL</span><span class="p">,</span>
+    <span class="n">campus</span>              <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">5</span><span class="p">),</span>
+    <span class="k">CONSTRAINT</span> <span class="n">school_pk</span>
+      <span class="k">PRIMARY</span> <span class="k">KEY</span> <span class="p">(</span><span class="n">code</span><span class="p">),</span>
+    <span class="k">CONSTRAINT</span> <span class="n">name_uk</span>
+      <span class="k">UNIQUE</span> <span class="p">(</span><span class="n">name</span><span class="p">),</span>
+    <span class="k">CONSTRAINT</span> <span class="n">school_campus_ck</span>
+      <span class="k">CHECK</span> <span class="p">(</span><span class="n">campus</span> <span class="k">IN</span> <span class="p">(</span><span class="s1">&#39;old&#39;</span><span class="p">,</span> <span class="s1">&#39;north&#39;</span><span class="p">,</span> <span class="s1">&#39;south&#39;</span><span class="p">))</span>
+<span class="p">);</span>
+
+<span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">ad</span><span class="p">.</span><span class="n">department</span> <span class="p">(</span>
+    <span class="n">code</span>                <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span> <span class="k">NOT</span> <span class="k">NULL</span><span class="p">,</span>
+    <span class="n">name</span>                <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span> <span class="k">NOT</span> <span class="k">NULL</span><span class="p">,</span>
+    <span class="n">school_code</span>         <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">16</span><span class="p">),</span>
+    <span class="k">CONSTRAINT</span> <span class="n">department_pk</span>
+      <span class="k">PRIMARY</span> <span class="k">KEY</span> <span class="p">(</span><span class="n">code</span><span class="p">),</span>
+    <span class="k">CONSTRAINT</span> <span class="n">department_name_uk</span>
+      <span class="k">UNIQUE</span> <span class="p">(</span><span class="n">name</span><span class="p">),</span>
+    <span class="k">CONSTRAINT</span> <span class="n">department_school_fk</span>
+      <span class="k">FOREIGN</span> <span class="k">KEY</span> <span class="p">(</span><span class="n">school_code</span><span class="p">)</span>
+      <span class="k">REFERENCES</span> <span class="n">ad</span><span class="p">.</span><span class="n">school</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+<p>HTSQL model of this schema consists of two classes, <tt class="xref py py-obj docutils literal"><span class="pre">school</span></tt> and
+<tt class="xref py py-obj docutils literal"><span class="pre">department</span></tt>, each with three attributes: <tt class="xref py py-obj docutils literal"><span class="pre">code</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">name</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">campus</span></tt>
+and <tt class="xref py py-obj docutils literal"><span class="pre">code</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">name</span></tt>, <tt class="xref py py-obj docutils literal"><span class="pre">school_code</span></tt> respectively.  Additionally,
+the foreign key constraint <tt class="docutils literal"><span class="pre">department_school_fk</span></tt> generates
+a singular link from class <tt class="xref py py-obj docutils literal"><span class="pre">department</span></tt> to class <tt class="xref py py-obj docutils literal"><span class="pre">school</span></tt> and a
+reverse plural link from class <tt class="xref py py-obj docutils literal"><span class="pre">school</span></tt> to class <tt class="xref py py-obj docutils literal"><span class="pre">department</span></tt>.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Data Model</a><ul>
+<li><a class="reference internal" href="#model-and-instances">Model and Instances</a></li>
+<li><a class="reference internal" href="#classes-and-links">Classes and Links</a></li>
+<li><a class="reference internal" href="#records-and-relations">Records and Relations</a></li>
+<li><a class="reference internal" href="#correspondence-to-the-relational-model">Correspondence to the Relational Model</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="syntax.html"
+                        title="previous chapter">HTSQL Grammar</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="flows.html"
+                        title="next chapter">Data Flows</a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="flows.html" title="Data Flows"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="syntax.html" title="HTSQL Grammar"
+             >previous</a> |</li>
+        <li><a href="../index.html">HTSQL v2.2.0c1 documentation</a> &raquo;</li>
+          <li><a href="index.html" >HTSQL Reference</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2006-2011 Prometheus Reserch, LLC; written by Clark C. Evans and Kirill Simonov.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
