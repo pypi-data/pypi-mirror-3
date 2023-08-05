@@ -1,0 +1,67 @@
+import logging
+
+from django.conf import settings
+from django.utils.importlib import import_module
+from django.core.exceptions import ImproperlyConfigured
+
+from django_longliving.base import LonglivingThread
+from django_longliving.decorators import PubSubWatcherMeta
+logger = logging.getLogger(__name__)
+
+class PubSubDispatcherThread(LonglivingThread):
+    def run(self):
+        client = self.get_redis_client()
+
+        self._watchers, self._keys = self._get_watchers(client)
+
+        pubsub = client.pubsub()
+        pubsub.subscribe(LonglivingThread.BAIL_CHANNEL)
+        logger.debug("Subscribing to %d channels", len(self._keys))
+        for key in self._keys:
+            pubsub.subscribe(key)
+
+        try:
+            for message in pubsub.listen():
+                if self._bail.isSet():
+                    break
+                kwargs = {'channel': message['channel'],
+                          'data': self.unpack(message['data']),
+                          'client': client}
+                for watcher in self._watchers:
+                    if kwargs['channel'] in watcher['meta'].channels:
+                        logger.debug("Passing pubsub item for %r to %r", kwargs['channel'], watcher['path'])
+                        try:
+                            watcher_kwargs = dict((k, kwargs[k]) for k in kwargs
+                                                      if k in watcher['meta'].args)
+                            watcher['callable'](**watcher_kwargs)
+                        except Exception:
+                            logger.exception("PubSub watcher exited unexpectedly")
+
+        finally:
+            pubsub.unsubscribe(LonglivingThread.BAIL_CHANNEL)
+            for key in self._keys:
+                pubsub.unsubscribe(key)
+
+
+
+    def _get_watchers(self, client):
+        paths = getattr(settings, 'LONGLIVING_PUBSUB_WATCHERS', ())
+
+        watchers, channels = [], set()
+        for path in paths:
+            module_path, callable_name = path.rsplit('.', 1)
+            module = import_module(module_path)
+            callable = getattr(module, callable_name)
+            meta = getattr(callable, '_pubsub_watcher_meta')
+            if not isinstance(meta, PubSubWatcherMeta):
+                raise ImproperlyConfigured("%r hasn't been decorated with @pubsub_watcher" % path)
+
+            watchers.append({'callable': callable,
+                             'meta': meta,
+                             'path': path})
+            channels |= meta.channels
+        watchers.sort(key=lambda w: w['meta'].priority)
+
+        logger.debug("Found %d watchers over %d channels", len(watchers), len(channels))
+
+        return watchers, channels
