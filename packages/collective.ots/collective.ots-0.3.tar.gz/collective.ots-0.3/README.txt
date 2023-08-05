@@ -1,0 +1,58 @@
+
+Project Description
+===================
+
+The summary may not be perfect but it is a good starting point for a
+description. Mostly the summary is pretty good though.
+The description is only auto generated when you ADD a new Archetypes
+content item WITHOUT a description. You may edit this description at any
+time. You can invoke the summarizer on existing content items by
+selecting 'Summarize' from the 'Actions' menu
+
+Install using buildout
+=======================
+
+Just add collective.ots (and optionally ots) to the egges section of you buildout ::
+
+    eggs:
+        ...
+        ots
+        collective.ots
+
+Run buildout, restart your server and activate the product in your add ons section.
+You do not have to use the ots egg (http://pypi.python.org/pypi/ots)
+if you have problems installing it. Any ots found in your system will do,
+so you may install it with: ::
+
+    sudo apt-get install libots0
+
+or the package manager of your distribution, or install it from source.
+
+check that ots is installed and working with: ::
+
+    ots -?
+
+which will give you the output: ::
+
+    Usage:
+      ots [OPTION...] [file.txt | stdin]  - Open Text Summarizer
+
+    Help Options:
+      -?, --help                Show help options
+
+    Application Options:
+      -r, --ratio=<int>         summarization % [default = 20%]
+      -d, --dic=<string>        dictionary to use
+      -o, --out=<string>        output file [default = stdout]
+      -h, --html                output as html
+      -k, --keywords            only output keywords
+      -a, --about               only output the summary
+      -v, --version             show version information
+
+
+
+
+- Code repository: https://svn.plone.org/svn/collective/collective.ots/
+- Questions and comments to product-developers@lists.plone.org
+- Report bugs at http://plone.org/products/collective.ots/issues
+
