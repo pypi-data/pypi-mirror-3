@@ -1,0 +1,35 @@
+from django.http import HttpResponse
+from django.contrib.auth.models import *
+from key.models import ApiKey
+from key import settings
+import logging
+
+class ApiKeyAuthentication(object):
+    def is_authenticated(self, request):
+        auth_header = getattr(settings, 'AUTH_HEADER')
+        auth_header = 'HTTP_%s' % (auth_header.upper().replace('-', '_'))
+        auth_string = request.META.get(auth_header)
+        if not auth_string:
+            logging.debug("No auth string")
+            return False
+        try:
+            key = ApiKey.objects.get(key=auth_string)
+        except ApiKey.DoesNotExist:
+            logging.debug("No such key for %s" % auth_string)
+            return False
+        key.login(request.META.get('REMOTE_ADDR'))
+        if not key.profile.user.has_perm('key.can_use_api'):
+            logging.debug("User %s doesn't have permissions" % key.profile.user)
+            return False
+        request.user = key.profile.user
+        user_logged_in.send(sender=key.profile.user.__class__,
+                            request=request, user=key.profile.user)
+        return True
+        
+    def challenge(self):
+        auth_header = getattr(settings, 'AUTH_HEADER')
+        resp = HttpResponse('Authorization Required')
+        resp['WWW-Authenticate'] = 'KeyBasedAuthentication realm="API"'       
+        resp[auth_header] = 'Key Needed'
+        resp.status_code = 401
+        return resp
