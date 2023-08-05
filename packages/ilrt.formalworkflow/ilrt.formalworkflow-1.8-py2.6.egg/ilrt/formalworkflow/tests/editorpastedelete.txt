@@ -1,0 +1,157 @@
+======================================================
+Functional test that editor has item level permissions
+======================================================
+
+The default plone delete only checks permissions of the containing folder, 
+this is no good for this workflow, since editors need to be able to delete 
+private items in published folders. Whilst the published state will block
+them from tampering with the containing folder.
+
+Hence formalworkflow adds a skin level proxy manager workaround.
+
+by Ed Crewe, ILRT (University of Bristol) November 2011
+
+    >>> from Testing.testbrowser import Browser
+    >>> from Products.PloneTestCase.setup import portal_owner, default_password
+    >>> from Products.CMFPlone.utils import getToolByName
+    >>> from mechanize._mechanize import LinkNotFoundError
+
+    >>> self.setRoles(['Manager'])
+
+Register a new demo editor user
+
+    >>> editor = "demoeditor"
+    >>> roles = ['Member','Editor','Contributor']
+    >>> uf = portal.acl_users
+    >>> if uf.getUserById(editor) is None:
+    ...     uf.userFolderAddUser(editor, default_password,roles,[]) 
+    >>> user = uf.getUserById(editor)
+    >>> user.getId()
+    'demoeditor'
+
+Start functional test for editor
+================================
+
+    >>> portal_url = portal.absolute_url()
+    >>> browser = Browser()
+
+Set this to false to see all errors
+
+    >>> browser.handleErrors = True
+
+
+Log in as the manager and create and a document
+===============================================
+
+Login as the manager
+
+    >>> browser.open('%s/login_form' % portal_url)
+    >>> browser.getControl(name='__ac_name').value = portal_owner
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+    >>> "You are now logged in" in browser.contents
+    True
+
+Open the create document link
+
+    >>> browser.open(portal_url)
+    >>> browser.getLink(url=portal_url + '/createObject?type_name=Document').click()
+    >>> "/portal_factory/Document/document." in browser.contents
+    True
+
+Fill in the form with dummy content for the test page
+
+    >>> title  = 'boss'
+    >>> browser.getControl(name="title").value = title
+    >>> browser.getControl(name='text').value = "<h1>Test Bosses page</h1>\n\n"
+    >>> browser.getControl('Save').click()
+    >>> "Changes saved." in browser.contents
+    True
+    >>> title in browser.contents
+    True
+
+Publish the document
+
+    >>> doc_url = portal_url + '/' + title
+    >>> submit_url =  doc_url + '/content_status_modify?workflow_action=publish'
+    >>> browser.getLink(url=submit_url).click()
+    >>> browser.getLink(url=doc_url + '/content_status_history').click()
+    >>> browser.getControl(name='workflow_action').value
+    ['published']
+    >>> browser.getLink('Log out').click()
+
+Login as the demo editor user
+=============================
+
+We have the login portlet, so let's use that:
+
+    >>> browser.open('%s/login_form' % portal_url)
+    >>> browser.getControl(name='__ac_name').value = editor
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+
+We check that we get the logged-in message:
+
+    >>> "You are now logged in" in browser.contents
+    True
+
+Now lets see if we can copy and paste the published document
+===========================================================
+
+    >>> browser.open('%s/%s' % (portal_url, title))
+    >>> browser.getLink(id='copy').click()
+    >>> '%s copied' % title in browser.contents
+    True
+    >>> browser.open('%s/folder_contents' % portal_url)
+    >>> browser.getControl(name='folder_paste:method').click()
+    >>> 'Item(s) pasted.' in browser.contents
+    True
+    >>> copyid = 'copy_of_' + title
+    >>> copyid in portal.objectIds()
+    True
+    >>> browser.open(portal_url + '/' + copyid)
+    >>> 'class="state-private' in browser.contents
+    True
+
+Check delete for private content is OK (in published folders)
+=============================================================
+
+Check we can delete stuff in the private state so lets create a new item
+and click on the 'Add New ...' > 'Document' link via url to be language safe 
+
+    >>> browser.open(portal_url)
+    >>> browser.getLink(url=portal_url + '/createObject?type_name=Document').click()
+    >>> "/portal_factory/Document/document." in browser.contents
+    True
+
+Fill in the form with dummy content for the test page
+
+    >>> another_title  = 'quack'
+    >>> browser.getControl(name="title").value = another_title
+    >>> browser.getControl(name='text').value = "<h1>Test Delete page</h1>\n\n"
+    >>> browser.getControl('Save').click()
+    >>> "Changes saved." in browser.contents
+    True
+    >>> another_title in browser.contents
+    True
+
+Check we should have the rights to delete this page
+
+    >>> page = getattr(portal,another_title)
+    >>> from AccessControl.security import checkPermission
+    >>> {'selected': 'SELECTED', 'name': 'Editor'} in page.rolesOfPermission('Delete objects')
+    True
+    >>> 'Editor' in user.getRoles()
+    True
+
+OK then lets delete it
+
+   >>> another_title in portal.objectIds()
+   True
+   >>> browser.getLink(url=portal_url + '/' + another_title + '/delete_confirmation').click()
+   >>> form = browser.getForm(index=1)
+   >>> form.submit()
+   >>> another_title in portal.objectIds()
+   False
+
+

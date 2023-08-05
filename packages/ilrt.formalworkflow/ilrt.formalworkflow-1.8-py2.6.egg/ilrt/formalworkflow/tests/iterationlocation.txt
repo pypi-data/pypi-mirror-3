@@ -1,0 +1,159 @@
+======================================================
+Functional test of setting a global iteration location
+======================================================
+
+Functional tests for the formalworkflow iteration locator property 
+by Ed Crewe, ILRT (University of Bristol) November 2011
+
+    >>> from Testing.testbrowser import Browser
+    >>> from Products.PloneTestCase.setup import portal_owner, default_password
+    >>> from Products.CMFPlone.utils import getToolByName
+    >>> from mechanize._mechanize import LinkNotFoundError
+
+
+Site layer security setup 
+=========================
+
+Confirm we are in the skin that allows access to the iterate
+checkout for the Copy or Move permission ... rather than 
+modify portal content - so we can take an iteration of content 
+when we are not allowed to modify the (published) original 
+
+    >>> wftool = getToolByName(portal, "portal_workflow")
+    >>> wftool._default_chain
+    ('formal_workflow',)    
+    >>> wftool.getChainForPortalType('Document')
+    ('formal_workflow',)    
+
+Make sure that the membership area creation is now toggled on
+
+    >>> membership = getToolByName(portal,'portal_membership')
+    >>> if not membership.getMemberareaCreationFlag():
+    ...    update = membership.setMemberareaCreationFlag()
+
+Set up the browser tests
+
+    >>> portal_url = portal.absolute_url()
+    >>> browser = Browser()
+    >>> browser.handleErrors = True
+
+Log in as the manager and create and a document
+===============================================
+
+Login as the manager
+
+    >>> browser.open('%s/login_form' % portal_url)
+    >>> browser.getControl(name='__ac_name').value = portal_owner
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+    >>> "You are now logged in" in browser.contents
+    True
+
+Open the create document link
+
+    >>> browser.open(portal_url)
+    >>> browser.getLink(url=portal_url + '/createObject?type_name=Document').click()
+    >>> "/portal_factory/Document/document." in browser.contents
+    True
+
+Fill in the form with dummy content for the test page
+
+    >>> title  = 'yetanotherpage'
+    >>> browser.getControl(name="title").value = title
+    >>> browser.getControl(name='text').value = "<h1>Test Another Bosses page</h1>\n\n"
+    >>> browser.getControl('Save').click()
+    >>> "Changes saved." in browser.contents
+    True
+    >>> title in browser.contents
+    True
+
+Publish the document
+
+    >>> doc_url = portal_url + '/' + title
+    >>> submit_url =  doc_url + '/content_status_modify?workflow_action=publish'
+    >>> browser.getLink(url=submit_url).click()
+    >>> browser.getLink(url=doc_url + '/content_status_history').click()
+    >>> browser.getControl(name='workflow_action').value
+    ['published']
+
+Now lets spin out an iteration
+==============================
+
+Check to see that we can checkout a version
+
+    >>> browser.open(doc_url)
+    >>> checkout_url =  doc_url + '/@@make-changes'
+    >>> try:
+    ...    checkoutlink = browser.getLink(url=checkout_url)
+    ... except LinkNotFoundError:
+    ...    checkoutlink = None
+
+We should have a checkout link from plone.app.iterate
+
+   >>> checkoutlink != None
+   True
+
+We should be able to check out
+
+    >>> checkoutlink.click()
+
+But then we get the irritating extra 'where do you want it?' step
+
+    >>> 'checkout_location_plone' in browser.contents
+    True
+
+Set the global checkout location
+================================
+
+Check we now have the new global checkout location property
+
+    >>> portal_props = getToolByName(portal, 'portal_properties')
+    >>> site_props = portal_props.get('site_properties')
+    >>> site_props.getProperty('global_checkout_locator') == ''
+    True
+
+So lets set the checkout location property to the parent folder
+
+    >>> site_props.global_checkout_locator = 'plone.app.iterate.parent'
+
+Test it works
+=============
+
+Confirm we now get it automatically created in that folder
+
+    >>> browser.open(checkout_url)
+    >>> browser.open(portal_url + '/folder_contents')
+    >>> iteration_url = portal_url + '/copy_of_' + title
+    >>> try:
+    ...    iterationlink = browser.getLink(url=iteration_url)
+    ... except LinkNotFoundError:
+    ...    iterationlink = None
+    >>> iterationlink == None
+    False
+
+Cancel the checkout
+
+    >>> browser.open(iteration_url)
+    >>> cancel = browser.getLink(url=iteration_url + '/@@cancel-changes')
+    >>> cancel.click()
+    >>> browser.getControl('Cancel changes').click()
+    >>> 'Checkout cancelled' in browser.contents
+    True
+
+Now set the global location to the user's folder
+
+    >>> site_props.global_checkout_locator = 'plone.app.iterate.home'
+
+Confirm we now get it automatically created in their folder
+
+    >>> browser.open(checkout_url)
+    >>> browser.open(portal_url + '/Members/' + portal_owner)
+    >>> iteration_url = portal_url + '/' + title
+    >>> try:
+    ...    iterationlink = browser.getLink(url=iteration_url)
+    ... except LinkNotFoundError:
+    ...    iterationlink = None
+    >>> iterationlink == None
+    False
+
+
