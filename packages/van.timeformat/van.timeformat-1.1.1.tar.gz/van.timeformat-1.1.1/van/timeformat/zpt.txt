@@ -1,0 +1,83 @@
+Integration with ZPT
+====================
+
+If the zope.app.pagetemplate module is available, the timeformat module will integrate itself with it:
+
+    >>> import os
+    >>> import tempfile
+    >>> from zope.publisher.browser import TestRequest
+
+    >>> temp_file = tempfile.mkstemp()[1]
+    >>> open(temp_file, 'w').write("""
+    ... <html>
+    ...   <body tal:define="mydatetime python:modules['datetime'].datetime(1975, 12, 17, 5, 24, 36)">
+    ...       RFC 2822 date         : <span tal:replace="timefmt:rfc2822:mydatetime" />
+    ...       Medium Time           : <span tal:replace="ltimefmt:time:medium:mydatetime" />
+    ...       Medium Date           : <span tal:replace="ltimefmt:date:medium:mydatetime" />
+    ...       Medium DateTime       : <span tal:replace="ltimefmt:dateTime:medium:mydatetime" />
+    ...       Python Expr (ltimefmt): <span tal:replace="ltimefmt:dateTime:long:python:modules['datetime'].date(1975, 12, 17)" />
+    ...       Python Expr (timefmt) : <span tal:replace="timefmt:rfc2822:python:modules['datetime'].date(1975, 12, 17)" />
+    ...   </body>
+    ... </html>
+    ... """)
+
+    >>> from zope.app.pagetemplate.simpleviewclass import SimpleViewClass
+    >>> Page = SimpleViewClass(temp_file, name='main.html')
+    >>> request = TestRequest()
+    >>> print Page(None, request)().strip() # doctest: +NORMALIZE_WHITESPACE
+    <html>
+      <body>
+          RFC 2822 date         : Wed, 17 Dec 1975 05:24:36 +0000
+          Medium Time           : 05:24:36
+          Medium Date           : 1975 12 17
+          Medium DateTime       : 1975 12 17  05:24:36
+          Python Expr (ltimefmt): 1975 12 17  00:00:00 +000
+          Python Expr (timefmt) : Wed, 17 Dec 1975 00:00:00 +0000
+      </body>
+    </html>
+
+Using the german locale:
+
+    >>> request = TestRequest(environ={'HTTP_ACCEPT_LANGUAGE': 'de-de'})
+    >>> print Page(None, request)().strip()
+    <html>
+      <body>
+          RFC 2822 date         : Wed, 17 Dec 1975 05:24:36 +0000
+          Medium Time           : 05:24:36
+          Medium Date           : 17.12.1975
+          Medium DateTime       : 17.12.1975 05:24:36
+          Python Expr (ltimefmt): 17. Dezember 1975 00:00:00 +000
+          Python Expr (timefmt) : Wed, 17 Dec 1975 00:00:00 +0000
+      </body>
+    </html>
+
+Let's see if it works with spaces after the colon (at various places):
+
+    >>> open(temp_file, 'w').write("""
+    ... <html>
+    ...   <body tal:define="mydatetime python:modules['datetime'].datetime(1975, 12, 17, 5, 24, 36)">
+    ...       RFC 2822 date         : <span tal:replace="timefmt: rfc2822:mydatetime" />
+    ...       Medium Date           : <span tal:replace="ltimefmt: date: medium:mydatetime" />
+    ...       Medium DateTime       : <span tal:replace="ltimefmt: dateTime:medium: mydatetime" />
+    ...       Python Expr (ltimefmt): <span tal:replace="ltimefmt: dateTime:long: python:modules['datetime'].date(1975, 12, 17)" />
+    ...       Python Expr (timefmt) : <span tal:replace="timefmt: rfc2822: python:modules['datetime'].date(1975, 12, 17)" />
+    ...   </body>
+    ... </html>
+    ... """)
+
+    >>> Page = SimpleViewClass(temp_file, name='main_with_spaces.html')
+    >>> request = TestRequest()
+    >>> print Page(None, request)().strip() # doctest: +NORMALIZE_WHITESPACE
+    <html>
+      <body>
+          RFC 2822 date         : Wed, 17 Dec 1975 05:24:36 +0000
+          Medium Date           : 1975 12 17
+          Medium DateTime       : 1975 12 17  05:24:36
+          Python Expr (ltimefmt): 1975 12 17  00:00:00 +000
+          Python Expr (timefmt) : Wed, 17 Dec 1975 00:00:00 +0000
+      </body>
+    </html>
+
+CleanUp:
+
+    >>> os.remove(temp_file)
