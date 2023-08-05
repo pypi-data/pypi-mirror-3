@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+"""bcfg2-admin is a script that helps to administrate a Bcfg2 deployment."""
+
+import sys
+import logging
+import Bcfg2.Server.Core
+import Bcfg2.Logger
+import Bcfg2.Options
+# Compatibility import
+from Bcfg2.Bcfg2Py3k import StringIO
+
+log = logging.getLogger('bcfg2-admin')
+
+import Bcfg2.Server.Admin
+
+def mode_import(modename):
+    """Load Bcfg2.Server.Admin.<mode>."""
+    modname = modename.capitalize()
+    mod = getattr(__import__("Bcfg2.Server.Admin.%s" %
+                             (modname)).Server.Admin, modname)
+    return getattr(mod, modname)
+
+def get_modes():
+    """Get all available modes, except for the base mode."""
+    return [x.lower() for x in Bcfg2.Server.Admin.__all__ if x != 'mode']
+
+def create_description():
+    """Create the description string from the list of modes."""
+    modes = get_modes()
+    description = StringIO()
+    description.write("Available modes are:\n\n")
+    for mode in modes:
+        try:
+            description.write(("   %-15s   %s\n" %
+                   (mode, mode_import(mode).__shorthelp__)))
+        except (ImportError, SystemExit):
+            pass
+    return description.getvalue()
+
+def main():
+    optinfo = {
+        'configfile': Bcfg2.Options.CFILE,
+        'help': Bcfg2.Options.HELP,
+        'verbose': Bcfg2.Options.VERBOSE,
+        }
+    setup = Bcfg2.Options.OptionParser(optinfo)
+    setup.parse(sys.argv[1:])
+
+    log_args = dict(to_syslog=False, to_console=logging.WARNING)
+    if setup['verbose']:
+        log_args['to_console'] = logging.DEBUG
+
+    # Provide help if requested or no args were specified
+    if (not setup['args'] or len(setup['args']) < 1 or
+        setup['args'][0] == 'help' or setup['help']):
+        if len(setup['args']) > 1:
+            # Get help for a specific mode by passing it the help argument
+            setup['args'] = [setup['args'][1], setup['args'][0]]
+        else:
+            # Print short help for all modes
+            print("Usage:\n     %s" % setup.buildHelpMessage())
+            print(create_description())
+            raise SystemExit(0)
+
+    if setup['args'][0] in get_modes():
+        modname = setup['args'][0].capitalize()
+	if len(setup['args']) > 1 and setup['args'][1] == 'help':
+            print(mode_import(modname).__longhelp__)
+            raise SystemExit(0)
+        try:
+            mode_cls = mode_import(modname)
+        except ImportError:
+            e = sys.exc_info()[1]
+            log.error("Failed to load admin mode %s: %s" % (modname, e))
+            raise SystemExit(1)
+        mode = mode_cls(setup['configfile'])
+        mode(setup['args'][1:])
+        if hasattr(mode, 'bcore'):
+            mode.bcore.shutdown()
+    else:
+        log.error("Unknown mode %s" % setup['args'][0])
+        print("Usage:\n     %s" % setup.buildHelpMessage())
+        print(create_description())
+        raise SystemExit(1)
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit(1)
