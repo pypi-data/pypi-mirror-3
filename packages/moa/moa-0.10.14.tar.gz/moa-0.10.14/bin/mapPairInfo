@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import site
+import math
+import tempfile
+import optparse
+
+#process the .pth file in the $MOABASE/bin folder !
+site.addsitedir(os.path.join(os.environ['MOABASE'], 'lib', 'python'))
+from stats import stats
+from moa.logger import l, setVerbose
+
+parser = optparse.OptionParser()
+parser.add_option('-x', dest='maxno', type='int',                  
+                  help = 'max no of sequences to process')
+parser.add_option('-b', dest='basename', 
+                  help = 'basename of the output files')
+parser.add_option('-a', dest='analysis', action='append',
+                  help = 'analysis fields (dist, gcfrac)')
+parser.add_option('-v', dest='verbose', action='store_true')
+
+(options, args) = parser.parse_args()
+
+if options.verbose:
+    setVerbose()
+    
+if not options.analysis:
+    raise Exception("Must define an analysis field!")
+
+
+def pairerror(a,b):
+    print a
+    print b
+    raise Exception("odd pair?")
+
+def pairreader(file):
+    F = open(file)
+    while True:
+        l1 = F.readline()
+        l2 = F.readline()
+        if not l1: break
+        if not l2: break
+        ls1 = l1.split()
+        ls2 = l2.split()        
+        try:
+            if ls1[0][:-1] != ls1[0][:-1]: pairerror(l1, l2)
+            if ls1[1] == ls2[1]: pairerror(l1, l2)
+            if ls1[2] != ls2[2]: pairerror(l1, l2)
+        except:
+            break
+        
+        yield ls1, ls2
+
+def f_dist(l1, l2):
+    return abs(int(l1[3]) - int(l2[3]))
+
+def f_gcfrac(l1, l2):
+    x = l1[4].lower() + l2[4].lower()
+    g = x.count('g')
+    c = x.count('c')
+    a = x.count('a')
+    t = x.count('t')
+    return float(g+c) / (g + c + a + t)
+
+perfile = {}
+for filename in args:
+    l.info("processing %s" % filename)
+    i=0
+    dists = []
+    dd = {}
+    for a in options.analysis:
+        l.debug("preparing stat %s" % a)
+        dd[a] = []
+    for l1, l2 in pairreader(filename):
+        i+=1
+        if options.maxno and i > options.maxno:
+            break
+        for what in options.analysis:
+            val = eval('f_%s(l1, l2)' % what)
+            dd[what].append(val)
+            if i < 5:
+                l.debug("adding %s %s" % (what, val))
+
+    for what in options.analysis:
+        l.debug("collating %s for file %s" % (what, filename))
+        dd[what].sort()
+        dd[what].reverse()
+    l.debug("storing data for %s" % filename)
+    perfile[filename] = dd
+
+l.info("Data collection complete")
+l.debug("I have info on these files:")
+for f in perfile.keys():
+    l.debug(" -  %s" % f)
+
+
+#start gathering of overall statistics
+
+statlist = ['no', 'min', 'max', 'sum', 'mean', 'median',
+        'stdev', 'n10', 'n50', 'n90']
+
+statlist = ['no', 'min', 'max', 'sum', 'mean', 'median', 'stdev']
+
+def get_no(data):
+    return len(data)
+def get_min(data):
+    return min(data)
+def get_max(data):
+    return max(data)
+def get_sum(data):
+    return sum(data)
+def get_mean(data):
+    return stats.mean(data)
+def get_median(data):
+    return stats.median(data)
+def get_stdev(data):
+    return stats.stdev(data)
+
+print '-' * 80
+for a in options.analysis:
+    print "|", a
+
+    print " " * 45,
+    for s in statlist:
+        print "%15s" % s,
+    print
+
+    for p in perfile.keys():
+        print "%-45s" % os.path.basename(p),
+        data = perfile[p][a]
+        for s in statlist:            
+            res =  eval('get_%s(data)' % s)
+            print '%15s' % res,
+        print
+
+    print
+    print "%-45s" % "total",
+    data = []
+    for p in perfile.keys():
+        data.extend(perfile[p][a])
+    for s in statlist:
+        res = eval('get_%s(data)' % s)
+        print '%15s' % res,
+    print
