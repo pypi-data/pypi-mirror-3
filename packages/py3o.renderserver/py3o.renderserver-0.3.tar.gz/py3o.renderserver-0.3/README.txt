@@ -1,0 +1,18 @@
+Overview
+========
+
+This is a rendering server that will wrap an OpenOffice/LibreOffice server and provide
+a pythonic API which is remotely callable.
+
+The main advantage is that your client code does not need to import pyuno... This
+is a main plus because pyuno is a pain to get working on Windows and some flavors of
+Linux, don't even think of Mac :)
+
+Once you deploy a py3o.renderserver all you need in your python code is to use the
+py3o.renderclient which is really straightforward...
+
+Here is how we start the server on a Linux host::
+
+  start-py3o-renderserver --java=/usr/lib/jvm/java-6-openjdk/jre/lib/amd64/server/libjvm.so --ure=/usr/lib64 --office=/usr/lib64/libreoffice --office-release=3.3 --driver=juno --sofficeport=8997
+
+As you can see it works with OpenJDK, LibreOffice and even on 64bit systems :)
