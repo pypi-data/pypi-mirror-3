@@ -1,0 +1,140 @@
+
+========
+csx.Text
+========
+
+Strips comments and quoted strings (storing the latter for later reinsertion)
+from its `str` argument, so that they can be processed without any embedded
+text being mistaken for elements of CSX structure, and allows for iteration
+over CSX tokens within the string. ::
+
+
+Instantiation
+=============
+
+::
+
+    >>> from csx import Text
+
+    >>> music = Text("""
+    ...
+    ...   /*  Year: 1956
+    ...    *  Length: 2'21"
+    ...    */
+    ...
+    ...   track {
+    ...     title: "Ain't Got No Home";
+    ...     artist: 'Clarence "Frogman" Henry';
+    ...   }
+    ...
+    ... """)
+
+
+Features
+========
+
+Passing an `Text` instance to `str()` returns the string with
+comments and extraneous whitespace removed. ::
+
+    >>> print(music)
+    track { title: "Ain't Got No Home"; artist: 'Clarence "Frogman" Henry'; }
+
+In the underlying `str` object, comments are removed (although any embedded
+newlines are preserved to maintain correct line counts), `str.format`-style
+replacement fields are substituted for quoted strings, and braces are doubled
+to prevent them from interfering with `str.format()`. ::
+
+    >>> music[:]
+    '\n\n  \n\n\n\n  track {{\n    title: {0};\n    artist: {1};\n  }}\n\n'
+
+Substituted strings are stored in the attribute `subs`. ::
+
+    >>> music.subs
+    ['"Ain\'t Got No Home"', '\'Clarence "Frogman" Henry\'']
+
+Whitespace inside substituted strings is preserved ... ::
+
+    >>> spaced = Text("content: ' a   b '")
+
+    >>> print(spaced)
+    content: ' a   b '
+
+... but a quoted substring may *not* contain an embedded newline ... ::
+
+    >>> illegal = Text("""
+    ...
+    ...   :before {
+    ...     content: "phwoaar ...
+    ...     "
+    ...   }
+    ...
+    ... """)
+    Traceback (most recent call last):
+        ...
+    csx.Error: line 4: unfinished string
+
+... even if it's escaped with a backslash. ::
+
+    >>> still_illegal = Text(r"""
+    ...
+    ...   :after {
+    ...     content: " \
+    ...     ... crikey."
+    ...   }
+    ...
+    ... """)
+    Traceback (most recent call last):
+        ...
+    csx.Error: line 4: unfinished string
+
+Comment markers inside strings are ignored, as are quotes and `/*` markers
+inside comments, single quotes inside double-quoted strings, and vice versa.
+Backslash-escaped single or double quotes are ignored everywhere. ::
+
+    >>> insane_but_legal = Text(r"""
+    ...
+    ...   /* any combination of /*, ', ", "this", 'that', "t'other", etc. */
+    ...
+    ...   :before { content: "/* or \" or '" }
+    ...   :after { content: '*/ or \' or "' }
+    ...
+    ... """)
+
+    >>> insane_but_legal[:]
+    '\n\n  \n\n  :before {{ content: {0} }}\n  :after {{ content: {1} }}\n\n'
+
+    >>> for sub in insane_but_legal.subs:
+    ...     print(sub)
+    "/* or \" or '"
+    '*/ or \' or "'
+
+As previously seen, comments may span multiple lines, but they must eventually
+be terminated. ::
+
+    >>> Text("/* forgot something ...")
+    Traceback (most recent call last):
+        ...
+    csx.Error: line 1: unfinished comment
+
+`@`, `<!--` and `-->` are illegal outside strings and comments ... ::
+
+    >>> Text("<!--")
+    Traceback (most recent call last):
+        ...
+    csx.Error: line 1: syntax error: '<!--'
+
+    >>> Text("-->")
+    Traceback (most recent call last):
+        ...
+    csx.Error: line 1: syntax error: '-->'
+
+    >>> Text("@")
+    Traceback (most recent call last):
+        ...
+    csx.Error: line 1: syntax error: '@'
+
+... but fine inside them. ::
+
+    >>> print(Text("go: '<!-- hog wild *' /* and --> @here */"))
+    go: '<!-- hog wild *'
+
