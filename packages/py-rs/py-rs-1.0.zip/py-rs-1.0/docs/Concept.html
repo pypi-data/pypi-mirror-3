@@ -1,0 +1,223 @@
+
+ 
+
+
+
+ 
+
+
+
+<html>
+ <head>
+ <title>Concept</title>
+ </head>
+ <body>
+ 
+
+
+
+
+<div>
+<table>
+ <tr>
+ 
+ 
+ <td style="vertical-align:top; padding-left:5px">
+ 
+ <div id="wikicontent">
+ <div class="vt" id="wikimaincol">
+ <h1><a name="py-rs_1.0_Concept"></a>py-rs 1.0 Concept<a href="#py-rs_1.0_Concept" class="section_anchor"></a></h1><p><strong>This framework is designed to provide lightweight, robust and rapid RESTful service development in Python.</strong> </p><p><strong>Readers are assumed to be familiar with Python and REST.</strong> </p><hr/><h2><a name="Terminology"></a>Terminology<a href="#Terminology" class="section_anchor"></a></h2><h3><a name="Target"></a>Target<a href="#Target" class="section_anchor"></a></h3><p>Python function defining HTTP resource and responsible for producing the response for HTTP Request. </p><p><strong>Targets</strong> specified by decorating Python functions with <i>py-rs</i> api decorators: </p><pre class="prettyprint">
+@rs.get
+@rs.path(&#x27;foo&#x27;)
+def foo(): pass
+# foo is responsible for processing &quot;GET /foo&quot; request.
+</pre><p><strong>Target</strong> has following requirements for parameters: </p><ul><li><strong>Target</strong> can specify any number of required parameters. Suitable HTTP Request values will be selected by <i>py-rs</i> to pass into the function parameters: </li><pre class="prettyprint">@rs.get
+@rs.path(&#x27;/foo/{id}&#x27;)
+def foo(id): pass
+# value of {id} will be passed into *foo* function as *id* value.
+
+
+@rs.get
+@rs.path(&#x27;/bar&#x27;)
+def bar(skip, take): pass
+# due to path has no parameters the values of skip and take parameters
+# will be looked up in HTTP Request URI query part:
+#   1. &quot;GET /bar?skip=10&amp;take=100&quot; will be normally served by bar function.
+#   2. If any of the parameters will not be found than _py-rs_ will raise 400 Bad Request error.
+#   3. Unless default value for parameters will be provided within function signature e.g. (skip=0,take=0).
+
+@rs.post
+@rs.path(&#x27;/baz&#x27;)
+@rs.consumes(&#x27;application/x-www-form-urlencoded&#x27;)
+def baz(firstname, lastname, email, sex): pass
+# the values for baz parameters are expected to be the form values of HTTP Request &quot;POST /baz&quot;.</pre></ul><ul><li>If <strong>Target</strong> is a method of <strong>Type</strong> class then the first(<tt>self</tt>) parameter will be an instance of <strong>Type</strong> class created by <i>py-rs</i> as singleton object of that type and passed into during method invocation: </li><pre class="prettyprint">@rs.get
+class Foo
+
+  @rs.path(&#x27;/foo&#x27;)
+  def foo(self): pass
+
+  @rs.path(&#x27;/bar&#x27;)
+  def bar(self): pass
+
+# requests &quot;GET /foo&quot; and &quot;GET /bar&quot; will invoke foo and bar methods with the same Foo instance.</pre></ul><ul><li>Special <strong>Context</strong> properties can be used as default values of <strong>Target</strong>&#x27;s parameters to specify context depended values such as: </li><ol><li><tt>rs.context.entity</tt> defines parameter that will get HTTP Request Entity: </li><pre class="prettyprint">@rs.post
+def foo(entity=rs.context.entity): pass
+# &quot;POST /&quot; entity will be passed into foo function as entity parameter.</pre><li><tt>rs.context.request</tt> defines parameter that will get HTTP Request instance of <tt>rs.request.Request</tt> itself: </li><pre class="prettyprint">@rs.post
+def foo(request=rs.context.request): pass
+# &quot;POST /&quot; request will be passed into foo function as request parameter.</pre><li><tt>rs.context.uri</tt> defines parameter that will get HTTP Request URI object: </li><pre class="prettyprint">@rs.post
+def foo(request=rs.context.ui): pass
+# &quot;POST /&quot; / URI(instance of rs.message.uri) will be passed into foo function as uri parameter.</pre><li><tt>rs.context.alias</tt> defines parameter&#x27;s alias that will be associated with suitable value from available parameters of the request: </li><pre class="prettyprint">@rs.get
+@rs.path(&#x27;/{class}&#x27;)
+def foo(klass=rs.context.alias(&#x27;class&#x27;)): pass
+# &quot;GET /{class}&quot; value of rs.path class param will be associated with klass through &#x27;class&#x27; alias.
+
+@rs.get
+@rs.path(&#x27;/bar&#x27;)
+def bar(from_=rs.context.alias(&#x27;from&#x27;), length): pass
+# value of &#x27;from&#x27; alias will be looked up in query params of &quot;GET /bar&quot; request, if not found 400 Bad Request
+# is returned.
+
+@rs.get
+@rs.path(&#x27;/baz&#x27;)
+def baz(from_=rs.context.alias(&#x27;from&#x27;, default=&#x27;0&#x27;), length): pass
+# if default value for alias is specified than in case of not found &#x27;from&#x27; parameter it will be used and
+# no error will be raised.</pre></ol></ul><p><strong>Target</strong> has following requirements for return values: </p><ul><li>Basic <strong>Target</strong> return value is a tuple with three elements: <tt>entity</tt>, <tt>status</tt>, <tt>headers</tt> where: </li><ol><li><tt>entity</tt> value is response entity produced by <strong>Target</strong> or the value for entity <strong>Producer</strong> if <strong>Target</strong> has specified one. </li><li><tt>status</tt> value is status code returned in HTTP Response by <strong>Target</strong>. <i>status</i> is optional and can be omitted. </li><li><tt>headers</tt> value is dictionary with custom HTTP Headers to be appended to the response. <i>headers</i> are optional and can be omitted. </li></ol></ul><ul><li>Some examples of return values are: </li><pre class="prettyprint">return entity                                  # returns entity, 200 OK will be chosen as default status code.
+
+return entity, 200                             # returns 200 OK and entity.
+
+return entity, 201, {&#x27;Location&#x27;:&#x27;/entity&#x27;}     # returns 201 Created, entity and Location header.</pre></ul><ul><li>Due to the return value for user&#x27;s <strong>Producer</strong> can be a tuple itself it is required to explicitly put comma in the return statement: </li><pre class="prettyprint">return (entity, 200), # tuple (entity, 200) is considered as single response entity to return.</pre></ul><ul><li>If <strong>Target</strong> returns <tt>None</tt> as entity the <tt>204 No Content</tt> status code will be returned to HTTP Client. </li></ul><p>If <strong>Target</strong> needs to produce HTTP error code as HTTP Response <tt>rs.error</tt> instance with required status code should be raised: </p><pre class="prettyprint">
+@rs.get
+def foo():
+  raise rs.error(400) # will return 400 Bad Request response.
+</pre><h3><a name="Type"></a>Type<a href="#Type" class="section_anchor"></a></h3><p>Python class representing the container of <strong>Target</strong> methods. </p><p><strong>Types</strong> specified by decorating Python classes with <i>py-rs</i> api decorators: </p><pre class="prettyprint">@rs.path(&#x27;foo&#x27;)
+class Foo:
+
+  @rs.get
+  def foo(self): pass
+
+  @rs.post
+  def bar(self): pass
+
+  @rs.put
+  def baz(self): pass
+
+  @rs.delete
+  def qux(self): pass</pre><p>All <i>py-rs</i> api decorators of <strong>Type</strong> are inherited by its methods. </p><p>Instances of <strong>Type</strong> for single HTTP Resource are considered to be singletons during the resource&#x27;s lifetime. </p><p><strong>Type</strong> <tt>__init__</tt> method signature should have been able to be invoked without parameters: </p><pre class="prettyprint">
+@rs.path(&#x27;foo&#x27;)
+class Foo:
+  def __init__(self): pass
+
+# or
+
+@rs.path(&#x27;bar&#x27;)
+class Bar:
+  def __init__(self, logger=some_logger): pass
+
+# both classes can instantiate objects as Foo() and Bar()</pre><p>Inner <strong>Type</strong> classes supported: </p><pre class="prettyprint">
+@rs.path(&#x27;foo&#x27;)
+class Foo:
+
+  @rs.path(&#x27;bar&#x27;)
+  class Bar:
+
+    @rs.get
+    def bar(self): pass
+
+# &quot;GET /foo/bar&quot; request will be processed by Foo.Bar.bar method.</pre><h3><a name="Path"></a>Path<a href="#Path" class="section_anchor"></a></h3><p><strong>Path</strong> value used to identify <strong>Target</strong> upon which to apply HTTP Request. </p><p><tt>rs.path</tt> api decorator specifies the target&#x27;s <strong>Path</strong>: </p><pre class="prettyprint">@rs.get
+@rs.path(&#x27;foo&#x27;)
+def foo(): pass
+# associate foo function with /foo HTTP Request URI.</pre><p>To specify <strong>Path</strong> parameters use <i>{name of parameter}</i>-syntax: </p><pre class="prettyprint">@rs.get
+@rs.path(&#x27;foo/{id}&#x27;
+def foo(id): pass
+# {id} will be substituted by the part following foo/ of &quot;GET /foo/*&quot; requests.</pre><p>Regular expression syntax supported: </p><pre class="prettyprint">@rs.post
+@rs.path(&#x27;re(set|start|load)&#x27;)
+def reset(): pass
+# HTTP Requests with URI like &#x27;/restart&#x27;, &#x27;/reset&#x27;, &#x27;/reload&#x27; all will be processed by reset function.</pre><p>Due to there can be some conflict situations with <strong>Path</strong> resolution the current implementation is using length of the <strong>Path</strong> value as a partial key to resolve ambiguous situations and applies the longest <strong>Path</strong> as the priority one unless <strong>Path</strong> value will contain zero number of capturing groups(considered as exact match): </p><pre class="prettyprint">@rs.post
+@rs.path(&#x27;re(set|start|load)&#x27;)
+def reset(): pass
+
+@rs.post
+@rs.path(&#x27;restart&#x27;)
+def restart(): pass
+
+# &quot;POST /restart&quot; will be processed by restart function.</pre><p>If <i>py-rs</i> will not find <strong>Target</strong> with suitable <strong>Path</strong> for HTTP Request <tt>404 Not Found</tt> will be returned. </p><h3><a name="Method"></a>Method<a href="#Method" class="section_anchor"></a></h3><p><strong>Method</strong> indicates the HTTP Method to be performed on <strong>Target</strong> identified by <strong>Path</strong>. </p><p>Following api decorators define the target&#x27;s <strong>Method</strong>: </p><ul><li><tt>rs.get</tt> - defines HTTP GET method of the target. </li></ul><ul><li><tt>rs.post</tt> - defines HTTP POST method. </li></ul><ul><li><tt>rs.put</tt> - defines HTTP PUT method. </li></ul><ul><li><tt>rs.delete</tt> - defines HTTP DELETE method. </li></ul><ul><li><tt>rs.method(name)</tt> - defines any other HTTP Method specified by <tt>name</tt> parameter. </li></ul><pre class="prettyprint">
+@rs.get
+def get(): pass
+# serves &quot;GET /&quot; requests.
+
+@rs.post
+def post(): pass
+# serves &quot;POST /&quot; requests.
+
+@rs.put
+def put(): pass
+# serves &quot;PUT /&quot; requests.
+
+@rs.delete
+def delete(): pass
+# serves &quot;DELETE /&quot; requests.
+
+@rs.method(&#x27;HEAD&#x27;)
+def head(): pass
+# serves &quot;HEAD /&quot; requests.
+</pre><p>If <i>py-rs</i> will not find <strong>Target</strong> with suitable <strong>Method</strong> for HTTP Request <tt>405 Method Not Allowed</tt> will be returned. </p><h3><a name="Consumer"></a>Consumer<a href="#Consumer" class="section_anchor"></a></h3><p><strong>Consumer</strong> specifies a media type which <strong>Target</strong> should consume and an optional HTTP Request Entity processor. </p><p><tt>rs.consumes(media, consumer=None)</tt> api decorator is used to define <strong>Consumer</strong>. </p><p><i>REQUIRED</i> parameter <tt>media</tt> defines expected HTTP Request <i>Content-Type</i> header value. </p><p><i>OPTIONAL</i> parameter <tt>consumer</tt> specifies custom processor which has to be apply to the request&#x27;s content before passing into <strong>Target</strong>: </p><pre class="prettyprint">
+@rs.post
+@rs.consumes(&#x27;application/json&#x27;, json.loads)
+def foo(entity=rs.context.entity): pass
+# foo function will accept &quot;POST /&quot; request only if its Content-Type header matches consume media value -
+# &#x27;application/json&#x27;. The value of entity parameter will be set to json.loads(request.entity) result.
+</pre><p>If the target does not define <strong>Consumer</strong> than it is assumed that <strong>Target</strong> consume any <i>Content-Type</i>. </p><p>If no suitable <strong>Consumer</strong> found for <strong>Target</strong> the <tt>415 Unsupported Media Type</tt> status code will be returned to HTTP Client. </p><p><strong>Consumer</strong> has following requirements for <tt>consumer</tt> parameter: </p><ul><li>It should be a callable that accepts single explicit parameter. </li></ul><ul><li><tt>ValueError</tt> should be raised if <tt>consumer</tt> is unable to process an entity. </li></ul><ul><li>If <tt>ValueError</tt> will be raised the <tt>400 Bad Request</tt> status code wile be returned to HTTP Client. </li></ul><ul><li>If other <tt>Exception</tt> types will be raised in <tt>consumer</tt> the framework will respond with <tt>500 Internal Server Error</tt> immediately. </li></ul><h3><a name="Producer"></a>Producer<a href="#Producer" class="section_anchor"></a></h3><p><strong>Producer</strong> specifies a media type which <strong>Target</strong> should produce and an optional HTTP Response Entity processor. </p><p><tt>rs.produces(media, producer=None)</tt> api decorator is used to define <strong>Producer</strong>. </p><p><i>REQUIRED</i> parameter <tt>media</tt> defines HTTP Response <i>Content-Type</i> header value. </p><p><i>OPTIONAL</i> parameter <tt>producer</tt> specifies custom processor which has to be apply to <strong>Target</strong> <tt>return</tt> entity before writing into HTTP Response: </p><pre class="prettyprint">
+@rs.get
+@rs.produces(&#x27;application/json&#x27;, json.dumps)
+def foo():
+  return {&#x27;id&#x27;:1, &#x27;name&#x27;:&#x27;Entity&#x27;, &#x27;zip&#x27;:None}
+# foo function will respond to &quot;GET /&quot; request with json.dumps({&#x27;id&#x27;:1, &#x27;name&#x27;:&#x27;Entity&#x27;, &#x27;zip&#x27;:None}) result
+# as HTTP Response Entity.
+</pre><p>If the target does not define <strong>Producer</strong> but returns not <tt>None</tt> entity, the <i>application\octet-stream</i> mime-type will be used as default value for HTTP Response <i>Content-Type</i> header. </p><p><strong>Producer</strong> <tt>media</tt> value is being matched to media types in the request&#x27;s <i>Accept</i> header during HTTP Request dispatching; if no suitable <tt>media</tt> will be found for <i>Accept</i> header the <tt>406 Not Acceptable</tt> status code will be returned to HTTP Client. </p><p><strong>Producer</strong> has following requirements for <tt>producer</tt> parameter: </p><ul><li>It should be a callable that accepts single explicit parameter. </li></ul><ul><li>If any <tt>Exception</tt> types will be raised in <tt>producer</tt> the framework will respond with <tt>500 Internal Server Error</tt> rather than response returned by <strong>Target</strong>. </li></ul><h3><a name="Application"></a>Application<a href="#Application" class="section_anchor"></a></h3><p>WSGI Application that serves HTTP Request and provides HTTP Response to HTTP Client of REST service. </p><p><i>py-rs</i> provides <a href="http://www.python.org/dev/peps/pep-0333/" rel="nofollow">pep-0333</a> compatible <strong>Application</strong>. </p><p><tt>rs.application(resources=None)</tt> is called to create <strong>Application</strong> instance. </p><p>By default all <strong>Targets</strong> decorated with <i>py-rs</i> api will be included in <tt>rs.application()</tt> instance as HTTP Resources. </p><p>To specify exact <strong>Targets</strong> to serve by <strong>Application</strong> pass them in <tt>resources</tt> parameter value, note if targets are specified under the <strong>Type</strong>, the class should be passed as a resource instead of class methods: </p><pre class="prettyprint">
+import rs
+
+@rs.get
+def foo(): pass
+
+@rs.path(&#x27;/bar&#x27;)
+class Bar:
+
+  @rs.get
+  def bar(self): pass
+
+  @rs.post
+  def baz(self): pass
+
+application = rs.application()
+# create an application with foo, bar, baz targets.
+
+application = rs.application([Bar])
+# create an application with bar and baz targets of Bar type.
+</pre><p>It is recommended to use an external WSGI Server to run <strong>Application</strong> in production environment. </p><p>However for testing purposes <strong>Application</strong> can be launched by <tt>run</tt> method: </p><pre class="prettyprint">
+application.run(&#x27;localhost&#x27;, 8001)
+# host an application at http://localhost:8001; wsgiref.simple_server.WSGIServer will serve an application.
+</pre><h2><a name="Acknowledgements"></a>Acknowledgements<a href="#Acknowledgements" class="section_anchor"></a></h2><p>Inspired by JAX-RS. </p>
+ </div>
+ </div>
+ </td><tr>
+</table>
+ </div>
+
+
+
+
+<script type="text/javascript" src="http://www.gstatic.com/codesite/ph/13841197563397998716/js/dit_scripts.js"></script>
+
+
+ <script type="text/javascript">
+ _fetchOptions(
+ "", "py-rs", "wikiOptions",
+ codesite_token, 1314388821);
+ _onload();
+ </script>
+
+<script type="text/javascript" src="https://apis.google.com/js/plusone.js">
+</script>
+
+ </body>
+</html>
+
