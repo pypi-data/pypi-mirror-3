@@ -1,0 +1,107 @@
+#!/usr/bin/python
+'''Write Avro files from JSON/CSV input'''
+
+__author__ = 'Miki Tebeka <miki.tebeka@gmail.com>'
+__version__ = '0.4.1'
+
+from avro.datafile import DataFileWriter
+from avro.io import DatumWriter
+import avro.schema
+
+from sys import stdin, stdout
+from itertools import imap
+import json
+import csv
+
+CSV_DELIMITER = None
+
+def _open(filename, mode):
+    if filename == '-':
+        return {
+            'rb' : stdin,
+            'wb' : stdout
+        }[mode]
+
+    return open(filename, mode)
+
+def iter_json(info, _):
+    return imap(json.loads, info)
+
+def convert(value, field):
+    type = field.type.type
+    if type == 'union':
+        return convert_union(value, field)
+
+    return  {
+        'int' : int,
+        'long' : long,
+        'float' : float,
+        'double' : float,
+        'string' : str,
+        'bytes' : str,
+        'boolean' : bool,
+        'null' : lambda _: None,
+        'union' : lambda v: convert_union(v, field),
+    }[type](value)
+
+def convert_union(value, field):
+    for name in [s.name for s in field.type.schemas]:
+        try:
+            return convert(name)(value)
+        except ValueError:
+            continue
+    raise ValueError('no coversion of {0} ({1}) to for field {3}'.format(
+        value, type(value)))
+
+def iter_csv(info, schema):
+    header = [field.name for field in schema.fields]
+    for row in csv.reader(info, CSV_DELIMITER):
+        values = [convert(v, f) for v, f in zip(row, schema.fields)]
+        yield dict(zip(header, values))
+
+def main(argv=None):
+    global CSV_DELIMITER
+
+    import sys
+    from argparse import ArgumentParser
+
+    argv = argv or sys.argv
+
+    parser = ArgumentParser(description='Write data to Avro file')
+    parser.add_argument('-v', '--version', action='version',
+                        version='%(prog)s {0}'.format(__version__))
+    parser.add_argument('schema', help='schema file', nargs='?')
+    parser.add_argument('-i', '--input', action='append', metavar='FILE',
+                        help='input file(s) (json/csv records, one pre line)'),
+    parser.add_argument('-o', '--output', help='output file', default='-')
+    parser.add_argument('-f', '--format', help='input file format',
+                        default='json', choices=['json', 'csv'])
+    parser.add_argument('--csv-delimiter', help='csv delimiter', default=None)
+    args = parser.parse_args(argv[1:])
+
+    if not args.schema:
+        raise SystemExit('error: No schema specified')
+
+    try:
+        with _open(args.schema, 'rb') as fo:
+            schema = avro.schema.parse(fo.read())
+        out = _open(args.output, 'wb')
+    except (IOError, OSError) as e:
+        raise SystemExit('error: can\'t open file - %s' % e)
+
+    CSV_DELIMITER = args.csv_delimiter
+
+    writer = DataFileWriter(out, DatumWriter(), schema)
+    iter_records = iter_json if args.format == 'json' else iter_csv
+    for filename in (args.input or ['-']):
+        try:
+            info = _open(filename, 'rb')
+            for record in iter_records(info, schema):
+                writer.append(record)
+        except Exception as e:
+            raise SystemExit('error: %s' % e)
+
+    writer.close()
+
+if __name__ == '__main__':
+    main()
