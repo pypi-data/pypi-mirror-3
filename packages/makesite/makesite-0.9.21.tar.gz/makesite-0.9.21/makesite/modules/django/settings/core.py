@@ -1,0 +1,86 @@
+" Common settings for all project. "
+import os, logging
+
+from settings import PROJECT_ROOT, DEVZONE_ROOT, PROJECT_NAME
+
+
+# Databases
+DATABASES = {
+        'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': 'django_master.sqlite',
+                'USER': '',
+                'PASSWORD': '',
+                'TEST_CHARSET': 'utf8',
+            }
+        }
+
+# Caches
+CACHES = {
+        'default': {
+                'BACKEND':  'django.core.cache.backends.locmem.LocMemCache',
+                'KEY_PREFIX': '_'.join((PROJECT_NAME, 'CORE'))
+            }
+        }
+
+# Base urls config
+ROOT_URLCONF = 'main.urls'
+
+# Media settigns
+MEDIA_ROOT = os.path.join(DEVZONE_ROOT, 'media')
+STATIC_ROOT = os.path.join(DEVZONE_ROOT, 'static')
+MEDIA_URL = '/media/'
+STATIC_URL = '/static/'
+ADMIN_MEDIA_PREFIX = STATIC_URL + 'admin/'
+
+# Templates settings
+TEMPLATE_DIRS = ()
+for root, dirs, files in os.walk(PROJECT_ROOT, followlinks=True):
+    if 'templates' in dirs:
+        TEMPLATE_DIRS += (os.path.join(root, 'templates'),)
+
+TEMPLATE_LOADERS = (
+    'django.template.loaders.filesystem.Loader',
+    'django.template.loaders.app_directories.Loader',
+)
+
+TEMPLATE_CONTEXT_PROCESSORS = (
+    'django.core.context_processors.static',
+    'django.core.context_processors.request',
+    'django.contrib.auth.context_processors.auth',
+    'django.contrib.messages.context_processors.messages',
+)
+
+# Applications
+INSTALLED_APPS = (
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.admin',
+    'django.contrib.staticfiles',
+)
+
+# Middleware
+MIDDLEWARE_CLASSES = (
+    'django.middleware.common.CommonMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+)
+
+# Base apps settings
+MESSAGE_STORAGE = 'django.contrib.messages.storage.cookie.CookieStorage'
+AUTHENTICATION_BACKENDS = ('django.contrib.auth.backends.ModelBackend',)
+
+# Localization
+USE_I18N = True
+MIDDLEWARE_CLASSES += ('django.middleware.locale.LocaleMiddleware',)
+TEMPLATE_CONTEXT_PROCESSORS += ('django.core.context_processors.i18n',)
+
+# Debug
+INTERNAL_IPS = ('127.0.0.1',)
+
+# Logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S')
+logging.info("Core settings loaded.")
