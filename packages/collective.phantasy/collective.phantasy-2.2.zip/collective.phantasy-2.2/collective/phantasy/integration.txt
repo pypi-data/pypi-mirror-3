@@ -1,0 +1,246 @@
+collective.phantasy doctests.
+
+Test ATPhantasy contents
+========================
+
+Test SchemaExtender
+===================
+
+Some imports
+
+    >>> import zope.interface
+    >>> from zope.app.component.hooks import getSite
+    >>> from collective.phantasy import config
+    >>> from Products.ATContentTypes.content import folder
+    >>> from collective.phantasy.atphantasy.extendcontents.skinextension import ISkinnable, PhantasySkinSchemaExtender
+
+Login as Manager intall the product
+    >>> self.login()
+    >>> self.setRoles(('Manager',))
+    >>> from Products.CMFCore.utils import getToolByName
+
+Set phantasy config to default for tests (can be patched by other skin package)
+
+    >>> from collective.phantasy import config
+    >>> config.INSTALL_PHANTASY_CONTENTS = True
+    >>> config.SKIN_PORTAL_TYPE = "PhantasySkin"
+
+Install collective.phantasy
+    >>> portal_setup = getToolByName(self.portal, 'portal_setup')
+    >>> _ = portal_setup.runAllImportStepsFromProfile('profile-collective.phantasy:contents')
+
+
+Create a folder, ISkinnable must be provided by this folder
+'local_phantasy_skin' field must be in the folder's schema
+Note that only ATFolder are skinnables contents
+You can change it using shemaextender, see atphantasy.extendcontents.skinextension
+
+    >>> self.folder.invokeFactory('Folder', 'skinnablefolder1')
+    'skinnablefolder1'
+    >>> skinnablefolder1 = getattr(self.folder, 'skinnablefolder1')
+    >>> ISkinnable.providedBy(skinnablefolder1)
+    True
+    >>> schema = skinnablefolder1.Schema()
+    >>> 'local_phantasy_skin' in schema
+    True
+
+Find the phantasy skin at root (used by portal)
+Note : the product installer install  the root-skin and the skins repository
+See the setupHandlers for details
+You can disallow it in config.py
+
+    >>> 'phantasy-root-skin' in self.portal.objectIds()
+    True
+
+By default the skin attributes are taken from base_properties
+So we must have 'White' as value for backgroundColor for an empty
+skin, but here we will have the color of the skin installed
+by the profile setupHandlers ('#f6e9e9')
+
+    >>> rootSkin = getattr(self.portal, 'phantasy-root-skin')
+    >>> print rootSkin.getBackgroundColor()
+    #f6e9e9
+
+Change the background color
+    >>> rootSkin.setBackgroundColor('#EFEFEF')
+    >>> print rootSkin.getBackgroundColor()
+    #EFEFEF
+
+A Phantasy Skins Repository fo folders skins
+is also installed by setupHandlers
+Add a Phantasy Skin inside and set the background color
+Get the new skin UID
+
+    >>> 'phantasy-skins-repository' in portal.objectIds()
+    True
+    >>> skinsfolder = getattr(self.portal, 'phantasy-skins-repository')
+    >>> skinsfolder.invokeFactory('PhantasySkin', 'new-skin')
+    'new-skin'
+    >>> newSkin = getattr(skinsfolder, 'new-skin')
+    >>> newSkin.setBackgroundColor('Cyan')
+    >>> skinUID = newSkin.UID()
+
+Set the newskin as skin for skinnablefolder1
+
+   >>> skinnablefolder1.edit(local_phantasy_skin=skinUID)
+
+
+Test the folderskinview wich render the associated skin
+=======================================================
+
+Test What Phantasy Skin is associated with portal
+   >>> portal = self.portal
+   >>> skinObject = portal.restrictedTraverse('@@getPhantasySkin')()
+   >>> print skinObject.getId()
+   phantasy-root-skin
+   >>> print skinObject.getBackgroundColor()
+   #EFEFEF
+
+Test What Phantasy Skin is associated with skinnablefolder1
+   >>> skinObject = skinnablefolder1.restrictedTraverse('@@getPhantasySkin')()
+   >>> print skinObject.getId()
+   new-skin
+   >>> print skinObject.getBackgroundColor()
+   Cyan
+
+
+Test the viewlet
+================
+
+We will test the css urls rendered by the viewlet
+On portal we must have one css based on phantasy-root-skin url
+On skinnablefolder1 we must have 2 css
+
+   >>> from collective.phantasy.browser.viewlets import PhantasyHeaderViewlet
+   >>> context = self.portal
+   >>> request = context.REQUEST
+   >>> viewlet = PhantasyHeaderViewlet(context, request, None, None)
+   >>> viewlet.update()
+   >>> print viewlet.get_cooked_css_url()
+   ['http://nohost/plone/phantasy-root-skin/collective.phantasy.css']
+
+   >>> context = skinnablefolder1
+   >>> request = context.REQUEST
+   >>> viewlet = PhantasyHeaderViewlet(context, request, None, None)
+   >>> viewlet.update()
+   >>> print viewlet.get_cooked_css_url()
+   ['http://nohost/plone/phantasy-root-skin/collective.phantasy.css', 'http://nohost/plone/phantasy-skins-repository/new-skin/collective.phantasy.css']
+
+
+Create a document at portal root
+we must get the same phantasy css urls as portal
+   >>> self.portal.invokeFactory('Document', 'newpage')
+    'newpage'
+   >>> context = getattr(self.portal, 'newpage')
+   >>> request = context.REQUEST
+   >>> viewlet = PhantasyHeaderViewlet(context, request, None, None)
+   >>> viewlet.update()
+   >>> print viewlet.get_cooked_css_url()
+   ['http://nohost/plone/phantasy-root-skin/collective.phantasy.css']
+
+Create a document inside skinnablefolder1
+we must get the same phantasy css urls as skinnablefolder1
+   >>> skinnablefolder1.invokeFactory('Document', 'newpage')
+    'newpage'
+   >>> context = getattr(skinnablefolder1, 'newpage')
+   >>> request = context.REQUEST
+   >>> viewlet = PhantasyHeaderViewlet(context, request, None, None)
+   >>> viewlet.update()
+   >>> print viewlet.get_cooked_css_url()
+   ['http://nohost/plone/phantasy-root-skin/collective.phantasy.css', 'http://nohost/plone/phantasy-skins-repository/new-skin/collective.phantasy.css']
+
+
+TEST the check_id script overload
+=================================
+
+We want to be able to overload images stored in portal_skins
+We try to add an image with same name as plone logo (logo.jpg)
+
+  >>> rootSkin = getattr(self.portal, 'phantasy-root-skin')
+  >>> import os
+  >>> PACKAGE_HOME = os.path.dirname(__file__)
+  >>> path = os.path.join(PACKAGE_HOME, 'tests', 'input', 'logo.jpg')
+  >>> fd = open(path, 'rb')
+  >>> data = fd.read()
+  >>> fd.close()
+  >>> rootSkin.invokeFactory('PhantasySkinImage', 'logo.jpg', image=data)
+  'logo.jpg'
+
+
+TEST Phantasy Static Viewlets overrides
+=======================================
+
+Overload colophon, logo and footer using a phantasy skin (new-skin)
+
+  >>> newSkin.setLogoViewlet('<div id="phantasy-logo">TEXT IN LOGO</div>')
+  >>> newSkin.setFooterViewlet( '<div id="phantasy-footer">TEXT IN FOOTER</div>')
+  >>> newSkin.setColophonViewlet('<div id="phantasy-colophon">TEXT IN COLOPHON</div>')
+
+Login as portal_owner using a browser to see all contents
+
+  >>> from Products.PloneTestCase.setup import portal_owner, default_password
+  >>> from Products.Five.testbrowser import Browser
+  >>> browser = Browser()
+  >>> portal_url = self.portal.absolute_url()
+  >>> browser.open(portal_url + '/login_form')
+  >>> browser.getControl(name='__ac_name').value = portal_owner
+  >>> browser.getControl(name='__ac_password').value = default_password
+  >>> browser.getControl(name='submit').click()
+
+See if a content associated with newSkin (skinnablefolder1) has the new viewlets contents
+
+  >>> folder_url = skinnablefolder1.absolute_url()
+  >>> browser.open(folder_url)
+  >>> "TEXT IN LOGO" in browser.contents
+  True
+  >>> "TEXT IN FOOTER" in browser.contents
+  True
+  >>> "TEXT IN COLOPHON" in browser.contents
+  True
+
+TEST Phantasy Show or Hide Dynamic Viewlets overrides
+=====================================================
+
+Set display searchbox viewlet and hide breadcrumbs in skin
+
+  >>> newSkin.setDisplaySearchBoxViewlet(True)
+  >>> newSkin.setDisplayBreadCrumbsViewlet(False)
+
+Login as portal_owner using a browser to see all contents
+
+  >>> from Products.PloneTestCase.setup import portal_owner, default_password
+  >>> from Products.Five.testbrowser import Browser
+  >>> browser = Browser()
+  >>> portal_url = self.portal.absolute_url()
+  >>> browser.open(portal_url + '/login_form')
+  >>> browser.getControl(name='__ac_name').value = portal_owner
+  >>> browser.getControl(name='__ac_password').value = default_password
+  >>> browser.getControl(name='submit').click()
+
+See if a content associated with newSkin (skinnablefolder1) has the searchbox viewlet contents
+And if breadcrumbs are not here
+
+  >>> folder_url = skinnablefolder1.absolute_url()
+  >>> browser.open(folder_url)
+  >>> 'id="portal-searchbox"' in browser.contents
+  True
+  >>> 'id="portal-breadcrumbs"' in browser.contents
+  False
+
+
+
+TODO
+====
+Test the viewlet with css inside phantasy skin
+Complete Test of phantasy properties
+  - get the base_properties values of the actual skin by default
+  - test images inside skin
+  - test zip import
+
+
+
+
+
+
+
+
