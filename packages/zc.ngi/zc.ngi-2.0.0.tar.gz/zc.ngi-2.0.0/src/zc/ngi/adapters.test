@@ -1,0 +1,160 @@
+============
+NGI Adapters
+============
+
+The NGI is a fairly low-level event-based framework.  Adapters can be
+used to build higher-level semantics.  In this document, we'll describe
+some sample adapters that provide more examples of using the NGI and
+useful building blocks for other applications. The source for these
+adapters can be found in the zc.ngi.adapters module.
+
+Lines
+=====
+
+The first adapter we'll look at collects input into lines. To
+illustrate this, we'll use a handler from zc.ngi.testing that simply
+prints its input:
+
+    >>> import zc.ngi.testing
+    >>> connection = zc.ngi.testing.Connection()
+    >>> handler = zc.ngi.testing.PrintingHandler(connection)
+
+This handler is used by default as the peer
+of testing connections:
+
+    >>> connection.test_input('x' * 80)
+    -> 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    .> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+    >>> connection.test_close('test')
+    -> CLOSE test
+
+Now, we'll use the lines adapter to break input into lines, separated
+by newlines.  We apply the adapter to a connection:
+
+    >>> import zc.ngi.adapters
+    >>> connection = zc.ngi.testing.Connection()
+    >>> adapter = zc.ngi.adapters.Lines(connection)
+    >>> handler = zc.ngi.testing.PrintingHandler(adapter)
+
+Now, when we provide input, it won't appear until lines are complete:
+
+    >>> connection.test_input('Hello world!')
+    >>> connection.test_input('\n')
+    -> 'Hello world!'
+
+    >>> connection.test_input('Hello\nWorld!\nHow are you')
+    -> 'Hello'
+    -> 'World!'
+
+Only input handling is affected.  Other methods of the adapter behave
+as would the underlying connection:
+
+    >>> adapter.write('foo')
+    -> 'foo'
+
+    >>> adapter.writelines("%s\n" % foo for foo in range(3))
+    -> '0\n'
+    -> '1\n'
+    -> '2\n'
+
+.. again with feeling
+
+    >>> adapter.writelines("%s\n" % foo for foo in range(3))
+    -> '0\n'
+    -> '1\n'
+    -> '2\n'
+
+::
+    >>> connection.test_close('test')
+    -> CLOSE test
+
+The original connection is available in the connection attribute:
+
+    >>> adapter.connection is connection
+    True
+
+Sized Messages
+==============
+
+The second adapter we'll look at will handle binary data organized
+into sized messages.  Each message has two parts, a length, and a
+payload.  Of course, the length gives the length of the payload.
+
+To see this, we'll use the adapter to adapt a testing connection:
+
+    >>> connection = zc.ngi.testing.Connection()
+    >>> adapter = zc.ngi.adapters.Sized(connection)
+    >>> handler = zc.ngi.testing.PrintingHandler(adapter)
+
+Now, we'll generate some input. We do so by providing (big-endian) sizes by
+calling struct pack:
+
+    >>> import struct
+    >>> message1 = 'Hello\nWorld!\nHow are you?'
+    >>> message2 = 'This is message 2'
+    >>> connection.test_input(struct.pack(">I", len(message1)))
+    >>> connection.test_input(message1[:10])
+    >>> connection.test_input(message1[10:]+ struct.pack(">I", len(message2)))
+    -> 'Hello\nWorld!\nHow are you?'
+
+    >>> connection.test_input(message2)
+    -> 'This is message 2'
+
+Here we saw that our handler got the two messages individually.
+
+If we write a message, we can see that the message is preceded by the
+message size:
+
+    >>> adapter.write(message1)
+    -> '\x00\x00\x00\x19'
+    -> 'Hello\nWorld!\nHow are you?'
+
+We can give multiple messages using writelines:
+
+    >>> adapter.writelines("%s\n" % foo for foo in range(3))
+    -> '\x00\x00\x00\x02'
+    -> '0\n'
+    -> '\x00\x00\x00\x02'
+    -> '1\n'
+    -> '\x00\x00\x00\x02'
+    -> '2\n'
+
+
+Null messages
+-------------
+
+It can be useful to send Null messages to make sure that a client is
+still connected.  The sized adapter supports such messages.  Calling
+write with None, sends a null message, which is a message with a
+length of 1 << 32 - 1 and no message data:
+
+    >>> adapter.write(None)
+    -> '\xff\xff\xff\xff'
+
+On input, Null messages are ignored by the sized adapter and are not
+sent to the application:
+
+    >>> connection.test_input('\xff\xff\xff\xff')
+
+Closing
+-------
+
+Closing works too.
+
+    >>> connection.test_close('test')
+    -> CLOSE test
+
+Booleanness
+===========
+
+    >>> connection = zc.ngi.testing.Connection()
+    >>> adapter = zc.ngi.adapters.Lines(connection)
+    >>> bool(adapter)
+    True
+
+    >>> adapter.close()
+    -> CLOSE
+
+    >>> bool(adapter)
+    False
