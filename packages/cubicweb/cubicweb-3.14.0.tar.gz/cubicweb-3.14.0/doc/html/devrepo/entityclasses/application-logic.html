@@ -1,0 +1,274 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>4.7. How to use entities objects and adapters &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../../index.html" />
+    <link rel="up" title="4. Data as objects" href="index.html" />
+    <link rel="next" title="5. Core APIs" href="../devcore/index.html" />
+    <link rel="prev" title="4.6. Interfaces and Adapters" href="adapters.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="../devcore/index.html" title="5. Core APIs"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="adapters.html" title="4.6. Interfaces and Adapters"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Repository development</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">4. Data as objects</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">4.7. How to use entities objects and adapters</a></li>
+<li><a class="reference external" href="#anatomy-of-an-entity-class">4.8. Anatomy of an entity class</a></li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="adapters.html"
+                                  title="previous chapter">4.6. Interfaces and Adapters</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="../devcore/index.html"
+                                  title="next chapter">5. Core APIs</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../../_sources/devrepo/entityclasses/application-logic.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="how-to-use-entities-objects-and-adapters">
+<h1>4.7. How to use entities objects and adapters<a class="headerlink" href="#how-to-use-entities-objects-and-adapters" title="Permalink to this headline">¶</a></h1>
+<p>The previous chapters detailed the classes and methods available to
+the developper at the so-called <a class="reference external" href="http://en.wikipedia.org/wiki/Object-relational_mapping">ORM</a> level. However they say little
+about the common patterns of usage of these objects.</p>
+<p>Entities objects (and their adapters) are used in the repository and
+web sides of CubicWeb. On the repository side of things, one should
+manipulate them in Hooks and Operations.</p>
+<p>Hooks and Operations provide support for the implementation of rules
+such as computed attributes, coherency invariants, etc (they play the
+same role as database triggers, but in a way that is independant of
+the actual data sources).</p>
+<p>So a lot of an application&#8217;s business rules will be written in Hooks
+(or Operations).</p>
+<p>On the web side, views also typically operate using entity
+objects. Obvious entity methods for use in views are the dublin code
+method like dc_title, etc. For separation of concerns reasons, one
+should ensure no ui logic pervades the entities level, and also no
+business logic should creep into the views.</p>
+<p>In the duration of a transaction, entities objects can be instantiated
+many times, in views and hooks, even for the same database entity. For
+instance, in a classic CubicWeb deployment setup, the repository and
+the web frontend are separated process communicating over the
+wire. There is no way state can be shared between these processes
+(there is a specific API for that). Hence, it is not possible to use
+entity objects as messengers between these components of an
+application. It means that an attribute set as in <tt class="docutils literal"><span class="pre">obj.x</span> <span class="pre">=</span> <span class="pre">42</span></tt>,
+whether or not x is actually an entity schema attribute, has a short
+life span, limited to the hook, operation or view within which the
+object was built.</p>
+<p>Setting an attribute or relation value can be done in the context of a
+Hook/Operation, using the obj.set_relations(x=42) notation or a plain
+RQL SET expression.</p>
+<p>In views, it would be preferable to encapsulate the necessary logic in
+a method of an adapter for the concerned entity class(es). But of
+course, this advice is also reasonnable for Hooks/Operations, though
+the separation of concerns here is less stringent than in the case of
+views.</p>
+<p>This leads to the practical role of objects adapters: it&#8217;s where an
+important part of the application logic lie (the other part being
+located in the Hook/Operations).</p>
+</div>
+<div class="section" id="anatomy-of-an-entity-class">
+<h1>4.8. Anatomy of an entity class<a class="headerlink" href="#anatomy-of-an-entity-class" title="Permalink to this headline">¶</a></h1>
+<p>We can look now at a real life example coming from the <a class="reference external" href="http://www.cubicweb.org/project/cubicweb-tracker/">tracker</a>
+cube. Let us begin to study the entities/project.py content.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.entities.adapters</span> <span class="kn">import</span> <span class="n">ITreeAdapter</span>
+
+<span class="k">class</span> <span class="nc">ProjectAdapter</span><span class="p">(</span><span class="n">ITreeAdapter</span><span class="p">):</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="n">is_instance</span><span class="p">(</span><span class="s">&#39;Project&#39;</span><span class="p">)</span>
+    <span class="n">tree_relation</span> <span class="o">=</span> <span class="s">&#39;subproject_of&#39;</span>
+
+<span class="k">class</span> <span class="nc">Project</span><span class="p">(</span><span class="n">AnyEntity</span><span class="p">):</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;Project&#39;</span>
+    <span class="n">fetch_attrs</span><span class="p">,</span> <span class="n">fetch_order</span> <span class="o">=</span> <span class="n">fetch_config</span><span class="p">((</span><span class="s">&#39;name&#39;</span><span class="p">,</span> <span class="s">&#39;description&#39;</span><span class="p">,</span>
+                                             <span class="s">&#39;description_format&#39;</span><span class="p">,</span> <span class="s">&#39;summary&#39;</span><span class="p">))</span>
+
+    <span class="n">TICKET_DEFAULT_STATE_RESTR</span> <span class="o">=</span> <span class="s">&#39;S name IN (&quot;created&quot;,&quot;identified&quot;,&quot;released&quot;,&quot;scheduled&quot;)&#39;</span>
+
+    <span class="k">def</span> <span class="nf">dc_title</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+</pre></div>
+</div>
+<p>The fact that the <cite>Project</cite> entity type implements an <tt class="docutils literal"><span class="pre">ITree</span></tt>
+interface is materialized by the <tt class="docutils literal"><span class="pre">ProjectAdapter</span></tt> class (inheriting
+the pre-defined <tt class="docutils literal"><span class="pre">ITreeAdapter</span></tt> whose __regid__ is of course
+<tt class="docutils literal"><span class="pre">ITree</span></tt>), which will be selected on <cite>Project</cite> entity types because
+of its selector. On this adapter, we redefine the <tt class="docutils literal"><span class="pre">tree_relation</span></tt>
+attribute of the ITreeAdapter class.</p>
+<p>This is typically used in views concerned with the representation of
+tree-like structures (CubicWeb provides several such views).</p>
+<p>It is important that the views themselves try not to implement this
+logic, not only because such views would be hardly applyable to other
+tree-like relations, but also because it is perfectly fine and useful
+to use such an interface in Hooks.</p>
+<p>In fact, Tree nature is a property of the data model that cannot be
+fully and portably expressed at the level of database entities (think
+about the transitive closure of the child relation). This is a further
+argument to implement it at entity class level.</p>
+<p>The fetch_attrs, fetch_order class attributes are parameters of the
+<a class="reference external" href="http://en.wikipedia.org/wiki/Object-relational_mapping">ORM</a> layer. They tell which attributes should be loaded at once on
+entity object instantiation (by default, only the eid is known, other
+attributes are loaded on demand), and which attribute is to be used to
+order the .related() and .unrelated() methods output.</p>
+<p>We can observe the big TICKET_DEFAULT_STATE_RESTR is a pure
+application domain piece of data. There is, of course, no limitation
+to the amount of class attributes of this kind.</p>
+<p>The <tt class="docutils literal"><span class="pre">dc_title</span></tt> method provides a (unicode string) value likely to be
+consummed by views, but note that here we do not care about output
+encodings. We care about providing data in the most universal format
+possible, because the data could be used by a web view (which would be
+responsible of ensuring XHTML compliance), or a console or file
+oriented output (which would have the necessary context about the
+needed byte stream encoding).</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The dublin code <cite>dc_xxx</cite> methods are not moved to an adapter as they
+are extremely prevalent in cubicweb and assorted cubes and should be
+available for all entity types.</p>
+</div>
+<p>Let us now dig into more substantial pieces of code, continuing the
+Project class.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">latest_version</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">states</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;published&#39;</span><span class="p">,),</span> <span class="n">reverse</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;returns the latest version(s) for the project in one of the given</span>
+<span class="sd">    states.</span>
+
+<span class="sd">    when no states specified, returns the latest published version.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="s">&#39;DESC&#39;</span>
+    <span class="k">if</span> <span class="n">reverse</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">warn</span><span class="p">(</span><span class="s">&#39;reverse argument is deprecated&#39;</span><span class="p">,</span>
+             <span class="ne">DeprecationWarning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">reverse</span><span class="p">:</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="s">&#39;ASC&#39;</span>
+    <span class="n">rset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">versions_in_state</span><span class="p">(</span><span class="n">states</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">rset</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rset</span><span class="o">.</span><span class="n">get_entity</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">None</span>
+
+<span class="k">def</span> <span class="nf">versions_in_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">states</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s">&#39;ASC&#39;</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;returns version(s) for the project in one of the given states, sorted</span>
+<span class="sd">    by version number.</span>
+
+<span class="sd">    If limit is true, limit result to one version.</span>
+<span class="sd">    If reverse, versions are returned from the smallest to the greatest.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">limit</span><span class="p">:</span>
+        <span class="n">order</span> <span class="o">+=</span> <span class="s">&#39; LIMIT 1&#39;</span>
+    <span class="n">rql</span> <span class="o">=</span> <span class="s">&#39;Any V,N ORDERBY version_sort_value(N) </span><span class="si">%s</span><span class="s"> &#39;</span> \
+          <span class="s">&#39;WHERE V num N, V in_state S, S name IN (</span><span class="si">%s</span><span class="s">), &#39;</span> \
+          <span class="s">&#39;V version_of P, P eid </span><span class="si">%%</span><span class="s">(p)s&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="s">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">states</span><span class="p">))</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cw</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">rql</span><span class="p">,</span> <span class="p">{</span><span class="s">&#39;p&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">eid</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>These few lines exhibit the important properties we want to outline:</p>
+<ul class="simple">
+<li>entity code is concerned with the application domain</li>
+<li>it is NOT concerned with database coherency (this is the realm of
+Hooks/Operations); in other words, it assumes a coherent world</li>
+<li>it is NOT (directly) concerned with end-user interfaces</li>
+<li>however it can be used in both contexts</li>
+<li>it does not create or manipulate the internal object&#8217;s state</li>
+<li>it plays freely with RQL expression as needed</li>
+<li>it is not concerned with internationalization</li>
+<li>it does not raise exceptions</li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../devcore/index.html" title="5. Core APIs"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="adapters.html" title="4.6. Interfaces and Adapters"
+             >previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Repository development</a> &raquo;</li>
+          <li><a href="index.html" >4. Data as objects</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
