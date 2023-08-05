@@ -1,0 +1,57 @@
+import ptah
+from ptah import view, cms, manage, authService
+
+from {{package}}.app import ApplicationRoot
+
+ptah.cms.uiaction(cms.Content, 'layout-preview', 'Layout preview',
+                  description='view parameter is any registered view name for object',
+                  action='layout-preview.html?view=')
+
+view.register_layout(
+    'ptah-page', ApplicationRoot, parent='workspace', layer='{{package}}',
+    template = view.template("{{package}}:templates/layout-ptahpage.pt"))
+
+class PageLayout(view.Layout):
+    view.layout('page', ApplicationRoot, layer='{{package}}',
+                template = view.template('templates/layout-page.pt'))
+
+    """ override 'page' layout
+
+    layer - identifier, import order does matter, last imported wins
+    """
+
+    def render(self, content, **kwargs):
+        """ default implementation, just example. in most cases
+        default implementation is ok. """
+        if self.template is None:
+            return content
+
+        kwargs.update({'view': self,
+                       'content': content,
+                       'context': self.context,
+                       'request': self.request,
+                       'format': format})
+
+        return self.template(**kwargs)
+
+
+class WorkspaceLayout(view.Layout):
+    view.layout('workspace', ApplicationRoot,
+                parent = 'page', layer='{{package}}',
+                template = view.template('templates/layout-workspace.pt'))
+
+    """ same as PageLayout, it uses 'page' as parent layout """
+
+    def update(self):
+        self.user = ptah.authService.get_current_principal()
+        self.ptahManager = manage.check_access(ptah.authService.get_userid()) 
+        self.isAnon = self.user is None
+
+
+class ContentLayout(view.Layout):
+    view.layout('', ptah.cms.Content, parent="workspace",
+                layer = '{{package}}',
+                template=view.template("templates/layout-content.pt"))
+
+    def update(self):
+        self.actions = ptah.cms.list_uiactions(self.context, self.request)
