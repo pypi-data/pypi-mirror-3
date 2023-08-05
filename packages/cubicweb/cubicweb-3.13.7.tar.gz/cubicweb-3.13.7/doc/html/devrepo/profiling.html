@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>9. Profiling and performance &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../index.html" />
+    <link rel="up" title="Repository development" href="index.html" />
+    <link rel="next" title="Web side development" href="../devweb/index.html" />
+    <link rel="prev" title="8. Migration" href="migration.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="../devweb/index.html" title="Web side development"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="migration.html" title="8. Migration"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Repository development</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="migration.html"
+                                  title="previous chapter">8. Migration</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="../devweb/index.html"
+                                  title="next chapter">Web side development</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../_sources/devrepo/profiling.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="profiling-and-performance">
+<span id="profiling"></span><h1>9. Profiling and performance<a class="headerlink" href="#profiling-and-performance" title="Permalink to this headline">¶</a></h1>
+<p>If you feel that one of your pages takes more time than it should to be
+generated, chances are that you&#8217;re making too many RQL queries.  Obviously,
+there are other reasons but experience tends to show this is the first thing to
+track down. Luckily, CubicWeb provides a configuration option to log RQL
+queries. In your <tt class="docutils literal"><span class="pre">all-in-one.conf</span></tt> file, set the <strong>query-log-file</strong> option:</p>
+<div class="highlight-python"><pre># web application query log file
+query-log-file=~/myapp-rql.log</pre>
+</div>
+<p>Then restart your application, reload your page and stop your application.
+The file <tt class="docutils literal"><span class="pre">myapp-rql.log</span></tt> now contains the list of RQL queries that were
+executed during your test. It&#8217;s a simple text file containing lines such as:</p>
+<div class="highlight-python"><pre>Any A WHERE X eid %(x)s, X lastname A {'x': 448} -- (0.002 sec, 0.010 CPU sec)
+Any A WHERE X eid %(x)s, X firstname A {'x': 447} -- (0.002 sec, 0.000 CPU sec)</pre>
+</div>
+<p>The structure of each line is:</p>
+<div class="highlight-python"><pre>&lt;RQL QUERY&gt; &lt;QUERY ARGS IF ANY&gt; -- &lt;TIME SPENT&gt;</pre>
+</div>
+<p>CubicWeb also provides the <strong>exlog</strong> command to examine and summarize data found
+in such a file:</p>
+<div class="highlight-sh"><div class="highlight"><pre><span class="nv">$ </span>cubicweb-ctl exlog ~/myapp-rql.log
+0.07 50 Any A WHERE X eid %<span class="o">(</span>x<span class="o">)</span>s, X firstname A <span class="o">{}</span>
+0.05 50 Any A WHERE X eid %<span class="o">(</span>x<span class="o">)</span>s, X lastname A <span class="o">{}</span>
+0.01 1 Any X,AA ORDERBY AA DESC WHERE E eid %<span class="o">(</span>x<span class="o">)</span>s, E employees X, X modification_date AA <span class="o">{}</span>
+0.01 1 Any X WHERE X eid %<span class="o">(</span>x<span class="o">)</span>s, X owned_by U, U eid %<span class="o">(</span>u<span class="o">)</span>s <span class="o">{</span>, <span class="o">}</span>
+0.01 1 Any B,T,P ORDERBY lower<span class="o">(</span>T<span class="o">)</span> WHERE B is Bookmark,B title T, B path P, B bookmarked_by U, U eid %<span class="o">(</span>x<span class="o">)</span>s <span class="o">{}</span>
+0.01 1 Any A,B,C,D WHERE A eid %<span class="o">(</span>x<span class="o">)</span>s,A name B,A creation_date C,A modification_date D <span class="o">{}</span>
+</pre></div>
+</div>
+<p>This command sorts and uniquifies queries so that it&#8217;s easy to see where
+is the hot spot that needs optimization.</p>
+<p>Do not neglect to set the <strong>fetch_attrs</strong> attribute you can define in your
+entity classes because it can greatly reduce the number of queries executed (see
+<a class="reference external" href="entityclasses/load-sort.html#fetchattrs"><em>Loaded attributes and default sorting management</em></a>).</p>
+<p>You should also know about the <strong>profile</strong> option in the <tt class="docutils literal"><span class="pre">all-in-on.conf</span></tt>. If
+set, this option will make your application run in an <a class="reference external" href="http://docs.python.org/library/hotshot.html#module-hotshot">hotshot</a> session and
+store the results in the specified file.</p>
+<p>Last but no least, if you&#8217;re using the PostgreSQL database backend, VACUUMing
+your database can significantly improve the performance of the queries (by
+updating the statistics used by the query optimizer). Nowadays, this is done
+automatically from time to time, but if you&#8217;ve just imported a large amount of
+data in your db, you will want to vacuum it (with the analyse option on). Read
+the documentation of your database for more information.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../devweb/index.html" title="Web side development"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="migration.html" title="8. Migration"
+             >previous</a> |</li>
+        <li><a href="../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="index.html" >Repository development</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>

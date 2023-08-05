@@ -1,0 +1,243 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.1.3. Storing images on the file-system &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../../index.html" />
+    <link rel="up" title="2. Building a photo gallery with CubicWeb" href="index.html" />
+    <link rel="next" title="2.1.4. Let’s make it more user friendly" href="part04_ui-base.html" />
+    <link rel="prev" title="2.1.2. Security, testing and migration" href="part02_security.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="part04_ui-base.html" title="2.1.4. Let’s make it more user friendly"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="part02_security.html" title="2.1.2. Security, testing and migration"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Tutorials</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">2. Building a photo gallery with <em>CubicWeb</em></a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">2.1.3. Storing images on the file-system</a><ul>
+<li><a class="reference external" href="#step-1-configuring-the-bytesfilesystem-storage">2.1.3.1. Step 1: configuring the BytesFileSystem storage</a></li>
+<li><a class="reference external" href="#step-2-importing-some-data-into-the-instance">2.1.3.2. Step 2: importing some data into the instance</a></li>
+<li><a class="reference external" href="#conclusion">2.1.3.3. Conclusion</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="part02_security.html"
+                                  title="previous chapter">2.1.2. Security, testing and migration</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="part04_ui-base.html"
+                                  title="next chapter">2.1.4. Let&#8217;s make it more user friendly</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../../_sources/tutorials/advanced/part03_bfss.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="storing-images-on-the-file-system">
+<h1>2.1.3. Storing images on the file-system<a class="headerlink" href="#storing-images-on-the-file-system" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="step-1-configuring-the-bytesfilesystem-storage">
+<h2>2.1.3.1. Step 1: configuring the BytesFileSystem storage<a class="headerlink" href="#step-1-configuring-the-bytesfilesystem-storage" title="Permalink to this headline">¶</a></h2>
+<p>To avoid cluttering my database, and to ease file manipulation, I don&#8217;t want them
+to be stored in the database. I want to be able create File entities for some
+files on the server file system, where those file will be accessed to get
+entities data. To do so I&#8217;ve to set a custom <tt class="xref docutils literal"><span class="pre">BytesFileSystemStorage</span></tt>
+storage for the File &#8216;data&#8217; attribute, which hold the actual file&#8217;s content.</p>
+<p>Since the function to register a custom storage needs to have a repository
+instance as first argument, we&#8217;ve to call it in a server startup hook. So I added
+in <cite>cubes/sytweb/hooks.py</cite> :</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">os</span> <span class="kn">import</span> <span class="n">makedirs</span>
+<span class="kn">from</span> <span class="nn">os.path</span> <span class="kn">import</span> <span class="n">join</span><span class="p">,</span> <span class="n">exists</span>
+
+<span class="kn">from</span> <span class="nn">cubicweb.server</span> <span class="kn">import</span> <span class="n">hook</span>
+<span class="kn">from</span> <span class="nn">cubicweb.server.sources</span> <span class="kn">import</span> <span class="n">storages</span>
+
+<span class="k">class</span> <span class="nc">ServerStartupHook</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">Hook</span><span class="p">):</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;sytweb.serverstartup&#39;</span>
+    <span class="n">events</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;server_startup&#39;</span><span class="p">,</span> <span class="s">&#39;server_maintenance&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">bfssdir</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">repo</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">appdatahome</span><span class="p">,</span> <span class="s">&#39;bfss&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">(</span><span class="n">bfssdir</span><span class="p">):</span>
+            <span class="n">makedirs</span><span class="p">(</span><span class="n">bfssdir</span><span class="p">)</span>
+            <span class="k">print</span> <span class="s">&#39;created&#39;</span><span class="p">,</span> <span class="n">bfssdir</span>
+        <span class="n">storage</span> <span class="o">=</span> <span class="n">storages</span><span class="o">.</span><span class="n">BytesFileSystemStorage</span><span class="p">(</span><span class="n">bfssdir</span><span class="p">)</span>
+        <span class="n">storages</span><span class="o">.</span><span class="n">set_attribute_storage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">repo</span><span class="p">,</span> <span class="s">&#39;File&#39;</span><span class="p">,</span> <span class="s">&#39;data&#39;</span><span class="p">,</span> <span class="n">storage</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<ul class="last simple">
+<li>how we built the hook&#8217;s registry identifier (<cite>__regid__</cite>): you can introduce
+&#8216;namespaces&#8217; by using there python module like naming identifiers. This is
+especially important for hooks where you usually want a new custom hook, not
+overriding / specializing an existant one, but the concept may be applied to
+any application objects</li>
+<li>we catch two events here: &#8220;server_startup&#8221; and &#8220;server_maintenance&#8221;. The first
+is called on regular repository startup (eg, as a server), the other for
+maintenance task such as shell or upgrade. In both cases, we need to have
+the storage set, else we&#8217;ll be in trouble...</li>
+<li>the path given to the storage is the place where file added through the ui
+(or in the database before migration) will be located</li>
+<li>beware that by doing this, you can&#8217;t anymore write queries that will try to
+restrict on File <cite>data</cite> attribute. Hopefuly we don&#8217;t do that usually
+on file&#8217;s content or more generally on attributes for the Bytes type</li>
+</ul>
+</div>
+<p>Now, if you&#8217;ve already added some photos through the web ui, you&#8217;ll have to
+migrate existing data so file&#8217;s content will be stored on the file-system instead
+of the database. There is a migration command to do so, let&#8217;s run it in the
+cubicweb shell (in real life, you would have to put it in a migration script as we
+have seen last time):</p>
+<div class="highlight-python"><pre>$ cubicweb-ctl shell sytweb
+entering the migration python shell
+just type migration commands or arbitrary python code and type ENTER to execute it
+type "exit" or Ctrl-D to quit the shell and resume operation
+&gt;&gt;&gt; storage_changed('File', 'data')
+[........................]</pre>
+</div>
+<p>That&#8217;s it. Now, files added through the web ui will have their content stored on
+the file-system, and you&#8217;ll also be able to import files from the file-system as
+explained in the next part.</p>
+</div>
+<div class="section" id="step-2-importing-some-data-into-the-instance">
+<h2>2.1.3.2. Step 2: importing some data into the instance<a class="headerlink" href="#step-2-importing-some-data-into-the-instance" title="Permalink to this headline">¶</a></h2>
+<p>Hey, we start to have some nice features, let us give a try to this new web
+site. For instance if I have a &#8216;photos/201005WePyrenees&#8217; containing pictures for
+a particular event, I can import it to my web site by typing</p>
+<div class="highlight-python"><pre>$ cubicweb-ctl fsimport -F sytweb photos/201005WePyrenees/
+** importing directory /home/syt/photos/201005WePyrenees
+importing IMG_8314.JPG
+importing IMG_8274.JPG
+importing IMG_8286.JPG
+importing IMG_8308.JPG
+importing IMG_8304.JPG</pre>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The -F option means that folders should be mapped, hence my photos will be
+linked to a Folder entity corresponding to the file-system folder.</p>
+</div>
+<p>Let&#8217;s take a look at the web ui:</p>
+<img alt="../../_images/tutos-photowebsite_ui1.png" src="../../_images/tutos-photowebsite_ui1.png" />
+<p>Nothing different, I can&#8217;t see the new folder... But remember our security model!
+By default, files are only accessible to authenticated users, and I&#8217;m looking at
+the site as anonymous, e.g. not authenticated. If I login, I can now see:</p>
+<img alt="../../_images/tutos-photowebsite_ui2.png" src="../../_images/tutos-photowebsite_ui2.png" />
+<p>Yeah, it&#8217;s there! You will notice that I can see some entities as well as
+folders and images the anonymous user can&#8217;t. It just works <strong>everywhere in the
+ui</strong> since it&#8217;s handled at the repository level, thanks to our security model.</p>
+<p>Now if I click on the recently inserted folder, I can see</p>
+<img alt="../../_images/tutos-photowebsite_ui3.png" src="../../_images/tutos-photowebsite_ui3.png" />
+<p>Great! There is even my pictures in the folder. I can know give to this folder a
+nicer name (provided I don&#8217;t intend to import from it anymore, else already
+imported photos will be reimported), change permissions, title for some pictures,
+etc... Having a good content is much more difficult than having a good web site
+;)</p>
+</div>
+<div class="section" id="conclusion">
+<h2>2.1.3.3. Conclusion<a class="headerlink" href="#conclusion" title="Permalink to this headline">¶</a></h2>
+<p>We started to see here an advanced feature of our repository: the ability
+to store some parts of our data-model into a custom storage, outside the
+database. There is currently only the <tt class="xref docutils literal"><span class="pre">BytesFileSystemStorage</span></tt> available,
+but you can expect to see more coming in a near future (or write your own!).</p>
+<p>Also, we can know start to feed our web-site with some nice pictures!
+The site isn&#8217;t perfect (far from it actually) but it&#8217;s usable, and we can
+now start using it and improve it on the way. The Incremental Cubic Way :)</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="part04_ui-base.html" title="2.1.4. Let’s make it more user friendly"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="part02_security.html" title="2.1.2. Security, testing and migration"
+             >previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Tutorials</a> &raquo;</li>
+          <li><a href="index.html" >2. Building a photo gallery with <em>CubicWeb</em></a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
