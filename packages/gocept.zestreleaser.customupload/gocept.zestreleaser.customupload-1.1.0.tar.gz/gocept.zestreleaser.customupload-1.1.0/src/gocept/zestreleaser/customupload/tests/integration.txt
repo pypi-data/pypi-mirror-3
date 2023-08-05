@@ -1,0 +1,45 @@
+================================
+ Integration with zest.releaser
+================================
+
+We register an entrypoint that zest.releaser calls.
+We check this by observing the user-visible output.
+
+We need to mock getting the configuration, since the real version reads from
+``~/.pypirc``:
+
+>>> def patched_config():
+...     import ConfigParser, StringIO
+...     config = ConfigParser.ConfigParser()
+...     config.readfp(StringIO.StringIO("""
+... [gocept.zestreleaser.customupload]
+... tha.example = example.com:/var/www
+... """))
+...     return config
+
+>>> import gocept.zestreleaser.customupload.upload
+>>> orig_config = gocept.zestreleaser.customupload.upload.read_configuration
+>>> gocept.zestreleaser.customupload.upload.read_configuration = patched_config
+
+>>> import os
+>>> import zest.releaser.release
+>>> import zest.releaser.utils
+>>> zest.releaser.utils.TESTMODE = True
+>>> zest.releaser.utils.answers_for_testing = ['y', 'y', 'n']
+>>> os.chdir(svnsourcedir)
+>>> zest.releaser.release.main()
+Checking data dict
+...
+Question: Check out the tag (for tweaks or pypi/distutils server upload) (Y/n)?
+Our reply: y
+...
+running sdist
+...
+Question: Upload to example.com:/var/www (Y/n)?
+Our reply: n
+
+
+Teardown
+--------
+
+>>> gocept.zestreleaser.customupload.upload.read_configuration = orig_config
