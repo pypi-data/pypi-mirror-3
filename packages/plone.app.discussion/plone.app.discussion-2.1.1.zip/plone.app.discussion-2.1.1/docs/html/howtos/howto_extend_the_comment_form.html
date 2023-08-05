@@ -1,0 +1,263 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Howto extend the comment form with additional fields &mdash; plone.app.discussion v2.0 documentation</title>
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '2.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="plone.app.discussion v2.0 documentation" href="../index.html" />
+    <link rel="up" title="Howtos" href="index.html" />
+    <link rel="next" title="How to override plone.app.discussion’s comments viewlet" href="howto_override_comments_viewlet.html" />
+    <link rel="prev" title="Howtos" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="howto_override_comments_viewlet.html" title="How to override plone.app.discussion’s comments viewlet"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Howtos"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Howtos</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="howto-extend-the-comment-form-with-additional-fields">
+<h1>Howto extend the comment form with additional fields<a class="headerlink" href="#howto-extend-the-comment-form-with-additional-fields" title="Permalink to this headline">¶</a></h1>
+<p>This document explains how to extend the plone.app.discussion comment form with
+additional fields in an add-on product.</p>
+<p>plone.app.discussion uses the
+<a class="reference external" href="http://pypi.python.org/pypi/plone.z3cform#fieldsets-and-form-extenders">plone.z3cform.fieldsets</a>
+package which provides support for modifications via &#8220;extender&#8221; adapters. The
+idea is that a third party component can modify the fields in a form and the
+way that they are grouped and ordered.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This howto applies only to plone.app.discussion &gt;= 2.0.4 and &gt;= 1.1.2. Prior
+versions will not store the extended fields on the comment.</p>
+</div>
+<div class="admonition-see-also admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last">The source code of this howto can be found here:
+<a class="reference external" href="https://github.com/collective/example.commentextender/">https://github.com/collective/example.commentextender/</a></p>
+</div>
+<div class="section" id="howto-extend-the-comment-form-with-an-additional-website-field">
+<h2>Howto extend the comment form with an additional &#8220;website&#8221; field<a class="headerlink" href="#howto-extend-the-comment-form-with-an-additional-website-field" title="Permalink to this headline">¶</a></h2>
+<p>First, create a new plone package:</p>
+<div class="highlight-python"><pre>$ paster create -t plone example.commentextender</pre>
+</div>
+<p>Go to the main directory of the package
+(example.commentextender/example/commentextender) and create a new file
+<em>commentextender.py</em>.</p>
+<p>This file contains the ICommentExtenderFields interface definition with a
+&#8220;website&#8221; field, a persistent CommentExtenderFields class to store the value of
+the &#8220;website&#8221; field, a CommentExtenderFactory to create the
+CommentExtenderFields, and a CommentExtender class to extend the default
+comment form with the &#8220;website&#8221; field:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">persistent</span> <span class="kn">import</span> <span class="n">Persistent</span>
+
+<span class="kn">from</span> <span class="nn">z3c.form.field</span> <span class="kn">import</span> <span class="n">Fields</span>
+
+<span class="kn">from</span> <span class="nn">zope</span> <span class="kn">import</span> <span class="n">interface</span>
+<span class="kn">from</span> <span class="nn">zope</span> <span class="kn">import</span> <span class="n">schema</span>
+
+<span class="kn">from</span> <span class="nn">zope.annotation</span> <span class="kn">import</span> <span class="n">factory</span>
+<span class="kn">from</span> <span class="nn">zope.component</span> <span class="kn">import</span> <span class="n">adapts</span>
+<span class="kn">from</span> <span class="nn">zope.interface</span> <span class="kn">import</span> <span class="n">Interface</span>
+<span class="kn">from</span> <span class="nn">zope.publisher.interfaces.browser</span> <span class="kn">import</span> <span class="n">IDefaultBrowserLayer</span>
+
+<span class="kn">from</span> <span class="nn">plone.z3cform.fieldsets</span> <span class="kn">import</span> <span class="n">extensible</span>
+
+<span class="kn">from</span> <span class="nn">plone.app.discussion.browser.comments</span> <span class="kn">import</span> <span class="n">CommentForm</span>
+<span class="kn">from</span> <span class="nn">plone.app.discussion.comment</span> <span class="kn">import</span> <span class="n">Comment</span>
+
+<span class="c"># Interface to define the fields we want to add to the comment form.</span>
+<span class="k">class</span> <span class="nc">ICommentExtenderFields</span><span class="p">(</span><span class="n">Interface</span><span class="p">):</span>
+    <span class="n">website</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">TextLine</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s">u&quot;Website&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+<span class="c"># Persistent class that implements the ICommentExtenderFields interface</span>
+<span class="k">class</span> <span class="nc">CommentExtenderFields</span><span class="p">(</span><span class="n">Persistent</span><span class="p">):</span>
+    <span class="n">interface</span><span class="o">.</span><span class="n">implements</span><span class="p">(</span><span class="n">ICommentExtenderFields</span><span class="p">)</span>
+    <span class="n">adapts</span><span class="p">(</span><span class="n">Comment</span><span class="p">)</span>
+    <span class="n">website</span> <span class="o">=</span> <span class="s">u&quot;&quot;</span>
+
+<span class="c"># CommentExtenderFields factory</span>
+<span class="n">CommentExtenderFactory</span> <span class="o">=</span> <span class="n">factory</span><span class="p">(</span><span class="n">CommentExtenderFields</span><span class="p">)</span>
+
+<span class="c"># Extending the comment form with the fields defined in the</span>
+<span class="c"># ICommentExtenderFields interface.</span>
+<span class="k">class</span> <span class="nc">CommentExtender</span><span class="p">(</span><span class="n">extensible</span><span class="o">.</span><span class="n">FormExtender</span><span class="p">):</span>
+    <span class="n">adapts</span><span class="p">(</span><span class="n">Interface</span><span class="p">,</span> <span class="n">IDefaultBrowserLayer</span><span class="p">,</span> <span class="n">CommentForm</span><span class="p">)</span>
+
+    <span class="n">fields</span> <span class="o">=</span> <span class="n">Fields</span><span class="p">(</span><span class="n">ICommentExtenderFields</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">form</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">request</span> <span class="o">=</span> <span class="n">request</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form</span> <span class="o">=</span> <span class="n">form</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># Add the fields defined in ICommentExtenderFields to the form.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ICommentExtenderFields</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+        <span class="c"># Move the website field to the top of the comment form.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="s">&#39;website&#39;</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="s">&#39;text&#39;</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition-see-also admonition seealso">
+<p class="first admonition-title">See also</p>
+<ul class="last simple">
+<li>See the plone.z3cform pypi page for more documentation about how to add,
+hide, and reorder fields:
+<a class="reference external" href="http://pypi.python.org/pypi/plone.z3cform#fieldsets-and-form-extenders">http://pypi.python.org/pypi/plone.z3cform#fieldsets-and-form-extenders</a></li>
+</ul>
+</div>
+<p>Now register the CommentExtenderFactory and CommentExtender Classes that has
+been created by adding the following lines to your configure.zcml:</p>
+<div class="highlight-python"><pre>&lt;adapter
+  factory=".commentextender.CommentExtenderFactory"
+  provides=".commentextender.ICommentExtenderFields" /&gt;
+
+&lt;adapter
+  factory=".commentextender.CommentExtender"
+  provides="plone.z3cform.fieldsets.interfaces.IFormExtender" /&gt;</pre>
+</div>
+<p>Create a new Plone instance, globally allow commenting, allow commenting on a
+content object and you will see a comment form with an additional &#8220;website&#8221;
+field.</p>
+<p>Since we do not only want to store the &#8220;website&#8221; value on the comments, but also
+to show these values for existing comments, we have to override the comments
+viewlet. The easiest way to do this is to use z3c.jbot.</p>
+<p>First, add <a class="reference external" href="http://pypi.python.org/pypi/z3c.jbot">z3c.jbot</a>. to the setup.py
+of the example.commentextender package:</p>
+<div class="highlight-python"><pre>install_requires=[
+    ...
+    'z3c.jbot',
+],</pre>
+</div>
+<p>Next, create a new directory called &#8220;overrides&#8221; inside the
+example.commentextender package and register it together with z3c.jbot in your
+configure.zcml:</p>
+<div class="highlight-python"><pre>&lt;configure
+    ...
+    xmlns:browser="http://namespaces.zope.org/browser"&gt;
+
+  ...
+
+  &lt;include package="z3c.jbot" file="meta.zcml" /&gt;
+
+  &lt;browser:jbot
+    directory="overrides" /&gt;
+
+&lt;/configure&gt;</pre>
+</div>
+<p>Copy plone.app.discussion/plone/app/discussion/browser/comments.pt to the
+overrides directory we just created and rename comments.pt to
+plone.app.discussion.browser.comments.pt.</p>
+<p>You can now add code to show the website attribute to the documentByLine:</p>
+<div class="highlight-python"><pre>&lt;div class="documentByLine" i18n:domain="plone.app.discussion"&gt;
+    ...
+    &lt;div class="commentWebsite"
+         tal:condition="reply/website|nothing"&gt;
+       &lt;a href=""
+          tal:attributes="href reply/website"
+          tal:content="reply/website"&gt;&lt;/a&gt;
+    &lt;/div&gt;
+&lt;/div&gt;</pre>
+</div>
+<p>Restart your Plone instance and you will see the &#8220;website&#8221; field in the
+documentByLine next to the comments.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Howto extend the comment form with additional fields</a><ul>
+<li><a class="reference internal" href="#howto-extend-the-comment-form-with-an-additional-website-field">Howto extend the comment form with an additional &#8220;website&#8221; field</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Howtos</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="howto_override_comments_viewlet.html"
+                        title="next chapter">How to override plone.app.discussion&#8217;s comments viewlet</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/howtos/howto_extend_the_comment_form.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="howto_override_comments_viewlet.html" title="How to override plone.app.discussion’s comments viewlet"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Howtos"
+             >previous</a> |</li>
+        <li><a href="../index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Howtos</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2010, Timo Stollenwerk - Plone Foundation.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

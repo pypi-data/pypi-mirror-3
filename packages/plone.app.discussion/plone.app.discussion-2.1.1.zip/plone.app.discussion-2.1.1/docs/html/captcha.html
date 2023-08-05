@@ -1,0 +1,246 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Captcha Plugin Architecture &mdash; plone.app.discussion v2.0 documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '2.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="plone.app.discussion v2.0 documentation" href="index.html" />
+    <link rel="next" title="Email Notification" href="email-notification.html" />
+    <link rel="prev" title="Permissions and Workflows" href="workflow.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="email-notification.html" title="Email Notification"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="workflow.html" title="Permissions and Workflows"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="captcha-plugin-architecture">
+<h1>Captcha Plugin Architecture<a class="headerlink" href="#captcha-plugin-architecture" title="Permalink to this headline">¶</a></h1>
+<p>This document contains design notes for the plone.app.discussion Captcha plugin
+architecture.</p>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>When a Captcha plugin (e.g. plone.formwidget.captcha or
+plone.formwidget.recaptcha) is installed, plone.app.discussion extends the
+comment form with a Captcha field/widget and a Captcha validator.</p>
+<p>The form extender and validator are only registered if there is a plugin
+installed that claims to provide the &#8220;plone.app.discussion-captcha&#8221; feature in
+its configure.zcml file:</p>
+<div class="highlight-python"><pre>&lt;configure
+    xmlns:meta="http://namespaces.zope.org/meta"
+    xmlns:zcml="http://namespaces.zope.org/zcml"&gt;
+
+    &lt;!-- Declare that plone.formwidget.captcha provides a Captcha field that
+         can be used by plone.app.discussion to add a Captcha field to comment
+         forms. --&gt;
+    &lt;meta:provides feature="plone.app.discussion-captcha" /&gt;
+
+&lt;/configure&gt;</pre>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Currently plone.formwidget.captcha and plone.formwidget.recaptcha claim to
+provide such a feature. If you want to write your own Captcha plugin, it has
+to provide this feature as well.</p>
+</div>
+<div class="admonition-see-also admonition seealso">
+<p class="first admonition-title">See also</p>
+<ul class="last simple">
+<li><a class="reference external" href="https://svn.plone.org/svn/plone/plone.formwidget.captcha/trunk/plone/formwidget/captcha/meta.zcml">https://svn.plone.org/svn/plone/plone.formwidget.captcha/trunk/plone/formwidget/captcha/meta.zcml</a></li>
+<li><a class="reference external" href="https://svn.plone.org/svn/plone/plone.formwidget.recaptcha/trunk/plone/formwidget/recaptcha/meta.zcml">https://svn.plone.org/svn/plone/plone.formwidget.recaptcha/trunk/plone/formwidget/recaptcha/meta.zcml</a></li>
+</ul>
+</div>
+</div>
+<div class="section" id="captchaextender">
+<h2>CaptchaExtender<a class="headerlink" href="#captchaextender" title="Permalink to this headline">¶</a></h2>
+<p>The CaptchaExtender class extends the comment form with a Captcha field and
+widget. The CaptchaExtender currently uses either the CaptchaFieldWidget from
+plone.formwidget.captcha or the ReCaptchaFieldWidget from
+plone.formwidget.recaptcha. If you want to write your own Captcha solution, you
+have to override the update() method of the CaptchaExtender or write your own
+CaptchaExtender class.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">CaptchaExtender</span><span class="p">(</span><span class="n">extensible</span><span class="o">.</span><span class="n">FormExtender</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Extends the comment form with a Captcha. This Captcha extender is only</span>
+<span class="sd">    registered when a plugin is installed that provides the</span>
+<span class="sd">    &quot;plone.app.discussion-captcha&quot; feature.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">adapts</span><span class="p">(</span><span class="n">Interface</span><span class="p">,</span> <span class="n">IDefaultBrowserLayer</span><span class="p">,</span> <span class="n">CommentForm</span><span class="p">)</span> <span class="c"># context, request, form</span>
+
+    <span class="n">fields</span> <span class="o">=</span> <span class="n">Fields</span><span class="p">(</span><span class="n">ICaptcha</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">form</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">request</span> <span class="o">=</span> <span class="n">request</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form</span> <span class="o">=</span> <span class="n">form</span>
+
+        <span class="n">registry</span> <span class="o">=</span> <span class="n">queryUtility</span><span class="p">(</span><span class="n">IRegistry</span><span class="p">)</span>
+        <span class="n">settings</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">forInterface</span><span class="p">(</span><span class="n">IDiscussionSettings</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">captcha</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">captcha</span>
+        <span class="n">portal_membership</span> <span class="o">=</span> <span class="n">getToolByName</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">,</span> <span class="s">&#39;portal_membership&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">isAnon</span> <span class="o">=</span> <span class="n">portal_membership</span><span class="o">.</span><span class="n">isAnonymousUser</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">captcha</span> <span class="o">!=</span> <span class="s">&#39;disabled&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">isAnon</span><span class="p">:</span>
+            <span class="c"># Add a captcha field if captcha is enabled in the registry</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ICaptcha</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">captcha</span> <span class="o">==</span> <span class="s">&#39;captcha&#39;</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">plone.formwidget.captcha</span> <span class="kn">import</span> <span class="n">CaptchaFieldWidget</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s">&#39;captcha&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">widgetFactory</span> <span class="o">=</span> <span class="n">CaptchaFieldWidget</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">captcha</span> <span class="o">==</span> <span class="s">&#39;recaptcha&#39;</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">plone.formwidget.recaptcha</span> <span class="kn">import</span> <span class="n">ReCaptchaFieldWidget</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s">&#39;captcha&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">widgetFactory</span> <span class="o">=</span> <span class="n">ReCaptchaFieldWidget</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">captcha</span> <span class="o">==</span> <span class="s">&#39;norobots&#39;</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">collective.z3cform.norobots</span> <span class="kn">import</span> <span class="n">NorobotsFieldWidget</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s">&#39;captcha&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">widgetFactory</span> <span class="o">=</span> <span class="n">NorobotsFieldWidget</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">form</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s">&#39;captcha&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">HIDDEN_MODE</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="captchavalidator">
+<h2>CaptchaValidator<a class="headerlink" href="#captchavalidator" title="Permalink to this headline">¶</a></h2>
+<p>The CaptchaValidator class provides custom versions of the
+plone.formwidget.captcha and the plone.formwidget.recaptcha validators. It does
+this, because we want to be able to have more than one Captcha solution
+installed in one Plone instance. We also want to be able to easily switch
+between different Captcha implementations inside a single Plone instance.</p>
+<p>Therefore we have to check which Captcha solution is enabled in the discussion
+control panel and use only the selected Captcha validator. It is not enough to
+check if a Captcha plugin is just installed, because there could be more than
+one.</p>
+<p>We do two checks. First we check for a suitable Captcha solution (check for the
+plone.app.discussion-captcha feature, see notes above). Second, we check which
+Captcha solution is enabled in the discussion control panel and apply the
+corresponding field validator.</p>
+<p>The plone.app.discussion captcha validator always checks for a view with the
+name of the captcha plugin. For instance, if plone.formwidget.captcha is enabled
+it checks for a &#8220;captcha&#8221; view.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">CaptchaValidator</span><span class="p">(</span><span class="n">validator</span><span class="o">.</span><span class="n">SimpleFieldValidator</span><span class="p">):</span>
+    <span class="n">implements</span><span class="p">(</span><span class="n">IValidator</span><span class="p">)</span>
+    <span class="n">adapts</span><span class="p">(</span><span class="n">Interface</span><span class="p">,</span> <span class="n">IDiscussionLayer</span><span class="p">,</span> <span class="n">Interface</span><span class="p">,</span> <span class="n">IField</span><span class="p">,</span> <span class="n">Interface</span><span class="p">)</span>
+    <span class="c">#       Object, Request, Form, Field, Widget,</span>
+    <span class="c"># We adapt the CaptchaValidator class to all form fields (IField)</span>
+
+    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CaptchaValidator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="n">registry</span> <span class="o">=</span> <span class="n">queryUtility</span><span class="p">(</span><span class="n">IRegistry</span><span class="p">)</span>
+        <span class="n">settings</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">forInterface</span><span class="p">(</span><span class="n">IDiscussionSettings</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">captcha</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;captcha&#39;</span><span class="p">,</span> <span class="s">&#39;recaptcha&#39;</span><span class="p">,</span> <span class="s">&#39;norobots&#39;</span><span class="p">):</span>
+            <span class="n">captcha</span> <span class="o">=</span> <span class="n">getMultiAdapter</span><span class="p">((</span><span class="n">aq_inner</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">),</span>
+                                      <span class="n">name</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">captcha</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">captcha</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="nb">input</span><span class="o">=</span><span class="n">value</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">captcha</span> <span class="o">==</span> <span class="s">&#39;norobots&#39;</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">WrongNorobotsAnswer</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">WrongCaptchaCode</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">True</span>
+
+
+<span class="c"># Register Captcha validator for the Captcha field in the ICaptcha Form</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Captcha Plugin Architecture</a><ul>
+<li><a class="reference internal" href="#introduction">Introduction</a></li>
+<li><a class="reference internal" href="#captchaextender">CaptchaExtender</a></li>
+<li><a class="reference internal" href="#captchavalidator">CaptchaValidator</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="workflow.html"
+                        title="previous chapter">Permissions and Workflows</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="email-notification.html"
+                        title="next chapter">Email Notification</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/captcha.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="email-notification.html" title="Email Notification"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="workflow.html" title="Permissions and Workflows"
+             >previous</a> |</li>
+        <li><a href="index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2010, Timo Stollenwerk - Plone Foundation.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

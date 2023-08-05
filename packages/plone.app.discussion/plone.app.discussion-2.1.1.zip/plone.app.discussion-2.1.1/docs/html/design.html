@@ -1,0 +1,283 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Design Notes &mdash; plone.app.discussion v2.0 documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '2.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="plone.app.discussion v2.0 documentation" href="index.html" />
+    <link rel="next" title="Permissions and Workflows" href="workflow.html" />
+    <link rel="prev" title="Architectural Principles" href="architecture.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="workflow.html" title="Permissions and Workflows"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="architecture.html" title="Architectural Principles"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="design-notes">
+<h1>Design Notes<a class="headerlink" href="#design-notes" title="Permalink to this headline">¶</a></h1>
+<p>This document contains design notes for plone.app.discussion.</p>
+<div class="section" id="storage-and-traversal">
+<h2>Storage and traversal<a class="headerlink" href="#storage-and-traversal" title="Permalink to this headline">¶</a></h2>
+<p>For each content item, there is a Conversation object stored in annotations.
+This can be traversed to via the ++conversation++ namespace, but also fetched
+via an adapter lookup to IConversation.</p>
+<p>The conversation stores all comments related to a content object. Each
+comment has an integer id (also representable as a string, to act as an OFS
+id and allow traversal). Hence, traversing to obj/++conversation++/123 retrieves
+the comment with id 123.</p>
+<p>Comments ids are assigned in order, so a comment with id N was posted before
+a comment with id N + 1. However, it is not guaranteed that ids will be
+incremental. Ids must be positive integers - 0 or negative numbers are not
+allowed.</p>
+<p>Threading information is stored in the conversation: we keep track of the
+set of children and the parent if any comment. Top-level comments have a
+parent id of 0. This information is managed by the conversation class when
+comments are manipulated using a dict-like API.</p>
+<p>Note that the __parent__/acquisition parent of an IComment is the
+IConversation, and the __parent__/acquisition parent of an IConversation is
+the content object.</p>
+</div>
+<div class="section" id="events">
+<h2>Events<a class="headerlink" href="#events" title="Permalink to this headline">¶</a></h2>
+<p>Manipulating the IConversation object should fire the usual IObjectAddedEvent
+and IObjectRemovedEvent events. The UI may further fire IObjectCreatedEvent
+and IObjectModifiedEvent for comments.</p>
+</div>
+<div class="section" id="factories">
+<h2>Factories<a class="headerlink" href="#factories" title="Permalink to this headline">¶</a></h2>
+<p>Comments should always be created via the &#8216;Discussion Item&#8217; IFactory utility.
+Conversations should always be obtained via the IConversation adapter (even
+the ++conversation++ namespace should use this). This makes it possible to
+replace conversations and comments transparently.</p>
+</div>
+<div class="section" id="the-comment-class">
+<h2>The Comment class<a class="headerlink" href="#the-comment-class" title="Permalink to this headline">¶</a></h2>
+<p>The inheritance tree for DiscussionItem is shown below. Classes we want to
+mix in and interface we want to implement in the Comment class are marked
+with [x].</p>
+<div class="highlight-python"><pre>[ ] DiscussionItem
+    [ ] Document
+        [ ] PortalContent                       = [ ] IContentish
+            [ ] DynamicType                     = [ ] IDynamicType
+            [ ] CMFCatalogAware                 = [ ] &lt;no interface&gt;
+            [ ] SimpleItem                      = [ ] ISimpleItem
+                [ ] Item                          [ ]
+                    [?] Base                    = [ ] &lt;no interface&gt;
+                    [ ] Resource                = [ ] &lt;no interface&gt;
+                    [ ] CopySource              = [ ] ICopySource
+                    [ ] Tabs                    = [ ] &lt;no interface&gt;
+                    [x] Traversable             = [ ] ITraversable
+                    [ ] Element                 = [ ] &lt;no interface&gt;
+                    [x] Owned                   = [ ] IOwned
+                    [ ] UndoSupport             = [ ] IUndoSupport
+                [ ] Persistent                    [ ]
+                [ ] Implicit                      [ ]
+                [x] RoleManager                 = [ ] IRoleManager
+                    [ ] RoleManager             = [ ] IPermissionMappingSupport
+        [ ] DefaultDublinCoreImpl               = [ ] IDublinCore
+                                                  [ ] ICatalogableDublinCore
+                                                  [ ] IMutableDublinCore
+            [ ] PropertyManager                 = [ ] IPropertyManager</pre>
+</div>
+<p>Thus, we want:</p>
+<blockquote>
+<div><ul>
+<li><dl class="first docutils">
+<dt>Traversable, to get absolute_url() and friends</dt>
+<dd><ul class="first last simple">
+<li>this requires a good acquisition chain at all times</li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Acquisition.Explicit, to support acquisition</dt>
+<dd><ul class="first last simple">
+<li>we do not want implicit acquisition</li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p class="first">Owned, to be able to track ownership</p>
+</li>
+<li><p class="first">RoleManager, to support permissions and local roles</p>
+</li>
+</ul>
+</div></blockquote>
+<p>We also want to use a number of custom indexers for most of the standard
+metadata such as creator, effective date etc.</p>
+<p>Finally, we&#8217;ll need event handlers to perform the actual indexing.</p>
+</div>
+<div class="section" id="discussion-settings">
+<h2>Discussion settings<a class="headerlink" href="#discussion-settings" title="Permalink to this headline">¶</a></h2>
+<p>Discussion can be enabled per-type and per-instance, via values in the FTI
+(allow_discussion) and on the object. These will remain unchanged. The
+IConversation object&#8217;s &#8216;enabled&#8217; property should consult these.</p>
+<p>Global settings should be managed using plone.registry. A control panel
+can be generated from this as well, using the helper class in
+plone.app.registry.</p>
+<p>Note that some settings, notably those to do with permissions and workflow,
+will need to be wired up as custom form fields with custom data mangers
+or similar.</p>
+</div>
+<div class="section" id="workflow-and-permissions">
+<h2>Workflow and permissions<a class="headerlink" href="#workflow-and-permissions" title="Permalink to this headline">¶</a></h2>
+<p>Where possible, we should use existing permissions:</p>
+<blockquote>
+<div><ul class="simple">
+<li>View</li>
+<li>Reply to Item</li>
+<li>Modify Portal Content</li>
+<li>Request Review</li>
+</ul>
+</div></blockquote>
+<p>In addition, we&#8217;ll need a &#8216;Moderator&#8217; role and a moderation permission,</p>
+<blockquote>
+<div><ul class="simple">
+<li>Moderate comment</li>
+<li>Bypass moderation</li>
+</ul>
+</div></blockquote>
+<p>To control whether Anonymous can post comments, we manage the &#8216;Reply to Item&#8217;
+permission. To control whether moderation is required for various roles, we
+could manage the &#8216;Bypass moderation&#8217; permission.</p>
+<p>These could work in a workflow like this:</p>
+<div class="highlight-python"><pre>* --&gt; [posted] -- {publish} --&gt; [published]--&gt; *
+         |                          ^
+         |                          |
+         +----- {auto-publish} -----+
+         |                          |
+         +----- {auto-moderate} ----+</pre>
+</div>
+<p>The &#8216;posted&#8217; state is the initial state. &#8216;published&#8217; is the state where the
+comment is visible to non-reviewers.</p>
+<p>The &#8216;publish&#8217; transition would be protected by the &#8216;Moderate comment&#8217;
+permission. We could have states and transition for &#8216;rejected&#8217;, etc, but it
+is probably just as good to delete comments that are rejected.</p>
+<p>The &#8216;auto-publish&#8217; transition would be an automatic transition protected by
+the &#8216;Bypass moderation&#8217; permission.</p>
+<p>The &#8216;auto-moderate&#8217; transition would be another automatic transition protected
+by an expression (e.g. calling a view) that returns True if the user is on
+an auto-moderation &#8216;white-list&#8217;, e.g. by email address or username.</p>
+</div>
+<div class="section" id="forms-and-ui">
+<h2>Forms and UI<a class="headerlink" href="#forms-and-ui" title="Permalink to this headline">¶</a></h2>
+<p>The basic commenting display/reply form is placed in a viewlet.</p>
+<p>The reply form is dynamically created right under the comment when the user hits
+the reply button. To do so, we copy the standard comment form with a jQuery
+function. This function sets the form&#8217;s hidden in_reply_to field to the id of
+the comment the user wants to reply to. This also makes it possible to use
+z3c.form validation for the reply forms, because we can uniquely identify the
+reply form request and return the reply form with validation errors.</p>
+<p>Since we rely on JavaScript for the reply form creation, the reply button is
+removed for non JavaScript enabled browsers.</p>
+<p>The comment form uses z3c.form and plone.z3cform&#8217;s ExtensibleForm support. This
+makes it possible to plug in additional fields declaratively, e.g. to include
+SPAM protection.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Design Notes</a><ul>
+<li><a class="reference internal" href="#storage-and-traversal">Storage and traversal</a></li>
+<li><a class="reference internal" href="#events">Events</a></li>
+<li><a class="reference internal" href="#factories">Factories</a></li>
+<li><a class="reference internal" href="#the-comment-class">The Comment class</a></li>
+<li><a class="reference internal" href="#discussion-settings">Discussion settings</a></li>
+<li><a class="reference internal" href="#workflow-and-permissions">Workflow and permissions</a></li>
+<li><a class="reference internal" href="#forms-and-ui">Forms and UI</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="architecture.html"
+                        title="previous chapter">Architectural Principles</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="workflow.html"
+                        title="next chapter">Permissions and Workflows</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/design.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="workflow.html" title="Permissions and Workflows"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="architecture.html" title="Architectural Principles"
+             >previous</a> |</li>
+        <li><a href="index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2010, Timo Stollenwerk - Plone Foundation.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

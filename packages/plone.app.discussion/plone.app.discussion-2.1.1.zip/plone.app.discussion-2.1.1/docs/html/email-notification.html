@@ -1,0 +1,317 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Email Notification &mdash; plone.app.discussion v2.0 documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '2.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="plone.app.discussion v2.0 documentation" href="index.html" />
+    <link rel="next" title="Howtos" href="howtos/index.html" />
+    <link rel="prev" title="Captcha Plugin Architecture" href="captcha.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="howtos/index.html" title="Howtos"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="captcha.html" title="Captcha Plugin Architecture"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="email-notification">
+<h1>Email Notification<a class="headerlink" href="#email-notification" title="Permalink to this headline">¶</a></h1>
+<p>This document describes the plone.app.discussion email notification feature.</p>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>plone.app.discussion allows users and administrators to be notified about new
+comments by email. There are two kinds of email notification:</p>
+<ol class="arabic">
+<li><p class="first"><strong>User notification</strong>: Tell users when a comment has been added.</p>
+<p>This method composes and sends emails to all users that have added a comment
+to this conversation and enabled user notification.</p>
+<p>This requires the user_notification setting to be enabled in the discussion
+control panel.</p>
+</li>
+<li><p class="first"><strong>Moderator notification</strong>: Tell the moderator when a comment needs attention.</p>
+<p>This method sends an email to the site admin (mail control panel setting) if
+comment moderation is enabled and a new comment has been added that needs to
+be approved.</p>
+<p>This requires the moderator_notification to be enabled in the discussion
+control panel and the comment_review_workflow enabled for the comment content
+type.</p>
+</li>
+</ol>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The user notification feature requires z3c.form &gt;= 2.3.3.</p>
+</div>
+</div>
+<div class="section" id="user-notification">
+<h2>User Notification<a class="headerlink" href="#user-notification" title="Permalink to this headline">¶</a></h2>
+<p><em>plone/app/discussion/comment.py</em></p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">notify_user</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tell users when a comment has been added.</span>
+<span class="sd">       </span>
+<span class="sd">       This method composes and sends emails to all users that have added a</span>
+<span class="sd">       comment to this conversation and enabled user notification.</span>
+<span class="sd">       </span>
+<span class="sd">       This requires the user_notification setting to be enabled in the</span>
+<span class="sd">       discussion control panel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c"># Check if user notification is enabled</span>
+    <span class="n">registry</span> <span class="o">=</span> <span class="n">queryUtility</span><span class="p">(</span><span class="n">IRegistry</span><span class="p">)</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">forInterface</span><span class="p">(</span><span class="n">IDiscussionSettings</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">settings</span><span class="o">.</span><span class="n">user_notification_enabled</span><span class="p">:</span>
+        <span class="k">return</span>
+    
+    <span class="c"># Get informations that are necessary to send an email</span>
+    <span class="n">mail_host</span> <span class="o">=</span> <span class="n">getToolByName</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;MailHost&#39;</span><span class="p">)</span>
+    <span class="n">portal_url</span> <span class="o">=</span> <span class="n">getToolByName</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;portal_url&#39;</span><span class="p">)</span>
+    <span class="n">portal</span> <span class="o">=</span> <span class="n">portal_url</span><span class="o">.</span><span class="n">getPortalObject</span><span class="p">()</span>
+    <span class="n">sender</span> <span class="o">=</span> <span class="n">portal</span><span class="o">.</span><span class="n">getProperty</span><span class="p">(</span><span class="s">&#39;email_from_address&#39;</span><span class="p">)</span>
+
+    <span class="c"># Check if a sender address is available</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sender</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="c"># Compose and send emails to all users that have add a comment to this</span>
+    <span class="c"># conversation and enabled user_notification.</span>
+    <span class="n">conversation</span> <span class="o">=</span> <span class="n">aq_parent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="n">content_object</span> <span class="o">=</span> <span class="n">aq_parent</span><span class="p">(</span><span class="n">conversation</span><span class="p">)</span>
+
+    <span class="c"># Avoid sending multiple notification emails to the same person</span>
+    <span class="c"># when he has commented multiple times.</span>
+    <span class="n">emails</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">comment</span> <span class="ow">in</span> <span class="n">conversation</span><span class="o">.</span><span class="n">getComments</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">obj</span> <span class="o">!=</span> <span class="n">comment</span> <span class="ow">and</span>
+            <span class="n">comment</span><span class="o">.</span><span class="n">user_notification</span> <span class="ow">and</span> <span class="n">comment</span><span class="o">.</span><span class="n">author_email</span><span class="p">):</span>
+            <span class="n">emails</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">comment</span><span class="o">.</span><span class="n">author_email</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">emails</span><span class="p">:</span>
+        <span class="k">return</span>
+    
+    <span class="n">subject</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">u&quot;A comment has been posted.&quot;</span><span class="p">),</span>
+                        <span class="n">context</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">REQUEST</span><span class="p">)</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">Message</span><span class="p">(</span>
+            <span class="n">MAIL_NOTIFICATION_MESSAGE</span><span class="p">,</span>
+            <span class="n">mapping</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;title&#39;</span><span class="p">:</span> <span class="n">safe_unicode</span><span class="p">(</span><span class="n">content_object</span><span class="o">.</span><span class="n">title</span><span class="p">),</span>
+                     <span class="s">&#39;link&#39;</span><span class="p">:</span> <span class="n">content_object</span><span class="o">.</span><span class="n">absolute_url</span><span class="p">()</span> <span class="o">+</span> 
+                             <span class="s">&#39;/view#&#39;</span> <span class="o">+</span> <span class="n">obj</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                     <span class="s">&#39;text&#39;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">text</span><span class="p">}),</span>
+            <span class="n">context</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">REQUEST</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">email</span> <span class="ow">in</span> <span class="n">emails</span><span class="p">:</span>
+        <span class="c"># Send email</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">mail_host</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">message</span><span class="p">,</span>
+                           <span class="n">email</span><span class="p">,</span>
+                           <span class="n">sender</span><span class="p">,</span>
+                           <span class="n">subject</span><span class="p">,</span>
+                           <span class="n">charset</span><span class="o">=</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">SMTPException</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;SMTP exception while trying to send an &#39;</span> <span class="o">+</span>
+                         <span class="s">&#39;email from </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span>
+                         <span class="n">sender</span><span class="p">,</span>
+                         <span class="n">email</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="moderator-notification">
+<h2>Moderator Notification<a class="headerlink" href="#moderator-notification" title="Permalink to this headline">¶</a></h2>
+<p><em>plone/app/discussion/comment.py</em></p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">notify_moderator</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tell the moderator when a comment needs attention.</span>
+<span class="sd">       </span>
+<span class="sd">       This method sends an email to the moderator if comment moderation a new </span>
+<span class="sd">       comment has been added that needs to be approved.</span>
+<span class="sd">       </span>
+<span class="sd">       The moderator_notification setting has to be enabled in the discussion</span>
+<span class="sd">       control panel.</span>
+<span class="sd">       </span>
+<span class="sd">       Configure the moderator e-mail address in the discussion control panel.</span>
+<span class="sd">       If no moderator is configured but moderator notifications are turned on,</span>
+<span class="sd">       the site admin email (from the mail control panel) will be used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># Check if moderator notification is enabled</span>
+    <span class="n">registry</span> <span class="o">=</span> <span class="n">queryUtility</span><span class="p">(</span><span class="n">IRegistry</span><span class="p">)</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">forInterface</span><span class="p">(</span><span class="n">IDiscussionSettings</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">settings</span><span class="o">.</span><span class="n">moderator_notification_enabled</span><span class="p">:</span>
+        <span class="k">return</span>
+    
+    <span class="c"># Get informations that are necessary to send an email</span>
+    <span class="n">mail_host</span> <span class="o">=</span> <span class="n">getToolByName</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;MailHost&#39;</span><span class="p">)</span>
+    <span class="n">portal_url</span> <span class="o">=</span> <span class="n">getToolByName</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;portal_url&#39;</span><span class="p">)</span>
+    <span class="n">portal</span> <span class="o">=</span> <span class="n">portal_url</span><span class="o">.</span><span class="n">getPortalObject</span><span class="p">()</span>
+    <span class="n">sender</span> <span class="o">=</span> <span class="n">portal</span><span class="o">.</span><span class="n">getProperty</span><span class="p">(</span><span class="s">&#39;email_from_address&#39;</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">moderator_email</span><span class="p">:</span>
+        <span class="n">mto</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">moderator_email</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">mto</span> <span class="o">=</span> <span class="n">sender</span>
+    
+    <span class="c"># Check if a sender address is available</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sender</span><span class="p">:</span>
+        <span class="k">return</span>
+    
+    <span class="n">conversation</span> <span class="o">=</span> <span class="n">aq_parent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="n">content_object</span> <span class="o">=</span> <span class="n">aq_parent</span><span class="p">(</span><span class="n">conversation</span><span class="p">)</span>
+    
+    <span class="c"># Compose email</span>
+    <span class="n">subject</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">u&quot;A comment has been posted.&quot;</span><span class="p">),</span> <span class="n">context</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">REQUEST</span><span class="p">)</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">Message</span><span class="p">(</span><span class="n">MAIL_NOTIFICATION_MESSAGE_MODERATOR</span><span class="p">,</span>
+        <span class="n">mapping</span><span class="o">=</span><span class="p">{</span>
+            <span class="s">&#39;title&#39;</span><span class="p">:</span> <span class="n">safe_unicode</span><span class="p">(</span><span class="n">content_object</span><span class="o">.</span><span class="n">title</span><span class="p">),</span>
+            <span class="s">&#39;link&#39;</span><span class="p">:</span> <span class="n">content_object</span><span class="o">.</span><span class="n">absolute_url</span><span class="p">()</span> <span class="o">+</span> <span class="s">&#39;/view#&#39;</span> <span class="o">+</span> <span class="n">obj</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+            <span class="s">&#39;text&#39;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">text</span><span class="p">,</span>
+            <span class="s">&#39;link_approve&#39;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">absolute_url</span><span class="p">()</span> <span class="o">+</span> <span class="s">&#39;/@@moderate-publish-comment&#39;</span><span class="p">,</span>
+            <span class="s">&#39;link_delete&#39;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">absolute_url</span><span class="p">()</span> <span class="o">+</span> <span class="s">&#39;/@@moderate-delete-comment&#39;</span><span class="p">,</span>
+            <span class="p">}),</span>
+        <span class="n">context</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">REQUEST</span><span class="p">)</span>
+    
+    <span class="c"># Send email</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">mail_host</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">mto</span><span class="p">,</span> <span class="n">sender</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">charset</span><span class="o">=</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">SMTPException</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;SMTP exception (</span><span class="si">%s</span><span class="s">) while trying to send an &#39;</span> <span class="o">+</span>
+                     <span class="s">&#39;email notification to the comment moderator &#39;</span> <span class="o">+</span>
+                     <span class="s">&#39;(from </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s">, message: </span><span class="si">%s</span><span class="s">)&#39;</span><span class="p">,</span>
+                     <span class="n">e</span><span class="p">,</span>
+                     <span class="n">sender</span><span class="p">,</span>
+                     <span class="n">mto</span><span class="p">,</span>
+                     <span class="n">message</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="event-subscribers">
+<h2>Event Subscribers<a class="headerlink" href="#event-subscribers" title="Permalink to this headline">¶</a></h2>
+<p>Email notifications are triggered by event subscribers that are called when a
+comment has been added to a page.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">In Plone 3, the event subscribers were located in the zope.lifecycleevent
+package. They moved to zope.app.container in Plone 4. Therefore
+plone.app.discussion registers one of the two subscribers, dependent on the
+Plone version.</p>
+</div>
+<p>To create custom email notifications, register a new event subscriber or
+override an existing one.</p>
+<p><em>plone/app/discussion/notifications.zcml</em></p>
+<div class="highlight-python"><pre>&lt;configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="plone.app.discussion"&gt;
+
+  &lt;subscriber
+      for="plone.app.discussion.interfaces.IComment
+           zope.app.container.interfaces.IObjectAddedEvent"
+      handler=".comment.notify_user"
+      /&gt;
+
+  &lt;subscriber
+      for="plone.app.discussion.interfaces.IComment
+           zope.app.container.interfaces.IObjectAddedEvent"
+      handler=".comment.notify_moderator"
+      /&gt;
+
+&lt;/configure&gt;
+</pre>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Email Notification</a><ul>
+<li><a class="reference internal" href="#introduction">Introduction</a></li>
+<li><a class="reference internal" href="#user-notification">User Notification</a></li>
+<li><a class="reference internal" href="#moderator-notification">Moderator Notification</a></li>
+<li><a class="reference internal" href="#event-subscribers">Event Subscribers</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="captcha.html"
+                        title="previous chapter">Captcha Plugin Architecture</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="howtos/index.html"
+                        title="next chapter">Howtos</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/email-notification.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="howtos/index.html" title="Howtos"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="captcha.html" title="Captcha Plugin Architecture"
+             >previous</a> |</li>
+        <li><a href="index.html">plone.app.discussion v2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2010, Timo Stollenwerk - Plone Foundation.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
