@@ -1,0 +1,137 @@
+======================
+Views on editable HTML
+======================
+
+Let's start by uploading some HTML to create a file object::
+
+  >>> import StringIO
+  >>> sio = StringIO.StringIO("This is a <em>fragment</em>."
+  ...                         "  There's one 8-bit Latin-1 character: \xd8.")
+
+  >>> from zope.testbrowser.testing import Browser
+  >>> browser = Browser()
+  >>> browser.addHeader("Authorization", "Basic user:userpw")
+  >>> browser.addHeader("Accept-Language", "en-US")
+  >>> browser.open("http://localhost/@@+/zope.file.File")
+
+  >>> ctrl = browser.getControl(name="form.data")
+  >>> ctrl.mech_control.add_file(sio, "text/html", "sample.html")
+  >>> browser.getControl("Add").click()
+
+We can see that the MIME handlers have marked this as HTML content::
+
+  >>> import zope.mimetype.types
+  >>> file = getRootFolder()["sample.html"]
+  >>> zope.mimetype.types.IContentTypeTextHtml.providedBy(file)
+  True
+
+The "Edit" view can be used to check and modify the "Is fragment?"
+field, which is stored by the views in an annotation on the object.
+The particular fragment we uploaded here should be see as a fragment
+by default::
+
+  >>> browser.getLink("sample.html").click()
+  >>> browser.getLink("Edit").click()
+
+  >>> browser.open("http://localhost/sample.html/@@htmledit.html")
+  >>> ctrl = browser.getControl(name="form.isFragment")
+  >>> ctrl.value
+  True
+
+The setting can be toggle by unchecking the checkbox and clicking
+"Save"::
+
+  >>> ctrl.value = False
+  >>> browser.getControl("Save").click()
+  >>> ctrl = browser.getControl(name="form.isFragment")
+  >>> ctrl.value
+  False
+
+The edit view also allows editing of the HTML content if the document
+can be decoded.  If the encoding of the document is not known, the
+document cannot be edited by the user is prompted to select an
+encoding that should be used.
+
+Our example document does not have a specified encoding, so we expect
+the form to indicate that the encoded is needed, and to allow the user
+to select and encoding.  Let's reload the form to get rid of the
+"Updated..." message so we can see what the user is told::
+
+  >>> browser.getLink("Edit").click()
+
+  >>> print browser.contents
+  <...Can't decode text for editing; please specify the document encoding...
+
+  >>> ctrl = browser.getControl(name="form.encoding")
+  >>> ctrl.value
+  ['']
+
+The user can then select an encoding::
+
+  >>> ctrl.value = ["utf-8"]
+  >>> browser.getControl("Save").click()
+
+Since we just selected an encoding that doesn't work with the Latin-1
+data we uploaded for the file, we're told that that encoding is not
+acceptable::
+
+
+  >>> print browser.contents
+  <...Selected encoding cannot decode document...
+
+We need to select an encoding that actually makes sense for the data
+that we've uploaded::
+
+  >>> ctrl = browser.getControl(name="form.encoding")
+  >>> ctrl.value = ["iso-8859-1"]
+  >>> browser.getControl("Save").click()
+
+Now that the encoding has been saved, the document can be encoded and
+edited, and the encoding selection will no longer be available on the
+form::
+
+  >>> browser.getControl(name="form.encoding")
+  Traceback (most recent call last):
+    ...
+  LookupError: name 'form.encoding'
+
+Since our selected encoding does not support all Unicode characters,
+there is an option available to allow re-encoding of the document if
+the content being saved after editing cannot be encoded in the
+original encoding of the document.  The value of this option defaults
+to False since the user needs to be aware that the document encoding
+may be modified::
+
+  >>> browser.getControl(name="form.reencode").value
+  False
+
+If we edit the text such that characters are included that cannot be
+encoded in the current encoding and try to save our changes without
+allowing re-encoding, we see a notification that the document can't be
+encoded in the original encoding and that re-encoding is needed::
+
+  >>> ctrl = browser.getControl(name="form.text")
+  >>> ctrl.value = u"\u3060\u3051\u306e\u30b5\u30a4\u30c8".encode("utf-8")
+
+  >>> browser.getControl("Save").click()
+
+  >>> print browser.contents
+  <...Can't encode text in current encoding...
+
+At this point, we can select the "Re-encode" option to allow the text
+to be saved in an encoding other than the original; this would allow
+us to save any text::
+
+  >>> browser.getControl(name="form.reencode").value = True
+  >>> browser.getControl("Save").click()
+
+  >>> print browser.contents
+  <...Updated on ...
+
+If we now take a look at the "Content Type" view for the file, we see
+that the encoding has been updated to UTF-8::
+
+  >>> browser.getLink("Content Type").click()
+
+  >>> browser.getControl(name="form.encoding").value
+  ['utf-8']
