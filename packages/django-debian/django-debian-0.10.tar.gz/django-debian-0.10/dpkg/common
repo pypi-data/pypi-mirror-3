@@ -1,0 +1,172 @@
+# Copyright (C) 2011 Linaro Limited
+#
+# Author: Zygmunt Krynicki <zygmunt.krynicki@linaro.org>
+#
+# This file is part of django-debian.
+#
+# django-debian is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License version 3
+# as published by the Free Software Foundation
+#
+# django-debian is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with django-debian.  If not, see <http://www.gnu.org/licenses/>.
+
+
+# Note: Everything prefixed with _ is private implementation detail
+
+
+_django_debian_log() {
+    # Log a message to standard error
+    echo "$*" >&2
+}
+
+
+_django_debian_debug() {
+    if [ "$DJANGO_DEBIAN_DEBUG" = "yes" ]; then
+        echo "(django-debian for package $django_debian_package): $*" >&2
+    fi
+    logger "(django-debian for package $django_debian_package): $*"
+}
+
+
+_django_debian_syslog() {
+    sed -e "s/^/(django-debian for package $django_debian_package): /" | logger
+}
+
+
+_django_debian_config_fill_missing_with_defaults() {
+    # Configuration version
+    django_debian_version=${django_debian_version:-1}
+
+    # Version specific configuration items.
+
+    # They might be missing when we add new but backwards compatible variables
+    # are added by future versions of this maintainer script. The packages
+    # created earlier will not have those variables embedded in their
+    # maintainer scripts.
+    case "$django_debian_version" in
+        0)
+            django_debian_log "Configuration 0 is no longer supported"
+            exit -1
+            ;;
+        1)
+            # Type: admin preference, could be changed later with debconf template
+            # Which web server to integrate with, either 'apache2' or 'none'
+            django_debian_web_server_integration=${django_debian_web_server_integration:-none}
+            django_debian_web_server_integration_files=${django_debian_web_server_integration_files:-custom}
+            # South support
+            django_debian_use_south=${django_debian_use_south:-no}
+            # Available database types (supported by the package)
+            django_debian_dbtypes=${django_debian_dbtypes:-sqlite3}
+            ;;
+    esac
+
+    # Variables below have no dependency on version (so far)
+
+    # Type: admin preference, could be changed later with debconf template
+    django_debian_purge_media_files=${django_debian_purge_media_files:-no}
+
+    # Permissions and ownership of important configuration files. Must be
+    # readable by the application at runtime (when invoked by the webapp
+    # container).
+    django_debian_conf_owner=${django_debian_conf_owner:-root:www-data}
+    django_debian_conf_perms=${django_debian_conf_perms:-0660}
+
+
+    # Enable dbconfig-common integration (a debian way of setting up databases
+    # and database accounts (where applicable) for any application that may
+    # need database support.
+    django_debian_use_dbconfig_common=${django_debian_use_dbconfig_common:-no}
+
+    # Enable to invoke syncdb when configuring the package.
+    django_debian_synchronize_db=${django_debian_synchronize_db:-no}
+
+    # Enable when the application wishes to use django-staticfiles.
+    django_debian_use_staticfiles=${django_debian_use_staticfiles:-no}
+}
+
+
+_django_debian_config_validate_1() {
+    local _django_debian_var
+    local _django_debian_value
+    for _django_debian_var in \
+        django_debian_purge_media_files \
+        django_debian_use_dbconfig_common \
+        django_debian_use_south \
+        django_debian_synchronize_db \
+        django_debian_use_staticfiles \
+        ; do
+        _django_debian_value="$(eval echo '$'$_django_debian_var)"
+        case "$_django_debian_value" in
+            yes|no|'')
+                ;;
+            *)
+                _django_debian_log "ERROR: Invalid value for configuration variable $_django_debian_var=$_django_debian_value"
+                exit -1
+        esac
+    done
+
+    case "$django_debian_web_server_integration" in
+        apache2)
+            ;;
+        none)
+            ;;
+        *)
+            _django_debian_log "ERROR: Unsupported value of configuration variable django_debian_web_server_integration=$django_debian_web_server_integration"
+            exit -1
+            ;;
+    esac
+
+    case "$django_debian_web_server_integration_files" in
+        standard)
+            if [ -z "$django_debian_settings_module" ]; then
+                _django_debian_log "ERROR: Missing value for configuration variable django_debian_settings_module"
+                exit -1
+            fi
+            ;;
+        custom)
+            ;;
+        *)
+            _django_debian_log "ERROR: Unsupported value of configuration variable django_debian_web_server_integration_files=$django_debian_web_server_integration_files"
+            exit -1
+            ;;
+    esac
+}
+
+
+_django_debian_config_validate() {
+    # _django_debian_debug "Validating configuration variables"
+    case "$django_debian_version" in
+        1) _django_debian_config_validate_1 ;;
+    esac
+}
+
+
+_django_debian_early_config() {
+    # Calculate some internal variables
+    django_debian_package="$1"
+    django_debian_command="$2"
+    django_debian_old_version="$3"
+}
+
+
+_django_debian_config() {
+    _django_debian_early_config $@
+    # Validate configuration provided by maintainer script
+    _django_debian_config_fill_missing_with_defaults
+    _django_debian_config_validate
+    # Load web-server integration routines
+    if [ -e "/usr/share/django-debian/dpkg/webserver/$django_debian_web_server_integration" ]; then
+        _django_debian_debug "Loading web server integration files for $django_debian_web_server_integration"
+        . "/usr/share/django-debian/dpkg/webserver/$django_debian_web_server_integration"
+    else
+        _django_debian_log "Warning: django-debian-webserver-$django_debian_web_server_integration is not installed, unable to configure web server for this application"
+        . /usr/share/django-debian/dpkg/webserver/none
+    fi
+
+}
