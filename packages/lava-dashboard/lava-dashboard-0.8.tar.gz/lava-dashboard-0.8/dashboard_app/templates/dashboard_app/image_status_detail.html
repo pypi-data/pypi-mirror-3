@@ -1,0 +1,174 @@
+{% extends "dashboard_app/_content.html" %}
+{% load call %}
+{% load i18n %}
+
+
+{% block extrahead %}
+{{ block.super }}
+<!--[if IE]><script type="text/javascript" src="{{ STATIC_URL }}dashboard_app/js/excanvas.min.js"></script><![endif]-->
+<script type="text/javascript" src="{{ STATIC_URL }}dashboard_app/js/jquery.flot.min.js"></script>
+<script type="text/javascript" src="{{ STATIC_URL }}dashboard_app/js/jquery.flot.stack.min.js"></script>
+<script type="text/javascript" src="{{ STATIC_URL }}dashboard_app/js/jquery.flot.axislabels.js"></script>
+{% endblock %}
+
+
+{% block content %}
+<h2>Test history for image {{ image_health.rootfs_type }} + {{ image_health.hwpack_type }}</h2>
+{% with image_health.get_recent_test_runs as recent_test_run_list %}
+{% if recent_test_run_list %}
+<div id="legend" style="margin: auto;"></div>
+<div id="placeholder" style="height: 250px; margin: auto;"></div>
+<script type="text/javascript">
+  $(function () {
+    var css_id = "#placeholder";
+
+    {% with image_health.get_chart_data as chart_data %} 
+
+    {% regroup chart_data|dictsort:"bucket" by bucket as bucket_list %}
+    var tick_list = [
+      {% spaceless %}
+      {% for bucket in bucket_list %}
+      "{{ bucket.grouper }}",
+      {% endfor %}
+      {% endspaceless %}
+    ];
+    var tick_label_list = [
+      {% spaceless %}
+      {% for bucket in bucket_list %}
+      [ {{ forloop.counter0 }}, "{{ bucket.grouper }}"],
+      {% endfor %}
+      {% endspaceless %}
+    ];
+
+    {% regroup chart_data|dictsort:"result" by result as series_group_list %}
+    var label_for = ["pass", "fail", "skip", "unknown"];
+    var color_for = ["#3aad3a", "#ff3800", "yellow", "#aaad9c"];
+    var data = [
+      {% for chart_series in series_group_list %}
+      {
+        label: label_for[{{ chart_series.grouper }}],
+        color: color_for[{{ chart_series.grouper }}],
+        data: [
+          {% spaceless %}
+          {% for sample in chart_series.list %}
+          [ tick_list.indexOf("{{ sample.bucket }}"), {{ sample.count }}],
+          {% endfor %}
+          {% endspaceless %}
+        ]
+      },
+      {% endfor %}
+    ];
+    
+    {% endwith %}
+
+    var options = {
+      legend: {
+        container: "#legend",
+        noColumns: 4,
+      },
+      grid: {
+        show: true,
+        aboveData: false,
+        backgroundColor: 'white',
+        color: '#333',
+        borderColor: null
+      },
+      series: {
+        stack: 0,
+        lines: {
+          show: false,
+          fill: false,
+          steps: false
+        },
+        bars: {
+          show: true,
+          fill: true,
+          barWidth: 0.5,
+          align: "center",
+          lineWidth: 0,
+          fillColor: {
+            colors: [
+              { opacity: 1 },
+              { opacity: 1 },
+              { opacity: 1 },
+              { opacity: 1 }
+            ]
+          }
+        },
+      },
+      xaxis: {
+        label: "Day of testing",
+        ticks: tick_label_list,
+      },
+      yaxis: {
+        labelPos: "low",
+        label: "Number of test cases",
+      },
+    };
+
+    $.plot($(css_id), data, options);
+  }); 
+</script>
+<style type="text/css">
+  .result_0 {
+    background-color: #3aad3a;
+  }
+  
+  .result_1 {
+    background-color: #ff3800;
+  }
+  
+  .result_2 {
+    background-color: yellow;
+  }
+  
+  .result_3 {
+    background-color: #aaad9c;
+  }
+
+  .helper {
+    float: left;
+    height: 1em;
+    margin-left: 1px;
+  }
+</style>
+<table style="width: 100%">
+  {% regroup recent_test_run_list by analyzer_assigned_date|date:"Y-m-d" as test_run_cluster_list %}
+  {% for test_run_cluster in test_run_cluster_list %}
+  <tr>
+    <th colspan="3" style="text-align: left; border-bottom: 1px solid #333;"
+      >Tests ran on {{ test_run_cluster.grouper }}</th>
+  </tr>
+  {% for test_run in test_run_cluster.list %}
+  <tr>
+    {% with test_run.test_results.all.order_by as all_results %}
+    <td><a href="{{ test_run.get_absolute_url }}">{{ test_run.test }}</a></td>
+    <td>{{ all_results.count }}</td>
+    <td>
+      {% spaceless %}
+      {% regroup all_results|dictsort:"result" by result as result_group_list %}
+      {% for result_group in result_group_list %}
+      {% if result_group.list|length > 300 %}
+      <div class="result_{{ result_group.grouper }} helper"
+        style="width: {% widthratio result_group.list|length all_results.count 190 %}px;"></div>
+      <div style="float: left; width: 2:0px; text-align: center">...</div>
+      <div class="result_{{ result_group.grouper }} helper"
+        style="width: {% widthratio result_group.list|length all_results.count 190 %}px;"></div>
+      {% else %}
+      <div class="result_{{ result_group.grouper }} helper"
+        style="width: {% widthratio result_group.list|length all_results.count all_results.count %}px;"></div>
+      {% endif %}
+      {% endfor %}
+      {% endspaceless %}
+      {% endwith %}
+    </td>
+  </tr>
+  {% endfor %}
+  {% endfor %}
+</table>
+{% else %}
+<p>This combination of of root file system + hwardware pack was not tested in
+the last 14 days</p>
+{% endif %}
+{% endwith %}
+{% endblock %}
