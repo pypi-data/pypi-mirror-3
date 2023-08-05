@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+
+from pymongo import Connection
+from collection import Collection
+from exc import ConnectionError
+from utils import dump_config
+
+class MongoDB(object):
+    '''Interface adapter buat interaksi dengan Mongo DB
+    '''
+    
+    def __init__(self,
+                 db_name,
+                 user_name='',
+                 user_pass='',
+                 host='127.0.0.1',
+                 port=None,
+                 config={}
+                 ):
+        '''params:
+            db_name: database name.
+            user_name: user name (optional).
+            user_pass: authority with password (optional if necessary).
+            host: host where mongod alive.
+            port: post.
+            config: configuration of FMA.
+        '''
+        
+        self._connected=False
+        
+        self.db_name = db_name
+        self.host = host
+        self.port = port
+        self.user_name = user_name
+        self.user_pass = user_pass
+        
+        self._cn = None
+        self._db = None
+        
+        self._connected = self.connect()
+        
+        for x in ('nometaname','notypeknown'):
+            if x not in config:
+                config[x] = False
+        
+        self.config = config
+        
+        
+    def connect(self):
+        
+        try:
+            
+            if isinstance(self.host, (tuple, list)):
+                self._cn = Connection(self.host, slave_okay=True)
+            else:
+                self._cn = Connection(self.host,self.port)
+                
+            self._db = self._cn[self.db_name]
+            if self.user_name:
+                self._db.authenticate(self.user_name, self.user_pass)
+        except Exception, e:
+            print 'DB connect error for host `%s` on port `%d` ERROR: %s' % (self.host,self.port,e)
+            self._last_error = e
+            return False
+        return True
+        
+        
+    def reconnect(self):
+        self._connected = self.connect()
+        return self._connected
+        
+    @property
+    def connected(self):
+        return self._connected
+    
+    @property
+    def last_error(self):
+        return self._last_error
+        
+    def __del__(self):
+        
+        if self._db is not None:
+            del self._db
+            
+        if self._cn is not None:
+            del self._cn
+        
+    def col(self, doctype, poly=False, echo=False):
+        
+        if not self.connected:
+            raise ConnectionError, "mongo db not connected"
+        
+        return Collection(self, doctype=doctype, poly=poly, echo=echo)
+        
+    def set_db(self,db_name):
+        
+        if not self.connected: return None
+        
+        self._db = self._cn[db_name]
+        
+
+    
+def monga_from_config( config, prefix, mongaconf={} ):
+    '''Load monga instance from config preset.
+    helper for Plylons. format = Pylons configuration file.
+    '''
+    kwargs = dump_config( config, prefix)
+    kwargs['config'] = mongaconf
+    
+    from fma import connector
+    connector.connect( **kwargs )
+    return connector.db_instance
+
