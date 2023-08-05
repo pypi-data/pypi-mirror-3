@@ -1,0 +1,68 @@
+{% load netauth_tags %}
+
+<link href="{% firstof STATIC_URL MEDIA_URL %}netauth/css/main.css" media="screen, projection" rel="stylesheet" type="text/css" />
+
+<div class="b-providers">
+
+    {# TWITTER #}
+    {% if ''|option:"TWITTER_CONSUMER_KEY" %}
+        <a class="b-providers_item b-providers_item_twitter" alt="Twitter" href="{% url netauth-begin 'twitter' %}?next={{ request.GET.next }}"></a>
+    {% endif %}
+
+    {# FACEBOOK #}
+    {% if ''|option:"FACEBOOK_APPLICATION_ID" %}
+        <a class="b-providers_item b-providers_item_facebook" alt="Facebook" href="{% url netauth-begin 'facebook' %}?next={{ request.GET.next }}"></a>
+    {% endif %}
+
+    {# GOOGLE #}
+    <a class="b-providers_item b-providers_item_google" alt="Google" href="{% url netauth-begin 'google' %}?openid_url=https://www.google.com/accounts/o8/id&next={{ request.GET.next }}"></a>
+
+    {# YANDEX #}
+    {% if ''|option:"YANDEX_APPLICATION_ID" %}
+        <a class="b-providers_item b-providers_item_yandex" alt="Yandex" href="{% url netauth-begin 'yandex' %}?next={{ request.GET.next }}"></a>
+    {% endif %}
+
+    {# mail #}
+    {# <a class="b-providers_item b-providers_item_mail" alt="Mail" href="#"></a> #}
+
+    {# vkontakte #}
+    {% if ''|option:"VKONTAKTE_APPLICATION_ID" %}
+        {% set get_settings "VKONTAKTE_PROFILE_MAPPING" mapping %}
+        <a class="b-providers_item b-providers_item_vkontakte" alt="Vkontakte" href="#" onclick="vk_login();"></a>
+        <div id="vk_api_transport" style="position: absolute; top: -10000px;"></div>
+        <script type="text/javascript">
+            window.vkAsyncInit = function() { VK.init({ apiId: "{{ ''|option:'VKONTAKTE_APPLICATION_ID' }}" }); };
+            function vk_login () { VK.Auth.login(function( response ){
+                if ( response.session ) { 
+                    fields_list = 'uid{% for key, value in mapping.items %}, {{ value }}{% endfor %}';
+                    VK.Api.call('getProfiles', {uids: response.session.user.id, fields: fields_list}, function(r) {
+                        if (r.response) {
+                            url = '?next={{ request.GET.next }}' {% for key, value in mapping.items %} + '&{{ value }}=' + r.response[0].{{ value }}{% endfor %};
+                            document.location.href = "{% url netauth-complete 'vkontakte' %}" + url;
+                        }
+                        else
+                            document.location.href = "{% url netauth-complete 'vkontakte' %}"
+                    });
+                    setTimeout(function() { var el = document.createElement("script");
+                        el.type = "text/javascript"; el.src = "http://vkontakte.ru/js/api/openapi.js";
+                        el.async = true; document.getElementById("vk_api_transport").appendChild(el);
+                    }, 0);
+                }
+                else document.location.href = "{% url netauth-login %}"
+            });}
+            setTimeout(function() { var el = document.createElement("script");
+                el.type = "text/javascript"; el.src = "http://vkontakte.ru/js/api/openapi.js";
+                el.async = true; document.getElementById("vk_api_transport").appendChild(el);
+            }, 0);
+        </script>
+    {% endif %}
+
+    {# openid #}
+    <form action="{% url netauth-begin 'openid' %}?next={{ request.GET.next }}" method="post" id="openid_login" class="uniForm">
+        {% csrf_token %}
+        <b class="b-providers_item b-providers_item_openid"></b>
+        <input type="text" name="openid_url" /><input type="submit" value="Continue"/>
+    </form>
+
+</div>
+
