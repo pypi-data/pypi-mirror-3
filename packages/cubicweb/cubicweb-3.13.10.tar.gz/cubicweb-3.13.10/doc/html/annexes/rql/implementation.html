@@ -1,0 +1,274 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.4. Implementation &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../../index.html" />
+    <link rel="up" title="2. Relation Query Language (RQL)" href="index.html" />
+    <link rel="next" title="3. Introducing Mercurial" href="../mercurial.html" />
+    <link rel="prev" title="2.3. Debugging RQL" href="debugging.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="../mercurial.html" title="3. Introducing Mercurial"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="debugging.html" title="2.3. Debugging RQL"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Appendixes</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">2. Relation Query Language (RQL)</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">2.4. Implementation</a><ul>
+<li><a class="reference external" href="#bnf-grammar">2.4.1. BNF grammar</a></li>
+<li><a class="reference external" href="#internal-representation-syntactic-tree">2.4.2. Internal representation (syntactic tree)</a></li>
+<li><a class="reference external" href="#known-limitations">2.4.3. Known limitations</a></li>
+<li><a class="reference external" href="#topics">2.4.4. Topics</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="debugging.html"
+                                  title="previous chapter">2.3. Debugging RQL</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="../mercurial.html"
+                                  title="next chapter">3. Introducing Mercurial</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../../_sources/annexes/rql/implementation.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="implementation">
+<h1>2.4. Implementation<a class="headerlink" href="#implementation" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="bnf-grammar">
+<h2>2.4.1. BNF grammar<a class="headerlink" href="#bnf-grammar" title="Permalink to this headline">¶</a></h2>
+<p>The terminal elements are in capital letters, non-terminal in lowercase.
+The value of the terminal elements (between quotes) is a Python regular
+expression.</p>
+<div class="highlight-python"><pre>statement ::= (select | delete | insert | update) ';'
+
+
+# select specific rules
+select      ::= 'DISTINCT'? E_TYPE selected_terms restriction? group? sort?
+
+selected_terms ::= expression ( ',' expression)*
+
+group       ::= 'GROUPBY' VARIABLE ( ',' VARIABLE)*
+
+sort        ::= 'ORDERBY' sort_term ( ',' sort_term)*
+
+sort_term   ::=  VARIABLE sort_method =?
+
+sort_method ::= 'ASC' | 'DESC'
+
+
+# delete specific rules
+delete ::= 'DELETE' (variables_declaration | relations_declaration) restriction?
+
+
+# insert specific rules
+insert ::= 'INSERT' variables_declaration ( ':' relations_declaration)? restriction?
+
+
+# update specific rules
+update ::= 'SET' relations_declaration restriction
+
+
+# common rules
+variables_declaration ::= E_TYPE VARIABLE (',' E_TYPE VARIABLE)*
+
+relations_declaration ::= simple_relation (',' simple_relation)*
+
+simple_relation ::= VARIABLE R_TYPE expression
+
+restriction ::= 'WHERE' relations
+
+relations   ::= relation (LOGIC_OP relation)*
+              | '(' relations')'
+
+relation    ::= 'NOT'? VARIABLE R_TYPE COMP_OP? expression
+              | 'NOT'? R_TYPE VARIABLE 'IN' '(' expression (',' expression)* ')'
+
+expression  ::= var_or_func_or_const (MATH_OP var_or_func_or_const) *
+              | '(' expression ')'
+
+var_or_func_or_const ::= VARIABLE | function | constant
+
+function    ::= FUNCTION '(' expression ( ',' expression) * ')'
+
+constant    ::= KEYWORD | STRING | FLOAT | INT
+
+# tokens
+LOGIC_OP ::= ',' | 'OR' | 'AND'
+MATH_OP  ::= '+' | '-' | '/' | '*'
+COMP_OP  ::= '&gt;' | '&gt;=' | '=' | '&lt;=' | '&lt;' | '~=' | 'LIKE'
+
+FUNCTION ::= 'MIN' | 'MAX' | 'SUM' | 'AVG' | 'COUNT' | 'UPPER' | 'LOWER'
+
+VARIABLE ::= '[A-Z][A-Z0-9]*'
+E_TYPE   ::= '[A-Z]\w*'
+R_TYPE   ::= '[a-z_]+'
+
+KEYWORD  ::= 'TRUE' | 'FALSE' | 'NULL' | 'TODAY' | 'NOW'
+STRING   ::= "'([^'\]|\\.)*'" |'"([^\"]|\\.)*\"'
+FLOAT    ::= '\d+\.\d*'
+INT      ::= '\d+'</pre>
+</div>
+</div>
+<div class="section" id="internal-representation-syntactic-tree">
+<h2>2.4.2. Internal representation (syntactic tree)<a class="headerlink" href="#internal-representation-syntactic-tree" title="Permalink to this headline">¶</a></h2>
+<p>The tree research does not contain the selected variables
+(e.g. there is only what follows &#8220;WHERE&#8221;).</p>
+<p>The insertion tree does not contain the variables inserted or relations
+defined on these variables (e.g. there is only what follows &#8220;WHERE&#8221;).</p>
+<p>The removal tree does not contain the deleted variables and relations
+(e.g. there is only what follows the &#8220;WHERE&#8221;).</p>
+<p>The update tree does not contain the variables and relations updated
+(e.g. there is only what follows the &#8220;WHERE&#8221;).</p>
+<div class="highlight-python"><pre>Select         ((Relationship | And | Or)?, Group?, Sort?)
+Insert         (Relations | And | Or)?
+Delete         (Relationship | And | Or)?
+Update         (Relations | And | Or)?
+
+And            ((Relationship | And | Or), (Relationship | And | Or))
+Or             ((Relationship | And | Or), (Relationship | And | Or))
+
+Relationship   ((VariableRef, Comparison))
+
+Comparison     ((Function | MathExpression | Keyword | Constant | VariableRef) +)
+
+Function       (())
+MathExpression ((MathExpression | Keyword | Constant | VariableRef), (MathExpression | Keyword | Constant | VariableRef))
+
+Group          (VariableRef +)
+Sort           (SortTerm +)
+SortTerm       (VariableRef +)
+
+VariableRef    ()
+Variable       ()
+Keyword        ()
+Constant       ()</pre>
+</div>
+</div>
+<div class="section" id="known-limitations">
+<h2>2.4.3. Known limitations<a class="headerlink" href="#known-limitations" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>The current implementation does not support linking two relations of type &#8216;is&#8217;
+with an OR. I do not think that the negation is supported on this type of
+relation (XXX to be confirmed).</li>
+<li>missing COALESCE and certainly other things...</li>
+<li>writing an rql query requires knowledge of the used schema (with real relation
+names and entities, not those viewed in the user interface). On the other
+hand, we cannot really bypass that, and it is the job of a user interface to
+hide the RQL.</li>
+</ul>
+</div>
+<div class="section" id="topics">
+<h2>2.4.4. Topics<a class="headerlink" href="#topics" title="Permalink to this headline">¶</a></h2>
+<p>It would be convenient to express the schema matching
+relations (non-recursive rules):</p>
+<div class="highlight-python"><pre>Document class Type &lt;-&gt; Document occurence_of Fiche class Type
+Sheet class Type    &lt;-&gt; Form collection Collection class Type</pre>
+</div>
+<p>Therefore 1. becomes:</p>
+<div class="highlight-python"><pre>Document X where
+X class C, C name 'Cartoon'
+X owned_by U, U login 'syt'
+X available true</pre>
+</div>
+<p>I&#8217;m not sure that we should handle this at RQL level ...</p>
+<p>There should also be a special relation &#8216;anonymous&#8217;.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../mercurial.html" title="3. Introducing Mercurial"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="debugging.html" title="2.3. Debugging RQL"
+             >previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Appendixes</a> &raquo;</li>
+          <li><a href="index.html" >2. Relation Query Language (RQL)</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
