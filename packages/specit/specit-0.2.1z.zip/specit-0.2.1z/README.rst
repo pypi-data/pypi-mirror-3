@@ -1,0 +1,137 @@
+Overview
+========
+
+**NOTE**
+
+Specit is **no longer actively developed**. It has been replaced by:
+
+**compare**: for the pluggable `expect` syntax
+
+- package: http://pypi.python.org/pypi/compare/
+- source: https://github.com/rudylattae/compare/
+- docs: http://packages.python.org/compare/
+
+**checkit**: enables `nose` to detect and run test cases defined using BDD style "describe" and "it"
+
+- package: http://pypi.python.org/pypi/checkit/
+- source: https://bitbucket.org/rudylattae/checkit/
+
+
+-----
+
+
+Specit is a minimalistic tool to assist developers in creating 
+and validating executable specifications for python software. It 
+aims to:
+
+1. Provide a readable, pythonic syntax for defining expectations in your example specifications.
+2. Provide a simple tool for validating your specifications. 
+
+To this end, specit provides two components to simplify your 
+work with specs. The **expect** construct allows you to indicate 
+verifyable expectations of your software. It is a replacement for
+the "self.assert..." syntax. The **specit** command uses 
+`Nose <http://somethingaboutorange.com/mrl/projects/nose>`_ to 
+validate your specifications.
+
+
+Features
+--------
+
+- uses nose for discovering and running specs
+- provides a base set of matchers for defining expectations
+- easy to extend with custom matchers
+
+
+Requirements
+------------
+
+All the requirements for using specit are auto-installed if you 
+use pip or easy_install. Here they are:
+
+- `Nose <http://somethingaboutorange.com/mrl/projects/nose>`_ 
+
+
+Installation
+------------
+
+The easiest way to install specit is with ``pip install spectit`` 
+or with ``easy_install specit``. Alternatively, you may 
+`download <http://pypi.python.org/pypi/specit>`_ the 
+source package from PyPI, extract it and install it using 
+``python setup.py install``.
+
+
+What you get
+------------
+
+When you install the package, you get two shiny components that 
+may help you achieve the goals above.
+
+**"expect"**, is the grammar component. It provides a construct with 
+extensible matchers that enables you to describe the expected 
+behaviour of your software using a pythonic BDD manner. Again, this 
+helps you maintain your flow of thought without succumbing to 
+test-focused non-pythonic distrations like "self.assertEqual(s)...", 
+"self.assertTrue", etc.
+
+**"specit"**, is the commandline component. It uses nose to discover 
+and execute specifications using flexible matching rules so that you 
+are not limited to using distracting unittest (test focused) constructs 
+like "def test..." or name your files "test...py".
+
+Here is a trivial example of the clarity you gain when you 
+employ the "expect" construct in your specs::
+
+    > cat greeting.py
+    def greet():
+        return 'Hello you'
+    
+    > cat greeting_specs.py
+    from specit import expect
+    from greeting import greet
+        
+    expect(greet).to_return('Hello you')
+
+Even more iteresting is the fact that you no longer have to 
+subject yourself to the unnecessary cruft needed for unittest 
+test cases. You can now create a spec like this::
+
+    > cat cool_specs.py
+    class DescribeCool(object):
+        
+        def it_is_cool(self):
+            pass
+
+Or even::
+
+    > cat awesome_specs.py
+    class MyAwesomeSpecs():
+    
+        def should_always_smile(self):
+            pass
+
+Finally, when you want to validate your software against the sepcs, 
+simply run the commandline tool "specit" in your project 
+directory like so::
+
+    > specit
+    ..
+    ----------------------------------------------------------------------
+    Ran 2 tests in 0.006s
+
+    OK
+
+
+Feedback
+--------
+
+I welcome any questions or feedback about bugs and suggestions on how to 
+improve specit. Let me know what you think about specit. I am on twitter 
+`@RudyLattae <http://twitter.com/RudyLattae>`_ . I appreciate constructive 
+criticsms or high fives :)
+
+Do you have suggestions for improvement? Then please create an 
+`issue <https://bitbucket.org/rudylattae/specit/issues>`_ with details 
+of what you would like to see. I'll take a look at it and work with you to either kill 
+the idea or implement it.
