@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+from __future__ import absolute_import
+import sys, os.path, logging, optparse, time, os, sys
+from cofre import core
+from cofre import errors
+from cofre import __version__ as ver
+
+log = logging.getLogger('cofre')
+
+LOG_FORMAT = '[%(asctime)s] [%(name)s] %(levelname)s: %(message)s'
+
+DEFAULT_CONFIG = """
+[cofre]
+store = $HOME/.cofre/cofre.db
+key = $HOME/.ssh/id_rsa
+engine = sqlite
+clipboard = pbcopy
+"""
+
+def main():
+    if len(sys.argv) == 1:
+        sys.argv.append('-h')
+            
+    parser = optparse.OptionParser(version='%prog ' + ver, usage='%prog [options] command', description='the serendipitous password manager.', epilog="See 'cofre commands' for available commands")
+    
+    parser.add_option("-c","--config", dest="config", help="config file location", action="store", default=None)
+    parser.add_option("-v","--verbose", dest="verbose", help="runs in verbose mode", action="store_true", default=False)    
+    parser.add_option("-i","--init", dest="init", help="initializes the cofre password database", action="store_true", default=False)
+    parser.add_option("-q","--quick", dest="quick", help="stores the resulting password in the system copy/paste buffer", action="store_true", default=False)
+    
+    (options,args) = parser.parse_args()
+    
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(LOG_FORMAT,datefmt='%m/%d/%Y %H:%M:%S')
+    handler.setFormatter(formatter)     
+    log.addHandler(handler)
+    log.setLevel(logging.ERROR)
+    
+    if options.verbose:
+        log.setLevel(logging.DEBUG)        
+                
+    log.debug('running in debug mode - version: %s' % ver)
+    
+    if options.config is None:
+        home = os.getenv('USERPROFILE') or os.getenv('HOME')
+        options.config = os.path.join(home,'.cofre','cofre.cfg')
+        log.debug('using config %s' % options.config)
+        
+    if options.init:
+        print('initializing config: %s' % options.config)
+        os.makedirs(os.path.dirname(options.config))
+        with open(options.config,'w+') as f:
+            f.write(DEFAULT_CONFIG.replace('$HOME', home))            
+        sys.exit(1)
+        
+    if not os.path.exists(options.config):
+        print('config file %s does not exist, try "cofre --init" to initialize it' % options.config)
+        sys.exit(1)
+        
+    log.debug('args: %s' % str(args))
+    
+    if len(args) == 1 and args[0] == 'commands':
+        print('available commands:')
+        for k,v in core.Cofre.commands.items():
+            print('  %-10s %s' % (k,v))
+            
+        sys.exit(0)
+          
+    try:
+        cofre = core.Cofre({
+            'config' : options.config,
+            'quick' : options.quick
+        })        
+        cofre.parse(args)
+    except errors.Error,v:
+        log.debug(v)
+        print('error %s' % v)
+                 
+if __name__ == '__main__':
+    main()
+
