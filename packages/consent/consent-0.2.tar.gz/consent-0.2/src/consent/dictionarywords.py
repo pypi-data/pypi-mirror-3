@@ -1,0 +1,2 @@
+from dm.dictionarywords import *
+

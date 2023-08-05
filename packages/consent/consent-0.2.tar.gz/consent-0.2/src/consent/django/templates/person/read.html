@@ -1,0 +1,164 @@
+{% extends "person/master.html"%}
+
+{% block title %}
+  {% if isSessionPerson %}
+    {{ person.getLabelValue|escape }}
+  {% else %}
+    {% if person %}
+    {{ person.getLabelValue|escape }}
+    {% else %}
+    Profile - No name specified!
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+  {% if person %}
+    {% if isSessionPerson %}
+    <h2>Welcome, {{ person.getFirstName|escape }}</h2>
+    <p>
+      This page gives you an overview of the projects you&rsquo;re associated with, and other useful information about your {{ systemServiceName|escape }} account.
+    </p>
+    <p><strong>Login name:</strong> {{ person.name|escape }}</p>
+    <p><strong>Full name:</strong> {{ person.fullname|escape }}</p>
+    <p><strong>Email address:</strong> {{ person.email|escape }}</p>
+    {% else %}
+    <h2>{{ person.getFirstName|escape }}&rsquo;s profile page</h2>
+    <p>
+      This is the profile page for {{ person.getLabelValue|escape }}.
+    </p>
+    {% endif %}
+
+    {% if tickets %}
+    <h3>Tickets</h3>
+    <table>
+      <tr>
+        <th>Ticket</th>
+        <th>Priority</th> 
+        <th class="span-8">Summary</th>
+        <th>Type</th>
+        <th>Owner</th>
+        <th>Status</th>
+        <th>Reporter</th> 
+        {% if isSessionPerson %}
+        <th>Actions</th>
+        {% endif %}
+      </tr>
+        {% for ticket in tickets %}
+      <tr> 
+        <td>
+        
+        <a href="{{uriPrefix}}/{{ ticket.service.project.name }}/{{ ticket.service.name }}/ticket/{{ticket.ref}}" title="{{ticket.service.project.title|escape}} {{ticket.service.name.capitalize}} #{{ticket.ref}}">{{ ticket.service.project.name.capitalize|escape }} #{{ ticket.ref }}</a>
+        </td> 
+        <td>{{ ticket.priority }}</td> 
+        <td>{{ ticket.summary }}</td> 
+        <td>{{ ticket.type }}</td> 
+        <td>{% ifnotequal ticket.owner "somebody" %}<a href="{{uriPrefix}}/people/{{ ticket.owner }}/">{{ ticket.owner }}</a>{% else %}{{ ticket.owner }}{% endifnotequal%}</td> 
+        <td>{{ ticket.status }}</td> 
+        <td>{% ifnotequal ticket.reporter "somebody" %}<a href="{{uriPrefix}}/people/{{ ticket.reporter }}/">{{ ticket.reporter }}</a>{% else %}{{ ticket.reporter }}{% endifnotequal%}</td> 
+        {% if isSessionPerson %}
+        <td class="actions">
+          {% if isSessionPerson %}
+        <a href="{{uriPrefix}}/{{ ticket.service.project.name }}/{{ ticket.service.name }}/ticket/{{ticket.ref}}#propertyform" title="Update ticket ({{ticket.service.project.title|escape}} {{ticket.service.name.capitalize}} #{{ticket.ref}})"><img height="20" width="20" src="{{ consent_media_url }}/images/icon-edit.png" alt="Edit" /></a>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if memberships %}
+    <h3>Project memberships</h3>
+    <table>
+      <tr>
+        <th>Project</th>
+        <th>Role</th>
+        {% if view.canUpdateMember or view.canDeleteMember or isSessionPerson %}
+        <th>Actions</th>
+        {% endif %}
+      </tr>
+      {% for membership in memberships %}
+      <tr>
+        <td><a href="{{uriPrefix}}/projects/{{ membership.project.name}}/">{{membership.project.getLabelValue|escape}}</a></td>
+        <td>{{ membership.role.getLabelValue }}</td>
+        {% if view.canUpdateMember or view.canDeleteMember or isSessionPerson %}
+        <td class="actions">
+          {% if view.canUpdateMember %}
+        <a href="{{uriPrefix}}/projects/{{ membership.project.name }}/members/{{ person.name }}/edit/" title="Edit membership ({{ membership.project.getLabelValue }})"><img height="20" width="20" src="{{ consent_media_url }}/images/icon-edit.png" alt="Edit" /></a>
+          {% endif %}
+          {% if view.canDeleteMember or isSessionPerson %}
+        <a href="{{uriPrefix}}/projects/{{ membership.project.name }}/members/{{ person.name }}/delete/" title="Leave project ({{ membership.project.getLabelValue }})"><img height="20" width="20" src="{{ consent_media_url }}/images/icon-delete.png" alt="Leave" /></a>
+          {% endif %}
+        {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if view.isSshPluginEnabled %}
+      {% if view.canUpdatePerson %}
+        {% if person.sshKeys.count %}
+    <h3>SSH keys
+    <small><small>(<a href="{{uriPrefix}}/people/{{ person.name }}/sshKeys/create/">add &raquo;</a>)</small></small>
+    </h3>
+    <table>
+      <tr>
+        <th>Key string</th>
+        <th>Actions</th>
+      </tr>
+          {% for sshKey in person.sshKeys %}
+      <tr>
+        <!-- Insert &#8203; characters to allow Firefox to look like CSS "word-wrap: break-word". -->
+        <td><code>{{sshKey.keyString|escape|join:"&#8203;"}}</code></td>
+        <td class="actions"><a href="{{uriPrefix}}/people/{{ person.name }}/sshKeys/{{ sshKey.id }}/delete/" title="Remove this key"><img height="20" width="20" src="{{ consent_media_url }}/images/icon-delete.png" alt="Remove" /></a></td>
+      </tr>
+          {% endfor %}
+    </table>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if view.canDeletePerson %}
+    <br/>
+    <strong>Do you wish to delete this account?</strong><br />
+    <form action="{{uriPrefix}}/people/{{ person.name }}/delete/" method="post">
+      <p>
+        <input type="submit" value="Delete account &raquo;" />
+      </p>
+    </form>
+    {% endif %}
+  {% else %}
+    <h2>No name specified</h2>
+    <p class="flash-error">
+      You'll need to <a href="{{uriPrefix}}/people/">select a user</a> in order to see a user's profile page.<br />
+      <br />
+      If you were looking for your profile page, please <a href="{{uriPrefix}}/login/">log in</a>.
+    </p>
+  {% endif %}  
+
+{% endblock %}
+
+{% block primarysidebar %}
+  <div class="action-box span-8">
+    <div class="action-box-inner">
+      <h2>Memberships</h2>
+      <ul>
+      {% for member in view.person.memberships %} 
+        <li><a href="{{uriPrefix}}/projects/{{ member.project.name }}/">{{ member.project.getLabelValue|escape }}</a></li>
+      {% endfor %}
+      </ul>
+{% if view.canUpdatePerson %}
+      <h2>Actions</h2>
+      <ul>
+        <li><a href="{{uriPrefix}}/people/{{domainObject.name}}/edit/">Edit profile</a></li>
+        {% if view.isSshPluginEnabled %}
+        <li><a href="{{uriPrefix}}/people/{{domainObject.name}}/sshKeys/create/">Add SSH key</a></li>
+        {% endif %}
+        <li><a href="{{uriPrefix}}/people/{{domainObject.name}}/apikey/">View API Key</a></li>
+      </ul>
+{% endif %}
+    </div>
+  </div>
+{% endblock %}
