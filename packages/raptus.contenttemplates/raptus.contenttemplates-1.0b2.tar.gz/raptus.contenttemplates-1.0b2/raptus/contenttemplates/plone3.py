@@ -1,0 +1,2 @@
+from Products.PlacelessTranslationService.utility import PTSTranslationDomain
+raptuscontenttemplatesdomain = PTSTranslationDomain('raptus.contenttemplates')
