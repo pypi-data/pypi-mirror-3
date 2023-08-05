@@ -1,0 +1,95 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      lang="en"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="vs.org">
+<body>
+
+<metal:content-core fill-slot="content-core">
+    <metal:content-core define-macro="content-core"
+                        tal:define="kssClassesView context/@@kss_field_decorator_view;
+                                    getKssClasses nocall:kssClassesView/getKssClassesInlineEditable;
+                                    templateId template/getId;
+                                    toLocalizedTime nocall:context/@@plone/toLocalizedTime;">
+
+        <form name="searchform"
+              action="search"
+              method="post"
+              tal:attributes="action string:${context/@@plone_context_state/object_url}">
+
+            <label for="lastname" i18n:translate="label_lastname">Lastname</label>
+            <input name="lastname"
+                   id="lastname"
+                   type="text"
+                   size="20"
+                   value=""
+                   title="Lastname"
+                   tal:attributes="value request/lastname|nothing;"
+                   class="inputLabel" />
+
+            <input class="searchButton"
+                   type="submit"
+                   value="Search"
+                   i18n:attributes="value label_search;" i18n:domain="plone" />
+        </form>
+
+        <div id="employeefolderSearchResult" 
+              tal:define="b_size python:30;
+                          b_start python:0;
+                          b_start request/b_start | b_start;
+                          results view/searchEmployees;
+                          Batch python:modules['Products.CMFPlone'].Batch;
+                          batch python:Batch(results, b_size, int(b_start), orphan=1);
+                          normalizeString nocall:context/@@plone/normalizeString;" >
+
+            <div tal:condition="not: results" i18n:translate="label_no_results">No result</div>                    
+
+            <dl class="searchResults" tal:condition="results">
+                <tal:results repeat="result batch">
+                    <tal:entry define="url result/getURL;
+                        employee result/getObject;
+                        result_type result/portal_type;
+                        item_icon python:plone_view.getIcon(result);">
+                        <dt tal:define="item_wf_state_class string:state-${result/review_state};"
+                            tal:attributes="class python:'contenttype-' + normalizeString(result.portal_type)">
+                            <img tal:replace="structure item_icon/html_tag" />
+                            <a href="#" 
+                               tal:attributes="href url; class string:$item_wf_state_class"
+                               tal:content="result/pretty_title_or_id">url</a>
+                        </dt>
+                        <dd>
+                            <span tal:replace="structure employee/@@hcardView" />
+                            <p tal:repeat="number_type employee/getNumberTypes">
+                                <tal:loop repeat="number python: employee.getNumbersByType(number_type)">
+                                    <img class="entry_label"
+                                     tal:attributes="src string:$portal_url/++resource++vs.org.images/${number_type/lower}_icon.gif;
+                                                     title number_type;
+                                                     alt   number_type;"
+                                     i18n:attributes="title; alt"  />
+                                    <span tal:content="number" class="portlet_content" />
+                                </tal:loop>
+                            </p>
+                            <p tal:condition="employee/getEmail">
+                                <img src="mail_icon"
+                                    tal:attributes="src string:${portal_url}/++resource++vs.org.images/email_icon.gif;"
+                                    title="label_email"
+                                    alt="label_email"
+                                    i18n:attributes="title" />
+                                <a href="mail" tal:attributes="href string:mailto:${employee/getEmail}"
+                                   tal:content="employee/getEmail" 
+                                />
+                            </p>
+                        </dd>
+                    </tal:entry>
+                </tal:results>
+            </dl>
+        </div>
+
+    </metal:content-core>
+</metal:content-core>
+
+</body>
+</html>
+
