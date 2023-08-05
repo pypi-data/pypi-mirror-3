@@ -1,0 +1,163 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" i18n:domain="SimpleChat">
+<head>
+<title i18n:translate="">Simple chat index</title>
+<script type="text/javascript" src="./jquery">
+</script>
+</head>
+<body tal:define="valid_username_message python:context.get_username(request);
+		  valid python:valid_username_message[0];
+		  username python:valid_username_message[1];
+		  message python:valid_username_message[2];
+		  xyz context/touch_address_and_username">
+<metal:block define-macro="content" tal:define="is_banned context/is_banned; is_banned_ python:is_banned[0];
+						is_banned_comment python:is_banned[1]">
+<h2 i18n:translate="">Chat</h2>
+
+<metal:block tal:condition="request/stamp2 | nothing">
+<p><a tal:attributes="href python:(request['QUERY_STRING'] and '?' + request['QUERY_STRING']) + '#archive-index-'+request.stamp2" i18n:translate="">Go to the last read line</a></p>
+</metal:block>
+
+<metal:block tal:define="language context/getPreferredLanguage">
+<metal:block tal:replace="nothing">Putting translations directly in the page template as writing HTML
+tags and translating them doesn't work with Javascript.  Twit for twat.</metal:block>
+<script type="text/javascript" tal:condition="python:language.startswith('en')">
+if ($.browser.msie)
+  document.write('Automatic updates for Internet Explorer is not supported, try a browser with better webstandards support for a better experience.')
+</script>
+<script type="text/javascript" tal:condition="python:language.startswith('no')">
+if ($.browser.msie)
+  document.write('Automatiske oppdateringer for Internet Explorer er ikke st&oslash;ttet, pr&oslash;v en nettleser med bedre st&oslash;tte for webstandarder for en bedre opplevelse.')
+</script>
+</metal:block>
+
+<p><b i18n:translate="">Note that IP-address is being logged, so play nicely.</b></p>
+
+<p tal:condition="request/message|nothing" style="color: #f00"
+   tal:content="request/message"></p>
+<p tal:condition="context/chat_blocked" style="color: #f00"
+   i18n:translate="">Simple chat has been blocked</p>
+<metal:block tal:condition="is_banned_">
+<p style="color: #f00;" i18n:translate="">This IP address has been banned:</p>
+<p style="color: #f00;"><span tal:replace="is_banned_comment" /></p>
+</metal:block>
+<div id="chatlines">
+<span tal:define="xyz python:request.set('stamp', str(0) + '-' + str(0))" />
+<metal:block tal:repeat="entry python:context.CAG_get_numbered(count=100)">
+<a tal:attributes="name python:'archive-index-' + str(entry[0]) + '-' + str(entry[1])" />
+<div id="chatline" tal:define="item python:entry[2]"><span
+	tal:content="python:item[3].strftime('%Y-%m-%d %H:%M:%S') + ' '" tal:on-error="nothing"></span><span
+		tal:content="python:item[0]" />: <span tal:content="python:item[2]" />
+</div>
+<span tal:define="xyz python:request.set('stamp', str(entry[0]) + '-' + str(entry[1]))" />
+</metal:block>
+<form name="refresh_form" id="refresh_form">
+<input type="hidden" name="stamp" tal:attributes="value request/stamp" />
+</form>
+</div>
+<br />
+<form action="./" style="display: inline;" tal:condition="valid">
+<script type="text/javascript">
+function success(data) {
+       $("#refresh_form").remove();
+       $("#chatlines").append(data);
+};
+
+// Any need to worry about competing refresh() calls?
+
+function refresh() {
+	 refresh_(document.forms['refresh_form'].stamp.value);
+}
+
+function refresh_(stamp) {
+	$.ajax({url: "./ajax_update", dataType: "html", data: ({ stamp: stamp }), success: success })
+}
+
+function updater() {
+	 refresh();
+	 timer = setTimeout("updater()", 30000);
+}
+
+function success_submit(data) {
+	 refresh();
+	 document.forms['chatSubmit'].text.value = '';
+};
+
+function send() {
+	 text = document.forms['chatSubmit'].text.value;
+	 if (text.length > 0) {
+	    if (!$.browser.msie) {
+	 	$.ajax({url: "./chat_submit", dataType: "text", data: ({ text: text, ajax: true }), success: success_submit })
+		return false;
+		}
+	    else {
+	    	 // Internet Explorer - update manually
+	    	 return true;
+	    }
+		
+	 }
+}
+
+if ($.browser.msie) {
+document.write('<input type="submit" value=" Refresh " i18n:attributes="value" />');
+}
+</script>
+<noscript><input type="submit" value=" Refresh " i18n:attributes="value" /></noscript>
+<script type="text/javascript">
+updater();
+</script>
+</form>
+<form action="./chat_submit" tal:condition="valid" style="display: inline;" name="chatSubmit" id="chatSubmit"
+      onsubmit="return send()">
+<input type="hidden" name="stamp" tal:attributes="value request/stamp" />
+<input type="text" name="text" size="50" />
+<script type="text/javascript">
+if (!$.browser.msie)
+   document.write('<input type="button" value=" Send " i18n:attributes="value" onclick="send()" />');
+else
+   document.write('<input type="submit" value=" Send " i18n:attributes="value" />');
+</script>
+<noscript><input type="submit" value=" Send " i18n:attributes="value" /></noscript>
+</form>
+<script type="text/javascript">
+function focusChat() {
+	 setTimeout("document.forms['chatSubmit'].text.focus()", 1000);
+}
+
+// So that a page loading slowly doesn't focus too early
+$(document).ready(focusChat);
+
+</script>
+<br />
+<form action="./logs" tal:condition="valid" style="display: inline;">
+<input type="submit" value=" See logs " i18n:attributes="value" />
+</form>
+<form action="./banned" tal:condition="python:user.has_permission('Manage', context)" style="display: inline;">
+<input type="submit" value=" See banned " i18n:attributes="value" />
+</form>
+<br /><br />
+<form action="./chat_username_submit" name="username_form" id="username_form">
+<span i18n:translate="">Username</span>: <span tal:content="username" /><br /><span i18n:translate="">Change to</span> <input type="text" name="username" size="20" />
+<script type="text/javascript" tal:condition="not:valid">
+document.forms['username_form'].username.focus();
+</script>
+<input type="submit" value=" Register username " i18n:attributes="value" />
+</form>
+<form action="./toggle_chat" tal:condition="python:user.has_role('Manager')" style="display: inline;">
+<a name="confirm_block"></a>
+<metal:block tal:condition="request/confirm_block | nothing">
+<metal:block tal:condition="not:context/chat_blocked">
+  <input type="checkbox" name="confirm" value="confirm" /> <span i18n:translate="">Confirm simple chat block</span>
+</metal:block>
+<metal:block tal:condition="context/chat_blocked">
+  <input type="checkbox" name="confirm" value="confirm" /> <span i18n:translate="">Confirm simple chat unblock</span>
+</metal:block>
+</metal:block>
+<br />
+<input type="submit" value="Block chat" i18n:attributes="value" tal:condition="not:context/chat_blocked" />
+<input type="submit" value="Unblock chat" i18n:attributes="value" tal:condition="context/chat_blocked" />
+</form>
+</metal:block>
+</body>
+</html>
