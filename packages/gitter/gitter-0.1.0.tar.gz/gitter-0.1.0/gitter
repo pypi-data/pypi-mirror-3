@@ -1,0 +1,187 @@
+#!/usr/bin/env python
+import os
+import sys
+import termenu
+
+GITBIN = "/usr/bin/git"
+
+class TitleMenu(termenu.Menu):
+    """
+    An interactive menu that can display in-line headers for different types of
+    data. Headers are lines that start with a dash.
+    """
+    def __init__(self, *args, **kwargs):
+        super(TitleMenu, self).__init__(*args, **kwargs)
+        if self.options[self.selected].startswith("-"):
+            self._on_down()
+
+    def _dispatch_key(self, key):
+        retval = super(TitleMenu, self)._dispatch_key(key)
+        if self.options[self.selected].startswith("-"):
+            if self.selected == 0:
+                super(TitleMenu, self)._on_down()
+            elif self.selected == len(self.options)-1:
+                super(TitleMenu, self)._on_up()
+            elif key in ["up", "pageUp", "home"]:
+                super(TitleMenu, self)._on_up()
+            elif key in ["down", "pageDown", "end", "space"]:
+                super(TitleMenu, self)._on_down()
+        return retval
+
+    def _build_menu_item(self, index, option):
+        if option.startswith("-"):
+            option = termenu.ansi.colorize(option, "white", bright=True)
+        return super(TitleMenu, self)._build_menu_item(index, option)
+
+def show_menu(*args, **kwargs):
+    multiSelect = kwargs.get("multiSelect")
+    del kwargs["multiSelect"]
+    if multiSelect:
+        class MenuClass(termenu.MultiSelectMixin, termenu.FilterMixin, TitleMenu):
+            pass
+    else:
+        class MenuClass(termenu.FilterMixin, TitleMenu):
+            pass
+    menu = MenuClass(*args, **kwargs)
+    return menu.show()
+
+class GitRunner(object):
+    def __init__(self, args):
+        self._debug = False
+        if args and args[0] == "--gitter-debug":
+            self._debug = True
+            args = args[1:]
+        self.args = args
+
+    def run(self):
+        if not self.args or "--help" in self.args:
+            return self._exec_git(self.args)
+        self.command = self.args[0]
+        self.args = self.args[1:]
+        self.freeArgs = [arg for arg in self.args if not arg.startswith("-")]
+        self.flags = set([arg for arg in self.args if arg.startswith("-")])
+
+        # If free argument provided, run git as is
+        if self.freeArgs:
+            return self._exec_default()
+
+        # Dispatch the git command to a specified handler
+        func = "_do_" + self.command.replace("-", "_")
+        if hasattr(self, func):
+            return getattr(self, func)()
+        else:
+            self._exec_default()
+
+    def _exec_default(self):
+        return self._exec_git([self.command] + self.args)
+
+    def _exec_git(self, args):
+        args = ['"%s"' % arg if " " in arg else arg for arg in args]
+        command = " ".join([GITBIN] + args)
+        if self._debug:
+            print command
+        else:
+            return os.system(command)
+
+    # Lists of items to show in a menu
+
+    def _with_header(self, header, lines):
+        return ["-- %s --" % header] + lines if lines else lines
+
+    def _status_files(self, workspaceStatuses="?M ", indexStatuses="?M "):
+        lines = os.popen("%s status --porcelain" % GITBIN).readlines()
+        files = [line[2:].strip() for line in lines if line[1] in workspaceStatuses or line[0] in indexStatuses]
+        root = os.popen("%s rev-parse --show-toplevel" % GITBIN).read().strip()
+        files = [os.path.relpath(os.path.os.path.join(root, file)) for file in files]
+        return list(files)
+
+    def _list_branches(self):
+        branches = os.popen("%s branch" % GITBIN).readlines()
+        branches = [b.strip("*").strip() for b in branches]
+        return self._with_header("Branches", list(sorted(branches)))
+
+    def _list_modified(self):
+        return self._with_header("Modified", self._status_files("M", ""))
+
+    def _list_deleted(self):
+        return self._with_header("Deleted", self._status_files("D", ""))
+
+    def _list_untracked(self):
+        return self._with_header("Untracked", self._status_files("?", ""))
+
+    def _list_to_be_committed(self):
+        return self._with_header("To be committed", self._status_files("", "MA"))
+
+    def _list_both_modified(self):
+        return self._with_header("Both modified", self._status_files("", "U"))
+
+    def _list_tracked(self):
+        lines = os.popen("%s ls-files" % GITBIN).readlines()
+        return self._with_header("Tracked", map(str.strip, lines))
+
+    def _list_commits(self, branch):
+        lines = os.popen("%s log %s --oneline" % (GITBIN, branch)).readlines()
+        lines = map(str.strip, lines)
+        return lines
+
+    # Command abstractions
+
+    def _command_with_menu(self, options, multiSelect):
+        if not options:
+            return
+        selected = show_menu("", options, multiSelect=multiSelect, columns=1, rows=15)
+        if not selected:
+            return
+        if not multiSelect:
+            selected = [selected]
+        return self._exec_git([self.command] + self.args + selected)
+
+    def _command_with_hash(self, branch=""):
+        options = self._list_commits(branch)
+        if not options:
+            return
+        selected = show_menu("", options, multiSelect=False, columns=1, rows=15)
+        if not selected:
+            return
+        selected = selected.split(" ", 1)[0]
+        return self._exec_git([self.command] + self.args + [selected])
+
+    # Command handlers
+
+    def _do_checkout(self):
+        return self._command_with_menu(self._list_modified() + self._list_deleted() + self._list_branches(), multiSelect=True)
+
+    def _do_add(self):
+        if "-i" in self.flags or "--interactive" in self.flags:
+            return self._exec_default()
+        return self._command_with_menu(self._list_modified() + self._list_both_modified() + self._list_untracked(), multiSelect=True)
+
+    def _do_reset(self):
+        return self._command_with_menu(self._list_to_be_committed(), multiSelect=True)
+
+    def _do_show(self):
+        return self._command_with_hash()
+
+    def _do_branch(self):
+        if "-D" in self.flags or "-d" in self.flags:
+            return self._command_with_menu(self._list_branches(), multiSelect=True)
+        else:
+            return self._exec_default()
+
+    def _do_merge(self):
+        return self._command_with_menu(self._list_branches(), multiSelect=False)
+
+    def _do_rm(self):
+        return self._command_with_menu(self._list_deleted() + self._list_tracked(), multiSelect=True)
+
+    def _do_clean(self):
+        return self._command_with_menu(self._list_untracked(), multiSelect=True)
+
+    def _do_cherry_pick(self):
+        branches = self._list_branches()
+        branch = show_menu("", branches, multiSelect=False, columns=1, rows=15, maxColumnWidth=50)
+        return self._command_with_hash(branch)
+
+if __name__ == "__main__":
+    ret = GitRunner(sys.argv[1:]).run()
+    sys.exit(ret or 127)
