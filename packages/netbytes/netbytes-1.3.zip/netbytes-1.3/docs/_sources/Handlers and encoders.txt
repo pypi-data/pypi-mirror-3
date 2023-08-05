@@ -1,0 +1,99 @@
+4. Handlers and Encoders
+========================
+
+Handlers and encoders are *callable* objects designed by the programer, and are attached to to an *action* :class:`Node`. One's job is to encode data into bytes, and other's job is to retrieve this data, and process it.
+
+Assignement
+-----------
+
+You can assing them via decorator : ::
+
+    >>> model = '''
+    client
+        message
+            private
+            public
+    server
+        message'''
+
+    >>> tree = netbytes.build(model)
+
+    >>> @tree.client.message.private.ENCODER
+    def priv_msg(reciever, msg):
+        return data_encode([reciever, msg])
+
+    >>> @tree.client.message.private.HANDLER
+    def priv_msg_handler(data):
+        reciever,msg = data_decode(data)
+        print 'to  : {}\nmsg : {}'.format(reciever,msg)
+
+    >>> _bytes = tree.client.message.private('bob', 'Hello !')
+    >>> _bytes
+    '\x00\x00\x00\x03\x00bob\x07\x00Hello !'
+
+    >>> netbytes.handle(tree, _bytes)
+    to  : bob
+    msg : Hello !
+
+If you want that your encoders and/or handlers be class' instance(s), proceed as below : ::
+
+    >>> class UselessHandler(object):
+            def __call__(s,data):
+                *** do some things ***
+                return
+
+    >>> tree.client.message.public.HANDLER(UselessHandler())
+    <wrapper function at 0x0000000002C91400>
+
+    >>> #note that if - for whatever reason - you still want to have access to the instance, you can do like this :
+    >>> handler = UselessHandler()
+    >>> tree.client.message.public.HANDLER(handler)
+
+.. _encoders:
+
+Encoders
+^^^^^^^^
+The encoder's job is - as its name suggest - to encode some data into bytes. To help the programmer to achieve it, :mod:`netbytes` provides the function :func:`data_encode`. This function takes an *iterable* object as argument ; all the elements of the *iterable* must be strings.
+
+The encoders can take as many arguments as the programmer desire.
+
+An encoder can be any *callable* objects, but only functions or methods can be assigned via the *@decorator* mechanism
+
+.. _handlers:
+
+Handlers
+^^^^^^^^
+
+The handler's job is to respond to an action. The handler is designed by the programmer and must be a *callable*, generally a function. Unlike the encoder, the handler can only take one argument.
+
+Remember this previous code ? ::
+    
+    >>> _bytes = tree.client.message.private('bob', 'Hello !')
+    >>> _bytes
+    '\x00\x00\x00\x03\x00bob\x07\x00Hello !'
+
+.. _string_data_part:
+
+If we look at the string '\\x00\\x00\\x00\\x03\\x00bob\\x07\\x00Hello !' :
+    * '\\x00\\x00\\x00' corresponds to the *action* :class:`Node` instance *tree.client.message.private*
+    * '\\x03\\x00bob\\x07\\x00Hello !' corresponds to the data
+
+This is this data that is passed to the handler ; the first objective of the handler is to recover the original strings from this data, and then process them.
+
+If in the encoder, the function :func:`data_encode` has been used, then you should use the function :func:`data_decode` to reverse the encoding.
+
+:func:`data_encode` and :func:`data_decode`
+-------------------------------------------
+
+:func:`data_encode` and :func:`data_decode` are done to work together.
+
+:func:`data_encode` is a convenient function that can store more than one string into a single one, but in a manner that of course, allow the recovering of each of them.
+
+:func:`data_decode` is a function that can retrieve all the original strings that have been encoded with :func:`data_encode`, provided that the whole given string has been produced by :func:`data_encode`.
+
+With these function the serializing task is let to the good care of the programmer.
+
+:func:`p_data_encode` and :func:`p_data_decode`
+-----------------------------------------------
+
+These two function are almost the same as the two above, except that the serializing task is already handled by cPickle (this is what the "p" in the names stands for).
