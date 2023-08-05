@@ -1,0 +1,299 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>4.6. Interfaces and Adapters &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../../index.html" />
+    <link rel="up" title="4. Data as objects" href="index.html" />
+    <link rel="next" title="4.7. How to use entities objects and adapters" href="application-logic.html" />
+    <link rel="prev" title="4.5. Loaded attributes and default sorting management" href="load-sort.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="application-logic.html" title="4.7. How to use entities objects and adapters"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="load-sort.html" title="4.5. Loaded attributes and default sorting management"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Repository development</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">4. Data as objects</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">4.6. Interfaces and Adapters</a><ul>
+<li><a class="reference external" href="#specializing-and-binding-an-adapter">4.6.1. Specializing and binding an adapter</a></li>
+<li><a class="reference external" href="#converting-code-from-interfaces-mixins-to-adapters">4.6.2. Converting code from Interfaces/Mixins to Adapters</a></li>
+<li><a class="reference external" href="#module-cubicweb.entities.adapters">4.6.3. Adapters defined in the library</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="load-sort.html"
+                                  title="previous chapter">4.5. Loaded attributes and default sorting management</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="application-logic.html"
+                                  title="next chapter">4.7. How to use entities objects and adapters</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../../_sources/devrepo/entityclasses/adapters.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="interfaces-and-adapters">
+<span id="adapters"></span><h1>4.6. Interfaces and Adapters<a class="headerlink" href="#interfaces-and-adapters" title="Permalink to this headline">¶</a></h1>
+<p>Interfaces are the same thing as object-oriented programming <a class="reference external" href="http://java.sun.com/docs/books/tutorial/java/concepts/interface.html">interfaces</a>.
+Adapter refers to a well-known <a class="reference external" href="http://en.wikipedia.org/wiki/Adapter_pattern">adapter</a> design pattern that helps separating
+concerns in object oriented applications.</p>
+<p>In <em>CubicWeb</em> adapters provide logical functionalities to entity types. They
+are introduced in version <cite>3.9</cite>. Before that one had to implement Interfaces in
+entity classes to achieve a similar goal. However, the problem with this
+approach is that is clutters the entity class&#8217;s namespace, exposing name
+collision risks with schema attributes/relations or even methods names
+(different interfaces may define the same method with not necessarily the same
+behaviour expected).</p>
+<p>Definition of an adapter is quite trivial. An excerpt from cubicweb
+itself (found in <tt class="xref docutils literal"><span class="pre">cubicweb.entities.adapters</span></tt>):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">ITreeAdapter</span><span class="p">(</span><span class="n">EntityAdapter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This adapter has to be overriden to be configured using the</span>
+<span class="sd">    tree_relation, child_role and parent_role class attributes to</span>
+<span class="sd">    benefit from this default implementation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;ITree&#39;</span>
+
+    <span class="n">child_role</span> <span class="o">=</span> <span class="s">&#39;subject&#39;</span>
+    <span class="n">parent_role</span> <span class="o">=</span> <span class="s">&#39;object&#39;</span>
+
+    <span class="k">def</span> <span class="nf">children_rql</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns RQL to get children &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">cw_related_rql</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tree_relation</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_role</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The adapter object has <tt class="docutils literal"><span class="pre">self.entity</span></tt> attribute which represents the
+entity being adapted.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Adapters came with the notion of service identified by the registry identifier
+of an adapters, hence dropping the need for explicit interface and the
+<a title="cubicweb.selectors.implements" class="reference external" href="../vreg.html#cubicweb.selectors.implements"><tt class="xref docutils literal"><span class="pre">cubicweb.selectors.implements</span></tt></a> selector. You should instead use
+<a title="cubicweb.selectors.is_instance" class="reference external" href="../vreg.html#cubicweb.selectors.is_instance"><tt class="xref docutils literal"><span class="pre">cubicweb.selectors.is_instance</span></tt></a> when you want to select on an entity
+type, or <a title="cubicweb.selectors.adaptable" class="reference external" href="../vreg.html#cubicweb.selectors.adaptable"><tt class="xref docutils literal"><span class="pre">cubicweb.selectors.adaptable</span></tt></a> when you want to select on a
+service.</p>
+</div>
+<div class="section" id="specializing-and-binding-an-adapter">
+<h2>4.6.1. Specializing and binding an adapter<a class="headerlink" href="#specializing-and-binding-an-adapter" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.entities.adapters</span> <span class="kn">import</span> <span class="n">ITreeAdapter</span>
+
+<span class="k">class</span> <span class="nc">MyEntityITreeAdapter</span><span class="p">(</span><span class="n">ITreeAdapter</span><span class="p">):</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="n">is_instance</span><span class="p">(</span><span class="s">&#39;MyEntity&#39;</span><span class="p">)</span>
+    <span class="n">tree_relation</span> <span class="o">=</span> <span class="s">&#39;filed_under&#39;</span>
+</pre></div>
+</div>
+<p>The ITreeAdapter here provides a default implementation. The
+tree_relation class attribute is actually used by this implementation
+to help implement correct behaviour.</p>
+<p>Here we provide a specific implementation which will be bound for
+<tt class="docutils literal"><span class="pre">MyEntity</span></tt> entity type (the <cite>adaptee</cite>).</p>
+</div>
+<div class="section" id="converting-code-from-interfaces-mixins-to-adapters">
+<span id="interfaces-to-adapters"></span><h2>4.6.2. Converting code from Interfaces/Mixins to Adapters<a class="headerlink" href="#converting-code-from-interfaces-mixins-to-adapters" title="Permalink to this headline">¶</a></h2>
+<p>Here we go with a small example. Before:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.selectors</span> <span class="kn">import</span> <span class="n">implements</span>
+<span class="kn">from</span> <span class="nn">cubicweb.interfaces</span> <span class="kn">import</span> <span class="n">ITree</span>
+<span class="kn">from</span> <span class="nn">cubicweb.mixins</span> <span class="kn">import</span> <span class="n">ITreeMixIn</span>
+
+<span class="k">class</span> <span class="nc">MyEntity</span><span class="p">(</span><span class="n">ITreeMixIn</span><span class="p">,</span> <span class="n">AnyEntity</span><span class="p">):</span>
+    <span class="n">__implements__</span> <span class="o">=</span> <span class="n">AnyEntity</span><span class="o">.</span><span class="n">__implements__</span> <span class="o">+</span> <span class="p">(</span><span class="n">ITree</span><span class="p">,)</span>
+
+
+<span class="k">class</span> <span class="nc">ITreeView</span><span class="p">(</span><span class="n">EntityView</span><span class="p">):</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="n">implements</span><span class="p">(</span><span class="s">&#39;ITree&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">cell_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">):</span>
+        <span class="n">entity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cw_rset</span><span class="o">.</span><span class="n">get_entity</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">)</span>
+        <span class="n">children</span> <span class="o">=</span> <span class="n">entity</span><span class="o">.</span><span class="n">children</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>After:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.selectors</span> <span class="kn">import</span> <span class="n">adaptable</span><span class="p">,</span> <span class="n">is_instance</span>
+<span class="kn">from</span> <span class="nn">cubicweb.entities.adapters</span> <span class="kn">import</span> <span class="n">ITreeAdapter</span>
+
+<span class="k">class</span> <span class="nc">MyEntityITreeAdapter</span><span class="p">(</span><span class="n">ITreeAdapter</span><span class="p">):</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="n">is_instance</span><span class="p">(</span><span class="s">&#39;MyEntity&#39;</span><span class="p">)</span>
+
+<span class="k">class</span> <span class="nc">ITreeView</span><span class="p">(</span><span class="n">EntityView</span><span class="p">):</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="n">adaptable</span><span class="p">(</span><span class="s">&#39;ITree&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">cell_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">):</span>
+        <span class="n">entity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cw_rset</span><span class="o">.</span><span class="n">get_entity</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">)</span>
+        <span class="n">itree</span> <span class="o">=</span> <span class="n">entity</span><span class="o">.</span><span class="n">cw_adapt_to</span><span class="p">(</span><span class="s">&#39;ITree&#39;</span><span class="p">)</span>
+        <span class="n">children</span> <span class="o">=</span> <span class="n">itree</span><span class="o">.</span><span class="n">children</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>As we can see, the interface/mixin duality disappears and the entity
+class itself is completely freed from these concerns. When you want
+to use the ITree interface of an entity, call its <cite>cw_adapt_to</cite> method
+to get an adapter for this interface, then access to members of the
+interface on the adapter</p>
+<p>Let&#8217;s look at an example where we defined everything ourselves. We
+start from:</p>
+<div class="highlight-python"><pre>class IFoo(Interface):
+    def bar(self, *args):
+        raise NotImplementedError
+
+class MyEntity(AnyEntity):
+    __regid__ = 'MyEntity'
+    __implements__ = AnyEntity.__implements__ + (IFoo,)
+
+    def bar(self, *args):
+        return sum(captain.age for captain in self.captains)
+
+class FooView(EntityView):
+   __regid__ = 'mycube.fooview'
+   __select__ = implements('IFoo')
+
+    def cell_call(self, row, col):
+        entity = self.cw_rset.get_entity(row, col)
+        self.w('bar: %s' % entity.bar())</pre>
+</div>
+<p>Converting to:</p>
+<div class="highlight-python"><pre>class IFooAdapter(EntityAdapter):
+    __regid__ = 'IFoo'
+    __select__ = is_instance('MyEntity')
+
+    def bar(self, *args):
+        return sum(captain.age for captain in self.entity.captains)
+
+class FooView(EntityView):
+   __regid__ = 'mycube.fooview'
+   __select__ = adaptable('IFoo')
+
+     def cell_call(self, row, col):
+         entity = self.cw_rset.get_entity(row, col)
+         self.w('bar: %s' % entity.cw_adapt_to('IFoo').bar())</pre>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">When migrating an entity method to an adapter, the code can be moved as is
+except for the <cite>self</cite> of the entity class, which in the adapter must become <cite>self.entity</cite>.</p>
+</div>
+</div>
+<div class="section" id="module-cubicweb.entities.adapters">
+<h2>4.6.3. Adapters defined in the library<a class="headerlink" href="#module-cubicweb.entities.adapters" title="Permalink to this headline">¶</a></h2>
+<p>some basic entity adapter implementations, for interfaces used in the
+framework itself.</p>
+<dl class="class">
+<dt id="cubicweb.entities.adapters.IDownloadableAdapter">
+<em class="property">class </em><tt class="descclassname">cubicweb.entities.adapters.</tt><tt class="descname">IDownloadableAdapter</tt><big>(</big><em>_cw</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#cubicweb.entities.adapters.IDownloadableAdapter" title="Permalink to this definition">¶</a></dt>
+<dd>interface for downloadable entities</dd></dl>
+
+<dl class="class">
+<dt id="cubicweb.entities.adapters.IProgressAdapter">
+<em class="property">class </em><tt class="descclassname">cubicweb.entities.adapters.</tt><tt class="descname">IProgressAdapter</tt><big>(</big><em>_cw</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#cubicweb.entities.adapters.IProgressAdapter" title="Permalink to this definition">¶</a></dt>
+<dd><p>something that has a cost, a state and a progression.</p>
+<p>You should at least override progress_info an in_progress methods on concret
+implementations.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="cubicweb.entities.adapters.ITreeAdapter">
+<em class="property">class </em><tt class="descclassname">cubicweb.entities.adapters.</tt><tt class="descname">ITreeAdapter</tt><big>(</big><em>_cw</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#cubicweb.entities.adapters.ITreeAdapter" title="Permalink to this definition">¶</a></dt>
+<dd><p>This adapter has to be overriden to be configured using the
+tree_relation, child_role and parent_role class attributes to benefit from
+this default implementation.</p>
+<p>This adapter provides a tree interface. It has to be overriden to be
+configured using the tree_relation, child_role and parent_role class
+attributes to benefit from this default implementation.</p>
+<p>This class provides the following methods:</p>
+</dd></dl>
+
+<p>More are defined in web/views.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="application-logic.html" title="4.7. How to use entities objects and adapters"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="load-sort.html" title="4.5. Loaded attributes and default sorting management"
+             >previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Repository development</a> &raquo;</li>
+          <li><a href="index.html" >4. Data as objects</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
