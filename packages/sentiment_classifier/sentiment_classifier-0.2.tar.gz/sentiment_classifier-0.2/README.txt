@@ -1,0 +1,34 @@
+Sentiment Classification using nltk, 
+Word Sense Disambiguation, SentiWordNet
+---------------------------------------
+
+Requirements
+------------
+
+You must have Python 2.6 with argparse <http://pypi.python.org/pypi/argparse/>
+and NLTK <http://www.nltk.org/>  2.0 installed. 
+NumPy <http://numpy.scipy.org/>. 
+SentiWordNet <http://sentiwordnet.isti.cnr.it/>
+
+How to Install
+--------------
+python setup.py install
+
+Documentation
+-------------
+sentiment_classifier/src/senti_classifier/documentation.html
+http://packages.python.org/sentiment_classifier/
+
+
+How to Use
+----------
+Script Usage
+
+bash$ senti_classifier -p path_to/SentiWordNet_3.0.0_20100908.txt 
+Success, Pickled Sentiwordnet to -->  SentiWn.p
+bash$ senti_classifier -c reviews.txt
+
+Python Usage
+bash$ cd sentiment_classifier/src/senti_classifier/
+bash$ python senti_classifier.py -p path_to/SentiWordNet_3.0.0_20100908.txt
+bash$ python senti_classifier.py -c reviews.txt
