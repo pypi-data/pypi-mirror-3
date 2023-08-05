@@ -1,0 +1,166 @@
+Metadata-Version: 1.0
+Name: TGInterface
+Version: 0.1
+Summary: Provides clients access to models and methods defined on a TurboGears server.
+Home-page: http://code.google.com/p/tg-interface/
+Author: Sam Wright
+Author-email: UNKNOWN
+License: MIT
+Description: 
+            With TurboGears Interface, the developer can write client code as if he 
+            were writing it on the server with direct access to server-side models 
+            and methods.
+            
+            It uses the most-excellent TGWebServices package to do the heavy lifting.
+            Unfortunately, the latest egg doesn't seem to work so you'll need to 
+            install TGWebServices with mercurial
+            (``hg clone https://code.google.com/p/tgws.tgws-2/``) in the TurboGears 
+            virtualenv (ie. server-side).
+            
+            Thanks to all who contributed to TGWebServices and TurboGears (and all
+            packages contained therein).
+        
+            As an example, let's say on the server you define the model as
+            
+            ::
+            
+                class Cheeses(DeclarativeBase):
+                    id = Column(Integer, primary_key=True)
+                    Shop_id = Column(Integer, ForeignKey('Shops.id'))
+                    Shop = relation('Shops', uselist=False, backref='Cheeses')
+                    Availability = Column(Boolean)
+        
+                class Shops(DeclarativeBase):
+                    id = Column(Integer, primary_key=True)
+        
+            and the controllers as
+            
+            ::
+            
+                from TGInterface import ServerSide
+        
+                @ServerSide.AutoAPI(model.Cheeses)
+                class Shops(ServerSide.Controller):
+                    @ServerSide.Returns(int)
+                    @ServerSide.self_as_model()
+                    def getNumberOfAvailableCheeses(self):
+                        available_cheeses = 0
+                        for cheese in self.Cheeses:
+                            if cheese.Available:
+                                available_cheeses += 1
+                        return available_cheeses
+        
+            You would define an API with
+            
+            ::
+            
+                # api.py
+                from TGInterface import helper
+        
+                class Shops(helper.APIClass):
+                    __methods__ = ['getNumberOfAvailableCheeses',]
+                    Cheeses = ['Cheeses']
+        
+                class Cheeses(helper.APIClass):
+                    Shop = 'Shops'
+                    Availability = bool
+        
+            Now on the client side, you can access these models and methods, eg.
+            
+            ::
+        
+                from TGInterface import ClientSide
+                import api  # api.py
+        
+                ClientSide.loadAPI(api)
+        
+                @ClientSide.AutoAPI(api.Shops)
+                class Shops(object):
+                    def _onCheesesChange_(self):
+                        self.getNumberOfAvailableCheeses()
+        
+                    def _getNumberOfAvailableCheesesResponse_(self, number):
+                        print 'Out of %d cheeses only %d are available.'                                         %(len(self.Cheeses), number)
+        
+                @ClientSide.AutoAPI(api.Cheeses)
+                class Cheeses(object):
+                    def _onAvailabilityChange_(self):
+                        if self.Shop:
+                            self.Shop.getNumberOfAvailableCheeses()
+        
+                camembert = Cheeses(Availability=True)
+                my_shop = Shop(Cheeses=[camembert])
+                cheddar = Cheeses(Shop=my_shop, Availability=False)
+                
+                # This first prints:
+                # 'Out of 1 cheeses only 1 are available.'
+                # Then soon after will print:
+                # 'Out of 2 cheeses only 1 are available.'
+                
+            Then you can access object attributes much like if you were using 
+            SQLAlchemy's ORM
+            
+            ::
+            
+                print camambert.Shop
+                # "Shop with id=1"
+                
+                print my_shop.Cheeses
+                # ["Cheese with id=1", "Cheese with id=2"]
+                
+                print my_shop.Cheeses[0].Shop
+                # "Shop with id=1"
+                
+                camembert.Availability = False
+                # 'Out of 2 cheeses only 0 are available.'
+                
+            (PS: You'll need to add)
+            
+            ::
+            
+                base_config.TGInterface_MODEL = model_module
+                base_config.TGInterface_API = api_module
+            
+            to your TurboGears project's ``config/app_cfg.py`` file.  These modules need
+            to be set up so ``dir(model_module)`` gives all of the models linked to
+            in the API, and ``dir(model_module)`` gives all of the ``APIClass`` 
+            classes you've defined.
+            
+            Features
+            --------
+            Server-side:
+            
+            * Works seamlessly with TurboGears
+            * Gives access to models and methods defined in an API
+            * Methods defined in Controllers automatically import and export complex types defined in the API
+            * (Optional) Methods can change 'self' to be the the 'self' object that initiated the call client-side
+        
+        
+            Client-side:
+            
+            * Automatically provides access to methods and models defined in the API
+            * Code looks identical to server-side code (using SQLAlchemy's ORM)
+            * Automatically guesses database relationships to keep client-data up-to-date
+            * All calls are made asynchronously and the module is multithread-safe
+            * Allows the developer to easily define callback functions for data being updated or server-side methods finishing
+        
+            TODO
+            ----
+            
+            Server-side:
+            
+            * No authentication built-in (should be easy enough to integrate TurboGear's authentication system)
+            * Documentation with Sphinx
+            
+            Client-side TODO:
+            
+            * Make it easy to gracefully tell the user of network outage / server error (at the moment, the developer can make error handlers for specific things going wrong, but there's probably a better way)
+            * Documentation with Sphinx
+            
+            
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: TurboGears
