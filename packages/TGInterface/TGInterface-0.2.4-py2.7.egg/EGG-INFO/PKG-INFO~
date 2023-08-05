@@ -1,0 +1,96 @@
+Metadata-Version: 1.0
+Name: TGInterface
+Version: 0.1
+Summary: Provides clients access to models and methods defined on the TG server.
+Home-page: http://code.google.com/p/tg-interface/
+Author: Sam Wright
+Author-email: UNKNOWN
+License: MIT
+Description: 
+            With TurboGears Interface, the developer can write client code as if 
+            he were writing it on the server with direct access to server-side models and methods.
+        
+            For example, let's say on the server you define the model as
+            
+            ::
+            
+            
+                class Cheeses(DeclarativeBase):
+                    id = Column(Integer, primary_key=True)
+                    Shop_id = Column(Integer, ForeignKey('Shops.id'))
+                    Shop = relation('Shops', uselist=False, backref='Cheeses')
+                    Availability = Column(Boolean)
+        
+                class Shops(DeclarativeBase):
+                    id = Column(Integer, primary_key=True)
+        
+        
+            and the controllers as::
+        
+        
+            from TGInterface import ServerSide
+        
+            @ServerSide.AutoAPI(model.Cheeses)
+            class Shops(ServerSide.Controller):
+                @ServerSide.Returns(int)
+                @ServerSide.self_as_model()
+                def getNumberOfAvailableCheeses(self):
+                    available_cheeses = 0
+                    for cheese in self.Cheeses:
+                        if cheese.Available:
+                            available_cheeses += 1
+                    return available_cheeses
+        
+        
+            You would define an API with::
+        
+            
+            # api.py
+            from TGInterface import helper
+        
+            class Shops(helper.APIClass):
+                __methods__ = ['getNumberOfAvailableCheeses',]
+                Cheeses = ['Cheeses']
+        
+            class Cheeses(helper.APIClass):
+                Shop = 'Shops'
+                Availability = bool
+        
+        
+            Now on the client side, you can access these models and methods, eg::
+        
+        
+            from TGInterface import ClientSide
+            import api
+        
+            ClientSide.loadAPI(api)
+        
+            @ClientSide.AutoAPI(api.Shops)
+            class Shops(object):
+                def _onCheesesChange_(self):
+                    self.getNumberOfAvailableCheeses()
+        
+                def _getNumberOfAvailableCheesesResponse_(self, number):
+                    print 'Out of %d cheeses only %d are available.' %(len(self.Cheeses), number)
+        
+            @ClientSide.AutoAPI(api.Cheeses)
+            class Cheeses(object):
+                def _onAvailabilityChange_(self):
+                    if self.Shop:
+                        self.Shop.getNumberOfAvailableCheeses()
+        
+            camembert = Cheeses(Availability=True)
+            my_shop = Shop(Cheeses=[camembert])
+            cheddar = Cheeses(Shop=my_shop, Availability=False)
+            
+            # This first prints:
+            # 'Out of 1 cheeses only 1 are available.'
+            # Then soon after will print:
+            # 'Out of 2 cheeses only 1 are available.'
+            
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: TurboGears
