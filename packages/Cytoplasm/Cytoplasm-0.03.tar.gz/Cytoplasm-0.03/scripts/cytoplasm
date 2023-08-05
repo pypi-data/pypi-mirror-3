@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+import argparse, sys, os
+
+def build_site(dir, **args):
+    "This is what will be called when the user runs `cytoplasm build`"
+    import cytoplasm
+    cytoplasm.build(dir)
+
+def init_site(site, **args):
+    "This is the function called when you run `cytoplasm init something`"
+    sites = {
+            "bare": "git://github.com/startling/cytoplasm-bare.git",
+            "cytoplasm-site": "git://github.com/startling/cytoplasm-site.git",
+    }
+    os.system("git clone %s ." %(sites[site]))
+    os.system("git submodule init")
+    os.system("git submodule update")
+
+def serve_site(port, rebuild, **args):
+    "This is the function called when you run `cytoplasm serve`: serve the site in the build_dir."
+    import cytoplasm.server
+    # make this work in either Python 2.x or 3.x
+    if sys.version_info.major >= 3:
+        from http.server import HTTPServer
+    else:
+        from BaseHTTPServer import HTTPServer
+    # get the handler form cytoplasm.server, according to whether rebuild is true or false
+    handler = cytoplasm.server.initialize(rebuild)
+    # make a server with the handler and the port
+    httpd = HTTPServer(('', port), handler)
+    while True:
+        httpd.handle_request()
+
+class Parser(argparse.ArgumentParser):
+    "A custom parser class with more helpful error messages."
+    def error(self, message): 
+        sys.stderr.write('error: %s\n' % message) 
+        self.print_help()
+        sys.exit(2) 
+
+
+# Make an argparse parser, using the class above.
+parser = Parser(description='a static blog compiler.', add_help=True)
+# (subparsers, aka subcommands)
+subparsers = parser.add_subparsers(title="Subcommands")
+# "build" subparser, i.e. build the site
+build = subparsers.add_parser('build', help='Build the cytoplasm site in the working directory.')
+# Associate the build function, above, with the subcommand `build`.
+build.set_defaults(func=build_site)
+build.add_argument("dir", type=str, help="The source directory of your site; defaults to cwd.", 
+        action="store", nargs="?", default=".")
+# "init" subparse
+init = subparsers.add_parser('init', help='Clone a repository to work from (requires Git).')
+init.set_defaults(func=init_site)
+init.add_argument('site', choices=["bare", "cytoplasm"], help="The site you want to clone.")
+# serve subparser
+serve = subparsers.add_parser('serve', help="Serve your site with Python's built-in server.")
+serve.set_defaults(func=serve_site)
+serve.add_argument("port", type=int, help="The port to serve on; defaults to 8080.", action="store",
+        nargs="?", default=8080)
+serve.add_argument('-r', '--rebuild', help="Re-build the site automatically when changes are made.",
+        action="store_true")
+# Parse the arguments from the command line.
+args = parser.parse_args()
+# run the functions associated with the arguments.
+args.func(**vars(args))
