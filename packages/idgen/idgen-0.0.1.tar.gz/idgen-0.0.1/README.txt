@@ -1,0 +1,129 @@
+Introduction
+============
+
+idgen lets you generate unique identifiers that:
+
+  * match a desired format;
+  * look random (if you activate crypto);
+  * can be converted back to ints, given the password; and
+  * use ALL possible values in the forma
+
+Let's say you want to generate IDs like::
+
+  vis90000
+  suu54581
+  qcr00006
+  pcg75148
+  yuy22283
+  low69877
+
+Feed the numbers 0-5 thru ``Encoder('aaaddddd', password='jupiterx')``.
+
+You can reverse the process, turning these ids back into 0-5.
+
+Questions
+=========
+
+**Q:** Why not use incrementing integers as identifiers?
+
+**A:** You may want to conceal from outsiders how rapidly objects
+are being created.  You may want specific formats that use less
+characters than base10 but are human-friendly.
+
+**Q:** Why not randomly generate identifiers?
+
+**A:** If you want to avoid issuing the same id twice, you need to look
+up each new id in a database or map.  As the number of issued ids
+grows, the number of lookups per new id grows.  If you only plan
+to use a tiny portion of the available keyspace, this is acceptable,
+but inelegant compared to just encrypting an int.
+
+**Q:** Why not just encrypt an integer with AES or something?
+
+**A:** Because the output of the block cipher is a fixed size, which
+is not likely to match your desired format.
+
+A format of digits and uppercase letters, for instance, has 10**A * 26**B values.
+
+The 128-bit outputs of AES would take 39 decimal digits to encode.
+
+If you truncate the output of the block cipher, the ids are no longer
+unique or reversible.
+
+
+
+
+Installation
+============
+
+Checkout the source and run ``python setup.py install``.
+
+Using Idgen
+===========
+
+::
+
+  from idgen import Encoder
+  enc = Encoder('adad', password='Jupiterx')
+  id = enc.encode(13) # f6d9
+  i = enc.decode(id) # 13
+
+This creates an encoder which encodes/decodes strings of the form
+letter-digit-letter-digit.  There are ``26*10*26*10`` such strings,
+so the encoder can handle integers from 0 to n-1.
+
+Using Different Character Sets
+------------------------------
+
+::
+
+  enc = Encoder('wpwpw', types={'w': 'VWXYZ', 'p': '!@#$%^&*()'}, password='Jupitery')
+  for i in range(5):
+    print enc.encode(i)
+
+Produces::
+
+  X$X&X
+  Y%W(W
+  V!W$V
+  Z)V@Y
+  V)X)X
+
+Encoding Without Encryption
+---------------------------
+
+If you just want to convert between integers and some alphanumeric
+representation::
+
+  enc = Encoder('aaa')
+  for i in range(200, 205):
+    print enc.encode(i)
+
+Produces::
+
+  ahs
+  aht
+  ahu
+  ahv
+  ahw
+
+Inserting Constant Characters (Punctuation)
+-------------------------------------------
+
+::
+
+  enc = Encoder('ad/ddd-a.d', password='Jupiterz')
+  for i in range(5):
+    print enc.encode(i)
+
+Produces::
+
+  j7/739-l.5
+  x2/319-z.2
+  w9/274-i.8
+  z5/166-m.9
+  v3/500-p.3
+
+
+Idgen treated the punctuation characters as constant because they
+are not keys in the *types* map.
