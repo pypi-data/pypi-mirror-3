@@ -1,0 +1,197 @@
+Metadata-Version: 1.0
+Name: pyhai
+Version: 0.1.1
+Summary: UNKNOWN
+Home-page: https://bitbucket.org/marklap/pyhai
+Author: pyhai@mindmind.com
+Author-email: pyhai@mindmind.com
+License: http://www.apache.org/licenses/LICENSE-2.0
+Download-URL: https://bitbucket.org/marklap/pyhai/src/tip/src/dist/pyhai-0.1.1.tar.gz
+Description: =================================
+        Welcome to pyHai's documentation!
+        =================================
+        
+        A system profiler/auditor written in Python that supports custom plugins and a custom profiler.
+        Custom plugins can superscede builtin plugins to allow for a great deal of flexibility. Plugins
+        follow naming conventions for ease of use.
+        
+        License
+        =======
+        
+        Copyright 2011 Mark LaPerriere
+        
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+        
+            http://www.apache.org/licenses/LICENSE-2.0
+        
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+        
+        Project
+        =======
+        
+        http://bitbucket.org/marklap/pyhai
+        
+        API Docs: `html <http://packages.python.org/pyhai/api/index.html>`_, `tar.gz <https://bitbucket.org/marklap/pyhai/src/tip/apidocs/pyhai.apidoc.tar.gz>`_, `zip <https://bitbucket.org/marklap/pyhai/src/tip/apidocs/pyhai.apidoc.zip>`_, `source <https://bitbucket.org/marklap/pyhai/src/tip/apidocs/pyhai>`_
+        
+        Basic Use
+        =========
+        
+        An example of running pyHai with all the default parameters and using the builtin auditing plugins.::
+        
+            >>> from pyhai import pyhai
+            >>> pyhai.audit()
+        
+        This will run all the builtin auditing plugins and return a dictionary object with detailed information about the local system.
+        The dictionary keys are the lowercase names of the plugin files (minus the '.py' file name extension) and the contents are the
+        results of the plugin's run.
+        
+        Advanced Use
+        ============
+        
+        Running Additional, Custom Plugins
+        ----------------------------------
+        
+        An example of running pyHai with a single additional plugin path. The builtin plugins will be run before the "custom" plugins found in the path supplied.::
+        
+            >>> from pyhai import pyhai
+            >>> pyhai.audit('/path/to/my/plugins')
+        
+        This will return the dictionary of results of the auditing run including builtin plugins and the custom plugins found in the path provided.
+        
+        An example of running pyHai with a number of additional plugin paths.::
+        
+            >>> from pyhai import pyhai
+            >>> pyhai.audit(['/path/to/my/plugins', '/path/to/some/other/plugins'])
+        
+        This will return the dictionary of results of the auditing run including builtin plugins and all custom plugins.
+        
+        .. important:: When using custom plugins, if you name your plugin the same as one of the builtin plugins, your plugin will superscede the
+            builtin plugin. This allows users to provide their own plugins, but could cause confusion if it is unexcpected. For instance, if you
+            write a plugin called 'environment', the builtin plugin - environment - will not run and your plugin will be run instead.
+        
+        Suppressing Builtin Plugins
+        ---------------------------
+        
+        An example of running pyHai with a single custom plugin directory and without running the builtin plugins.::
+        
+            >>> from pyhai import pyhai
+            >>> pyhai.audit('/path/to/my/plugins', enable_default_plugins=False)
+        
+        .. important:: If you don't supply custom plugin path(s) and try to disable builtin plugins, an exception is raised - nothing to do.
+        
+        Extending
+        =========
+        
+        This section describes how to create your own auditing plugins and using a custom profiler.
+        
+        Creating Auditing Plugins
+        -------------------------
+        
+        Conventions
+        ^^^^^^^^^^^
+        
+        Plugin files must use all lowercase letters and seperate words with underscores.::
+        
+            super_cool_widget.py
+        
+        .. important:: Any files starting with an underscore (_) or having an extension other than .py are ignored. This can be helpful if you need
+            some utility functions such as is present in the distributions plugins/linux/__init__.py module for various package manager support.
+        
+        Plugin class names use CamelCase letters and reflect the plugin file name.::
+        
+            class SuperCoolWidget(AuditorPlugin):
+                pass
+        
+        Extending
+        ^^^^^^^^^
+        
+        Plugin classes have a single required method: ``run``. This method will be called as part of the default run.
+        
+        We'll use the builtin "environment" plugin as an example. You can check out the source code in the builtin plugins for additional reference.
+        Example Custom Plugin::
+        
+            # file: environment.py
+            
+            # import the auditing plugin base class
+            from pyhai import AuditorPlugin
+        
+            # name your plugin the same as your file name.
+            class EnvironmentPlugin(AuditorPlugin):
+                # provide a run method
+                def run(self, *args, **kwargs):
+                    return dict(os.environ)
+        
+        
+        Hooks
+        ^^^^^
+        
+        There are two hooks provided in the auditing base class. If you provide them in your custom auditing class, pyHai will execute them as such.
+        
+        The ``before`` method will be called before the ``run`` method is called. The results of the ``before`` method will passed along to the ``run``
+        method as a keyword argument: ``before_results``.
+        
+        The ``after`` method will be called after the ``run`` method is called. The results of the run are available in the plugin class by calling
+        ``self._get_results()``.
+        
+        Creating a Custom Profiler
+        --------------------------
+        
+        Extending
+        ^^^^^^^^^
+        
+        Simply import the profiler base class and extend it. There are two methods that need to be supplied by the custom profile class: ``profile``, and ``system``.
+        The profile method needs to return a dictionary with some basic information about the system running pyHai to help auditing plugins
+        make desicions about how to audit.::
+        
+            from pyhai.profilers.base import ProfilerBase
+        
+            class DefaultProfiler(ProfilerBase):
+        
+                def profile(self):
+                    # return a simple dictionary with basic information about the local system
+                    # this dictionary will be provided to all auditing plugins
+                    pass
+        
+                def system_class(self):
+                    # return a string representing the type of system pyHai is running on
+                    # for example the default profiler returns the results of a call to the system method of the builtin
+                    # python module platform
+                    pass
+        
+                def system(self):
+                    # a string that represents more specifically the system pyHai is running on
+                    # for linux this will be a single word representing the linux distribution: ubuntu, redhat, centos
+                    # for windows this will be a single word representing the Windows version: windows7, windowsxp, windows2008serverr2, etc
+                    pass
+        
+        
+        
+        .. toctree::
+           :maxdepth: 2
+        
+        
+        Indices and tables
+        ==================
+        
+        * :ref:`genindex`
+        * :ref:`modindex`
+        * :ref:`search`
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: System :: Monitoring
+Classifier: Topic :: System :: Systems Administration
+Classifier: Topic :: Utilities
