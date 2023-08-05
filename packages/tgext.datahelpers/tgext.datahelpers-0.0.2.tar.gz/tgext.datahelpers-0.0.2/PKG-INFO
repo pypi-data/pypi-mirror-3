@@ -1,0 +1,144 @@
+Metadata-Version: 1.0
+Name: tgext.datahelpers
+Version: 0.0.2
+Summary: Helpers to manage data and attachments on TurboGears
+Home-page: http://bitbucket.org/_amol_/tgext.datahelpers
+Author: Alessandro Molina
+Author-email: alessandro.molina@axant.it
+License: MIT
+Description: About Data Helpers
+        -------------------------
+        
+        tgext.datahelpers is a collection of utilities to help manage stored data
+        in common web applications.
+        
+        tgext.datahelpers contains:
+        
+        - Validators to fetch objects from database by Id (both SQLA and Ming)
+        - Store Attachments by just declaring a Column in your model
+        - Store image and thumbnails by just declaring a Column in your model
+        
+        Installing
+        -------------------------------
+        
+        tgext.datahelpers can be installed both from pypi or from bitbucket::
+        
+            easy_install tgext.datahelpers
+        
+        should just work for most of the users
+        
+        Validators
+        --------------------------------
+        
+        ``tgext.datahelpers.validators`` provides the ``SQLAEntityConverter`` and
+        ``MingEntityConverter`` that convert the given
+        parameter (which is expected to be the primary key of an object) to
+        the actually object itself::
+        
+            from tgext.datahelpers.validators import SQLAEntityConverter
+        
+            @expose()
+            @validate({'doc':SQLAEntityConverter(Document)}, error_handler=index)
+            def photo(self, doc):
+                return redirect(doc.photo.url)
+        
+        Attachments
+        -----------------------------------
+        
+        ``tgext.datahelpers.fields`` provides the ``Attachment`` field for SQLAlchemy
+        to provide an easy and convenient way to store attachments.
+        
+        The ``Attachment`` field will permit to assign files to the attribute
+        declared with ``Attachment`` type and will store a copy of the file on disk
+        as soon as the object is committed to the database.
+        
+        The document field will provide a bunch of attributes you can use to
+        access the file:
+        
+        - ``file`` - A file object pointing to the saved file
+        - ``filename`` - The name of the saved file
+        - ``url`` - Url from which the file is fetchable
+        - ``local_path`` - Local path of the file on disk
+        
+        Files will be saved in ``tg.config['attachments_path']`` and url will be
+        generated using ``tg.config['attachments_url']``. By default those are set
+        at */public/attachments* and */attachments*.
+        
+        The ``Attachment`` field accepts a *attachment_type* parameter which specifies
+        the kind of attachment that it is going to be saved. The default is
+        ``tgext.datahelpers.fields.AttachedFile`` which just stores the file itself::
+        
+            from tgext.datahelpers.fields import Attachment
+            class Document(DeclarativeBase):
+                __tablename__ = 'document'
+        
+                uid = Column(Integer, autoincrement=True, primary_key=True)
+                file = Column(Attachment)
+        
+            d = Document(file=open('/myfile.txt'))
+            DBSession.add(d)
+            DBSession.flush()
+            DBSession.commit()
+        
+            d = DBSession.query(Document).first()
+            print d.file.url
+        
+            '/attachments/747722ca-1a07-11e1-83fc-001ff3d72e6b/myfile.txt'
+        
+        Apart from file objects also instances of ``cgi.FieldStorage`` can be assigned
+        to permit to quickly store uploaded files.
+        
+        Image Attachments with Thumbnail
+        --------------------------------------
+        
+        Using the ``tgext.datahelpers.fields.AttachedImage`` as the argument of the
+        ``Attachment`` field it is possible to quickly store images with their thumbnail.
+        
+        The resulting object will provide the same attributes as the generic Attachment one
+        adding two more thumbnail related properties:
+        
+        - ``thumb_local_path`` - The local path of the image thumbnail
+        - ``thumb_url`` - The url of the thumbnail
+        
+        Storing image with thumbnails is as easy as storing the file itself::
+        
+            from tgext.datahelpers.fields import Attachment, AttachedImage
+            class Document(DeclarativeBase):
+                __tablename__ = 'document'
+        
+                uid = Column(Integer, autoincrement=True, primary_key=True)
+                image = Column(Attachment(AttachedImage))
+        
+            d = Document(image=open('/photo.jpg'))
+            DBSession.add(d)
+            DBSession.flush()
+            DBSession.commit()
+        
+            d = DBSession.query(Document).first()
+            print d.image.url
+            '/attachments/d977144a-1a08-11e1-8131-001ff3d72e6b/aperto.tiff'
+            print d.image.thumb_url
+            'attachments/d977144a-1a08-11e1-8131-001ff3d72e6b/thumb.png'
+        
+        
+        Thumbnail Options
+        =======================================
+        
+        By default thumbnails will be generated with size 128, 128 and in PNG format.
+        This can be changed by sublcassing the ``AttachedImage`` class and specifying
+        the ``thumbnail_size`` and ``thumbnail_format`` attributes::
+        
+            class BigThumbnailAttachedImage(AttachedImage):
+                thumbnail_size = (320, 320)
+                thumbnail_format = 'jpg'
+        
+            class Document(DeclarativeBase):
+                __tablename__ = 'document'
+        
+                uid = Column(Integer, autoincrement=True, primary_key=True)
+                image = Column(Attachment(BigThumbnailAttachedImage))
+Keywords: turbogears2.extension
+Platform: UNKNOWN
+Classifier: Environment :: Web Environment
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: TurboGears
