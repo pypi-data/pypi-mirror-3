@@ -1,0 +1,194 @@
+====================================
+Technical details of the cairo tests
+====================================
+
+Normalizing undefined bits in RGB24 images
+------------------------------------------
+
+Cairo ImageSurfaces using the cairo.FORMAT_RGB24 pixel format have undefined
+bits inside their buffers, which leads to false mismatches when comparing two
+such surfaces by their buffer contents. The test runner goes to some effort to
+canonicalise the buffer contents so that equal RGB24 images compare equal:
+
+>>> import cairo
+>>> def create_surface(x1, y1, x2, y2):
+...     surface = cairo.ImageSurface(cairo.FORMAT_RGB24, 100, 100)
+...     ctx = cairo.Context(surface)
+...     ctx.set_source_rgb(1, 1, 1)
+...     ctx.paint()
+...     ctx.rectangle(0, 0, 100, 100)
+...     ctx.move_to(x1, y1)
+...     ctx.line_to(x2, y2)
+...     ctx.set_source_rgb(0, 0, 0)
+...     ctx.stroke()
+...     return surface
+
+>>> sample_txt = write('sample.txt', """\
+...
+... .. figure:: rgb24.png
+...
+...     ``create_surface(25, 50, 75, 50)``
+...
+... """)
+
+>>> from tl.testing.cairo import DocFileSuite
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+OK
+
+On the other hand, canonicalisation must not be overzealous: different images
+still have to yield a mismatch:
+
+>>> def create_surface(x1, y1, x2, y2):
+...     surface = cairo.ImageSurface(cairo.FORMAT_RGB24, 100, 100)
+...     ctx = cairo.Context(surface)
+...     ctx.rectangle(0, 0, 100, 100)
+...     ctx.move_to(y1, x1)
+...     ctx.line_to(y2, x2)
+...     ctx.stroke()
+...     return surface
+
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+FAIL: /test_dir/sample.txt
+...-------------------------------------------------------------------
+File "/test_dir/sample.txt", line 1, in sample.txt:
+Failed example:
+    create_surface(25, 50, 75, 50)
+Image differs from expectation: rgb24.png
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (failures=1)
+
+
+Matching multi-line figure captions
+-----------------------------------
+
+The way both regular expressions and Python code are employed to match figures
+which are to be evaluated as graphical doc-tests is complex enough to deserve
+some tests of its own.
+
+A caption must contain exactly one pair of double back-ticks in order for the
+Python expression to be determined unambiguously:
+
+>>> sample_txt = write('sample.txt', """\
+...
+... .. figure:: rgb24.png
+...
+...     some text ``create_surface(25, 50, 75, 50) some more text
+...
+... """)
+>>> mock = Mock()
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': mock}))
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+OK
+>>> mock.called
+False
+
+>>> sample_txt = write('sample.txt', """\
+...
+... .. figure:: rgb24.png
+...
+...     some text ``create_surface(25, 50, 75, 50)`` some ``more`` text
+...
+... """)
+>>> mock = Mock()
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': mock}))
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+OK
+>>> mock.called
+False
+
+Multi-line captions should be recognized by being limited by whitespace-only
+lines and the Python expression may be spread across several lines. In the
+following example, we see that the caption doesn't include the last text line
+by the fact that the additional double back-ticks don't hinder recognition of
+the expression:
+
+>>> sample_txt = write('sample.txt', """\
+...
+... .. figure:: rgb24.png
+...
+...  
+...     some text ``create_surface(25,
+...      50, 75, 50)`` some more text
+...     
+...     text that doesn't belong to ``the`` caption
+...
+... """)
+>>> mock = Mock()
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': mock}))
+======================================================================
+FAIL: /test_dir/sample.txt ...
+>>> mock.call_args
+call(25, 50, 75, 50)
+
+Captions should also be completely recognized right at the end of the file:
+
+>>> sample_txt = write('sample.txt', """\
+...
+... .. figure:: rgb24.png
+...
+...  
+...     some text ``create_surface(25,
+...      50, 75, 50)`` some more text
+... """)
+>>> mock = Mock()
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': mock}))
+======================================================================
+FAIL: /test_dir/sample.txt ...
+>>> mock.call_args
+call(25, 50, 75, 50)
+
+Even the final newline character is not necessary:
+
+>>> sample_txt = write('sample.txt', """\
+...
+... .. figure:: rgb24.png
+...
+...  
+...     some text ``create_surface(25,
+...      50, 75, 50)`` some more text""")
+>>> mock = Mock()
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': mock}))
+======================================================================
+FAIL: /test_dir/sample.txt ...
+>>> mock.call_args
+call(25, 50, 75, 50)
+
+
+Test options
+------------
+
+If the options given in the caption of a graphical test cannot be evaluated,
+the error reported contains the original traceback as well as the first line
+number of the erroneous example:
+
+>>> sample_txt = write('sample.txt', """\
+...
+... .. figure:: rgb24.png
+...
+...     ``create_surface(25, 50, 75, 50)`` # options: foo=bar
+...
+... """)
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+ERROR: /test_dir/sample.txt
+...-------------------------------------------------------------------
+Traceback (most recent call last):
+  ...
+Exception: Options could not be evaluated in example at line 1:
+    Traceback (most recent call last):
+      ...
+    NameError: name 'bar' is not defined
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (errors=1)
+
+
+.. Local Variables:
+.. mode: rst
+.. End:

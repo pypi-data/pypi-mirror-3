@@ -1,0 +1,224 @@
+===========================
+Installing callable scripts
+===========================
+
+Some functionality one might want to test makes use of external programs such
+as a pager or a text editor. The ``tl.testing.script`` module provides
+utilities that install simple mock scripts in places where the code to be
+tested will find them. They take a string of Python code and create a wrapper
+script that sets the Python path to match that of the test and runs the code.
+
+
+The script's location
+=====================
+
+Without further arguments, the ``install`` function installs the mock script
+to the temporary directory, makes it executable and returns its absolute path:
+
+>>> from tl.testing.script import install
+>>> script_simple = install("print 'A simple script.'")
+>>> print open(script_simple).read()
+#!...
+<BLANKLINE>
+print 'A simple script.'
+
+>>> import tempfile
+>>> import os.path
+>>> os.path.dirname(script_simple) == tempfile.gettempdir()
+True
+
+We can now call the script. In order to make this file easier to read, let's
+define a helper function ``call`` first:
+
+>>> import subprocess
+>>> def call(script):
+...     sub = subprocess.Popen(script, shell=True, stdout=subprocess.PIPE)
+...     stdout, stderr = sub.communicate()
+...     print stdout
+
+>>> call(script_simple)
+A simple script.
+
+We can also influence the installation path of the script. To show this, we
+create a temporary directory and request that the script be installed into it
+and given the name 'script':
+
+>>> location = tempfile.mkdtemp()
+>>> path = os.path.join(location, 'script')
+>>> script_at_path = install("print 'A script at a path.'", path=path)
+>>> script_at_path == path
+True
+>>> call(script_at_path)
+A script at a path.
+
+Alternatively, only the script's base name may be specified. The ``install``
+function will then create a temporary directory to install the script into:
+
+>>> script_named = install("print 'A named script.'", name='script')
+>>> os.path.basename(script_named)
+'script'
+>>> os.path.dirname(os.path.dirname(script_named)) == tempfile.gettempdir()
+True
+>>> call(script_named)
+A named script.
+
+
+Making the script available via the environment
+===============================================
+
+If the script's base name is known, it makes sense to put its directory to the
+front of the system's binary path, for instance in order for the script to be
+found instead of a program with a well-known name. We remember the current
+value of the PATH variable for use in the clean-up demonstrations:
+
+>>> original_path = os.environ['PATH']
+>>> script_on_path_foo = install("print 'A script on PATH: foo.'",
+...                              name='tl.testing-foo', on_path=True)
+>>> first_path = os.environ['PATH'].split(':')[0]
+>>> os.path.dirname(script_on_path_foo) == first_path
+True
+>>> call('tl.testing-foo')
+A script on PATH: foo.
+
+After installing a second script this way, both are on the binary path:
+
+>>> script_on_path_bar = install("print 'A script on PATH: bar.'",
+...                              name='tl.testing-bar', on_path=True)
+>>> call('tl.testing-foo')
+A script on PATH: foo.
+>>> call('tl.testing-bar')
+A script on PATH: bar.
+
+Also, installing a script on the path using the same name as an existing
+program will override that program (since the new path entry is prepended to
+the binary path list):
+
+>>> script_on_path_bar2 = install("print 'A script on PATH: bar 2.'",
+...                               name='tl.testing-bar', on_path=True)
+>>> call('tl.testing-bar')
+A script on PATH: bar 2.
+
+Finally, ``install`` can be told to store the file path of the installed
+script in the environment of the process since it is a common pattern for
+applications to determine which external programs to run by examining a
+environment variable such as ``PAGER`` or ``EDITOR``. This works both if the
+variable already existed, and if it is not yet used:
+
+>>> used_variable = 'tl.testing-%s' % os.getpid()
+>>> assert used_variable not in os.environ
+>>> os.environ[used_variable] = 'foo'
+>>> script_foo = install("print 'A mock foo.'", env=used_variable)
+>>> import os
+>>> call(os.environ[used_variable])
+A mock foo.
+
+>>> unused_variable = 'tl.testing-%s' % (os.getpid() + 1)
+>>> assert unused_variable not in os.environ
+>>> script_bar = install("print 'A mock baz.'", env=unused_variable)
+>>> import os
+>>> call(os.environ[unused_variable])
+A mock baz.
+
+
+Python environment inside the script
+====================================
+
+In addition to the Python source code passed to ``install``, the generated
+script will contain a few lines in the beginning that make it use the same
+Python interpreter and module search path as the tests themselves. We
+demonstrate this by preparing a script that compares its executable and Python
+path with our own and imports and accesses a module that is not part of the
+standard library. (We let it access ``tl.testing.script`` as we're sure we
+have can import it ourselves.)
+
+>>> import sys
+>>> script_python = install("""\
+... import sys
+... print 'Executable:', sys.executable == %r
+... print 'Path:', sys.path == %r
+... import tl.testing.script
+... print tl.testing.script.install
+... """ % (sys.executable, sys.path))
+
+>>> print open(script_python).read()
+#!...
+<BLANKLINE>
+import sys
+sys.path[:] = [...]
+<BLANKLINE>
+import sys
+print 'Executable:', sys.executable == '...'
+print 'Path:', sys.path == [...]
+import tl.testing.script
+print tl.testing.script.install
+
+>>> call(script_python)
+Executable: True
+Path: True
+<function install at 0x...>
+
+
+Cleaning up
+===========
+
+The ``tl.testing.script`` module defines a function ``teardown_scripts`` that
+cleans up after previous ``install`` calls. When a script is installed, files
+and directories to be cleaned up later are stored in a module-global list:
+
+>>> import tl.testing.script
+>>> tmp_paths = [script_simple, script_at_path, os.path.dirname(script_named),
+...              os.path.dirname(script_on_path_foo),
+...              os.path.dirname(script_on_path_bar),
+...              os.path.dirname(script_on_path_bar2),
+...              script_foo, script_bar, script_python]
+>>> tl.testing.script.tmp_paths == tmp_paths
+True
+>>> all(os.path.exists(path) for path in tmp_paths)
+True
+
+Also, the original values of any modified environment variables are
+remembered, with ``None`` signalling that the variable had not been in the
+environment before:
+
+>>> original_environ = {'PATH': original_path,
+...                     used_variable: 'foo',
+...                     unused_variable: None}
+>>> tl.testing.script.original_environ == original_environ
+True
+>>> all(os.environ[key] != value
+...     for key, value in tl.testing.script.original_environ.items())
+True
+
+Running ``teardown_scripts`` removes the stored temporary paths and resets or
+deletes the modified environment variables:
+
+>>> from tl.testing.script import teardown_scripts
+>>> teardown_scripts()
+>>> tl.testing.script.tmp_paths
+[]
+>>> any(os.path.exists(path) for path in tmp_paths)
+False
+>>> tl.testing.script.original_environ
+{}
+>>> os.environ['PATH'] == original_path
+True
+>>> os.environ[used_variable]
+'foo'
+>>> unused_variable in os.environ
+False
+
+``teardown_scripts`` may take one argument that will be ignored so the
+function can be used as a test suite's ``tearDown`` callback. As we
+demonstrate this, we'll see that ``teardown_scripts`` may also be called if no
+scripts were installed previously:
+
+>>> teardown_scripts(object())
+>>> tl.testing.script.tmp_paths
+[]
+>>> tl.testing.script.original_environ
+{}
+
+
+.. Local Variables:
+.. mode: rst
+.. End:

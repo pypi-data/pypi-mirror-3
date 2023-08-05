@@ -1,0 +1,183 @@
+==================================
+Sandboxes of directories and files
+==================================
+
+When testing code that modifies directories and files, it is useful to be able
+to create and inspect a sample tree of directories and files easily. The
+``tl.testing.fs`` module provides support for creating a tree from a textual
+description, listing it in the same format and clean up after itself.
+
+While we use the term 'sandbox', this is not about security at all. Tests that
+use the functions described are not restricted to work within the sandbox
+directories; they may still happily wreak havoc anywhere on the file system.
+
+Note that this implementation was not designed with threading in mind: it
+changes the working directory of the process and uses module-global variables.
+
+
+Setup
+=====
+
+The ``setup_sandboxes`` function is used to save the original working
+directory of the test runner. It may take one argument that will be ignored so
+it can be used as the ``setUp`` callback of a test suite:
+
+>>> from tl.testing.fs import setup_sandboxes
+>>> setup_sandboxes()
+>>> setup_sandboxes(object())
+
+The current working directory is now stored in a module-global variable. We
+also remember it for later comparisons:
+
+>>> import tl.testing.fs
+>>> import os
+>>> tl.testing.fs.original_cwd == os.getcwd()
+True
+>>> original_cwd = os.getcwd()
+
+
+Creating sandboxes
+==================
+
+The ``new_sandbox`` function creates a directory and populates it with items
+described by a multi-line string, one line per item. Each line consists of a
+character specifying the type of item (directory, file, symbolic link) and the
+path relative to the sandbox. Depending on the type, a third field may appear.
+Fields are separated by whitespace:
+
+>>> from tl.testing.fs import new_sandbox
+>>> new_sandbox("""\
+... d foo
+... f foo/bar asdf
+... l baz -> foo/bar
+... """)
+
+Our working directory has been changed to the new sandbox directory:
+
+>>> sandbox = os.getcwd()
+>>> sandbox != tl.testing.fs.original_cwd
+True
+
+In order to be able to clean up later, the path to the sandbox is stored in a
+module-global list:
+
+>>> tl.testing.fs.sandboxes == [sandbox]
+True
+
+The sandbox is located in the temporary directory as used by the ``tempfile``
+module:
+
+>>> import os.path
+>>> import tempfile
+>>> os.path.dirname(sandbox) == tempfile.gettempdir()
+True
+>>> os.path.basename(sandbox) in os.listdir(tempfile.gettempdir())
+True
+
+The content of the sandbox has been created according to our three-line
+description. The third field of the file line is written to the file, the
+third file for the symbolic link must start with '-> ' and specifies the link
+target:
+
+>>> sorted(os.listdir('.'))
+['baz', 'foo']
+>>> os.path.isdir('foo')
+True
+>>> os.path.islink('baz')
+True
+>>> os.readlink('baz')
+'foo/bar'
+>>> os.listdir('foo')
+['bar']
+>>> os.path.isfile('foo/bar')
+True
+>>> open('foo/bar').read()
+'asdf'
+
+It is not allowed to specify paths that point outside the sandbox:
+
+>>> new_sandbox("f /tmp/tl.cli.rename-impossible")
+Traceback (most recent call last):
+ValueError: "/tmp/tl.cli.rename-impossible" points outside the sandbox.
+
+>>> new_sandbox("f ../tl.cli.rename-impossible")
+Traceback (most recent call last):
+ValueError: "../tl.cli.rename-impossible" points outside the sandbox.
+
+Note that the failed sandboxes will be appended in the sandbox list so they
+can be clean up at some point but our working directory has not been changed:
+
+>>> len(tl.testing.fs.sandboxes)
+3
+>>> os.getcwd() == sandbox
+True
+
+If we create another sandbox, it is placed in the temporary directory under a
+different name and included in the sandbox list, our working directory changes
+to the new sandbox, and the first sandbox continues to exist:
+
+>>> new_sandbox("f foobar")
+>>> sandbox2 = os.getcwd()
+>>> sandbox2 != sandbox
+True
+>>> tl.testing.fs.sandboxes[-1] == sandbox2
+True
+>>> os.path.basename(sandbox2) in os.listdir(tempfile.gettempdir())
+True
+>>> os.listdir('.')
+['foobar']
+>>> sorted(os.listdir(sandbox))
+['baz', 'foo']
+
+
+Listing the sandbox contents
+============================
+
+The ``ls`` function creates a readable recursive listing of the sandbox
+(actually, the current working directory) in the same multi-line text format
+that is used when creating a sandbox, although sorted alphabetically. To
+demonstrate this, we switch back to the first sandbox:
+
+>>> os.chdir(sandbox)
+>>> from tl.testing.fs import ls
+>>> ls()
+l baz -> foo/bar
+d foo
+f foo/bar asdf
+
+
+Cleaning up
+===========
+
+The ``teardown_sandboxes`` function removes all sandboxes previously created.
+They will disappear both from the temporary directory and the sandbox list:
+
+>>> from tl.testing.fs import teardown_sandboxes
+>>> teardown_sandboxes()
+>>> os.path.basename(sandbox) in os.listdir(tempfile.gettempdir())
+False
+>>> os.path.basename(sandbox2) in os.listdir(tempfile.gettempdir())
+False
+>>> tl.testing.fs.sandboxes
+[]
+
+Also, our working directory has been reset:
+
+>>> os.getcwd() == original_cwd
+True
+
+Like ``setup_sandboxes``, ``teardown_sandboxes`` may take one argument that
+will be ignored so the function can be used as a test suite's ``tearDown``
+callback. As we demonstrate this, we'll see that ``teardown_sandboxes`` may
+also be called if no current sandbox exists:
+
+>>> teardown_sandboxes(object())
+>>> tl.testing.fs.sandboxes
+[]
+>>> os.getcwd() == original_cwd
+True
+
+
+.. Local Variables:
+.. mode: rst
+.. End:

@@ -1,0 +1,352 @@
+=================================
+Working with threads in test code
+=================================
+
+The standard ``unittest`` infrastructure isn't aware of threading. Therefore,
+testing code that uses threads, or using threads in the test code itself, can
+be somewhat inconvenient in a number of respects. The ``tl.testing.thread``
+module provides test-case and thread classes that help with the following:
+
+- Collect errors and failures that occurred in threads other than the main one
+  so they count with the test results.
+
+- Silence expected unhandled exceptions in threads. Normally, such an
+  exception would be printed in the middle of the test output, looking as if
+  something was wrong.
+
+- Report threads left behind by a test.
+
+- Provide some convenience for starting a daemon thread. If a non-daemon
+  thread doesn't terminate, the test run will not complete: the process has to
+  be killed.
+
+- Provide some convenience for joining threads in test code. If a thread
+  started by a test (or code under test) is still alive after a
+  synchronisation point such as tear-down, it may interfere with subsequent
+  tests. Also, some test runners may nag about threads left behind.
+
+- Provide some convenience for counting threads started by test code or by the
+  code under test. A simple count of threads alive won't do since at least the
+  main thread was already running before the test code was executed.
+
+Let's have a look at the convenience helpers first, then use them when
+explaining the more interesting stuff.
+
+
+Synchronising with recently used threads
+========================================
+
+When making assertions about the set or the number of running threads (such as
+when executing the examples further down in this documentation), there will be
+synchronisation points in the main thread where one wants to join all threads
+that should be finished at that point to make sure they are actually gone from
+the accounting. The ``ThreadJoiner`` class implements a context manager that
+waits for any threads created by its code suite to be joined.
+
+When instantiating a ``ThreadJoiner``, the time-out period must be configured:
+
+>>> from tl.testing.thread import ThreadJoiner
+>>> import threading
+>>> import time
+>>> with ThreadJoiner(0.2):
+...     thread = threading.Thread(target=lambda: time.sleep(0.1))
+...     thread.start()
+>>> thread.is_alive()
+False
+
+By default, an error is raised if a thread that should be joined is still
+alive after the time-out:
+
+>>> with ThreadJoiner(0.1):
+...     thread = threading.Thread(target=wait_forever)
+...     thread.start()
+Traceback (most recent call last):
+RuntimeError: Timeout joining thread <Thread(Thread-2, started 140700520466176)>
+
+Clean up:
+
+>>> kill_waiting_thread()
+>>> thread.join(1)
+>>> thread.is_alive()
+False
+
+The error may be suppressed if that makes more sense in the situation at hand.
+Let's clean up this time by nesting two thread-joining context managers to
+contrast this notation against the explicit clean-up done for the previous
+example:
+
+>>> with ThreadJoiner(1):
+...     with ThreadJoiner(0.1, check_alive=False):
+...         threading.Thread(target=wait_forever).start()
+...     kill_waiting_thread()
+
+Moreover, the context manager provides information on those threads still
+alive after the attempt to join if the error was suppressed:
+
+>>> with ThreadJoiner(1):
+...     with ThreadJoiner(0.1, check_alive=False) as joiner:
+...         threading.Thread(target=lambda: time.sleep(0.3)).start()
+...         threading.Thread(target=lambda: time.sleep(0.3)).start()
+...         threading.Thread(target=lambda: time.sleep(0)).start()
+...     joiner.left_behind
+[<Thread(Thread-4, started 140423847343872)>,
+ <Thread(Thread-5, started 140423838951168)>]
+
+
+Reporting threads left behind by a test
+=======================================
+
+The stock ``unittest`` framework doesn't know about threading, therefore it
+won't report on threads left behind by tests. However, such threads may be a
+problem that should be addressed. The ``ThreadAwareTestCase`` class helps with
+this by providing hooks for formatting and outputting a report on left-behind
+threads. The default implementation prints the test in question and a list of
+threads to standard output:
+
+>>> from tl.testing.thread import ThreadAwareTestCase
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def test_leave_behind_a_thread(self):
+...         threading.Thread(target=wait_forever).start()
+...
+...     def test_dont_leave_behind_a_thread(self):
+...         pass
+
+>>> import unittest
+>>> with ThreadJoiner(1):
+...     run(unittest.makeSuite(SampleTest))
+...     kill_waiting_thread()
+The following test left new threads behind:
+  __builtin__.SampleTest.test_leave_behind_a_thread
+New thread(s):
+  <Thread(Thread-7, started 139691315910400)>
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+OK
+
+The message text of the report can be customised by overriding the
+``format_report_on_threads_left_behind`` method:
+
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def format_report_on_threads_left_behind(self, threads):
+...         return u'\nMessy test: %s\nThe mess: %r\n' % (self.id(), threads)
+...
+...     def test_format_message_on_threads_left_behind(self):
+...         threading.Thread(target=wait_forever).start()
+
+>>> with ThreadJoiner(1):
+...     run(unittest.makeSuite(SampleTest))
+...     kill_waiting_thread()
+Messy test: __builtin__.SampleTest.test_format_message_on_threads_left_behind
+The mess: [<Thread(Thread-7, started 139691315910400)>]
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+
+Also, the method of reporting itself can be customised, for example, in order
+to make it work with a graphical test runner. We'll show how to have it log
+the report in a list as a simple example. The test-case method to override is
+``report_threads_left_behind``:
+
+>>> log = []
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def report_threads_left_behind(self, threads):
+...         log.append(self.format_report_on_threads_left_behind(threads))
+...
+...     def test_report_threads_left_behind(self):
+...         threading.Thread(target=wait_forever).start()
+
+>>> with ThreadJoiner(1):
+...     run(unittest.makeSuite(SampleTest))
+...     kill_waiting_thread()
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+>>> print log[0]
+The following test left new threads behind:
+  __builtin__.SampleTest.test_report_threads_left_behind
+New thread(s):
+  <Thread(Thread-9, started 140060345734912)>
+
+
+Starting a daemon thread
+========================
+
+When starting a thread from a test, there's normally no good reason for the
+test run to wait for that thread to terminate: whenever a piece of test code
+executed in the main thread has been run, no threads should remain from it as
+side effects and the test runner should be able to finish the test run.
+Therefore, test code should only start threads in daemon mode.
+
+Since Python's ``threading.Thread`` class is built such that the daemon flag
+has to be assigned after the thread has been instantiated, starting daemon
+threads takes a few statements. The ``ThreadAwareTestCase`` class provides a
+convenience method that sets up and starts a daemon thread targeting a given
+callable and returns the thread object:
+
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def test_thread_should_be_started_as_daemon(self):
+...         thread = self.run_in_thread(wait_forever)
+...         self.assertTrue(isinstance(thread, threading.Thread))
+
+If we don't join the thread thus started during the test run, it will be left
+behind:
+
+>>> with ThreadJoiner(1):
+...     run(unittest.makeSuite(SampleTest))
+...     kill_waiting_thread()
+The following test left new threads behind:
+  __builtin__.SampleTest.test_thread_should_be_started_as_daemon
+New thread(s):
+  <ExceptionReportingThread(Thread-1, started daemon 140060345734912)>
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+
+
+Counting threads
+================
+
+Since threads may be left behind by some tests, we cannot assume that only the
+main thread is active in the process when a test starts after another test
+using threads has already been run. If we want to make assertions about the
+number of threads started during the execution of a test, we therefore need to
+leave out the threads that existed at the beginning of the current test run.
+The ``ThreadAwareTestCase`` provides a convenience method, ``active_count`` to
+take care of this mechanical detail:
+
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def test_counting_threads_considers_only_those_started_by_test(self):
+...         with ThreadJoiner(1):
+...             self.run_in_thread(wait_forever)
+...             self.assertEqual(1, self.active_count())
+...             self.assertTrue(threading.active_count() > self.active_count())
+...             kill_waiting_thread()
+
+>>> with ThreadJoiner(1):
+...     run(unittest.makeSuite(SampleTest))
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+
+Threads started by the test's set-up are also counted among the test's own
+threads:
+
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def setUp(self):
+...         self.thread = self.run_in_thread(wait_forever)
+...
+...     def tearDown(self):
+...         kill_waiting_thread()
+...         self.thread.join(1)
+...
+...     def test_counting_threads_considers_those_started_by_setup(self):
+...         self.assertEqual(1, self.active_count())
+...         self.assertTrue(threading.active_count() > self.active_count())
+
+>>> with ThreadJoiner(1):
+...     run(unittest.makeSuite(SampleTest))
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+
+On the other hand, since the actual set of threads active at the test's start
+is considered (as opposed to just the number of those threads), threads that
+finish while the test is running will not cause an accounting error:
+
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def test_counting_threads_considers_only_those_started_by_test(self):
+...         with ThreadJoiner(1):
+...             self.run_in_thread(wait_forever)
+...             total_after_start = threading.active_count()
+...             kill_waiting_thread(i=1)  # suppose a pre-existing thread
+...             existing_thread.join(1)  # happens to finish just now
+...             self.assertTrue(threading.active_count() < total_after_start)
+...             self.assertEqual(1, self.active_count())
+...             kill_waiting_thread()
+
+>>> with ThreadJoiner(1):
+...     existing_thread = threading.Thread(target=lambda: wait_forever(i=1))
+...     existing_thread.start()
+...     run(unittest.makeSuite(SampleTest))
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+
+
+Collecting errors and failures from threads
+===========================================
+
+Since the test runner isn't aware of threads, it doesn't control code
+execution in additional threads in the same way that it does in the main
+thread, meaning that it doesn't collect failures nor errors for its reporting.
+Instead, failures and errors in threads other than the main one will be caught
+by the Python interpreter which simply prints a traceback at the point where
+the exception occurs.
+
+In order to include errors and failures from all threads in the test report as
+well as to suppress the noise of tracebacks printed by the interpreter,
+``tl.testing.thread`` implements a thread class that intercepts exceptions
+that would reach the interpreter and adds them to the current test's result
+object as errors or failures, respectively. The above-mentioned
+``run_in_thread`` method of the ``ThreadAwareTestCase`` already uses such a
+thread by default:
+
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def test_failed_assertions_in_thread_become_test_failures(self):
+...         with ThreadJoiner(1):
+...             self.run_in_thread(lambda: self.fail('just for fun'))
+...
+...     def test_unhandled_exceptions_in_thread_become_test_errors(self):
+...         with ThreadJoiner(1):
+...             self.run_in_thread(lambda: 1/0)
+
+>>> run(unittest.makeSuite(SampleTest))
+======================================================================
+ERROR: test_unhandled_exceptions_in_thread_become_test_errors (__builtin__.SampleTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  ...
+ZeroDivisionError: integer division or modulo by zero
+======================================================================
+FAIL: test_failed_assertions_in_thread_become_test_failures (__builtin__.SampleTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  ...
+AssertionError: just for fun
+----------------------------------------------------------------------
+Ran 2 tests in 0.002s
+FAILED (failures=1, errors=1)
+
+
+Silencing unhandled exceptions in threads
+=========================================
+
+Sometimes, exceptions may occur in a thread that are of no immediate interest
+to the developer. These exceptions would normally be printed among the
+otherwise useful test output. To suppress such noise, the thread can be
+started by using the ``run_in_thread`` test-case method and passing a false
+value for the ``report`` option:
+
+>>> class SampleTest(ThreadAwareTestCase):
+...
+...     def test_unhandled_exceptions_in_thread_are_swallowed(self):
+...         with ThreadJoiner(1):
+...             self.run_in_thread(lambda: 1/0, report=False)
+
+>>> run(unittest.makeSuite(SampleTest))
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+
+
+.. Local Variables:
+.. mode: rst
+.. End:

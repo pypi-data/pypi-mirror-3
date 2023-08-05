@@ -1,0 +1,472 @@
+===================================================
+Doc-testing the graphical content of cairo surfaces
+===================================================
+
+While it is straight-forward to compare the content of two `cairo`_ surfaces
+in Python code, handling graphics is beyond doc tests. However, the
+:pypi:`manuel` package can be used to extract more general test cases from a
+text document while allowing to mix them with doc tests in a natural way.
+
+The ``tl.testing.cairo`` module provides a test suite factory that uses manuel
+to execute graphical tests formulated as restructured-text figures. The
+caption of such a figure is supposed to contain exactly one literal Python
+expression, marked up with double back-ticks, which evaluates to a cairo image
+surface, and its referenced image is used as the test expectation.
+Python expressions are run in the same context as the doc-test examples.
+Images need to be stored in PNG format. Image paths are relative to the doc
+test file's directory and must use the forward slash, "/", as the path
+separator.
+
+
+Writing a graphical test
+========================
+
+Let's walk through the process of creating a test. We'll test a function that
+produces a cairo image surface with a black line drawn on it inside a thin
+frame. As a first step, we implement the function and write a doc-test snippet
+that includes a figure to be interpreted as a graphical test. The function is
+intended to be passed in via the globs:
+
+>>> import cairo
+>>> def create_surface(x1, y1, x2, y2):
+...     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 100, 100)
+...     ctx = cairo.Context(surface)
+...     ctx.rectangle(0, 0, 100, 100)
+...     ctx.move_to(x1, y1)
+...     ctx.line_to(x2, y2)
+...     ctx.stroke()
+...     return surface
+
+>>> sample_txt = write('sample.txt', """\
+...
+... ---------------------------------------------------
+... A test for the graphical content of a cairo surface
+... ---------------------------------------------------
+...
+... >>> type(create_surface)
+... <type 'function'>
+...
+... The ``create_surface`` function creates and draws to a cairo surface:
+...
+... .. figure:: foo.png
+...
+...     This is what ``create_surface(25, 50, 75, 50)`` looks like.
+...
+... """)
+
+The test suite has 2 tests, the doc test example and the graphical test.
+Running it will yield an error as the expectation image is not available yet:
+
+>>> from tl.testing.cairo import DocFileSuite
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+ERROR: /test_dir/sample.txt
+...-------------------------------------------------------------------
+Traceback (most recent call last):
+  ...
+Exception: Could not load expectation: foo.png
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (errors=1)
+
+The test runner can help us with creating the missing image: we tell it to
+save the image our function has drawn, examine the result and use it as the
+expectation if we are satisfied with it. First we create a directory for
+saving test results, store it in the ``CAIRO_TEST_RESULTS`` environment
+variable and run the test suite again:
+
+>>> import os, os.path
+>>> os.mkdir('results')
+>>> os.environ['CAIRO_TEST_RESULTS'] = 'results'
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+ERROR: /test_dir/sample.txt
+...-------------------------------------------------------------------
+Traceback (most recent call last):
+  ...
+Exception: Could not load expectation: foo.png
+(see results/foo.png)
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (errors=1)
+
+The test run has left a PNG file in the results directory [#no-results-dir]_.
+The name of the file derives from the file name of the expected image of the
+example in question. Let's make sure the file is actually there and has the
+correct content, i.e. a black line from left to right inside a quadratic
+frame:
+
+>>> os.listdir('results')
+['foo.png']
+
+.. figure:: testimages/correct.png
+
+    The result of the graphical test, stored in a PNG image:
+    ``cairo.ImageSurface.create_from_png(os.path.join('results', 'foo.png'))``
+
+Now we move the image file beside our doc test and run the test suite yet
+again. This time, it will pass:
+
+>>> import shutil
+>>> shutil.move(os.path.join('results', 'foo.png'), 'foo.png')
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+OK
+
+
+Detecting bugs with a graphical test
+====================================
+
+As we hack on the ``create_surface`` function, we might introduce different
+kinds of bugs which we expect to be reported as failures by our test suite.
+
+First of all, our function might draw the wrong stuff to the surface, for
+example by confusing the coordinate values we pass into it. Our test will tell
+us that the image created has the wrong content and the saved result of the
+example shows us a vertical line instead of a horizontal one:
+
+>>> def create_surface(x1, y1, x2, y2):
+...     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 100, 100)
+...     ctx = cairo.Context(surface)
+...     ctx.rectangle(0, 0, 100, 100)
+...     ctx.move_to(y1, x1)
+...     ctx.line_to(y2, x2)
+...     ctx.stroke()
+...     return surface
+
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+FAIL: /test_dir/sample.txt
+...-------------------------------------------------------------------
+File "/test_dir/sample.txt", line 10, in sample.txt:
+Failed example:
+    create_surface(25, 50, 75, 50)
+Image differs from expectation: foo.png
+(see results/foo.png)
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (failures=1)
+
+.. figure:: testimages/vertical.png
+
+    ``cairo.ImageSurface.create_from_png(os.path.join('results', 'foo.png'))``
+    was obtained as the example's resulting image.
+
+A mismatching image is also produced by choosing the wrong pixel format for
+the ImageSurface. Our expectation is an image with an alpha channel; producing
+a surface without one results in a format mismatch:
+
+>>> def create_surface(x1, y1, x2, y2):
+...     return cairo.ImageSurface(cairo.FORMAT_RGB24, 100, 100)
+
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+FAIL: /test_dir/sample.txt
+...-------------------------------------------------------------------
+File "/test_dir/sample.txt", line 10, in sample.txt:
+Failed example:
+    create_surface(25, 50, 75, 50)
+ImageSurface format differs from expectation:
+Expected: cairo.FORMAT_ARGB32
+Got:      cairo.FORMAT_RGB24
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (failures=1)
+
+Another mistake we might make is to return something else than a cairo
+ImageSurface from our function under test:
+
+>>> def create_surface(x1, y1, x2, y2):
+...     return cairo.PDFSurface('out.pdf', 100, 100)
+
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+FAIL: /test_dir/sample.txt
+...-------------------------------------------------------------------
+File "/test_dir/sample.txt", line 10, in sample.txt:
+Failed example:
+    create_surface(25, 50, 75, 50)
+Expected a cairo.ImageSurface
+Got:
+    <cairo.PDFSurface object at 0x...>
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (failures=1)
+
+Other bugs in our function might give rise to an exception. Exceptions raised
+by a test example's expression are reported as failures:
+
+>>> def create_surface(x1, y1, x2, y2):
+...     return cairo.ImageSurface(cairo.FORMAT_NONSENSE, 100, 100)
+
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+FAIL: /test_dir/sample.txt
+...-------------------------------------------------------------------
+File "/test_dir/sample.txt", line 10, in sample.txt:
+Failed example:
+    create_surface(25, 50, 75, 50)
+Exception raised:
+    Traceback (most recent call last):
+      File ".../cairo.py", line ..., in evaluate
+        result = eval(self.expression, globs)
+      ...
+    AttributeError: 'module' object has no attribute 'FORMAT_NONSENSE'
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (failures=1)
+
+As no images were computed by these last two ``create_surface``
+implementations, none could be saved in either case.
+
+
+Test options
+============
+
+Options may be set for individual graphical tests. They are recognized by a
+marker similar to that used for doctest options, and are themselves key-value
+pairs denoted in the syntax of keyword parameters to a Python function. Option
+values are Python expressions that will be evaluated in the context of the
+doc-test globals:
+
+>>> sample_txt = write('sample.txt', """\
+... >>> import cairo
+... >>> surface = cairo.ImageSurface.create_from_png('rgb24.png')
+...
+... .. figure:: rgb24.png
+...
+...     ``surface`` # options: foo=123, bar=surface
+... """)
+
+>>> run(DocFileSuite(sample_txt))
+======================================================================
+ERROR: /test_dir/sample.txt
+...-------------------------------------------------------------------
+Traceback (most recent call last):
+  ...
+Exception: Unused options in example at line 3: 'bar', 'foo'.
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (errors=1)
+
+Notice how warnings are printed if you use options that are not recognised.
+
+
+Testing partial images
+======================
+
+Sometimes it is desirable to exclude parts of an image when asserting its
+graphical content. For example, an image might contain random elements or
+pieces of text typeset in the platform-specific default font. For the sake of
+demonstration, let's test a function that draws a horizontal colored line
+inside a black rectangle:
+
+>>> def create_surface(x1, y1, x2, y2):
+...     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 100, 100)
+...     ctx = cairo.Context(surface)
+...     ctx.rectangle(0, 0, 100, 100)
+...     ctx.stroke()
+...     ctx.set_source_rgb(1, 0, 0)
+...     ctx.move_to(x1, y1)
+...     ctx.line_to(x2, y2)
+...     ctx.stroke()
+...     return surface
+
+.. figure:: testimages/red-line.png
+
+    A surface using a supposedly unknown color:
+    ``create_surface(25, 50, 75, 50)``
+
+We pretend we don't know what the color happens to be, so we cannot provide an
+exact expectation. [#fail-with-black-line]_
+
+But apart from the area covered by the horizontal line, we do know exactly
+what to expect. The test against the image with the black horizontal line will
+pass if we exclude that area  by specifying the x and y coordinates of its
+top-left point as well as its width and height:
+
+>>> sample_txt = write('sample.txt', """\
+... .. figure:: foo.png
+...
+...     ``create_surface(25, 50, 75, 50)``
+...     # options: exclude=[(24, 49, 52, 2)]
+... """)
+
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+OK
+
+Differences between the tested surface and the expectation will still be found
+outside the excluded region to catch a bug in the tested code:
+
+>>> def create_surface(x1, y1, x2, y2):
+...     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 100, 100)
+...     ctx = cairo.Context(surface)
+...     ctx.rectangle(0, 0, 100, 100)
+... #    ctx.stroke()
+...     ctx.set_source_rgb(1, 0, 0)
+...     ctx.move_to(x1, y1)
+...     ctx.line_to(x2, y2)
+...     ctx.stroke()
+...     return surface
+
+.. figure:: testimages/red-line-bug.png
+
+    A bug causes the color to be applied to the rectangle as well:
+    ``create_surface(25, 50, 75, 50)``
+
+>>> sample_txt = write('sample.txt', """\
+... .. figure:: foo.png
+...
+...     ``create_surface(25, 50, 75, 50)``
+...     # options: exclude=[(24, 49, 52, 2)]
+... """)
+
+>>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+======================================================================
+FAIL: /test_dir/sample.txt
+...-------------------------------------------------------------------
+File "/test_dir/sample.txt", line 1, in sample.txt:
+Failed example:
+    create_surface(25, 50, 75, 50)
+Image differs from expectation: foo.png
+(see results/foo.png)
+----------------------------------------------------------------------
+Ran 1 test in N.NNNs
+FAILED (failures=1)
+
+
+Test suite options
+==================
+
+The test suite factory has a signature similar to that of
+``doctest.DocFileSuite``, the only incompatibility being that the cairo
+doc-test suite doesn't support file encodings. We've already seen globs being
+passed to the test suite in the sections above.
+
+Let's now demonstrate all features of the test suite (with the exception of
+module-relative paths) at once - multiple test files, set-up and tear-down
+handlers, globs, option flags and checkers for doc tests as well as specifying
+an additional Manuel object:
+
+>>> sample_txt = write('sample.txt', """\
+... >>> surface = cairo.ImageSurface.create_from_png('rgb24.png')
+... >>> surface
+... <cairo.ImageSurface object at <MEM ADDRESS>>
+...
+... .. figure:: rgb24.png
+...
+...     ``surface``
+... """)
+
+>>> sumple_txt = write('sumple.txt', """\
+... >>> dir(cairo)
+... [...ImageSurface...]
+...
+... .. code-block:: python
+...     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 100, 100)
+...     ctx = cairo.Context(surface)
+...     ctx.rectangle(0, 0, 100, 100)
+...     ctx.move_to(50, 25)
+...     ctx.line_to(50, 75)
+...     ctx.stroke()
+...
+... .. figure:: foo.png
+...
+...     ``surface``
+... """)
+
+>>> def set_up(test):
+...     print '\nSETTING UP ONE TEST\n'
+
+>>> def tear_down(test):
+...     print '\nTEARING DOWN ONE TEST\n'
+
+>>> import doctest
+>>> import manuel.codeblock
+>>> import re
+>>> import zope.testing.renormalizing
+>>> suite = DocFileSuite(
+...     sample_txt, sumple_txt,
+...     setUp=set_up, tearDown=tear_down,
+...     globs={'cairo': cairo},
+...     optionflags=doctest.ELLIPSIS,
+...     checker=zope.testing.renormalizing.RENormalizing([
+...         (re.compile('0x[0-9a-f]+'), '<MEM ADDRESS>')]),
+...     manuel=manuel.codeblock.Manuel())
+>>> run(suite)
+SETTING UP ONE TEST
+TEARING DOWN ONE TEST
+SETTING UP ONE TEST
+TEARING DOWN ONE TEST
+======================================================================
+FAIL: /test_dir/sumple.txt
+...-------------------------------------------------------------------
+File "/test_dir/sumple.txt", line 11, in sumple.txt:
+Failed example:
+    surface
+Image differs from expectation: foo.png
+(see results/foo.png)
+----------------------------------------------------------------------
+Ran 2 tests in N.NNNs
+FAILED (failures=1)
+
+.. figure:: testimages/vertical.png
+
+    ``cairo.ImageSurface.create_from_png(os.path.join('results', 'foo.png'))``
+
+
+.. rubric:: Footnotes
+
+.. _cairo: http://cairographics.org/pycairo/
+
+.. [#no-results-dir] **Non-existent test results directory**
+
+    In the case that the result couldn't be written to the results directory,
+    this is indicated by the failure message. To demonstrate this, we make the
+    testrunner try to save the image to a non-existent directory temporarily:
+
+    >>> os.environ['CAIRO_TEST_RESULTS'] = 'non-existent'
+    >>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+    ======================================================================
+    ERROR: /test_dir/sample.txt
+    ...-------------------------------------------------------------------
+    Traceback (most recent call last):
+      ...
+    Exception: Could not load expectation: foo.png
+    (could not write result to non-existent/foo.png)
+    ----------------------------------------------------------------------
+    Ran 1 test in N.NNNs
+    FAILED (errors=1)
+    >>> os.environ['CAIRO_TEST_RESULTS'] = 'results'
+
+.. [#fail-with-black-line] **Failing test against image with a black line**
+
+    Our expectation image featuring the black line will not do to make the
+    test pass, of course:
+
+    >>> sample_txt = write('sample.txt', """\
+    ... .. figure:: foo.png
+    ...
+    ...     ``create_surface(25, 50, 75, 50)``
+    ... """)
+
+    >>> run(DocFileSuite(sample_txt, globs={'create_surface': create_surface}))
+    ======================================================================
+    FAIL: /test_dir/sample.txt
+    ...-------------------------------------------------------------------
+    File "/test_dir/sample.txt", line 1, in sample.txt:
+    Failed example:
+        create_surface(25, 50, 75, 50)
+    Image differs from expectation: foo.png
+    (see results/foo.png)
+    ----------------------------------------------------------------------
+    Ran 1 test in N.NNNs
+    FAILED (failures=1)
+
+
+.. Local Variables:
+.. mode: rst
+.. End:
