@@ -1,0 +1,1 @@
+class ZombieAgentException(RuntimeError): pass
