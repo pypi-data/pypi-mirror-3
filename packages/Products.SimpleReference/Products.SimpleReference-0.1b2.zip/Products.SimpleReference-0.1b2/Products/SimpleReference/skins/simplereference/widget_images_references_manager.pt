@@ -1,0 +1,163 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      i18n:domain="richdocument">
+<head><title></title></head>
+<body>
+
+<!-- Images -->
+<metal:view define-macro="view"
+            tal:define="voc field/Vocabulary;
+                        accessor python:field.getAccessor(here);
+                        value python:voc and voc.getValue(str(accessor())) or accessor();
+                        images python:here.getFolderContents(contentFilter={'portal_type': ['ImageAttachment','ImageReference']})">
+
+    <tal:block condition="python:(test(not not accessor() and accessor() not in ('0', 'False'), 1, 0)) and images">
+        <fieldset id="imagesBox">
+            <legend i18n:translate="legend_images">Images</legend>
+            <ul class="visualNoMarker">
+            <tal:related tal:repeat="item images">
+                <li tal:define="desc item/Description;
+                                item_type item/portal_type;
+                                item_type_class python:'contenttype-' + putils.normalizeString(item_type);
+                                item_wf_state item/review_state | python:getInfoFor(item, 'review_state', '');
+                                item_wf_state_class python:'state-' + putils.normalizeString(item_wf_state);
+                                item_url item/getURL;">
+                    <span tal:attributes="class item_type_class">
+                        <a href="" class="visualIconPadding"
+                           tal:attributes="href item_url;
+                                           title desc;"
+                           tal:content="item/pretty_title_or_id">
+                            Related Item
+                        </a>
+                    </span>
+                </li>
+            </tal:related>
+            </ul>
+        </fieldset>
+    </tal:block>
+
+</metal:view>
+
+<metal:edit define-macro="edit">
+
+    <div class="visualClear"><!----></div>
+
+    <!-- Show preview box, adapted from AT boolean widget -->
+    <script type="text/javascript">
+        // this function turns a checkbox into a radio button... sort of
+        function toggle_boolean(visibleCheckbox, hiddenBoolean) {
+            vis = document.getElementById(visibleCheckbox);
+            hidden = document.getElementById(hiddenBoolean);
+            if (vis.checked) {
+                hidden.value = 1;
+            } else {
+                hidden.value = 0;
+            }
+            return true;
+        }
+    </script>
+
+    <metal:use use-macro="field_macro | here/widgets/field/macros/edit">
+        <metal:fill fill-slot="widget_body_label_prefix"
+                    tal:define="value python:test(not not value and value not in ('0', 'False'), 1, 0)">
+          <input class="noborder"
+                 type="checkbox"
+                 value="on"
+                 tabindex=""
+                 tal:attributes="name string:${fieldName}_visible;
+                                 onClick string:toggle_boolean('${fieldName}', '${fieldName}_hidden');; return true;
+                                 id fieldName;
+                                 checked python:value;"
+                 />
+          <input type="hidden"
+                 tal:attributes="name fieldName;
+                                 id string:${fieldName}_hidden;
+                                 value value;"
+                 />
+        </metal:fill>
+    </metal:use>
+
+    <tal:after_field define="visState python:widget.isVisible(here, mode);
+                             visCondition python:field.widget.testCondition(here, portal, template);"
+                     condition="python:visState == 'visible' and visCondition">
+
+        <div tal:replace="structure provider:simpleattachment.imagecontrols" />
+
+        <dl id="image-reference-controls"
+            class="collapsible collapsedOnLoad"
+            tal:condition="python:not here.portal_factory.isTemporary(here)">
+            <dt class="collapsibleHeader">
+                add image reference
+            </dt>
+            <dd class="collapsibleContent">
+                <div id="image-reference-popup"><!-- --></div>
+            </dd>
+        </dl>
+
+        <dl id="image-upload-controls"
+            class="collapsible collapsedOnLoad">
+
+            <dt class="collapsibleHeader" i18n:translate="label_widgetimagesmanager_title">
+                Upload image to document
+            </dt>
+
+            <dd class="collapsibleContent">
+                <div class="field"
+                     tal:define="error_title errors/imageTitle | nothing;"
+                     tal:attributes="class python:test(error_title, 'field error', 'field')">
+
+                    <div class="formHelp" i18n:translate="help_widgetimagesmanager_title">
+                        Enter a title for the image
+                    </div>
+                    <div tal:content="error_title">Validation error output</div>
+                    <input type="string"
+                           name="imageTitle"
+                           size="30"
+                           tabindex=""
+                           value=""
+                           />
+                </div>
+
+                <div class="field"
+                     tal:define="error_file errors/imageFile | nothing;"
+                     tal:attributes="class python:test(error_file, 'field error', 'field')">
+                    <div class="formHelp" i18n:translate="help_widgetimagesmanager_images">
+                        Select an image to add and click 'Upload'
+                    </div>
+                    <div tal:content="error_file">Validation error output</div>
+                    <input type="file"
+                           name="imageFile"
+                           size="30"
+                           tabindex=""
+                           tal:attributes="value request/imageFile/filename | nothing"
+                           />
+                </div>
+
+                <div class="formControls">
+                    <input class="context"
+                           tabindex=""
+                           type="submit"
+                           name="form.button.UploadImage"
+                           value="Upload"
+                           i18n:attributes="value"
+                           />
+                    <div class="formHelp" i18n:translate="help_widget_imagesmanager_upload">
+                        Once an image is uploaded, you can refer to it in
+                        your body text by its filename.
+                    </div>
+                </div>
+
+            </dd>
+
+        </dl>
+
+        <br />
+        <br />
+    </tal:after_field>
+
+</metal:edit>
+
+</body>
+</html>
