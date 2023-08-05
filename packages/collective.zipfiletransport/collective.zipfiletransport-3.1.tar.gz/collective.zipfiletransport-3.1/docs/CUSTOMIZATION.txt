@@ -1,0 +1,162 @@
+Customizing collective.zipfiletransport
+---------------------------------------
+
+Customizing collective.zipfiletransport to support your custom
+Architypes based content.
+
+To customize collecive.zipfiletransport to recognize your custom
+content type, you must adapt the content type using the IZipFileAdapter
+interface. This involves writing an adapter that implements the
+IZipFileAdapter interface including the following methods:
+
+writeObjectToZipFile()
+readObjectFromZipFile()
+
+Writing Objects to Zip File
+---------------------------
+
+The writeObjectToZipFile() method takes two parameters, first is the
+context of the object which the object is being written from. This
+is the parent folder that contains the objects being zipped. The
+adapter needs to have reference to this object so that it can
+render the correct path for your object in the zip archive. The
+second parameter is the zip archive itself. Because your adapter adapts
+the content object itself, it does not need to be passed in, but can
+be directly accessed using the "self" parameter.
+
+An adapter that supports your custom type should inherit the base
+class, which provides the _getFilePath() method. This will provide
+common functionality for determining the correct path in the zip
+archive for your custom object. Typically unless you want to do something
+pretty whacky with your object (like storing it somewhere else in the
+archive) you will not need to alter this functionality.
+
+For examples how to implement writeObjectToZipFile() look at the source
+file zfadapters.py contained in collective.zipfiletransport. Examples
+of adapters that support all the common Plone types exist there.
+The key to writing your custom adapter is to gain access to the custom
+object itself, and write file data in the zip archive that suitably
+represents it. For standard files it is usually enough to simply determine
+the primary field of the content type, and copy its contents to
+the zip archive. If, however, your content type may have a different
+representation of its data in the zip archive than it does in Plone,
+you can include the logic for doing this within this method.
+
+Reading Object Data from Zip File
+---------------------------------
+
+The readObjectFromZipArchive() method is not yet implemented. Include
+a stub for this method in your adapter, and be prepared to include an
+implementation for reading data from your zip archive and populating
+your primary field in your custom type at some point in the future when
+it is supported.
+
+Registering your New Adapter
+----------------------------
+
+Once you have written your new adapter, you must register it using
+ZCML. This will activate the adapter for your new content type, and will
+allow collective.zipfiletransport to find your new methods when it 
+processes your custom content type.
+
+Examples of how to do this can be found in the following file within
+the collective.zipfiletransport product:
+
+collective.zipfiletransport/collective/zipfiletransport/utilities/configure.zcml
+
+The configuration should look something like:
+
+  <adapter
+     for="Products.ATContentTypes.content.file.ATFile"
+     provides=".interfaces.IZipFileAdapter"
+     factory=".zfadapters.ATFileZipFileAdapter"
+     name="zipfile_atfile"
+     />
+
+With the for= line pointing to the class that implements your custom
+content type, and the factory line pointing to your adapter implementation.
+
+Your adapter should be registered as a named adapter, so that the
+collective.zipfiletransport engine can map it to your custom type
+while it is processing it. A good idea would be to name it with a
+zipfile_ prefix followed by the name of the class of your custom type.
+
+Mapping Your Custom Type
+------------------------
+
+One last step must be taken in order for your new adapter to be used
+with the collective.zipfiletransport processing engine. The engine must 
+have a way to determine whether or not the objects it comes across are
+zippable. It does this by looking at the meta_type of your Archetypes
+based content type, and then mapping it to a named adapter. For your custom
+type, you must include a mapping so that the engine can look up the
+correct adpater for dealing with your type.
+
+The mapping is stored in the propertysheet defined by and for the 
+collective.zipfiletransport producct. It is defined as a lines field and
+has the following default entries:
+
+      ATFile:zipfile_atfile
+      ATImage:zipfile_atimage
+      ATDocument:zipfile_atdocument
+      ATLink:zipfile_atlink
+      TEvent:zipfile_atevent
+      ATFavorite:zipfile_atfavorite
+      ATFolder:zipfile_atfolder
+
+These are the default mappings included with collective.zipfileadapter.
+To add a new mapping edit the content_mappings field within the
+zipfiletransport_properties of the properties tool and add a line that
+lists the meta_type of your content object followed by a ':' and the
+name of your newly implemented named adapter. Once this is done, your
+new content type should now be picked up by the collective.zipfiletransport
+writer, and should now write the contents of your custom type to the
+zip archive in the way you have specified it to do so. If you are editing
+this field through the ZMI, make sure not to leave a blank line at the end
+of the field when you are done.
+
+To make your custom content type mapping permanent for your product, override
+the propertysheet setting in the generic profile portion of your product. Be
+sure to include the mappings for the standard objects as well as your new
+custom object. Here is an example of how you might do that by defining 
+the custom_mapping field in your product for the zipfile_properties sheet. You
+should implement this in the propertiestool.xml file in your default generic
+setup profile:
+
+<?xml version="1.0"?>
+<object name="portal_properties" meta_type="Plone Properties Tool">
+  <object name="zipfile_properties" meta_type="Plone Property Sheet">
+    <property name="title">Zip File Tool</property>
+    <property name="image_type" type="string">Image</property>
+    <property name="file_type" type="string">File</property>
+    <property name="doc_type" type="string">Document</property>
+    <property name="folder_type" type="string">Folder</property>
+    <property name="content_mappings" type="lines">
+      <element value="ATFile:zipfile_atfile"/>
+      <element value="ATImage:zipfile_atimage"/>
+      <element value="ATDocument:zipfile_atdocument"/>
+      <element value="ATLink:zipfile_atlink"/>
+      <element value="ATEvent:zipfile_atevent"/>
+      <element value="ATFavorite:zipfile_atfavorite"/>
+      <element value="ATFolder:zipfile_atfolder"/>
+      <element value="YourCustomType:zipfile_yourcustomtype"/>
+    </property>
+  </object>
+</object>
+
+With this in place your new custom type will get registered in the mappings
+automatically when the profile for your product is processed by Generic Setup.
+Your product and content type adapter should now be ready for use.
+
+Tricks and Tips
+---------------
+
+When you are first implementing your new adapter it may make sense to just
+write the shell portion of your adapter and then set a break point directly in
+the writeObjectToZipArchive() function. From this break point you can then
+inspect your object directly to determine what methods you want to call on it
+to provide the data for the file being written to the zip archive. Once you
+find the appropriate method(s) for looking up data on your content type, you
+can then go back to the adapter code and fill it in.
+
+
