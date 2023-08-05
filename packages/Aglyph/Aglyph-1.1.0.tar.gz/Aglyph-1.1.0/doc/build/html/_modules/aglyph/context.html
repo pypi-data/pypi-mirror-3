@@ -1,0 +1,821 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>aglyph.context &mdash; Aglyph v1.1.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="Aglyph v1.1.0 documentation" href="../../index.html" />
+    <link rel="up" title="aglyph" href="../aglyph.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Aglyph v1.1.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../aglyph.html" accesskey="U">aglyph</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for aglyph.context</h1><div class="highlight"><pre>
+<span class="c"># The MIT License (MIT)</span>
+<span class="c">#</span>
+<span class="c"># Copyright (c) 2006-2011 Matthew Zipay &lt;mattz@ninthtest.net&gt;</span>
+<span class="c">#</span>
+<span class="c"># Permission is hereby granted, free of charge, to any person obtaining a copy</span>
+<span class="c"># of this software and associated documentation files (the &quot;Software&quot;), to deal</span>
+<span class="c"># in the Software without restriction, including without limitation the rights</span>
+<span class="c"># to use, copy, modify, merge, publish, distribute, sublicense, and/or sell</span>
+<span class="c"># copies of the Software, and to permit persons to whom the Software is</span>
+<span class="c"># furnished to do so, subject to the following conditions:</span>
+<span class="c">#</span>
+<span class="c"># The above copyright notice and this permission notice shall be included in</span>
+<span class="c"># all copies or substantial portions of the Software.</span>
+<span class="c">#</span>
+<span class="c"># THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR</span>
+<span class="c"># IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,</span>
+<span class="c"># FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE</span>
+<span class="c"># AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER</span>
+<span class="c"># LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,</span>
+<span class="c"># OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE</span>
+<span class="c"># SOFTWARE.</span>
+
+<span class="sd">&quot;&quot;&quot;The classes in this module are used to define collections of related</span>
+<span class="sd">components (:class:`aglyph.component.Component` instances), called</span>
+<span class="sd">&quot;contexts&quot; in Aglyph.</span>
+
+<span class="sd">A context can be created in pure Python. This approach involves use of</span>
+<span class="sd">the following API classes:</span>
+
+<span class="sd">* :class:`aglyph.context.Context` (required)</span>
+<span class="sd">* :class:`aglyph.component.Component` (required)</span>
+<span class="sd">* :class:`aglyph.component.Reference` (used to indicate that a component</span>
+<span class="sd">  depends on another component)</span>
+<span class="sd">* :class:`aglyph.component.Strategy` (defines component assembly</span>
+<span class="sd">  strategies)</span>
+<span class="sd">* :class:`aglyph.component.Evaluator` (used as a partial function to</span>
+<span class="sd">  lazily evaluate component arguments/attributes)</span>
+
+<span class="sd">.. versionchanged:: 1.1.0</span>
+<span class="sd">    The preferred approach to programmatic configuration is now</span>
+<span class="sd">    :class:`aglyph.binder.Binder`, which is more succinct than using</span>
+<span class="sd">    ``Context`` and ``Component`` directly.</span>
+
+<span class="sd">Alternatively, a context can be defined using a declarative XML syntax</span>
+<span class="sd">that conforms to the</span>
+<span class="sd">:download:`aglyph-context-1.0.0 DTD &lt;../../resources/aglyph-context-1.0.0.dtd&gt;`</span>
+<span class="sd">(included in the *resources/* directory of the distribution). This</span>
+<span class="sd">approach requires only the :class:`aglyph.context.XMLContext` class,</span>
+<span class="sd">which parses the XML document and then uses the API classes mentioned</span>
+<span class="sd">above to populate the context.</span>
+
+<span class="sd">.. note::</span>
+
+<span class="sd">    An additional class is needed in *IronPython* applications that use XML</span>
+<span class="sd">    contexts: :class:`aglyph.compat.ipyetree.XmlReaderTreeBuilder`.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s">&quot;Matthew Zipay &lt;mattz@ninthtest.net&gt;&quot;</span>
+<span class="n">__version__</span> <span class="o">=</span> <span class="s">&quot;1.0.0&quot;</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">xml.etree.ElementTree</span> <span class="kn">import</span> <span class="n">ElementTree</span>
+
+<span class="kn">from</span> <span class="nn">aglyph</span> <span class="kn">import</span> <span class="n">AglyphError</span>
+<span class="kn">from</span> <span class="nn">aglyph.compat</span> <span class="kn">import</span> <span class="p">(</span><span class="n">DataType</span><span class="p">,</span> <span class="n">is_python_2</span><span class="p">,</span> <span class="n">RESTRICTED_BUILTINS</span><span class="p">,</span>
+                           <span class="n">TextType</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">aglyph.component</span> <span class="kn">import</span> <span class="n">Component</span><span class="p">,</span> <span class="n">Evaluator</span><span class="p">,</span> <span class="n">Reference</span><span class="p">,</span> <span class="n">Strategy</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;Context&quot;</span><span class="p">,</span> <span class="s">&quot;XMLContext&quot;</span><span class="p">]</span>
+
+<span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Context"><a class="viewcode-back" href="../../aglyph.context.html#aglyph.context.Context">[docs]</a><span class="k">class</span> <span class="nc">Context</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A mapping of component IDs to</span>
+<span class="sd">    :class:`aglyph.componnent.Component` objects.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">.Context&quot;</span> <span class="o">%</span> <span class="n">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;*context_id* is a string that uniquely identifies this</span>
+<span class="sd">        context.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Context</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_context_id</span> <span class="o">=</span> <span class="n">context_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;initialized </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Context.context_id"><a class="viewcode-back" href="../../aglyph.context.html#aglyph.context.Context.context_id">[docs]</a>    <span class="k">def</span> <span class="nf">context_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;a read-only property for the context ID&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context_id</span>
+</div>
+<div class="viewcode-block" id="Context.add"><a class="viewcode-back" href="../../aglyph.context.html#aglyph.context.Context.add">[docs]</a>    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add *component* to this context.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component`.</span>
+
+<span class="sd">        :raises aglyph.AglyphError: if *component.component_id* is already</span>
+<span class="sd">                                    contained in this context</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;component with ID </span><span class="si">%r</span><span class="s"> is already defined in </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span>
+                              <span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">,</span> <span class="bp">self</span><span class="p">))</span>
+        <span class="bp">self</span><span class="p">[</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">component</span>
+</div>
+<div class="viewcode-block" id="Context.add_or_replace"><a class="viewcode-back" href="../../aglyph.context.html#aglyph.context.Context.add_or_replace">[docs]</a>    <span class="k">def</span> <span class="nf">add_or_replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add *component* to this context, **replacing** any component</span>
+<span class="sd">        with the same ``component_id`` that already exists.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component`.</span>
+
+<span class="sd">        :returns: the component that was replaced</span>
+<span class="sd">        :rtype: :class:`aglyph.component.Component` (or ``None`` if</span>
+<span class="sd">                no replacement was made)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">replaced_component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">((</span><span class="n">replaced_component</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">isEnabledFor</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s"> is replacing </span><span class="si">%s</span><span class="s"> in </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span>
+                                 <span class="n">replaced_component</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="p">[</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">component</span>
+        <span class="k">return</span> <span class="n">replaced_component</span>
+</div>
+<div class="viewcode-block" id="Context.remove"><a class="viewcode-back" href="../../aglyph.context.html#aglyph.context.Context.remove">[docs]</a>    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove a component from this context.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component`.</span>
+
+<span class="sd">        :returns: the component that was removed</span>
+<span class="sd">        :rtype: :class:`aglyph.component.Component` (or ``None`` if</span>
+<span class="sd">                *component.component_id* was not in this context)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">component_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">component</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="p">[</span><span class="n">component_id</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">component</span>
+</div>
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">&lt;</span><span class="si">%r</span><span class="s">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__module__</span><span class="p">,</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context_id</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="XMLContext"><a class="viewcode-back" href="../../aglyph.context.html#aglyph.context.XMLContext">[docs]</a><span class="k">class</span> <span class="nc">XMLContext</span><span class="p">(</span><span class="n">Context</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Populate a new context by parsing an XML document.</span>
+
+<span class="sd">    The XML document must conform to the</span>
+<span class="sd">    :download:`aglyph-context-1.0.0 DTD</span>
+<span class="sd">    &lt;../../resources/aglyph-context-1.0.0.dtd&gt;` (included in the</span>
+<span class="sd">    *resources/* directory of the distribution).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">.XMLContext&quot;</span> <span class="o">%</span> <span class="n">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">parser</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">default_encoding</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">getdefaultencoding</span><span class="p">()):</span>
+        <span class="sd">&quot;&quot;&quot;*source* is a filename or stream from which XML data is read.</span>
+
+<span class="sd">        *parser*, if specified, is an *ElementTree* parser; it is passed</span>
+<span class="sd">        as the second argument to</span>
+<span class="sd">        :func:`xml.etree.ElementTree.ElementTree.parse`. In most</span>
+<span class="sd">        cases it is unnecessary to specify a value for *parser* (as the</span>
+<span class="sd">        default works fine on **most** Python implementations - see the</span>
+<span class="sd">        warning below).</span>
+
+<span class="sd">        *default_encoding* is the character set used to encode</span>
+<span class="sd">        ``&lt;bytes&gt;`` or ``&lt;str&gt;`` (under Python 2) element content when</span>
+<span class="sd">        an **@encoding** attribute is *not* specified on those elements.</span>
+<span class="sd">        It defaults to ``sys.getdefaultencoding()``. **This is not</span>
+<span class="sd">        related to the document encoding!**</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">            *IronPython* developers **must** specify a *parser* because</span>
+<span class="sd">            the default Python XML parser (expat) is not available in</span>
+<span class="sd">            *IronPython*. Please see :doc:`aglyph.compat.ipyetree`.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            Aglyph uses a non-validating XML parser by default, so DTD</span>
+<span class="sd">            conformance is not enforced at runtime. It is recommended</span>
+<span class="sd">            that XML contexts be validated at least once (manually)</span>
+<span class="sd">            during testing.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;parsing context from </span><span class="si">%r</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">source</span><span class="p">)</span>
+        <span class="c"># alias the correct _parse_str method based on Python version</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">is_python_2</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parse_str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__parse_str_as_data</span>
+        <span class="k">else</span><span class="p">:</span> <span class="c"># assume 3</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parse_str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__parse_str_as_text</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;default encoding is </span><span class="si">%r</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">default_encoding</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_encoding</span> <span class="o">=</span> <span class="n">default_encoding</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">ElementTree</span><span class="p">()</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">parser</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">tag</span> <span class="o">!=</span> <span class="s">&quot;context&quot;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;expected root &lt;context&gt;, not &lt;</span><span class="si">%s</span><span class="s">&gt;&quot;</span> <span class="o">%</span> <span class="n">root</span><span class="o">.</span><span class="n">tag</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">XMLContext</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">attrib</span><span class="p">[</span><span class="s">&quot;id&quot;</span><span class="p">])</span>
+        <span class="c"># Element.iter is not available in Python 2.5, 2.6, and 3.1, but IS</span>
+        <span class="c"># available in 2.7 and 3.2 (!?) - just use getiterator</span>
+        <span class="k">for</span> <span class="n">component_element</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">getiterator</span><span class="p">(</span><span class="s">&quot;component&quot;</span><span class="p">):</span>
+            <span class="n">component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_component</span><span class="p">(</span><span class="n">component_element</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_process_component</span><span class="p">(</span><span class="n">component</span><span class="p">,</span> <span class="n">component_element</span><span class="p">)</span>
+            <span class="c"># this will raise AglyphError if the component.component_id has</span>
+            <span class="c"># already been added</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="XMLContext.default_encoding"><a class="viewcode-back" href="../../aglyph.context.html#aglyph.context.XMLContext.default_encoding">[docs]</a>    <span class="k">def</span> <span class="nf">default_encoding</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;a read-only property for the default encoding</span>
+
+<span class="sd">        **This is not related to the document encoding!**</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_encoding</span>
+</div>
+    <span class="k">def</span> <span class="nf">_parse_component</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create an :class:`aglyph.component.Component` from</span>
+<span class="sd">        *component_element*.</span>
+
+<span class="sd">        *component_element* is an</span>
+<span class="sd">        :class:`xml.etree.ElementTree.Element` representing a</span>
+<span class="sd">        ``&lt;component&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">component_id</span> <span class="o">=</span> <span class="n">component_element</span><span class="o">.</span><span class="n">attrib</span><span class="p">[</span><span class="s">&quot;id&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;parsing component[@id=</span><span class="si">%r</span><span class="s">]&quot;</span><span class="p">,</span> <span class="n">component_id</span><span class="p">)</span>
+        <span class="c"># if the dotted-name is not specified explicitly, then the component ID</span>
+        <span class="c"># is assumed to represent a dotted-name</span>
+        <span class="n">dotted_name</span> <span class="o">=</span> <span class="n">component_element</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;dotted-name&quot;</span><span class="p">,</span> <span class="n">component_id</span><span class="p">)</span>
+        <span class="n">strategy</span> <span class="o">=</span> <span class="n">component_element</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;strategy&quot;</span><span class="p">,</span> <span class="n">Strategy</span><span class="o">.</span><span class="n">PROTOTYPE</span><span class="p">)</span>
+        <span class="c"># Component will reject unrecognized strategy</span>
+        <span class="k">return</span> <span class="n">Component</span><span class="p">(</span><span class="n">component_id</span><span class="p">,</span> <span class="n">dotted_name</span><span class="p">,</span> <span class="n">strategy</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_process_component</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span> <span class="n">component_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Parse the child elements of *component_element* to populate</span>
+<span class="sd">        the *component* initialization arguments and attributes.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component`.</span>
+<span class="sd">        *component_element* is an</span>
+<span class="sd">        :class:`xml.etree.ElementTree.Element` representing a</span>
+<span class="sd">        ``&lt;component&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">init_element</span> <span class="o">=</span> <span class="n">component_element</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&quot;init&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">init_element</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_init</span><span class="p">(</span><span class="n">init_element</span><span class="p">):</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">keyword</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+                    <span class="n">component</span><span class="o">.</span><span class="n">init_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">component</span><span class="o">.</span><span class="n">init_keywords</span><span class="p">[</span><span class="n">keyword</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="n">attributes_element</span> <span class="o">=</span> <span class="n">component_element</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&quot;attributes&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">attributes_element</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_attributes</span><span class="p">(</span><span class="n">attributes_element</span><span class="p">):</span>
+                <span class="n">component</span><span class="o">.</span><span class="n">attributes</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">isEnabledFor</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%d</span><span class="s"> args, </span><span class="si">%r</span><span class="s"> keywords, </span><span class="si">%r</span><span class="s"> attributes for </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span>
+                               <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">init_args</span><span class="p">),</span>
+                                <span class="nb">list</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">init_keywords</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
+                                <span class="nb">list</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">attributes</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="n">component</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_parse_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">init_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Yield initialization arguments (positional and keyword)</span>
+<span class="sd">        parsed from *init_element*.</span>
+
+<span class="sd">        *init_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing an ``&lt;init&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># Element.iter is not available in Python 2.5, 2.6, and 3.1, but IS</span>
+        <span class="c"># available in 2.7 and 3.2 (!?) - just use getiterator</span>
+        <span class="k">for</span> <span class="n">arg_element</span> <span class="ow">in</span> <span class="n">init_element</span><span class="o">.</span><span class="n">getiterator</span><span class="p">(</span><span class="s">&quot;arg&quot;</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unserialize_element_value</span><span class="p">(</span><span class="n">arg_element</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="s">&quot;keyword&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">arg_element</span><span class="o">.</span><span class="n">attrib</span><span class="p">):</span>
+                <span class="k">yield</span> <span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">keyword</span> <span class="o">=</span> <span class="n">arg_element</span><span class="o">.</span><span class="n">attrib</span><span class="p">[</span><span class="s">&quot;keyword&quot;</span><span class="p">]</span>
+                <span class="k">yield</span> <span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_parse_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attributes_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Yield attributes (fields, setter methods, or properties)</span>
+<span class="sd">        parsed from *attributes_element*.</span>
+
+<span class="sd">        *attributes_element* is an</span>
+<span class="sd">        :class:`xml.etree.ElementTree.Element` representing an</span>
+<span class="sd">        ``&lt;attributes&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># Element.iter is not available in Python 2.5, 2.6, and 3.1, but IS</span>
+        <span class="c"># available in 2.7 and 3.2 (!?) - just use getiterator</span>
+        <span class="k">for</span> <span class="n">attribute_element</span> <span class="ow">in</span> <span class="n">attributes_element</span><span class="o">.</span><span class="n">getiterator</span><span class="p">(</span><span class="s">&quot;attribute&quot;</span><span class="p">):</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">attribute_element</span><span class="o">.</span><span class="n">attrib</span><span class="p">[</span><span class="s">&quot;name&quot;</span><span class="p">]</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unserialize_element_value</span><span class="p">(</span><span class="n">attribute_element</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_unserialize_element_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the value, :class:`aglyph.component.Reference`,</span>
+<span class="sd">        :class:`aglpyh.component.Evaluator`, or</span>
+<span class="sd">        :func:`functools.partial` object that is the result of</span>
+<span class="sd">        processing *element*.</span>
+
+<span class="sd">        *element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a &quot;value container&quot; element (i.e. ``&lt;arg&gt;``,</span>
+<span class="sd">        ``&lt;attribute&gt;``, ``&lt;key&gt;``, or ``&lt;value&gt;``).</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="s">&quot;reference&quot;</span> <span class="ow">in</span> <span class="n">element</span><span class="o">.</span><span class="n">attrib</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Reference</span><span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">attrib</span><span class="p">[</span><span class="s">&quot;reference&quot;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">element</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;&lt;</span><span class="si">%s</span><span class="s">&gt; must contain exactly one child element!!&quot;</span> <span class="o">%</span>
+                              <span class="n">element</span><span class="o">.</span><span class="n">tag</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_element</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">element</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_process_element</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a usable Python object from *element*.</span>
+
+<span class="sd">        *element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a &quot;value&quot; element (e.g. ``&lt;int&gt;``,</span>
+<span class="sd">        ``&lt;reference&gt;``).</span>
+
+<span class="sd">        This method will return one of the following types:</span>
+
+<span class="sd">        * a built-in object (e.g. an ``int``, a ``str``)</span>
+<span class="sd">        * a built-in constant (e.g. ``True``, ``False``, ``None``)</span>
+<span class="sd">        * an :class:`aglyph.component.Reference`</span>
+<span class="sd">        * an :class:`aglyph.component.Evaluator`</span>
+<span class="sd">        * a :func:`functools.partial`</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">parse</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&quot;_parse_</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">element</span><span class="o">.</span><span class="n">tag</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">parse</span><span class="p">(</span><span class="n">element</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_parse_true</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">true_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the built-in constant ``True``.</span>
+
+<span class="sd">        *true_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;true/&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">True</span>
+
+    <span class="k">def</span> <span class="nf">_parse_false</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">false_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the built-in constant ``False``.</span>
+
+<span class="sd">        *false_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;false/&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">_parse_none</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">none_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the built-in constant ``None``.</span>
+
+<span class="sd">        *none_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;none/&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">_parse_bytes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bytes_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a built-in :func:`str` (Python 2) or :class:`bytes`</span>
+<span class="sd">        (Python 3) object.</span>
+
+<span class="sd">        *bytes_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;bytes&gt;`` element.</span>
+
+<span class="sd">        If the **bytes/@encoding** attribute has been set, the text of</span>
+<span class="sd">        the ``&lt;bytes&gt;`` element is encoded using the specified character</span>
+<span class="sd">        set; otherwise, the text of the ``&lt;bytes&gt;`` element is encoded</span>
+<span class="sd">        using the XML document&#39;s encoding (defaulting to UTF-8).</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            Whitespace in the ``&lt;bytes&gt;`` element&#39;s text is preserved.</span>
+
+<span class="sd">        If *bytes_element* is an empty element, ``str()`` (Python 2) or</span>
+<span class="sd">        ``bytes()`` (Python 3) is returned.</span>
+
+<span class="sd">        :raises UnicodeEncodeError: if the text cannot be encoded</span>
+<span class="sd">                                    according to the specified character</span>
+<span class="sd">                                    set</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">bytes_element</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="n">encoding</span> <span class="o">=</span> <span class="n">bytes_element</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;encoding&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_encoding</span><span class="p">)</span>
+            <span class="c"># .encode() will return the appropriate type</span>
+            <span class="k">return</span> <span class="n">bytes_element</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">encoding</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">DataType</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__parse_str_as_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">str_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a built-in ``str`` (Python 2 encoded byte data)</span>
+<span class="sd">        object.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This method is aliased as ``_parse_str(self, str_element)``</span>
+<span class="sd">            when Aglyph is running under Python 2.</span>
+
+<span class="sd">        *str_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;str&gt;`` element.</span>
+
+<span class="sd">        If the **str/@encoding** attribute has been set, the text of the</span>
+<span class="sd">        ``&lt;str&gt;`` element is encoded using the specified character set;</span>
+<span class="sd">        otherwise, the text of the ``&lt;str&gt;`` element is encoded using</span>
+<span class="sd">        the XML document&#39;s encoding (defaulting to UTF-8).</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            Whitespace in the ``&lt;str&gt;`` element&#39;s text is preserved.</span>
+
+<span class="sd">        If *str_element* is an empty element, ``str()`` is returned.</span>
+
+<span class="sd">        :raises UnicodeEncodeError: if the text cannot be encoded</span>
+<span class="sd">                                    according to the specified character</span>
+<span class="sd">                                    set</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">str_element</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="n">encoding</span> <span class="o">=</span> <span class="n">str_element</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;encoding&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_encoding</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">str_element</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">encoding</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__parse_str_as_text</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">str_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a built-in ``str`` (Python 3 Unicode text) object.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This method is aliased as ``_parse_str(self, str_element)``</span>
+<span class="sd">            when Aglyph is running under Python 3.</span>
+
+<span class="sd">        *str_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;str&gt;`` element.</span>
+
+<span class="sd">        The text of the ``&lt;str&gt;`` element (which is already a Unicode</span>
+<span class="sd">        string) is returned unchanged.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            Whitespace in the ``&lt;str&gt;`` element&#39;s text is preserved.</span>
+
+<span class="sd">        If *str_element* is an empty element, ``str()`` is returned.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">str_element</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="n">encoding</span> <span class="o">=</span> <span class="n">str_element</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;encoding&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">encoding</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&quot;ignoring str/@encoding attribute (</span><span class="si">%r</span><span class="s">)&quot;</span><span class="p">,</span>
+                                     <span class="n">encoding</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">str_element</span><span class="o">.</span><span class="n">text</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_parse_unicode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unicode_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a built-in ``unicode`` (Python 2) or ``str``</span>
+<span class="sd">        (Python 3) object.</span>
+
+<span class="sd">        *unicode_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;unicode&gt;`` element.</span>
+
+<span class="sd">        The text of the ``&lt;unicode&gt;`` element (which is already a</span>
+<span class="sd">        Unicode string) is returned unchanged.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            Whitespace in the ``&lt;unicode&gt;`` element&#39;s text is preserved.</span>
+
+<span class="sd">        If *unicode_element* is an empty element, ``unicode()``</span>
+<span class="sd">        (Python 2) or ``str()`` (Python 3) is returned.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">unicode_element</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">unicode_element</span><span class="o">.</span><span class="n">text</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">TextType</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_parse_int</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">int_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a built-in :func:`int` object.</span>
+
+<span class="sd">        *int_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing an ``&lt;int&gt;`` element.</span>
+
+<span class="sd">        The text of the ``&lt;int&gt;`` element is passed as the first</span>
+<span class="sd">        argument to the built-in function :func:`int`.</span>
+
+<span class="sd">        The **int/@base** attribute, if specified, is passed as the</span>
+<span class="sd">        second argument to the built-in function :func:`int`.</span>
+
+<span class="sd">        If *int_element* is an empty element, ``int()`` is returned.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">int_element</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">int_element</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;base&quot;</span><span class="p">,</span> <span class="s">&quot;10&quot;</span><span class="p">))</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">int_element</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_parse_float</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">float_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a built-in :func:`float` object.</span>
+
+<span class="sd">        *float_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;float&gt;`` element.</span>
+
+<span class="sd">        The text of the ``&lt;float&gt;`` element is passed as the argument to</span>
+<span class="sd">        the built-in function :func:`float`.</span>
+
+<span class="sd">        If *float_element* is an empty element, ``float()`` is returned.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">float_element</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">float_element</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_parse_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">list_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an :class:`aglyph.component.Evaluator` that produces</span>
+<span class="sd">        a built-in :func:`list` object when called.</span>
+
+<span class="sd">        *list_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;list&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_process_element</span><span class="p">(</span><span class="n">child_element</span><span class="p">)</span>
+                 <span class="k">for</span> <span class="n">child_element</span> <span class="ow">in</span> <span class="n">list_element</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">Evaluator</span><span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="n">items</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_parse_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tuple_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return either an :class:`aglyph.component.Evaluator` that</span>
+<span class="sd">        produces a built-in :func:`tuple` object when called, or an</span>
+<span class="sd">        empty :func:`tuple` object.</span>
+
+<span class="sd">        *tuple_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;tuple&gt;`` element.</span>
+
+<span class="sd">        If *tuple_element* is an empty element, ``tuple()`` is returned.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">children</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">tuple_element</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)):</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_process_element</span><span class="p">(</span><span class="n">child_element</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">child_element</span> <span class="ow">in</span> <span class="n">children</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">Evaluator</span><span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">items</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># a tuple is immutable, so there&#39;s no sense in paying the overhead</span>
+            <span class="c"># of evaluation for an empty tuple</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_parse_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dict_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an :class:`aglyph.component.Evaluator` that produces</span>
+<span class="sd">        a built-in :func:`dict` object when called.</span>
+
+<span class="sd">        *dict_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;dict&gt;`` element.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># a list of 2-tuples, (key, value), used to initialize a dictionary</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c"># Element.iter is not available in Python 2.5, 2.6, and 3.1, but IS</span>
+        <span class="c"># available in 2.7 and 3.2 (!?) - just use getiterator</span>
+        <span class="k">for</span> <span class="n">item_element</span> <span class="ow">in</span> <span class="n">dict_element</span><span class="o">.</span><span class="n">getiterator</span><span class="p">(</span><span class="s">&quot;item&quot;</span><span class="p">):</span>
+            <span class="n">key_element</span> <span class="o">=</span> <span class="n">item_element</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&quot;key&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">key_element</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;item/key is required&quot;</span><span class="p">)</span>
+            <span class="n">value_element</span> <span class="o">=</span> <span class="n">item_element</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&quot;value&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">value_element</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;item/value is required&quot;</span><span class="p">)</span>
+            <span class="n">items</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_unserialize_element_value</span><span class="p">(</span><span class="n">key_element</span><span class="p">),</span>
+                          <span class="bp">self</span><span class="o">.</span><span class="n">_unserialize_element_value</span><span class="p">(</span><span class="n">value_element</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">Evaluator</span><span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="n">items</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_parse_reference</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an :class:`aglyph.component.Reference`.</span>
+
+<span class="sd">        *reference_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing a ``&lt;reference&gt;`` element.</span>
+
+<span class="sd">        The **reference/@id** attribute is required, and will be used as</span>
+<span class="sd">        the value to create an :class:`aglyph.component.Reference`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">component_id</span> <span class="o">=</span> <span class="n">reference_element</span><span class="o">.</span><span class="n">attrib</span><span class="p">[</span><span class="s">&quot;id&quot;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">Reference</span><span class="p">(</span><span class="n">component_id</span><span class="p">)</span>
+
+<div class="viewcode-block" id="XMLContext._parse_eval"><a class="viewcode-back" href="../../cookbook.html#aglyph.context.XMLContext._parse_eval">[docs]</a>    <span class="k">def</span> <span class="nf">_parse_eval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eval_element</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a :func:`functools.partial` that will evaluate an</span>
+<span class="sd">        expression when called, using the built-in :func:`eval`</span>
+<span class="sd">        function.</span>
+
+<span class="sd">        *eval_element* is an :class:`xml.etree.ElementTree.Element`</span>
+<span class="sd">        representing an ``&lt;eval&gt;`` element.</span>
+
+<span class="sd">        The environment for :func:`eval` is a restricted subset of</span>
+<span class="sd">        :mod:`builtins`, providing access to the following built-ins</span>
+<span class="sd">        **only** (and subject to availability based on Python version):</span>
+
+<span class="sd">        .. hlist::</span>
+<span class="sd">            :columns: 5</span>
+
+<span class="sd">            * ``ArithmeticError``</span>
+<span class="sd">            * ``AssertionError``</span>
+<span class="sd">            * ``AttributeError``</span>
+<span class="sd">            * ``BaseException``</span>
+<span class="sd">            * ``BufferError``</span>
+<span class="sd">            * ``BytesWarning``</span>
+<span class="sd">            * ``DeprecationWarning``</span>
+<span class="sd">            * ``EOFError``</span>
+<span class="sd">            * ``Ellipsis``</span>
+<span class="sd">            * ``EnvironmentError``</span>
+<span class="sd">            * ``Exception``</span>
+<span class="sd">            * ``False``</span>
+<span class="sd">            * ``FloatingPointError``</span>
+<span class="sd">            * ``FutureWarning``</span>
+<span class="sd">            * ``GeneratorExit``</span>
+<span class="sd">            * ``IOError``</span>
+<span class="sd">            * ``ImportError``</span>
+<span class="sd">            * ``ImportWarning``</span>
+<span class="sd">            * ``IndentationError``</span>
+<span class="sd">            * ``IndexError``</span>
+<span class="sd">            * ``KeyError``</span>
+<span class="sd">            * ``KeyboardInterrupt``</span>
+<span class="sd">            * ``LookupError``</span>
+<span class="sd">            * ``MemoryError``</span>
+<span class="sd">            * ``NameError``</span>
+<span class="sd">            * ``None``</span>
+<span class="sd">            * ``NotImplemented``</span>
+<span class="sd">            * ``NotImplementedError``</span>
+<span class="sd">            * ``OSError``</span>
+<span class="sd">            * ``OverflowError``</span>
+<span class="sd">            * ``PendingDeprecationWarning``</span>
+<span class="sd">            * ``ReferenceError``</span>
+<span class="sd">            * ``ResourceWarning``</span>
+<span class="sd">            * ``RuntimeError``</span>
+<span class="sd">            * ``RuntimeWarning``</span>
+<span class="sd">            * ``StandardError``</span>
+<span class="sd">            * ``StopIteration``</span>
+<span class="sd">            * ``SyntaxError``</span>
+<span class="sd">            * ``SyntaxWarning``</span>
+<span class="sd">            * ``SystemError``</span>
+<span class="sd">            * ``TabError``</span>
+<span class="sd">            * ``True``</span>
+<span class="sd">            * ``TypeError``</span>
+<span class="sd">            * ``UnboundLocalError``</span>
+<span class="sd">            * ``UnicodeDecodeError``</span>
+<span class="sd">            * ``UnicodeEncodeError``</span>
+<span class="sd">            * ``UnicodeError``</span>
+<span class="sd">            * ``UnicodeTranslateError``</span>
+<span class="sd">            * ``UnicodeWarning``</span>
+<span class="sd">            * ``UserWarning``</span>
+<span class="sd">            * ``ValueError``</span>
+<span class="sd">            * ``Warning``</span>
+<span class="sd">            * ``ZeroDivisionError``</span>
+<span class="sd">            * ``__debug__``</span>
+<span class="sd">            * ``abs``</span>
+<span class="sd">            * ``all``</span>
+<span class="sd">            * ``any``</span>
+<span class="sd">            * ``apply``</span>
+<span class="sd">            * ``ascii``</span>
+<span class="sd">            * ``basestring``</span>
+<span class="sd">            * ``bin``</span>
+<span class="sd">            * ``bool``</span>
+<span class="sd">            * ``buffer``</span>
+<span class="sd">            * ``bytearray``</span>
+<span class="sd">            * ``bytes``</span>
+<span class="sd">            * ``callable``</span>
+<span class="sd">            * ``chr``</span>
+<span class="sd">            * ``cmp``</span>
+<span class="sd">            * ``coerce``</span>
+<span class="sd">            * ``complex``</span>
+<span class="sd">            * ``dict``</span>
+<span class="sd">            * ``dir``</span>
+<span class="sd">            * ``divmod``</span>
+<span class="sd">            * ``enumerate``</span>
+<span class="sd">            * ``filter``</span>
+<span class="sd">            * ``float``</span>
+<span class="sd">            * ``format``</span>
+<span class="sd">            * ``frozenset``</span>
+<span class="sd">            * ``getattr``</span>
+<span class="sd">            * ``hasattr``</span>
+<span class="sd">            * ``hash``</span>
+<span class="sd">            * ``hex``</span>
+<span class="sd">            * ``id``</span>
+<span class="sd">            * ``int``</span>
+<span class="sd">            * ``intern``</span>
+<span class="sd">            * ``isinstance``</span>
+<span class="sd">            * ``issubclass``</span>
+<span class="sd">            * ``iter``</span>
+<span class="sd">            * ``len``</span>
+<span class="sd">            * ``list``</span>
+<span class="sd">            * ``long``</span>
+<span class="sd">            * ``map``</span>
+<span class="sd">            * ``max``</span>
+<span class="sd">            * ``memoryview``</span>
+<span class="sd">            * ``min``</span>
+<span class="sd">            * ``next``</span>
+<span class="sd">            * ``object``</span>
+<span class="sd">            * ``oct``</span>
+<span class="sd">            * ``ord``</span>
+<span class="sd">            * ``pow``</span>
+<span class="sd">            * ``range``</span>
+<span class="sd">            * ``reduce``</span>
+<span class="sd">            * ``repr``</span>
+<span class="sd">            * ``reversed``</span>
+<span class="sd">            * ``round``</span>
+<span class="sd">            * ``set``</span>
+<span class="sd">            * ``slice``</span>
+<span class="sd">            * ``sorted``</span>
+<span class="sd">            * ``str``</span>
+<span class="sd">            * ``sum``</span>
+<span class="sd">            * ``tuple``</span>
+<span class="sd">            * ``type``</span>
+<span class="sd">            * ``unichr``</span>
+<span class="sd">            * ``unicode``</span>
+<span class="sd">            * ``xrange``</span>
+<span class="sd">            * ``zip``</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">eval_element</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;&lt;eval&gt; cannot be an empty element&quot;</span><span class="p">)</span>
+        <span class="c"># the environment for an eval expression is a restricted subset of</span>
+        <span class="c"># __builtins__.</span>
+        <span class="k">return</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="nb">eval</span><span class="p">,</span> <span class="n">eval_element</span><span class="o">.</span><span class="n">text</span><span class="p">,</span>
+                                 <span class="p">{</span><span class="s">&quot;__builtins__&quot;</span><span class="p">:</span> <span class="n">RESTRICTED_BUILTINS</span><span class="p">})</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Aglyph v1.1.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../aglyph.html" >aglyph</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2006-2011, Matthew Zipay.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

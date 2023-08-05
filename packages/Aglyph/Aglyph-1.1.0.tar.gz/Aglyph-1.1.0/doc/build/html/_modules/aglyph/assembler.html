@@ -1,0 +1,403 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>aglyph.assembler &mdash; Aglyph v1.1.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="Aglyph v1.1.0 documentation" href="../../index.html" />
+    <link rel="up" title="aglyph" href="../aglyph.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Aglyph v1.1.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../aglyph.html" accesskey="U">aglyph</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for aglyph.assembler</h1><div class="highlight"><pre>
+<span class="c"># The MIT License (MIT)</span>
+<span class="c">#</span>
+<span class="c"># Copyright (c) 2006-2011 Matthew Zipay &lt;mattz@ninthtest.net&gt;</span>
+<span class="c">#</span>
+<span class="c"># Permission is hereby granted, free of charge, to any person obtaining a copy</span>
+<span class="c"># of this software and associated documentation files (the &quot;Software&quot;), to deal</span>
+<span class="c"># in the Software without restriction, including without limitation the rights</span>
+<span class="c"># to use, copy, modify, merge, publish, distribute, sublicense, and/or sell</span>
+<span class="c"># copies of the Software, and to permit persons to whom the Software is</span>
+<span class="c"># furnished to do so, subject to the following conditions:</span>
+<span class="c">#</span>
+<span class="c"># The above copyright notice and this permission notice shall be included in</span>
+<span class="c"># all copies or substantial portions of the Software.</span>
+<span class="c">#</span>
+<span class="c"># THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR</span>
+<span class="c"># IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,</span>
+<span class="c"># FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE</span>
+<span class="c"># AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER</span>
+<span class="c"># LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,</span>
+<span class="c"># OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE</span>
+<span class="c"># SOFTWARE.</span>
+
+<span class="sd">&quot;&quot;&quot;The Aglyph assembler injects dependencies into application components.</span>
+
+<span class="sd">Application components and their dependencies are defined in an</span>
+<span class="sd">:class:`aglyph.context.Context`, which is used to initialize an</span>
+<span class="sd">assembler.</span>
+
+<span class="sd">An assembler provides thread-safe caching of **singleton** component</span>
+<span class="sd">instances and **borg** component shared-states (i.e. instance</span>
+<span class="sd">``__dict__`` references).</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">with_statement</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s">&quot;Matthew Zipay &lt;mattz@ninthtest.net&gt;&quot;</span>
+<span class="n">__version__</span> <span class="o">=</span> <span class="s">&quot;1.0.0&quot;</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">from</span> <span class="nn">inspect</span> <span class="kn">import</span> <span class="n">isclass</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="kn">from</span> <span class="nn">aglyph</span> <span class="kn">import</span> <span class="n">AglyphError</span><span class="p">,</span> <span class="n">resolve_dotted_name</span>
+<span class="kn">from</span> <span class="nn">aglyph.compat</span> <span class="kn">import</span> <span class="n">is_callable</span><span class="p">,</span> <span class="n">new_instance</span>
+<span class="kn">from</span> <span class="nn">aglyph.cache</span> <span class="kn">import</span> <span class="n">ReentrantMutexCache</span>
+<span class="kn">from</span> <span class="nn">aglyph.component</span> <span class="kn">import</span> <span class="n">Evaluator</span><span class="p">,</span> <span class="n">Reference</span><span class="p">,</span> <span class="n">Strategy</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;Assembler&quot;</span><span class="p">]</span>
+
+<span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Assembler"><a class="viewcode-back" href="../../aglyph.assembler.html#aglyph.assembler.Assembler">[docs]</a><span class="k">class</span> <span class="nc">Assembler</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create application objects using type 2 (setter) and type 3</span>
+<span class="sd">    (constructor) dependency injection.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">.Assembler&quot;</span> <span class="o">%</span> <span class="n">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;*context* should be an :class:`aglyph.context.Context`.&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Assembler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_context</span> <span class="o">=</span> <span class="n">context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_singleton_cache</span> <span class="o">=</span> <span class="n">ReentrantMutexCache</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_borg_cache</span> <span class="o">=</span> <span class="n">ReentrantMutexCache</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_assembly_stack</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;initialized </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Assembler.assemble"><a class="viewcode-back" href="../../aglyph.assembler.html#aglyph.assembler.Assembler.assemble">[docs]</a>    <span class="k">def</span> <span class="nf">assemble</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance of the component specified by</span>
+<span class="sd">        *component_id* with all of its dependencies provided.</span>
+
+<span class="sd">        *component_id* must be a valid &quot;relative_module.identifier&quot;</span>
+<span class="sd">        dotted-name string or a user-provided unique component</span>
+<span class="sd">        identifier.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;assembling </span><span class="si">%r</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component_id</span><span class="p">)</span>
+        <span class="c"># check for circular dependency</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">component_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_assembly_stack</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;circular dependency detected: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span>
+                              <span class="s">&quot; =&gt; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_assembly_stack</span> <span class="o">+</span>
+                                          <span class="p">[</span><span class="n">component_id</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_assembly_stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">component_id</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;current assembly stack: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_assembly_stack</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">component_id</span><span class="p">]</span>
+            <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">strategy</span> <span class="o">==</span> <span class="n">Strategy</span><span class="o">.</span><span class="n">PROTOTYPE</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_wire</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">instance</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_assembly_stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+</div>
+    <span class="k">def</span> <span class="nf">_create</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance of *component*.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">create</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&quot;_create_</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">component</span><span class="o">.</span><span class="n">strategy</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">create</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;don&#39;t know how to create a </span><span class="si">%r</span><span class="s"> component&quot;</span> <span class="o">%</span>
+                              <span class="n">component</span><span class="o">.</span><span class="n">strategy</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">create</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_create_prototype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance of the prototype *component*.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component` having</span>
+<span class="sd">        ``strategy=&quot;prototype&quot;``.</span>
+
+<span class="sd">        A new instance is always created and initialized.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;creating </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+        <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">instance</span>
+
+    <span class="k">def</span> <span class="nf">_create_singleton</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance of the singleton *component*.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component` having</span>
+<span class="sd">        ``strategy=&quot;singleton&quot;``.</span>
+
+<span class="sd">        If *component* has previously been assembled, the cached</span>
+<span class="sd">        instance is returned. Otherwise, a new instance is created,</span>
+<span class="sd">        initialized, wired, cached, and then returned.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;creating </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_singleton_cache</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_singleton_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;cached instance for </span><span class="si">%s</span><span class="s"> is </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span>
+                               <span class="nb">type</span><span class="p">(</span><span class="n">instance</span><span class="p">))</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">instance</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+                <span class="c"># singletons are initialized and wired once, then cached</span>
+                <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_wire</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_singleton_cache</span><span class="p">[</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">instance</span>
+            <span class="k">return</span> <span class="n">instance</span>
+
+    <span class="k">def</span> <span class="nf">_create_borg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance of the borg *component*.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component` having</span>
+<span class="sd">        ``strategy=&quot;borg&quot;``.</span>
+
+<span class="sd">        A new instance is always created. If *component* has previously</span>
+<span class="sd">        been assembled, the cached shared-state is assigned to the new</span>
+<span class="sd">        instance&#39;s ``__dict__`` and the instance is returned. Otherwise,</span>
+<span class="sd">        the new instance is initialized and wired, it&#39;s ``__dict__`` is</span>
+<span class="sd">        cached, and then the instance is returned.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;creating </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_borg_cache</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="n">shared_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_borg_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;cached shared-state for </span><span class="si">%s</span><span class="s"> is </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span>
+                               <span class="nb">type</span><span class="p">(</span><span class="n">shared_state</span><span class="p">))</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">shared_state</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+                <span class="c"># borgs are initialized and wired, then the state is cached</span>
+                <span class="n">instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_wire</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_borg_cache</span><span class="p">[</span><span class="n">component</span><span class="o">.</span><span class="n">component_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">__dict__</span>
+                <span class="k">return</span> <span class="n">instance</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># TODO: test fixtures for TypeError and AglyphError</span>
+                <span class="c"># always create a new instance of borg</span>
+                <span class="n">cls</span> <span class="o">=</span> <span class="n">resolve_dotted_name</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">dotted_name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">isclass</span><span class="p">(</span><span class="n">cls</span><span class="p">)):</span>
+                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;expected class, not </span><span class="si">%s</span><span class="s">&quot;</span>
+                                    <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="s">&quot;__slots__&quot;</span><span class="p">)):</span>
+                    <span class="c"># old-style classes do not enforce __slots__, but if</span>
+                    <span class="c"># __slots__ is defined for an old-style class, assume the</span>
+                    <span class="c"># intent is clear and reject anyway</span>
+                    <span class="k">raise</span> <span class="n">AglyphError</span><span class="p">(</span><span class="s">&quot;borg is not supoprted for classes that &quot;</span>
+                                      <span class="s">&quot;define or inherit __slots__&quot;</span><span class="p">)</span>
+                <span class="n">instance</span> <span class="o">=</span> <span class="n">new_instance</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+                <span class="n">instance</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="n">shared_state</span>
+                <span class="k">return</span> <span class="n">instance</span>
+
+    <span class="k">def</span> <span class="nf">_initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a new *component* object initialized with its</span>
+<span class="sd">        dependencies.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component`.</span>
+
+<span class="sd">        This method performs type 3 (constructor) injection.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;initializing </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+        <span class="n">initializer</span> <span class="o">=</span> <span class="n">resolve_dotted_name</span><span class="p">(</span><span class="n">component</span><span class="o">.</span><span class="n">dotted_name</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_args_and_keywords</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">isclass</span><span class="p">(</span><span class="n">initializer</span><span class="p">)):</span>
+            <span class="n">instance</span> <span class="o">=</span> <span class="n">new_instance</span><span class="p">(</span><span class="n">initializer</span><span class="p">)</span>
+            <span class="n">instance</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">instance</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># use the __call__ protocol</span>
+            <span class="k">return</span> <span class="n">initializer</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_resolve_args_and_keywords</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the fully assembled/evaluated positional and keyword</span>
+<span class="sd">        arguments for *component*.</span>
+
+<span class="sd">        *component* is an :class:`aglyph.component.Component`.</span>
+
+<span class="sd">        The arguments returned from this method are ready to be passed</span>
+<span class="sd">        directly to an initializer.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;resolving args and keywords for </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_resolve</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">component</span><span class="o">.</span><span class="n">init_args</span><span class="p">])</span>
+        <span class="n">keywords</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">n</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+                       <span class="k">for</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">component</span><span class="o">.</span><span class="n">init_keywords</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">keywords</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_wire</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Inject dependencies into *instance* using direct attribute</span>
+<span class="sd">        assignment, setter methods, and/or properties.</span>
+
+<span class="sd">        *instance* is an initialized object of the type defined by</span>
+<span class="sd">        *component* (which is an :class:`aglyph.component.Component`).</span>
+
+<span class="sd">        This method performs type 2 (setter) injection.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;wiring </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">attr_name</span><span class="p">,</span> <span class="n">raw_attr_value</span><span class="p">)</span> <span class="ow">in</span> <span class="n">component</span><span class="o">.</span><span class="n">attributes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">instance_attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">)</span>
+            <span class="n">attr_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve</span><span class="p">(</span><span class="n">raw_attr_value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">is_callable</span><span class="p">(</span><span class="n">instance_attr</span><span class="p">)):</span>
+                <span class="c"># this is a setter method</span>
+                <span class="n">instance_attr</span><span class="p">(</span><span class="n">attr_value</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># this is a simple attribute or property</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_resolve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value_spec</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the actual value of an initialization or attribute</span>
+<span class="sd">        value specification.</span>
+
+<span class="sd">        If *value_spec* is an :class:`aglyph.component.Reference`, the</span>
+<span class="sd">        :func:`assemble` method is called recursively to</span>
+<span class="sd">        assemble the specified component, which is then returned.</span>
+
+<span class="sd">        If *value_spec* is an :class:`aglyph.component.Evaluator`, it is</span>
+<span class="sd">        evaluated (which may also result in nested references being</span>
+<span class="sd">        assembled, as described above). The resulting value is returned.</span>
+
+<span class="sd">        If *value_spec* is a :func:`functools.partial`, it is called,</span>
+<span class="sd">        and the resulting value is returned.</span>
+
+<span class="sd">        In any other case, *value_spec* is returned **unchanged**.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value_spec</span><span class="p">,</span> <span class="n">Reference</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">assemble</span><span class="p">(</span><span class="n">value_spec</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value_spec</span><span class="p">,</span> <span class="n">Evaluator</span><span class="p">)):</span>
+            <span class="c"># need to pass a reference to the assembler since the</span>
+            <span class="c"># evaluation may require further component assembly</span>
+            <span class="k">return</span> <span class="n">value_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value_spec</span><span class="p">,</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">value_spec</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">value_spec</span>
+
+<div class="viewcode-block" id="Assembler.clear_singletons"><a class="viewcode-back" href="../../aglyph.assembler.html#aglyph.assembler.Assembler.clear_singletons">[docs]</a>    <span class="k">def</span> <span class="nf">clear_singletons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Evict all cached singleton component instances.</span>
+
+<span class="sd">        :returns: a list of evicted component IDs</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_singleton_cache</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="n">singleton_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_singleton_cache</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;evicting cached singletons </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">singleton_ids</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_singleton_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">singleton_ids</span>
+</div>
+<div class="viewcode-block" id="Assembler.clear_borgs"><a class="viewcode-back" href="../../aglyph.assembler.html#aglyph.assembler.Assembler.clear_borgs">[docs]</a>    <span class="k">def</span> <span class="nf">clear_borgs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Evict all cached borg component shared-states.</span>
+
+<span class="sd">        :returns: a list of component IDs corresponding to the evicted</span>
+<span class="sd">                  shared-state instance ``__dict__`` references</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_borg_cache</span><span class="o">.</span><span class="n">lock</span><span class="p">:</span>
+            <span class="n">borg_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_borg_cache</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;evicting cached borg states </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">borg_ids</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_borg_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">borg_ids</span>
+</div>
+    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return ``True`` if the *component_id* is defined in this</span>
+<span class="sd">        assembler&#39;s context.</span>
+
+<span class="sd">        *component_id* must be a valid &quot;relative_module.identifier&quot;</span>
+<span class="sd">        dotted-name string or a user-provided unique component</span>
+<span class="sd">        identifier.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">component_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">&lt;</span><span class="si">%s</span><span class="s">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__module__</span><span class="p">,</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Aglyph v1.1.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../aglyph.html" >aglyph</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2006-2011, Matthew Zipay.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,337 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>aglyph.binder &mdash; Aglyph v1.1.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="Aglyph v1.1.0 documentation" href="../../index.html" />
+    <link rel="up" title="aglyph" href="../aglyph.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Aglyph v1.1.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../aglyph.html" accesskey="U">aglyph</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for aglyph.binder</h1><div class="highlight"><pre>
+<span class="c"># The MIT License (MIT)</span>
+<span class="c">#</span>
+<span class="c"># Copyright (c) 2006-2011 Matthew Zipay &lt;mattz@ninthtest.net&gt;</span>
+<span class="c">#</span>
+<span class="c"># Permission is hereby granted, free of charge, to any person obtaining a copy</span>
+<span class="c"># of this software and associated documentation files (the &quot;Software&quot;), to deal</span>
+<span class="c"># in the Software without restriction, including without limitation the rights</span>
+<span class="c"># to use, copy, modify, merge, publish, distribute, sublicense, and/or sell</span>
+<span class="c"># copies of the Software, and to permit persons to whom the Software is</span>
+<span class="c"># furnished to do so, subject to the following conditions:</span>
+<span class="c">#</span>
+<span class="c"># The above copyright notice and this permission notice shall be included in</span>
+<span class="c"># all copies or substantial portions of the Software.</span>
+<span class="c">#</span>
+<span class="c"># THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR</span>
+<span class="c"># IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,</span>
+<span class="c"># FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE</span>
+<span class="c"># AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER</span>
+<span class="c"># LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,</span>
+<span class="c"># OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE</span>
+<span class="c"># SOFTWARE.</span>
+
+<span class="sd">&quot;&quot;&quot;.. versionadded:: 1.1.0</span>
+
+<span class="sd">The Aglyph binder provides a much simpler and more compact alternative</span>
+<span class="sd">to :class:`aglyph.assembler.Assembler`, :class:`aglyph.context.Context`,</span>
+<span class="sd">and :class:`aglyph.component.Component` for programmatic configuration</span>
+<span class="sd">of Aglyph.</span>
+
+<span class="sd">&quot;Binding&quot; usually results in much less configuration code. An</span>
+<span class="sd">:class:`aglyph.binder.Binder` also offers the same functionality as an</span>
+<span class="sd">:class:`aglyph.assembler.Assembler`, so the same object used to</span>
+<span class="sd">configure injection can be used to *perform* injection, further reducing</span>
+<span class="sd">the amount of &quot;bootstrap&quot; code needed.</span>
+
+<span class="sd">For example, the following two blocks exhibit identical behavior:</span>
+
+<span class="sd">Using ``Assembler`` / ``Context`` / ``Component``::</span>
+
+<span class="sd">    context = Context(&quot;context-id&quot;)</span>
+<span class="sd">    assembler = Assembler(context)</span>
+<span class="sd">    component = Component(&quot;my.package.MyClass&quot;)</span>
+<span class="sd">    component.init_args.append(&quot;arg&quot;)</span>
+<span class="sd">    component.init_keywords[&quot;kw&quot;] = &quot;value&quot;</span>
+<span class="sd">    component.attributes[&quot;set_spam&quot;] = &quot;eggs&quot;</span>
+<span class="sd">    context.add(component)</span>
+<span class="sd">    my = assembler.assemble(&quot;my.package.MyClass&quot;)</span>
+
+<span class="sd">Using ``Binder``::</span>
+
+<span class="sd">    binder = Binder()</span>
+<span class="sd">    binder.bind(MyClass).init(&quot;arg&quot;, kw=&quot;value&quot;).attributes(set_spam=&quot;eggs&quot;)</span>
+<span class="sd">    my = binder.lookup(MyClass)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s">&quot;Matthew Zipay &lt;mattz@ninthtest.net&gt;&quot;</span>
+<span class="n">__version__</span> <span class="o">=</span> <span class="s">&quot;1.1.0&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">uuid</span> <span class="kn">import</span> <span class="n">uuid4</span>
+
+<span class="kn">from</span> <span class="nn">aglyph</span> <span class="kn">import</span> <span class="n">format_dotted_name</span><span class="p">,</span> <span class="n">identify_by_spec</span>
+<span class="kn">from</span> <span class="nn">aglyph.assembler</span> <span class="kn">import</span> <span class="n">Assembler</span>
+<span class="kn">from</span> <span class="nn">aglyph.compat</span> <span class="kn">import</span> <span class="n">ClassAndFunctionTypes</span>
+<span class="kn">from</span> <span class="nn">aglyph.component</span> <span class="kn">import</span> <span class="n">Component</span><span class="p">,</span> <span class="n">Reference</span><span class="p">,</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">aglyph.context</span> <span class="kn">import</span> <span class="n">Context</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;Binder&quot;</span><span class="p">]</span>
+
+<span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Binder"><a class="viewcode-back" href="../../aglyph.binder.html#aglyph.binder.Binder">[docs]</a><span class="k">class</span> <span class="nc">Binder</span><span class="p">(</span><span class="n">Assembler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Configure application components *and* provide assembly services</span>
+<span class="sd">    (see :func:`lookup`) for those components.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">.Binder&quot;</span> <span class="o">%</span> <span class="n">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">binder_id</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;*binder_id* is a unique identifier for this instance. If it</span>
+<span class="sd">        is not provided, a random ID is generated.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">binder_id</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="n">binder_id</span> <span class="o">=</span> <span class="n">uuid4</span><span class="p">()</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Binder</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">Context</span><span class="p">(</span><span class="s">&quot;binder:</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">binder_id</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_binder_id</span> <span class="o">=</span> <span class="n">binder_id</span>
+
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Binder.binder_id"><a class="viewcode-back" href="../../aglyph.binder.html#aglyph.binder.Binder.binder_id">[docs]</a>    <span class="k">def</span> <span class="nf">binder_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;a read-only property for the binder ID&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_binder_id</span>
+</div>
+<div class="viewcode-block" id="Binder.bind"><a class="viewcode-back" href="../../aglyph.binder.html#aglyph.binder.Binder.bind">[docs]</a>    <span class="k">def</span> <span class="nf">bind</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component_spec</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="n">Strategy</span><span class="o">.</span><span class="n">PROTOTYPE</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Define a component by associating the unique ID for</span>
+<span class="sd">        *component_spec* with the dotted-name for *to*.</span>
+
+<span class="sd">        *component_spec* any importable class or unbound function, or</span>
+<span class="sd">        a user-defined identifier, that will serve as the :func:`lookup`</span>
+<span class="sd">        key for objects of the component.</span>
+
+<span class="sd">        *to* is the importable class or unbound function, or the</span>
+<span class="sd">        dotted-name for the same, that will be called to product objects</span>
+<span class="sd">        of the component.</span>
+
+<span class="sd">        If *to* is not provided, the component ID and dotted-name will</span>
+<span class="sd">        be identical. In this case *component_spec* **must** be a class,</span>
+<span class="sd">        a function, or a dotted-name.</span>
+
+<span class="sd">        *strategy* must be a recognized component assembly strategy, and</span>
+<span class="sd">        defaults to :attr:`aglyph.component.Strategy.PROTOTYPE`</span>
+<span class="sd">        (*&quot;prototype&quot;*) if not specified.</span>
+
+<span class="sd">        Please see :class:`aglyph.component.Strategy` for a description</span>
+<span class="sd">        of the component assembly strategies supported by Aglyph.</span>
+
+<span class="sd">        .. warning::</span>
+<span class="sd">            The :attr:`aglyph.component.Strategy.BORG` (*&quot;borg&quot;*)</span>
+<span class="sd">            component assembly strategy is only supported for classes</span>
+<span class="sd">            that **do not** define or inherit ``__slots__``!</span>
+
+<span class="sd">        :returns: a :class:`_Binding` object that allows the component</span>
+<span class="sd">                  dependencies to be defined in chained-call fashion.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">component_id</span> <span class="o">=</span> <span class="n">identify_by_spec</span><span class="p">(</span><span class="n">component_spec</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">to</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="n">dotted_name</span> <span class="o">=</span> <span class="n">component_id</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dotted_name</span> <span class="o">=</span> <span class="n">identify_by_spec</span><span class="p">(</span><span class="n">to</span><span class="p">)</span>
+        <span class="n">component</span> <span class="o">=</span> <span class="n">Component</span><span class="p">(</span><span class="n">component_id</span><span class="p">,</span> <span class="n">dotted_name</span><span class="p">,</span> <span class="n">strategy</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;bound </span><span class="si">%r</span><span class="s"> to </span><span class="si">%r</span><span class="s"> (</span><span class="si">%r</span><span class="s">)&quot;</span><span class="p">,</span> <span class="n">component_spec</span><span class="p">,</span> <span class="n">to</span><span class="p">,</span>
+                           <span class="n">dotted_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_Binding</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Binder.lookup"><a class="viewcode-back" href="../../aglyph.binder.html#aglyph.binder.Binder.lookup">[docs]</a>    <span class="k">def</span> <span class="nf">lookup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component_spec</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance of the component specified by</span>
+<span class="sd">        *component_spec* with all of its dependencies provided.</span>
+
+<span class="sd">        *component_spec* must be an importable class or unbound</span>
+<span class="sd">        function, or a user-defined unique identifier, that was</span>
+<span class="sd">        previously bound by a call to :func:`bind`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;looking up </span><span class="si">%r</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">component_spec</span><span class="p">)</span>
+        <span class="n">component_id</span> <span class="o">=</span> <span class="n">identify_by_spec</span><span class="p">(</span><span class="n">component_spec</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">assemble</span><span class="p">(</span><span class="n">component_id</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="_Binding"><a class="viewcode-back" href="../../aglyph.binder.html#aglyph.binder._Binding">[docs]</a><span class="k">class</span> <span class="nc">_Binding</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;.. note::</span>
+
+<span class="sd">        This class is not intended to be imported or created directly;</span>
+<span class="sd">        instances are returned automatically from the</span>
+<span class="sd">        :meth:`Binder.bind` method.</span>
+
+<span class="sd">    A ``_Binding`` allows component dependencies to be defined in</span>
+<span class="sd">    chained-call fashion::</span>
+
+<span class="sd">        Binder().bind(...).init(*args, **keywords).attributes(**keywords)</span>
+
+<span class="sd">    Or, if you don&#39;t prefer chained calls::</span>
+
+<span class="sd">        binding = Binder().bind(...)</span>
+<span class="sd">        binding.init(*args, **keywords)</span>
+<span class="sd">        binding.attributes(**keywords)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;_component&quot;</span><span class="p">]</span>
+
+    <span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">._Binding&quot;</span> <span class="o">%</span> <span class="n">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">component</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;*component* is an :class:`aglyph.component.Component` that</span>
+<span class="sd">        was created by a call to :meth:`Binder.bind`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_component</span> <span class="o">=</span> <span class="n">component</span>
+
+<div class="viewcode-block" id="_Binding.init"><a class="viewcode-back" href="../../aglyph.binder.html#aglyph.binder._Binding.init">[docs]</a>    <span class="k">def</span> <span class="nf">init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">keywords</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Define the initialization dependencies (i.e. position and/or</span>
+<span class="sd">        keyword arguments) for a component.</span>
+
+<span class="sd">        *args* are the positional argument dependencies, and *keywords*</span>
+<span class="sd">        are the keyword argument dependencies.</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">            Multiple calls to this method on the same instance are *not*</span>
+<span class="sd">            cumulative; each call will **replace** the</span>
+<span class="sd">            :attr:`aglyph.component.Component.init_args` list and the</span>
+<span class="sd">            :attr:`aglyph.component.Component.init_keywords` map.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">resolve</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_component</span><span class="o">.</span><span class="n">init_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">resolve</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_component</span><span class="o">.</span><span class="n">init_keywords</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="p">[(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">resolve</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span> <span class="ow">in</span> <span class="n">keywords</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">isEnabledFor</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;bound </span><span class="si">%d</span><span class="s"> args, </span><span class="si">%s</span><span class="s"> keywords for </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">),</span>
+                               <span class="nb">list</span><span class="p">(</span><span class="n">keywords</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+</div>
+<div class="viewcode-block" id="_Binding.attributes"><a class="viewcode-back" href="../../aglyph.binder.html#aglyph.binder._Binding.attributes">[docs]</a>    <span class="k">def</span> <span class="nf">attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">keywords</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Define the attribute dependencies (i.e. fields, setter</span>
+<span class="sd">        methods, and/or properties) for a component.</span>
+
+<span class="sd">        *keywords* are the field, setter method, and/or property</span>
+<span class="sd">        dependencies. Each keyword name corresponds to the name of a</span>
+<span class="sd">        simple attribute (field), setter method, or property.</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">            Multiple calls to this method on the same instance are *not*</span>
+<span class="sd">            cumulative; each call will **replace** the</span>
+<span class="sd">            :attr:`aglyph.component.Component.attributes` map.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">resolve</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_component</span><span class="o">.</span><span class="n">attributes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="p">[(</span><span class="n">name</span><span class="p">,</span> <span class="n">resolve</span><span class="p">(</span><span class="n">value</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="ow">in</span> <span class="n">keywords</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">isEnabledFor</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;bound </span><span class="si">%s</span><span class="s"> attributes for </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span>
+                               <span class="nb">list</span><span class="p">(</span><span class="n">keywords</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+</div>
+    <span class="k">def</span> <span class="nf">_resolve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an :class:`aglyph.component.Reference` if *obj* is a</span>
+<span class="sd">        class or function; otherwise, return *obj* itself.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">ClassAndFunctionTypes</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">Reference</span><span class="p">(</span><span class="n">format_dotted_name</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">&lt;</span><span class="si">%s</span><span class="s">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__module__</span><span class="p">,</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_component</span><span class="p">)</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Aglyph v1.1.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../aglyph.html" >aglyph</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2006-2011, Matthew Zipay.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
