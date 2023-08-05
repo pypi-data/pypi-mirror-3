@@ -1,0 +1,100 @@
+<scxml version="1.0" xmlns="http://www.w3.org/2005/07/scxml"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:pyscxml="http://code.google.com/p/pyscxml"
+    xsi:schemaLocation="http://www.w3.org/2005/07/scxml http://scxml-schema.googlecode.com/svn/SCXML-Schema/ecma/scxml-profile-ecma.xsd">
+    
+    <!-- This software is made available under a BSD license.  -->
+    
+    <datamodel>
+        <data id="json_request" /> 
+    </datamodel>
+    
+    <script><![CDATA[
+        import json
+        
+        def get_session_target():
+            if json_request.get("session"):
+                session = json_request['session']['callId']
+            else:
+                session = json_request["result"]["callId"]
+            return session
+        
+        def get_json():
+            return json.loads(_event.data["request"])
+        
+        def parseEvent():
+            if json_request.get("session"):
+                event = "tropo.init"
+            elif json_request["result"].get("actions"):
+                if json_request["result"]["actions"].get("disposition") == "TIMEOUT":
+                    event = "tropo.timeout"
+                elif json_request["result"]["actions"].get("disposition") == "NOMATCH":
+                    event = "tropo.nomatch"
+                else:
+                    event = "tropo.answer.ask"
+                
+            elif json_request["result"].get("error"):
+                event = "tropo.error"
+            else:
+                event = "tropo.answer.say"
+                
+            return event
+        
+        def build_response():
+            return '''\
+                {"tropo" : [
+                    %s,
+                        { "on": {
+                                "next": "/tropo_server/basichttp",
+                                "event": "continue" 
+                            }
+                        }
+                    ]
+                }
+                
+            ''' % _event.data['content']
+            
+        
+    ]]></script>
+
+    <state id="listening">
+    
+        <transition event="http.post">
+            <assign location="json_request" expr="get_json()" />
+            
+            <if cond="json_request.get('session')">
+                <pyscxml:start_session sessionidexpr="get_session_target()" />
+            <else />
+                <send eventexpr="parseEvent()" targetexpr="'#_scxml_' + get_session_target()" >
+                    <param name="json_data" expr="json_request" />
+                </send>
+            </if>
+            
+        </transition>
+        
+        <!-- the dialog sessions respond to their events using 
+         the 'respond' event. In turn, this server responds to a 
+         HTTP POST request using the special target '#_response'. 
+         For more information, consult the PySCXML documentation. -->
+        <transition event="respond">
+            <send target="#_response">
+                <param name="content" expr="build_response()" />
+            </send>
+        </transition>
+    </state>
+
+
+<!--
+BSD License text: 
+Copyright (c) 2011, Johan Roxendal
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+Neither the name of the <ORGANIZATION> nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+-->
+
+</scxml>
