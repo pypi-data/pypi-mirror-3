@@ -1,0 +1,82 @@
+Workflow
+================
+
+There are two recommended workflows :
+
+    *   the first one:
+            #. design your whole actions tree model and build it
+            #. create and assign encoders and handlers
+
+    * The second is more complient with the YAGNI [*]_ idiom philosophy :
+        You only populate your model and create encoders/handlers when a need arise in the source code redaction.
+    
+
+Of course, these are just recommandations, not commandements.
+
+The recommended setup
+---------------------
+
+The recommended setup is to create a module which only purpose is to build the action tree, importing it in both client and server scripts and assigning there encoders and handlers
+
+here is an example for a pseudo chat program :
+
+[tree.py] : ::
+
+    from netbytes import p_build
+
+    model = '''
+    client_message (msg:str)
+    server_message (sender:str, msg:str)'''
+
+    tree = p_build(model)
+
+[client.py] : ::
+
+    from netbytes import data_decode
+    from tree import tree
+
+    # let's assume that 'conn' is a connection made with the server
+
+    @tree.client_message.ENCODER
+    def msg_encoder(msg):
+        return msg
+
+    @tree.server_message.HANDLER
+    def msg_server_handler(data):
+        sender, msg = data_decode(data)
+        widget_text.append('{} >>> {}\n'.format(sender, msg))
+
+    def on_return_pressed(event):
+        msg = widget_entry.get()
+        conn.send(tree.client_message(msg))
+
+    # assume we are inside a thread
+    while 1:
+        data = conn.recieve()
+        tree._handle(data)
+
+[server.py] : ::
+
+    from netbytes import data_encode
+    from tree import tree
+
+    # let's assume that 'conn' is a connection made with the client, and that 'conn.name' returns the name of the client
+    # let's also assume that 'conns' is a list of all client connections
+
+    @tree.server_message.ENCODER
+    def msg_encoder(sender, msg):
+        return data_encode([server,msg])
+
+    @tree.client_message.HANDLER
+    def msg_client_handler(data):
+        msg = data
+        for conn in conns:
+            conn.send(tree.server_message(conn.name, msg))
+    
+    # assume we are inside a thread
+    while 1:
+        data = conn.recieve()
+        tree._handle(data)
+
+
+.. [*] : You Ain't Gonna Need It

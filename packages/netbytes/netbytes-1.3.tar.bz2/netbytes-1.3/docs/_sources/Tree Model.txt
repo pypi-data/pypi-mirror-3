@@ -1,0 +1,96 @@
+Tree Model
+=============
+
+A tree model is a string of multiple lines used to represent the actions tree. It is then passed to the function :func:`build` which will return a :class:`ActionTree` instance.
+
+A tree model has only two simple rules to be know, aside the naming rules :
+    * the parenting logic is based upon identation
+    * the first line containg a node must have an identation of 0
+
+The identation may be done with spaces or ``\t`` (tabulations), just beware to not mix them up ; just like python.
+
+Now, let's convert the following abstract actions tree into a suitable model :
+
+|    Tree
+|        client
+|            message
+|                private
+|                public
+|        server
+|            message
+
+::
+
+    model = '''
+    client
+        message
+            private
+            public
+
+    server
+        message'''
+
+And that's it ! Your model is now built and ready for the function :func:`build`
+
+The naming rules
+^^^^^^^^^^^^^^^^
+As the children of a :class:`Node` are attributes of this :class:`Node`, the naming rules are almost the same as the python's ones, but there are little differences :
+    #. the first character must be a lowercase letter
+    #. the name must be at least three characters
+    #. underscores (``'_'``) are prohibited
+
+The comments
+^^^^^^^^^^^^
+Comments are a part of line ignored by the parsing. Everything after a node name is considered comment, and a name stops as soon as a character invalid for naming is encountered. Let's see few examples : ::
+
+    model = '''
+    client
+        message
+            private(reciever:str, msg:str) - comments started at '('
+            public comments started at ' ' after 'public' '''
+
+.. tip:: it is strongly recommended to place in comment the arguments names and types that will be encoded/decoded by the handlers and decoders.
+.. tip:: As a rule of thumb : if you feel the need to add a description of the action, something's wrong. Consider redesign your model, or change some node names.
+.. tip:: The only exception to the last tip, is in the case of long node names : make it shorter, abreviated, and add as comment its long form.
+
+The bytecode size
+^^^^^^^^^^^^^^^^^
+
+Most of the time, you won't have to bother with it, but you remember that each :class:`Node` instances (except the *root*) hold a bytecode that serves as an identifier. Because it is represented by one byte, this means it can have up to 255 (0xff) brothers. This is why when you know that a node will have over than 256 childs, you must specify the bytecode size of its children.
+
+Let's take back our example above, and assume that the *client.message* node will have over 256 children, the model should looks like this : ::
+
+    model = '''
+    client
+        2 message
+            private
+            public
+            [...]
+            action500
+    server
+        message'''
+
+Once the tree will be built, the nodes *private*, *public* and *action500* will be represented by a bytecode of 2 bytes ::
+
+    >>> tree = netbytes.build(model)
+    >>> tree.client.message.public._bytecode
+    '\x01\x00'
+
+    >>> tree.client.message.action500._bytecode
+    '\xf4\x01'
+
+You may wonder how the direct's children of the *root* :class:`Node` (here, the nodes *client* and *server*) can be encoded on two bytes (or more)... this is specified as an optional argument of the functions :func:`build` and :func:`p_build` : ::
+
+    >>> tree = netbytes.build(model,2)
+
+Bytecode size rules
+"""""""""""""""""""
+
+    * it must be 1 digit
+    * it must start at the correct identation level
+    * it must be followed by one space, then by the name
+
+Building a tree from a model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Once your model is done, the logical thing to do is to parse it and to build an actions tree. :mod:`netbytes` provides two functions to achieve it : :func:`build` and :func:`p_build`. The both return a tree. The big difference is that :func:`p_build` actualy build the given model only if needed : an optional argument *filename* - defaulting to '.actions_tree' - can be provided. :func:`p_build` will check if the file exists and if the SHA512 checksum strored in it is the same as the SHA512 checksum of the model, if it does it loads the stored tree and returns it ; otherwise it will parse & build the model and create/replace the file. The *p* in *p_build* stand for :mod:`pickle` as this is what it uses to store the tree.
