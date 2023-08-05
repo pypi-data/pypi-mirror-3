@@ -1,0 +1,159 @@
+<%inherit file="base.html"/>
+##${applications}
+<h1> Applications </h1>
+% for app in applications:
+  ${application(app)}
+% endfor
+
+<h1>Add Application</h1>
+
+<a href="#" class="toggle" data-target="#load-form">Add Application</a>
+<form id="load-form" action="/load" method="GET" style="display: none">
+  <h2>Load Application</h2>
+  <p>
+      URL: <input name="url"/>
+  </p>
+  <p>
+      Configuration: <input name="config_file" value="/paxd.conf"/>
+  </p>
+  <p>
+    Group: <input name="group" value="default"/>
+  </p>
+  <hr/>
+  <button class="load">Load</button>
+  <button class="close-button">Close</button>
+</form>
+
+
+<h1>Old Applications</h1>
+<a href="#" class="toggle" data-target="#old-application">Toggle</a>
+<div id="old-application" style="display: none">
+% for app in history:
+  ${application(app, disabled=True)}
+% endfor
+</div>
+
+<%def name="application(app, disabled=False)">
+  <div class="application" data-name="${app['name']}" data-group="${app['group']}" data-version="${app['version']}">
+    <h2>${app['name']} (${app['group']})
+    % if 'terminated' in app:
+      - Terminated: ${app['terminated']} UTC
+    % endif
+    
+    </h2>
+    % if disabled:
+      todo: option to kill processes still running
+    % else:
+      <div class="actions">
+        <a class="link-action" data-type="app" data-action="/trace_app" target="_blank" href="#">Trace</a>
+        % if not app['system']:
+        |  ${state(app, 'app')}
+        | <a class="confirm-action" \
+              data-type="app" \
+              data-action="/unload" \
+              data-message="Are you sure you want to delete this app?" href="#">Remove App</a>
+##        | <a class="dialog-action" data-dialog="select-version" data-type="app" data-action="/upgrade" href="#">Update</a>
+
+        |<span class="toggle-elem">
+          <a href="#" class="toggle" data-target=".update-form">Update</a>
+          <form class="update-form" action="/update" method="GET" style="display: none">
+            <h2>Update Application</h2>
+            <p>
+                URL: <input name="url"/>
+            </p>
+            <p>
+                Configuration: <input name="config_file" value="/paxd.conf"/>
+            </p>
+            <p>
+              Group: <input name="group" value="default"/>
+            </p>
+            <hr/>
+            <button class="load">Load</button>
+            <button class="close-button">Close</button>
+            <input name="group" type="hidden" value="${app['group']|h}"/>
+            <input name="version" type="hidden" value="${app['version']|h}"/>
+            <input name="name" type="hidden" value="${app['name']|h}"/>
+          </form>
+        </span>
+
+
+        % endif
+
+      </div>
+    % endif
+    <div class="basic-info">
+      <div># workers: ${app['num_workers']}</div>
+      <div>version: ${app['version']}</div>
+    </div>
+    <div class="detailed-info">
+      <div>Data Root: ${app['data_root']}</div>
+      <div>env: ${app['environment']}</div>
+      <div>$PYTHONPATH additions: ${app['python_paths']}</div>
+      <div>packages: ${app['python_paths']}</div>
+    </div>
+  
+    ## Commands
+    <h3>Commands</h3>
+    <table id="command-list">
+      <tr>
+       <th>Q       </th>
+       <th>Q:a     </th>
+       <th>Q:f     </th>
+       <th>Q:s     </th>
+       % if not app['system']:
+       <th>state   </th>
+       % endif
+       <th>queue   </th>
+       <th>entry   </th>
+       <th>procs   </th>
+       <th>Trace</th>
+      </tr>
+      % for q, com in app['commands'].iteritems():
+        <tr class="command" data-queue="${com['queue']}">
+        ${command(app, com, disabled=disabled)}
+        </tr>
+      % endfor
+    </table>
+  </div>
+</%def>
+
+<%def name="command(app, com, disabled=False)">
+  <td class="path">${com['queued']}</td>
+  <td class="path">${com['active']}</td>
+  <td class="path">
+    % if not disabled:
+    <a class="link-action" data-type="command" data-action="/failed" target="_blank" href="#">${com['failed']}</a>
+    % endif
+  </td>
+  <td class="path">${com['success']}</td>
+  % if not app['system']:
+    <td>
+      % if disabled:
+        <strong>${com['state']}</strong>
+      % else:
+        ${state(com, 'command')}
+      % endif
+    </td>
+  % endif
+  <td>${com['queue_full']}</td>
+  <td>${com['entry']}</td>
+  <td>${com['processes']}</td>
+  <td>
+    % if not disabled:
+    <a class="link-action" data-type="command" data-action="/trace_command" target="_blank" href="#">Trace</a>
+    % endif
+  </td>
+
+</%def>
+
+<%def name="state(obj, type)">
+% if obj['state'] == 'stopped':
+<a href="#" class="action active" data-type="${type}" data-action="/pause">Stop</a>
+| 
+<a href="#" class="action"  data-type="${type}" data-action="/unpause">Start</a>
+% else:
+<a href="#" class="action"  data-type="${type}" data-action="/pause">Stop</a>
+| 
+<a href="#" class="action active"  data-type="${type}" data-action="/unpause">Start</a>
+% endif
+</%def>
