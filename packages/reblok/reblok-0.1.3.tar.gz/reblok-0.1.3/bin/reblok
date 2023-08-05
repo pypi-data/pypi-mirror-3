@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+from __future__ import absolute_import
+# -*- coding: utf8 -*-
+"""
+	Rebuild python source code from binary file (.pyc)
+"""
+import sys, marshal
+from optparse import OptionParser
+from reblok   import Parser, Reblok
+
+
+if __name__ == '__main__':
+	parser = OptionParser()
+	parser.add_option('-o', '--opcodes', action='store_true', default=False, dest='opcodes',
+		help='print python file opcodes')
+	parser.add_option('-t', '--tree'   , action='store_true', default=False, dest='tree',
+		help='print python file reblok Abstract Syntax Tree (AST)')
+	(options, args) = parser.parse_args()
+
+	if len(args) == 0:
+		print "Usage: %s file.pyc" % sys.argv[0]; sys.exit(1);
+
+	if not args[0].endswith('.pyc'):
+		print "file %s does not seems to be a python bytecode file. Exiting..." % args[0]
+
+	try:
+		with open(args[0], 'r') as f:
+			#TODO: check python-binary header
+			f.seek(8)
+			bytecode = marshal.load(f)
+	except ValueError:
+		print "cannot decode \033[0;1m%s\033[0m content. Exiting..." % args[0];	sys.exit(1)
+	
+	if options.opcodes:
+		import byteplay
+		c = byteplay.Code.from_code(bytecode.func_code if hasattr(bytecode, 'func_code') else
+				bytecode)
+
+		seen = list()
+		def scancode(code):
+			print code
+
+			for opcode, attr in code:
+				if isinstance(attr, byteplay.Code) and attr not in seen:
+					seen.append(attr)
+					print "=== 0x%x" % id(attr)
+					scancode(attr.code)
+		scancode(c.code)
+		sys.exit(0)
+
+	tree  = Parser().walk(bytecode)
+	if options.tree:
+		import pprint; pprint.pprint(tree)
+		sys.exit(0)
+		
+	Reblok().run(tree)
