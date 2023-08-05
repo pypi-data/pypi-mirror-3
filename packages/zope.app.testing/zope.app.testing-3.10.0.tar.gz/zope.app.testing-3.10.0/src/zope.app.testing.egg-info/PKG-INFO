@@ -1,0 +1,413 @@
+Metadata-Version: 1.0
+Name: zope.app.testing
+Version: 3.10.0
+Summary: Zope Application Testing Support
+Home-page: http://pypi.python.org/pypi/zope.app.testing
+Author: Zope Foundation and Contributors
+Author-email: zope-dev@zope.org
+License: ZPL 2.1
+Description: This package provides testing support for Zope 3 applications. Besides
+        providing numerous setup convenience functions, it implements a testing setup
+        that allows the user to make calls to the publisher allowing to write
+        functional tests.
+        
+        
+        .. contents::
+        
+        =================
+        FDocTest (How-To)
+        =================
+        
+        Steps to get started:
+        
+        1. Use a clean/missing Data.fs
+        
+        2. Create a manager with the name "mgr", password "mgrpw", and grant
+           the zope.Manager role.
+        
+        3. Install tcpwatch.
+        
+        4. Create a temporary directory to record tcpwatch output.
+        
+        5. Run tcpwatch using:
+           tcpwatch.py -L 8081:8080 -s -r tmpdir
+           (the ports are the listening port and forwarded-to port; the
+           second need to match the Zope configuration)
+        
+        6. In a browser, connect to the listening port and do whatever needs
+           to be recorded.
+        
+        7. Shut down tcpwatch.
+        
+        8. Run the script src/zope/app/testing/dochttp.py:
+           python2.4 src/zope/app/testing/dochttp.py tmpdir > somefile.txt
+        
+        9. Edit the generated text file to add explanations and elide
+           uninteresting portions of the output.
+        
+        10. In a functional test module (usually ftests.py), import 
+            FunctionalDocFileSuite from zope.app.testing.functional and 
+            instantiate it, passing the name of the text file containing 
+            the test.
+        
+        
+        
+        
+        ========================
+        DocTest Functional Tests
+        ========================
+        
+        This file documents and tests doctest-based functional tests and basic
+        Zope web-application functionality.
+        
+        Request/Response Functional Tests
+        ---------------------------------
+        
+        You can create Functional tests as doctests.  Typically, this is done
+        by using a script such as src/zope/app/testing/dochttp.py to convert
+        tcpwatch recorded output to a doctest, which is then edited to provide
+        explanation and to remove uninteresting details.  That is how this
+        file was created.
+        
+        Here we'll test some of the most basic types of access.
+        
+        First, we'll test accessing a protected page without credentials:
+        
+          >>> print http(r"""
+          ... GET /@@contents.html HTTP/1.1
+          ... """)
+          HTTP/1.1 401 Unauthorized
+          Cache-Control: no-store, no-cache, must-revalidate
+          Content-Length: ...
+          Content-Type: text/html;charset=utf-8
+          Expires: Mon, 26 Jul 1997 05:00:00 GMT
+          Pragma: no-cache
+          WWW-Authenticate: basic realm="Zope"
+          <BLANKLINE>
+          <!DOCTYPE html PUBLIC ...
+        
+        Here we see that we got:
+        
+          - A 401 response,
+          - A WWW-Authenticate header, and
+          - An html body with an error message
+          - Some technical headers to keep squid happy
+        
+        Note that we used ellipsis to indicate ininteresting details.
+        
+        Next, we'll access the same page with credentials:
+        
+          >>> print http(r"""
+          ... GET /@@contents.html HTTP/1.1
+          ... Authorization: Basic mgr:mgrpw
+          ... """)
+          HTTP/1.1 200 OK
+          Content-Length: ...
+          Content-Type: text/html;charset=utf-8
+          <BLANKLINE>
+          <!DOCTYPE html PUBLIC ...
+        
+        Important note: you must use the user named "mgr" with a password
+        "mgrpw".
+        
+        And we get a normal output.
+        
+        Next we'll try accessing site management. Since we used "/manage",
+        we got redirected:
+        
+          >>> print http(r"""
+          ... GET /++etc++site/@@manage HTTP/1.1
+          ... Authorization: Basic mgr:mgrpw
+          ... Referer: http://localhost:8081/
+          ... """)
+          HTTP/1.1 303 See Other
+          Content-Length: 0
+          Content-Type: text/plain;charset=utf-8
+          Location: @@contents.html
+          <BLANKLINE>
+        
+        Note that, in this case, we got a 303 response.  A 303 response is the
+        prefered response for this sort of redirect with HTTP 1.1.  If we used
+        HTTP 1.0, we'd get a 302 response:
+        
+          >>> print http(r"""
+          ... GET /++etc++site/@@manage HTTP/1.0
+          ... Authorization: Basic mgr:mgrpw
+          ... Referer: http://localhost:8081/
+          ... """)
+          HTTP/1.0 302 Moved Temporarily
+          Content-Length: 0
+          Content-Type: text/plain;charset=utf-8
+          Location: @@contents.html
+          <BLANKLINE>
+        
+        Lets visit the page we were redirected to:
+        
+          >>> print http(r"""
+          ... GET /++etc++site/@@contents.html HTTP/1.1
+          ... Authorization: Basic mgr:mgrpw
+          ... Referer: http://localhost:8081/
+          ... """)
+          HTTP/1.1 200 OK
+          Content-Length: ...
+          Content-Type: text/html;charset=utf-8
+          <BLANKLINE>
+          <!DOCTYPE html PUBLIC ...
+        
+        Finally, lets access the default page for the site:
+        
+          >>> print http(r"""
+          ... GET / HTTP/1.1
+          ... Authorization: Basic mgr:mgrpw
+          ... """)
+          HTTP/1.1 200 OK
+          Content-Length: ...
+          Content-Type: text/html;charset=utf-8
+          <BLANKLINE>
+          <!DOCTYPE html PUBLIC ...
+        
+        Access to the object system
+        ---------------------------
+        
+        You can use the `getRootFolder()` function:
+        
+          >>> root = getRootFolder()
+          >>> root
+          <zope.site.folder.Folder object at ...>
+        
+        You can intermix HTTP requests with regular Python calls.  Note,
+        however, that making an `http()` call implied a transaction commit.
+        If you want to throw away changes made in Python code, abort the
+        transaction before the HTTP request.
+        
+          >>> print http(r"""
+          ... POST /@@contents.html HTTP/1.1
+          ... Authorization: Basic mgr:mgrpw
+          ... Content-Length: 73
+          ... Content-Type: application/x-www-form-urlencoded
+          ...
+          ... type_name=BrowserAdd__zope.site.folder.Folder&new_value=f1""",
+          ... handle_errors=False)
+          HTTP/1.1 303 See Other
+          Content-Length: ...
+          Content-Type: text/html;charset=utf-8
+          Location: http://localhost/@@contents.html
+          <BLANKLINE>
+          <!DOCTYPE html ...
+        
+        Now we can see that the new folder was added:
+        
+          >>> list(root.keys())
+          [u'f1']
+        
+        
+        =======
+        CHANGES
+        =======
+        
+        3.10.0 (2012-01-13)
+        -------------------
+        
+        - Removed test dependency on ``zope.app.authentication``.
+        
+          zope.testbrowser 4 depends on this change (seriously) if it find
+          zope.app.testing.
+        
+        3.9.0 (2011-03-14)
+        ------------------
+        
+        - Move zope.app.testing testbrowser functionality into zope.app.testing. This
+          requires zope.testbrowser version 4.0.0 or above.
+        
+        3.8.1 (2011-01-07)
+        ------------------
+        
+        - Include REMOTE_ADDR ('127.0.0.1') in the request environment.
+        
+        
+        3.8.0 (2010-09-14)
+        ------------------
+        
+        - Remove invalid HTTP_REFERER default. (We both don't want a default to allow
+          others testing without a referer and 'localhost' is not a reasonable
+          default anyway.) This improves the situation for #98437
+        
+        - Made the xmlrpc code compatible with Python 2.7.
+        
+        - Removed test dependency on ``zope.app.zptpage``.
+        
+        - Switched test dependency from ``zope.app.securitypolicy`` to
+          ``zope.securitypolicy``.
+        
+        
+        3.7.7 (2010-09-14)
+        ------------------
+        
+        - Rereleasing 3.7.5 as 3.7.7 to fix brown bag release.
+        
+        
+        3.7.6 (2010-09-14)
+        ------------------
+        
+        - Brown bag release: It broke the tests of ``zope.testbrowser``.
+        
+        
+        3.7.5 (2010-04-10)
+        ------------------
+        
+        - Switch doctests to use the stdlib ``doctest`` module, rather than the
+          deprecated ``zope.testing.doctest`` variant.
+        
+        
+        3.7.4 (2010-01-08)
+        ------------------
+        
+        - Import hooks functionality from zope.component after it was moved there from
+          zope.site.
+        
+        - Import ISite from zope.component after it was moved there from
+          zope.location. This lifts the dependency on zope.location.
+        
+        - Fix tests using a newer zope.publisher that requires zope.login.
+        
+        3.7.3 (2009-08-20)
+        ------------------
+        
+        - Fixed tests for python 2.4 as well as python 2.5 and 2.6; the change in
+          version 3.7.1 introduced test regressions in python 2.4.
+        
+        3.7.2 (2009-07-24)
+        ------------------
+        
+        - Adjusted tests after the referenced memory leak problem has been fixed in
+          ``zope.component``.
+        
+        
+        3.7.1 (2009-07-21)
+        ------------------
+        
+        - Fixed failing tests. The code revealed that the tests expected the wrong
+          value.
+        
+        
+        3.7.0 (2009-06-19)
+        ------------------
+        
+        - Depend on new ``zope.processlifetime`` interfaces instead of using
+          BBB imports from ``zope.app.appsetup``.
+        
+        - Removed unused dependency on ``zope.app.component``.
+        
+        
+        3.6.2 (2009-04-26)
+        ------------------
+        
+        - Removed deprecated back35 module and loose the dependency on
+          ``zope.deferredimport``.
+        
+        - Adapt to ``zope.app.authentication`` refactoring. We depend on
+          ``zope.password`` now instead.
+        
+        - Adapt to latest ``zope.app.security`` refactoring. We don't need this
+          package anymore.
+        
+        3.6.1 (2009-03-12)
+        ------------------
+        
+        - Use ISkinnable.providedBy(request) instead of IBrowserRequest as condition
+          for calling setDefaultSkin in HTTPCaller. This at the same time removes
+          dependency to the browser part of zope.publisher.
+        
+        - Adapt to the move of IDefaultViewName from zope.component.interfaces
+          to zope.publisher.interfaces.
+        
+        - Remove the DEPENDENCIES.cfg file for zpkg.
+        
+        3.6.0 (2009-02-01)
+        ------------------
+        
+        - Fix AttributeError in ``zope.app.testing.setup.setUpTestAsModule``
+          (when called without name argument).
+        
+        - Use ``zope.container`` instead of ``zope.app.container``.
+        
+        - Use ``zope.site`` instead of ``zope.app.folder`` and
+          ``zope.app.component`` for some parts.
+        
+        3.5.6 (2008-10-13)
+        ------------------
+        
+        - Change argument variable name in provideAdapter to not conflict with
+          buitin keyword in Python 2.6.
+        
+        3.5.5 (2008-10-10)
+        ------------------
+        
+        - Re-configured functional test setup to create test-specific instances
+          of HTTPCaller to ensure that cookies are not shared by doctests
+          in a test suite.
+        
+        3.5.4 (2008-08-25)
+        ------------------
+        
+        - Clean up some transaction management in the functional test setup.
+        
+        3.5.3 (2008-08-22)
+        ------------------
+        
+        - Fix isolation enforcement for product configuration around individual tests.
+        
+        3.5.2 (2008-08-21)
+        ------------------
+        
+        - Added missing dependency information in setup.py.
+        
+        - Added missing import.
+        
+        - Repair memory leak fix released in 3.4.3 to be more sane in the presence of
+          generations.
+        
+        3.5.1 (2008-08-20)
+        ------------------
+        
+        - Correct Fred's "I'm a doofus" release.
+        
+        3.5.0 (2008-08-20)
+        ------------------
+        
+        - Add support for product-configuration as part of functional layers; this
+          more closely mirrors the configuration order for normal operation.
+        
+        3.4.3 (2008-07-25)
+        ------------------
+        
+        - Fix memory leak in all functional tests.
+          see: https://bugs.launchpad.net/zope3/+bug/251273
+        
+        3.4.2 (2008-02-02)
+        ------------------
+        
+        - Fix of 599 error on conflict error in request
+          see: http://mail.zope.org/pipermail/zope-dev/2008-January/030844.html
+        
+        3.4.1 (2007-10-31)
+        ------------------
+        
+        - Fixed deprecation warning for ``ZopeSecurityPolicy``.
+        
+        3.4.0 (2007-10-27)
+        ------------------
+        
+        - Initial release independent of the main Zope tree.
+        
+Keywords: zope3 test testing setup functional
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Zope Public License
+Classifier: Programming Language :: Python
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Framework :: Zope3
