@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+#
+#   Copyright 2011 Inkylabs et al.
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+# <Insert Marionetastical limerick here>
+#
+try:
+    from logging import getLogger
+    # FUTURE: python 3.2 use argparse
+    from optparse import BadOptionError, OptionParser
+    from os.path import expanduser
+
+
+    class BenevolentOptionParser(OptionParser):
+        def _process_short_opts(self, rargs, values):
+            if self.largs:
+                self.largs.append(rargs.pop(0))
+                return
+            super(BenevolentOptionParser, self)._process_short_opts(
+                    rargs, values)
+
+        def _process_long_opt(self, rargs, values):
+            if self.largs:
+                self.largs.append(rargs.pop(0))
+                return
+            super(BenevolentOptionParser, self)._process_long_opt(
+                    rargs, values)
+except KeyboardInterrupt:
+    exit()
+
+
+def main():
+    from marionette import options as moptions
+    parser = BenevolentOptionParser(usage='%prog cmd [cmd options]')
+    parser.add_option('-d', '--domain', dest='domain',
+                      default=moptions.domain,
+                      help='the domain to sync code from', metavar='DOMAIN')
+    parser.add_option('-l', '--log', dest='loglevel', default='ERROR',
+                      help='log level for marionette itself',
+                      metavar='LOGLEVEL')
+    parser.add_option('-p', '--prefdir', dest='pref_dir',
+                      default=moptions.pref_dir,
+                      help='preferences directory', metavar='PREFDIR')
+    parser.add_option('-q', '--quiet', dest='loud',
+                      default=moptions.loud,
+                      action=moptions.store_opposite(moptions.loud))
+    parser.add_option('-s', '--nossl', dest='ssl',
+                      default=moptions.ssl,
+                      action=moptions.store_opposite(moptions.ssl))
+    options, args = parser.parse_args()
+
+    # Set the logging level
+    import logging
+    if options.loglevel:
+        all_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        lvl_list = 'Use one of:\n    ' + '\n    '.join(all_levels)
+        newlevel = options.loglevel.upper()
+        if newlevel not in all_levels:
+            parser.error('"%s" is not a valid logging level.  ' % newlevel
+                         + lvl_list)
+        getLogger('marionette').setLevel(getattr(logging, newlevel))
+
+    # Set other options
+    moptions.loud = options.loud
+    moptions.domain = options.domain
+    moptions.pref_dir = options.pref_dir
+    moptions.ssl = options.ssl
+
+    # Check command usage
+    from marionette.commands import all_commands
+    cmd_list = 'Use one of:\n    ' + '\n    '.join(all_commands)
+    if len(args) < 1:
+        parser.error('No command found.  ' + cmd_list)
+    if args[0] not in all_commands:
+        parser.error('"%s" is not a valid command.  ' % args[0] + cmd_list)
+
+    # Check for updates
+    if options.loud:
+        from marionette.version import check_update
+        check_update()
+
+    import sys
+    sys.argv = args
+    all_commands[args[0]].main()
+
+try:
+    if __name__ == '__main__':
+        main()
+except KeyboardInterrupt:
+    pass
+
+
+# All kinds of craziness happens with the finalizers because we wanted to be
+# clever and swap out modules (see sandbox.py).  Until we totally change the
+# way we are doing things (sandboxing in particular), the best way of getting
+# around this seems to be to just hide all the warnings atexit throws at us.
+import logging
+if (getLogger('marionette').level >= logging.WARNING):
+    import sys
+    import io
+    sys.stderr = io.StringIO()
