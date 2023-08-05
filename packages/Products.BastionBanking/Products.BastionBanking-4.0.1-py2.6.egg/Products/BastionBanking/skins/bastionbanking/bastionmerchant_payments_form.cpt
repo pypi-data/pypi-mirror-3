@@ -1,0 +1,259 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionbanking">
+
+<metal:javascript fill-slot="javascript_head_slot"
+      tal:define="foo context/saveSearch;
+                  global batch_size python: context.getSearchTerm('batch_size', 20);
+                  global submitted python: context.getSearchTerm('submitted', ('', ''));
+                  global refresh python: context.getSearchTerm('refresh', 5)"
+      tal:condition="refresh | nothing">
+
+<span tal:replace="structure string:<script type=text/javascript>"/>
+/*
+Auto Refresh Page with Time script
+By JavaScript Kit (javascriptkit.com)
+Over 200+ free scripts here!
+http://www.javascriptkit.com/script/script2/autofresh.shtml
+*/
+
+//enter refresh time in "minutes:seconds" Minutes should range from 0 to inifinity. Seconds should range from 0 to 59
+var limit="<span tal:replace="refresh"/>:0"
+
+if (document.images){
+    var parselimit=limit.split(":")
+    parselimit=parselimit[0]*60+parselimit[1]*1
+}
+
+function beginrefresh()
+{
+    if (!document.images)
+        return
+    if (parselimit==1)
+        window.location.reload()
+    else
+    {
+        parselimit-=1
+        curmin=Math.floor(parselimit/60)
+        cursec=parselimit%60
+        if (curmin!=0)
+            curtime=curmin+" minutes and "+cursec+" seconds left until page refresh!"
+        else
+            curtime=cursec+" seconds left until page refresh!"
+        window.status=curtime
+        setTimeout("beginrefresh()",1000)
+     }
+}
+
+window.onload=beginrefresh
+
+<span tal:replace="structure string:</script>"/>
+
+
+</metal:javascript>
+ 
+<body>
+  <div metal:fill-slot="main" 
+       tal:define="results python: context.paymentResults(REQUEST=request);
+                   utool context/@@plone_portal_state/portal_url;
+                   b_start python: request.get('b_start',0);
+                   Batch python: modules['Products.CMFPlone'].Batch;
+                   batch python: Batch(results, batch_size, b_start, orphan=1)">
+
+      <h1><img src="" tal:attributes="src context/icon">&nbsp;<span tal:replace="context/title_or_id"/></h1>
+
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Up one level</a>
+
+
+      <table>
+         <tr>
+            <td valign="top">
+               <img src="" tal:attributes="src context/serviceIcon"/>
+            </td>
+            <td valign="top">
+                 <div class="documentDescription" tal:content="structure context/Description">
+                     description
+                 </div>
+            </td>
+         </tr>
+      </table>
+
+<form name="form"  action="."  method="post" tal:attributes="action template/getId" >
+
+   <span class="reviewHistory">
+      <dl id="searching" class="collapsible inline collapsedOnLoad">
+        <dt class="collapsibleHeader">Searching and Filtering</dt>
+        <dd class="collapsibleContent">
+
+              <table summary="Search" border="0">
+                <tr>
+                  <td class="row" valign="top">
+                    <label>Batch Size</label>
+                    <div/>
+                    <input type="text" name="batch_size:int" size="2" maxlength="2" value="" align="right"
+                           tal:attributes="value batch_size"/>
+                  </td>
+                  <td class="row" valign="top">
+                    <label>Auto Refresh (minutes)</label>
+                    <div class="formHelp">zero minutes turns off auto refresh</div>
+                    <input type="text" name="refresh:int:required" size="2" maxlength="2" value=""  align="right"
+                           tal:attributes="value refresh"/>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="row" valign="top">
+                     <div class="label" i18n:translate="label_state">Status</div>
+                     <div class="field"
+                          tal:define="search python: context.getSearchTerm('status', '')">
+                         <select name="status:list:ignore_empty" multiple size="3">
+                            <option tal:repeat="value python: context.uniqueValuesFor('status')"
+                                    tal:attributes="selected python: test(value in search, 1, 0)"
+                                    tal:content="value"/>
+                         </select>
+                      </div>
+                  </td>
+                  <td class="row" valign="top">
+                     <div class="field"
+                          tal:define="inputvalue python:submitted[0];
+                                      formname string:form;
+                                      show_hm python: True;
+                                      inputname string:submitted;">
+                        <span class="label">Submitted From</span>
+                        <span metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                        <!--input type="text" size="20" name="submitted:date:list:ignore_empty" value=""
+                               tal:attributes="value python: submitted[0]"/-->
+                     </div>
+                     <div class="field"
+                          tal:define="inputvalue python:submitted[0];
+                                      formname string:form;
+                                      show_hm python: True;
+                                      inputname string:submitted;">
+                         <span class="label">Submitted To</span>
+                         <span metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                         <!--input type="text" size="20" name="submitted:date:list:ignore_empty" value=""
+                                tal:attributes="value python: submitted[1]"/-->
+                     </div>
+                     <input type="hidden" name="submitted_usage" value="range:minmax"/>
+                   </td>
+                </tr>
+                <tr>
+                  <td class="row" valign="top" colspan="2">
+                     <div class="label" i18n:translate="label_state">Reference</div>
+                     <div class="formHelp">
+                          Find payments based upon bank reference(s)
+                     </div>
+                     <input type="text" name="reference:text" size="40" value="" 
+                            tal:define="search python: context.getSearchTerm('reference', '')"
+                            tal:attributes="value search"/>
+
+                  </td>
+                </tr>
+                <tr>
+                   <td class="row">
+                        <input class="context" type="submit" name="form.button.Search"
+                               value="Search" i18n:attributes="value" />
+                   </td>
+                 </tr>
+              </table>
+
+
+        </dd>
+      </dl>
+  </span>
+
+      <br/>
+
+      <!-- Include macro for navigating the batch results -->
+      <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+      <table width="100%" cellpadding="2" cellspacing="0" tal:condition="batch">
+         <tr>
+             <td/>
+             <td/>
+             <td/>
+             <td><label>Submitted</label></td>
+             <td><label>Submitter</label></td>
+             <td><label>Payee</label></td>
+             <td><label>Reference</label></td>
+             <td align="right"><label>Amount</label></td>
+             <td/>
+             <td><label>Status</label></td>
+         </tr>
+         <tr tal:repeat="payment batch"
+             tal:attributes="class python:test(repeat['payment'].odd(), 'portletContent even', 
+                                                                        'portletContent odd')" >
+              <td class="field">
+                 <input type="checkbox" name="ids:list" value="" tal:attributes="value payment/getId"/>
+              </td>
+              <td class="field">
+                 <img src="" tal:attributes="src string:${utool}/payment.gif"/>
+              </td>
+              <td class="field" tal:define="txn payment/getTransactionRef">
+                 <a tal:condition="nocall: txn"
+                    tal:attributes="href txn/absolute_url">
+                     <img src="" border="0" 
+                          tal:define="icon python: txn.getIcon(1)"
+                          tal:attributes="src string:${utool}/${icon}"/>
+                 </a>
+              </td>
+              <td class="field">
+                 <a href="" tal:attributes="href payment/getId" 
+                    tal:content="python: context.toLocalizedTime(payment.submitted, long_format=1)"/>
+              </td>
+              <td class="field" 
+                  tal:define="instigator payment/instigator;
+                              member python:context.portal_membership.getMemberById(instigator)">
+                  <span tal:condition="python: not member" tal:replace="instigator"/>
+                  <a tal:condition="python: member" 
+                     tal:attributes="href string:${portal_url}/prefs_user_details?userid=${instigator}"
+                     tal:content="instigator"/>
+              </td>
+              <td class="field" tal:define="payee nocall: payment/payee">
+                  <a href="payee" 
+                     tal:attributes="href string:${payment/getId}/payee"
+                     tal:content="payee"/>
+              </td>
+              <td class="list-item" tal:define="ref payment/referenceObject">
+                 <a tal:condition="python: ref"
+                    tal:attributes="href ref/absolute_url"
+                    tal:content="ref/title_or_id"/>
+                 <span tal:condition="python: not ref" tal:content="payment/reference | payment/getRemoteRef"/>
+              </td>
+              <td class="field" align="right" nowrap tal:content="payment/amount"/>
+              <td/>
+              <td class="field" tal:content="payment/status"/>
+         </tr>
+         <tr>
+              <td colspan="9">
+                   <input type="submit" class="context" name="form.button.Accept"    value=" Accept  "/>
+                   <input type="submit" class="context" name="form.button.Cancel"    value=" Cancel  "/>
+                   <input type="submit" class="context" name="form.button.Reconcile" value="Reconcile"/>
+                   <input type="submit" class="standalone" name="form.button.Refund" value=" Refund  "/>
+              </td>
+         </tr>
+      </table>
+
+  <input type="hidden" name="form.submitted" value="1" />
+</form>
+
+
+
+      <div class="formHelp" tal:condition="not: batch">No payments found</div>
+
+      <!-- Include macro for navigating the batch results -->
+      <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+  </div>
+ 
+</body>
+</html>

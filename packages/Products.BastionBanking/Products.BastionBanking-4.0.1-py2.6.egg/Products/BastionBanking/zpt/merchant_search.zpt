@@ -1,0 +1,132 @@
+<html tal:replace="structure here/manage_page_header"
+      tal:define="foo python:context.saveSearch(request)"/>
+
+
+    <span tal:replace="structure context/manage_tabs"/>
+
+       <br/>
+       <form action="" method="post" tal:attributes="action request/URL1"
+             tal:define="entries python:context.paymentResults(REQUEST=request);
+                         entries_start request/entries_start | python:0;
+                         Batch python:modules['ZTUtils'].Batch;
+                         batch_size python: context.getSearchTerm('batch_size', 20);
+                         mq python:modules['ZTUtils'].make_query;
+                         entries_batch python:Batch(entries, batch_size, entries_start, orphan=2);
+                         submitted python: context.getSearchTerm('submitted', ('', ''));">
+         <table width="100%">
+            <tr>
+               <td tal:define="status python: context.getSearchTerm('status','')">
+                  <span class="form-label">Status</span>&nbsp;
+                  <select name="status:ignore_empty">
+                      <option/>
+                      <option tal:repeat="state python: context.uniqueValuesFor('status')"
+                              tal:content="state"
+                              tal:attributes="selected python: test(state == status, 1, 0)"/>
+                  </select>
+               </td>
+               <td>
+                  <span class="form-label">Card</span>&nbsp;
+                  <input type="text" name="number:ignore_empty" size="16" value="" 
+                         tal:attributes="value request/number | nothing"/>
+               </td>
+               <td>
+                  <span class="form-label">From</span>&nbsp;
+                  <input type="text" name="submitted:date:list:ignore_empty" size="20"
+                         tal:attributes="value python: submitted[0]"/>
+               </td>
+               <td>
+                  <span class="form-label">To</span>&nbsp;
+                  <input type="text" name="submitted:date:list:ignore_empty" size="20"
+                         tal:attributes="value python: submitted[1]"/>
+                  <input type="hidden" name="submitted_usage" value="range:min:max"/>
+               </td>
+               <td>
+                  <span class="form-label">Reference</span>&nbsp;
+                  <input type="text" name="reference:ignore_empty" size="20"
+                         tal:attributes="value python: context.getSearchTerm('reference', '')"/>
+               </td>
+               <td>
+                  <span class="form-label">Batch Size</span>&nbsp;
+                  <input type="text" name="batch_size:int" size="5" maxlength="5"
+                         tal:attributes="value batch_size"/>
+               </td>
+               <td align="right" valign="top">
+                  <input type="submit" value=" Search " name="manage_main:method"/>
+               </td>
+            </tr>
+       </table>
+       <table border="0" cellpadding="2" cellspacing="0" width="100%" tal:condition="entries">
+           <tr class="list-header">
+              <td class="list-item" tal:define="p entries_batch/previous" align="left" nowrap>
+                   <div tal:omit-tag="" tal:condition="p">
+                      <a href=""
+                         tal:define="qs python: mq(request.form, entries_start=p.first)"
+                         tal:attributes="href python: 'manage_main?%s' %  qs">
+                      &larr;
+                      </a>
+                   </div>
+                   <div tal:condition="not: p" tal:omit-tag="">&nbsp;</div>
+               </td>
+               <td class="list-item"></td>
+               <td class="list-item">Submitted</td>
+               <td class="list-item">Submitter</td>
+               <td class="list-item">Payee</td>
+               <td class="list-item">Reference</td>
+               <td class="list-item" align="right">Amount</td>
+               <td>&nbsp;</td>
+               <td class="list-item">Status</td>
+     	       <td class="list-item" tal:define="n entries_batch/next" align="right" nowrap>
+                   <div tal:omit-tag="" tal:condition="n">
+                      <a href=""
+                         tal:define="qs python: mq(request.form, entries_start_start=n.first)"
+                         tal:attributes="href python: 'manage_main?%s' % qs">
+                        &rarr;
+                      </a>
+                   </div>
+                   <div tal:condition="not: n" tal:omit-tag="">&nbsp;</div>
+              </td>
+           </tr>
+           <tr class="" tal:repeat="item entries_batch"
+               tal:attributes="class python: test(repeat['item'].index % 2, 'row-normal', 'row-hilite')">
+               <td class="list-item">
+                  <input type="checkbox" name="ids:list" value="" tal:attributes="value item/getId">
+               </td>
+               <td class="list-item">
+                   <a tal:define="txn item/getTransactionRef" tal:condition="python: txn"
+                      tal:attributes="href string:${txn/absolute_url}/manage_main">
+                      <img src="" border="0"  tal:attributes="src txn/icon"/>
+                   </a>
+               </td>
+               <td class="list-item">
+                  <a href="" tal:attributes="href string:${item/absolute_url}/manage_workspace"
+                             tal:content="python: item.submitted.strftime('%Y-%m-%d %H:%M')"/>
+               <td class="list-item" tal:content="item/instigator"/>
+               <td class="list-item">
+                   <a href="" tal:attributes="href string:${item/absolute_url}/payee/manage_workspace"
+                              tal:content="nocall: item/payee"/>
+               </td>
+               <td class="list-item" tal:define="ref python: item.referenceObject()">
+                   <a tal:condition="python: ref" href=""
+                      tal:attributes="href string:${ref/absolute_url}/manage_workspace"
+                      tal:content="ref/title_or_id"/>
+                   <span tal:condition="python: not ref" tal:content="item/reference | item/getRemoteRef"/>
+               </td>
+               <td class="list-item" align="right" tal:content="item/amount"/>
+               <td>&nbsp;</td>
+               <td class="list-item" tal:content="item/status"/>
+               <td/>
+           </tr>
+           <tr>
+               <td  colspan="8">
+                   <input type="submit"  value=" Delete " name="manage_delObjects:method"/>
+               </td>
+           </tr>
+       </table>
+       </form>
+
+<html tal:replace="structure context/manage_page_footer"/>
+
+
+
+
+

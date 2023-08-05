@@ -1,0 +1,171 @@
+<?xml version="1.0"?>
+<dc-workflow xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+             workflow_id="bastionpayment_workflow"
+             i18n:domain="bastionbanking"
+             title="BastionPayment Workflow"
+             state_variable="review_state"
+             initial_state="pending">
+
+ <permission>BastionBanking: Operate</permission>
+
+ <state state_id="cancelled" title="Cancelled">
+  <permission-map name="BastionBanking: Operate" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+ <state state_id="pending" title="Pending confo">
+  <exit-transition transition_id="accept"/>
+  <exit-transition transition_id="cancel"/>
+  <exit-transition transition_id="reject"/>
+  <permission-map name="BastionBanking: Operate" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+ <state state_id="paid" title="Paid">
+  <exit-transition transition_id="refund"/>
+  <exit-transition transition_id="reconcile"/>
+  <permission-map name="BastionBanking: Operate" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+ <state state_id="rejected" title="Rejected">
+  <exit-transition transition_id="accept"/>
+  <permission-map name="BastionBanking: Operate" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+ <state state_id="refunded" title="Refunded">
+  <permission-map name="BastionBanking: Operate" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+ <state state_id="reconciled" title="Reconciled">
+  <exit-transition transition_id="refund"/>
+  <permission-map name="BastionBanking: Operate" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <transition transition_id="accept"
+             title="Payment Accepted"
+             new_state="paid" trigger="USER"
+             before_script="accept" after_script="">
+  <action url="%(content_url)s/content_status_modify?workflow_action=accept" category="workflow">Accept</action>
+  <guard>
+   <guard-permission>BastionBanking: Operate</guard-permission>
+  </guard>
+ </transition>
+ <transition transition_id="cancel"
+             title="cancel"
+             new_state="cancelled" trigger="USER"
+             before_script="" after_script="">
+  <action url="%(content_url)s/content_status_modify?workflow_action=cancel" category="workflow">Cancel</action>
+  <guard>
+   <guard-permission>BastionBanking: Operate</guard-permission>
+  </guard>
+ </transition>
+ <transition transition_id="reconcile"
+             title="confirm with clearing house"
+             new_state="reconciled" trigger="USER"
+             before_script="reconcile" after_script="">
+  <action url="%(content_url)s/content_status_modify?workflow_action=reconcile" category="workflow">Reconcile</action>
+  <guard>
+   <guard-permission>BastionBanking: Operate</guard-permission>
+  </guard>
+ </transition>
+ <transition transition_id="refund"
+             title="Refund Payment"
+             new_state="refunded" trigger="USER"
+             before_script="refund" after_script="">
+  <action url="%(content_url)s/content_status_modify?workflow_action=refund" category="workflow">Refund</action>
+  <guard>
+   <guard-permission>BastionBanking: Operate</guard-permission>
+  </guard>
+ </transition>
+ <transition transition_id="reject"
+             title="payment not accepted"
+             new_state="rejected" trigger="USER"
+             before_script="reject" after_script="">
+  <action url="%(content_url)s/content_status_modify?workflow_action=reject" category="workflow">Reject</action>
+  <guard>
+   <guard-permission>BastionBanking: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<variable variable_id="action"         for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    Previous transition
+  </description>
+  <default>
+   <expression>transition/getId|nothing</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="actor"          for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    The ID of the user who performed the last transition
+  </description>
+  <default>
+   <expression>user/getId</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="comments"       for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    Comment about the last transition
+  </description>
+  <default>
+   <expression>python:state_change.kwargs.get('comment', '')</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="review_history" for_catalog="False"
+           for_status="False" update_always="False">
+  <description i18n:translate="">
+    Provides access to workflow history
+  </description>
+  <default>
+   <expression>state_change/getHistory</expression>
+  </default>
+  <guard>
+   <guard-permission>Request review</guard-permission>
+   <guard-permission>Review portal content</guard-permission>
+  </guard>
+ </variable>
+
+ <variable variable_id="time"           for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    When the previous transition was performed
+  </description>
+  <default>
+   <expression>state_change/getDateTime</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <script script_id="accept" type="Script (Python)"
+         filename="workflows/bastionpayment_workflow/accept.py"/>
+ <script script_id="reject" type="Script (Python)"
+         filename="workflows/bastionpayment_workflow/reject.py"/>
+ <script script_id="reconcile" type="Script (Python)"
+         filename="workflows/bastionpayment_workflow/reconcile.py"/>
+ <script script_id="refund" type="Script (Python)"
+         filename="workflows/bastionpayment_workflow/refund.py"/>
+</dc-workflow>
