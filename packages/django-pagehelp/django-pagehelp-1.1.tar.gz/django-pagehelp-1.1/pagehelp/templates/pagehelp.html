@@ -1,0 +1,126 @@
+{% if page %}
+<div id="pagehelp"{% if not open %} class="pagehelp-hidden"{% endif %}>
+<div id="pagehelp-top">
+<strong>Help</strong>
+{% if can_edit %}
+<a href="{% url admin:pagehelp_page_change page.pk %}">edit</a>
+{% endif %}
+</div>
+<div class="pagehelp-content">
+{{ page.text|urlize|linebreaks }}
+</div>
+<div id="pagehelp-bottom">
+<form action="{% url page_hide %}" method="post" class="pagehelp-hide-page">{% csrf_token %}
+<input type="hidden" name="next" value="{{ next }}" />
+<input type="submit" value="Hide this help &raquo;" />
+</form>
+<form action="{% url default_hide %}" method="post" class="pagehelp-hide-default"{% if not default_open %} style="display:none;"{% endif %}>{% csrf_token %}
+<input type="hidden" name="next" value="{{ next }}" />
+<input type="submit" value="Hide all help" /> 
+</form>
+<form action="{% url default_show %}" method="post" class="pagehelp-show-default"{% if default_open %} style="display:none;"{% endif %}>{% csrf_token %}
+<input type="hidden" name="next" value="{{ next }}" />
+<input type="submit" value="Show all help" /> 
+</form>
+</div>
+</div>
+{% endif %}
+
+<div id="pagehelp-closed"{% if open %} class="pagehelp-hidden"{% endif %}>
+{% if page %}
+<div class="pagehelp-content">
+<strong>H</strong><strong>E</strong><strong>L</strong><strong>P</strong>
+</div>
+<form action="{% url page_show %}" method="post">{% csrf_token %}
+<input type="hidden" name="next" value="{{ next }}" />
+<input type="submit" value="&laquo;" class="button" />
+</form>
+{% else %}
+<a href="{% url admin:pagehelp_page_add %}?url={{ path|urlencode }}&amp;site={{ site_id }}" title="add help for this page"><strong>+</strong> <span>h</span><span>e</span><span>l</span><span>p</span></a>
+{% endif %}
+</div>
+
+{% if needs_jquery %}
+<script type="text/javascript" src="{{ STATIC_URL }}pagehelp/jquery-1.3.2.min.js"></script>
+{% endif %}
+<script type="text/javascript">
+<!--
+var jq = jQuery;
+if (jq === undefined) {
+	jq = django.jQuery;
+}
+(function ($) {
+	function hideHelpForm(form, callback) {
+		var pagehelp = $('#pagehelp');
+		var width = pagehelp.width();
+		pagehelp.css('overflow', 'hidden');
+		$('>*', pagehelp).each(function() {
+			$(this).width($(this).width());
+		});
+		pagehelp.animate(
+				{width: '0'},
+				250,
+				function() {
+					pagehelp.hide();
+					pagehelp.css('overflow', 'auto');
+					pagehelp.css('width', width+'px');
+					if (callback) callback();
+				}
+		);
+	};
+	function changeDefaultDisplay(form) {
+		var button = $('input[type=submit]', form)
+		var value = button.val(); 
+		if (value == '...') return true;
+		button.val('...');
+		var next = $('input[name=next]', form).val();
+		$.post(form.action, {next: next, csrfmiddlewaretoken: '{{ csrf_token }}'}, function() {
+			button.val(value);
+			$('.pagehelp-hide-default,.pagehelp-show-default').toggle();
+		});
+	};
+	$('.pagehelp-hide-page').submit(function() {
+		var form = this;
+		hideHelpForm(form, function() {
+			var next = $('input[name=next]', form).val();
+			$.post(form.action, {next: next, csrfmiddlewaretoken: '{{ csrf_token }}'}, function() {
+				$('#pagehelp-closed').fadeIn('fast');
+			});
+		});
+		return false;
+	});
+	$('.pagehelp-hide-default, .pagehelp-show-default').submit(function() {
+		changeDefaultDisplay(this);
+		return false;
+	});
+	$('.pagehelp-hide-default').submit(function() {
+		hideHelpForm(this, function() {
+			$('#pagehelp-closed').fadeIn('fast');
+		});
+		return false;
+	});
+	$('#pagehelp-closed form').submit(function() {
+		var pagehelp = $('#pagehelp');
+		var width = pagehelp.width();
+		$('#pagehelp-closed').fadeOut('fast');
+		pagehelp.css('overflow', 'hidden');
+		$('>*', pagehelp).each(function() {
+			$(this).width(width);
+		});
+		pagehelp.css('width', '0');
+		pagehelp.animate(
+				{width: width+'px'},
+				function() {
+					$('>*', pagehelp).each(function() {
+						$(this).width('auto');
+					});
+					pagehelp.css('overflow', 'auto');
+				}
+		);
+		var next = $('input[name=next]', this).val();
+		$.post(this.action, {next: next, csrfmiddlewaretoken: '{{ csrf_token }}'})
+		return false;
+	});
+})(jq);
+//-->
+</script>
