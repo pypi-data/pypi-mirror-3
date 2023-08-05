@@ -1,0 +1,117 @@
+=========================
+Folder functional doctest
+=========================
+
+    >>> from plone.testing.z2 import Browser
+    >>> browser = Browser(self.layer['app'])
+    >>> browser.handleErrors = False
+    >>> portal_url = self.portal.absolute_url()
+    >>> self.portal.error_log._ignored_exceptions = ()
+    >>> from plone.app import testing
+    >>> browser.open(portal_url)
+
+Login
+
+    >>> browser.getLink('Log in').click()
+    >>> browser.getControl(name='__ac_name').value = testing.SITE_OWNER_NAME
+    >>> browser.getControl(name='__ac_password').value = testing.SITE_OWNER_PASSWORD
+    >>> browser.getControl(name='submit').click()
+    >>> "You are now logged in" in browser.contents
+    True
+
+Got to control panel
+
+    >>> browser.getLink('Site Setup').click()
+    >>> browser.getLink('JQueryUI theme manager').click()
+    >>> 'Theme settings' in browser.contents
+    True
+
+Test create a theme
+
+    >>> browser.getLink('Create a theme').click()
+    >>> browser.getControl('name').value = 'mytheme'
+    >>> browser.getControl('Save').click()
+    >>> 'Changes saved.' in browser.contents
+    True
+
+Lets make some tests around what happens. At this time you have query jqueryui.com
+download an zip archive containing a full jqueryui 1.8.9 with a jqueryui theme default 
+configuration specified in interfaces.py.
+First we will check the content of portal_resources
+
+    >>> resources = self.portal.portal_resources
+
+Is there a jqueryuitheme folder with a css folder inside ?
+
+    >>> resources['jqueryuitheme'].id
+    'jqueryuitheme'
+    >>> resources['jqueryuitheme'].meta_type
+    'BTreeFolder2'
+    >>> themefolder = resources.jqueryuitheme
+
+Is my theme has been downloaded ?
+
+    >>> 'mytheme' in themefolder.keys()
+    True
+    >>> themefolder.mytheme['jqueryui.css'].meta_type
+    'File'
+    >>> themefolder.mytheme['jqueryui.css'].size > 0
+    True
+    >>> images = []
+    >>> images.extend(set(themefolder.mytheme.images))
+    >>> len(images) == 12
+    True
+
+So now lets used that theme and control the import has not activated it
+
+    >>> browser.getLink('JQueryUI theme manager').click()
+    >>> browser.getLink('Select a theme').click()
+    >>> browser.getControl('Theme').displayOptions
+    ['base', 'mytheme', 'sunburst']
+    >>> browser.getControl('Theme').getControl('mytheme').selected = True
+    >>> browser.getControl('Save').click()
+    >>> 'Changes saved' in browser.contents
+    True
+
+INTEGRATION TEST: Now check server side resources must be registred in portal_css
+
+    >>> from collective.jqueryuithememanager import config
+    >>> csstool = self.portal.portal_css
+    >>> currentcss = csstool.getResourcesDict()['portal_resources/jqueryuitheme/mytheme/jqueryui.css']
+    >>> currentcss.getEnabled()
+    True
+    >>> currentcss.getApplyPrefix()
+    True
+    >>> sunburst = csstool.getResourcesDict().get('++resource++jquery-ui-themes/sunburst/jqueryui.css', None)
+    >>> sunburst is None
+    True
+
+
+Last but not least, we will upload a jqueryui theme zip archive, and next check 
+every things goes well. So first we download a zip from google code
+
+    >>> import urllib
+    >>> import cStringIO
+    >>> jqueryui_content = urllib.urlopen(config.ZIP_JQUERYUI_URL).read()
+    >>> jqueryui_zip = cStringIO.StringIO(jqueryui_content)
+
+Next we go back to jqueryui controlpanel to select 'Import a theme'
+
+    >>> browser.getLink('JQueryUI theme manager').click()
+    >>> browser.getLink('Import themes').click()
+    >>> ctrl = browser.getControl('Theme archive')
+    >>> ctrl.value is None
+    True
+    >>> ctrl.add_file(jqueryui_zip, 'application/zip', 'jqueryui.zip')
+    >>> browser.getControl('Import').click()
+    >>> import tempfile as tmp
+    >>> def contents():
+    ...    fd, fn = tmp.mkstemp(suffix=".html", prefix="testbrowser-")
+    ...    file = open(fn, 'w')
+    ...    file.write(browser.contents)
+    ...    file.close()
+    ...    print fn
+    >>> import pdb; pdb.set_trace()
+    >>> 'Theme imported. You may want to select this theme.' in browser.contents
+    True
+
