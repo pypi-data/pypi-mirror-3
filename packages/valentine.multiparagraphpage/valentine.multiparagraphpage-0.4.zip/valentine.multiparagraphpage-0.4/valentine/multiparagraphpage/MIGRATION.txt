@@ -1,0 +1,60 @@
+This test is to show that internal migration suite keeps all required data.
+
+  >>> self.setRoles(['Manager'])
+  >>> self.portal.portal_types['SimpleChapter'].global_allow = True
+
+  >>> chapter = self.portal[self.portal.invokeFactory('SimpleChapter', id='chapter')]
+  >>> paragraph1 = chapter[chapter.invokeFactory('SimpleParagraph', id='paragraph1')]
+  >>> paragraph1.setText('paragraph1 content')
+  >>> paragraph2 = chapter[chapter.invokeFactory('SimpleParagraph', id='paragraph2')]
+  >>> paragraph2.setText('paragraph2 content')
+  >>> view = chapter.restrictedTraverse("@@chapter_contents")
+  >>> [p.id for p in view.paragraphs()]
+  ['paragraph1', 'paragraph2']
+  >>> [p.getObject().getText() for p in view.paragraphs()]
+  ['<p>paragraph1 content</p>', '<p>paragraph2 content</p>']
+  
+  >>> chapter_pl = chapter.addTranslation('pl')
+  >>> paragraph1_pl = chapter_pl[chapter_pl.invokeFactory('SimpleParagraph', id='paragraph1_pl')]
+  >>> paragraph1_pl.setText('paragraph1 content translated')
+  >>> paragraph2_pl = chapter_pl[chapter_pl.invokeFactory('SimpleParagraph', id='paragraph2_pl')]
+  >>> paragraph2_pl.setText('paragraph2 content translated')
+  >>> view = chapter_pl.restrictedTraverse("@@chapter_contents")
+  >>> [p.id for p in view.paragraphs()]
+  ['paragraph1_pl', 'paragraph2_pl']
+  >>> [p.getObject().getText() for p in view.paragraphs()]
+  ['<p>paragraph1 content translated</p>', '<p>paragraph2 content translated</p>']
+  
+  >>> self.portal.portal_workflow.doActionFor(chapter, 'publish')
+  >>> [(d['action'], d['review_state']) for d in self.portal.portal_workflow.getInfoFor(chapter, 'review_history')]
+  [(None, 'private'), ('publish', 'published')]
+
+  >>> from Products.contentmigration.archetypes import InplaceATItemMigrator
+  >>> migrationData = [p.getObject().getText() for p in chapter.restrictedTraverse("@@chapter_contents").paragraphs()]
+  >>> mp_migrator = InplaceATItemMigrator(chapter)
+  >>> mp_migrator.dst_portal_type = 'MultiParagraphPage'
+  >>> mp_migrator.dst_meta_type = 'MultiParagraphPage'
+  >>> mp_migrator.migrate()
+  >>> chapter_migrated = self.portal.chapter
+  >>> chapter_migrated.setText(migrationData)
+  >>> chapter_migrated.portal_type
+  'MultiParagraphPage'
+  >>> [(d['action'], d['review_state']) for d in self.portal.portal_workflow.getInfoFor(chapter_migrated, 'review_history')]
+  [(None, 'private'), ('publish', 'published')]
+  >>> chapter_migrated.getText()
+  ('<p>paragraph1 content</p>', '<p>paragraph2 content</p>') 
+  
+  >>> parent_pl = chapter_pl.getParentNode()
+  >>> chapter_plId = chapter_pl.id
+  >>> migrationData = [p.getObject().getText() for p in chapter_pl.restrictedTraverse("@@chapter_contents").paragraphs()]
+  >>> mp_migrator_pl = InplaceATItemMigrator(chapter_pl)
+  >>> mp_migrator_pl.dst_portal_type = 'MultiParagraphPage'
+  >>> mp_migrator_pl.dst_meta_type = 'MultiParagraphPage'
+  >>> mp_migrator_pl.migrate()
+  >>> chapter_pl_migrated = getattr(parent_pl, chapter_plId)
+  >>> chapter_pl_migrated.setText(migrationData)
+  >>> chapter_pl_migrated.getText()
+  ('<p>paragraph1 content translated</p>', '<p>paragraph2 content translated</p>')
+  
+  >>> chapter_pl_migrated.getCanonical()
+  <MultiParagraphPage at /plone/chapter>
