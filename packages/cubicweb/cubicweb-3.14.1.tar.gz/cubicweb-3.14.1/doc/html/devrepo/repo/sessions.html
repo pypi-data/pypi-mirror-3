@@ -1,0 +1,323 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>6.1. Sessions &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../../index.html" />
+    <link rel="up" title="6. Repository customization" href="index.html" />
+    <link rel="next" title="6.2. Hooks and Operations" href="hooks.html" />
+    <link rel="prev" title="6. Repository customization" href="index.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="hooks.html" title="6.2. Hooks and Operations"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="6. Repository customization"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Repository development</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">6. Repository customization</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">6.1. Sessions</a><ul>
+<li><a class="reference external" href="#kinds-of-sessions">6.1.1. Kinds of sessions</a></li>
+<li><a class="reference external" href="#authentication-and-management-of-sessions">6.1.2. Authentication and management of sessions</a></li>
+<li><a class="reference external" href="#writing-authentication-plugins">6.1.3. Writing authentication plugins</a><ul>
+<li><a class="reference external" href="#repository-authentication-plugins">6.1.3.1. Repository authentication plugins</a></li>
+<li><a class="reference external" href="#web-authentication-plugins">6.1.3.2. Web authentication plugins</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="index.html"
+                                  title="previous chapter">6. Repository customization</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="hooks.html"
+                                  title="next chapter">6.2. Hooks and Operations</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../../_sources/devrepo/repo/sessions.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="sessions">
+<h1>6.1. Sessions<a class="headerlink" href="#sessions" title="Permalink to this headline">¶</a></h1>
+<p>Sessions are object carrying the <cite>.execute</cite> method to query the data
+sources.</p>
+<div class="section" id="kinds-of-sessions">
+<h2>6.1.1. Kinds of sessions<a class="headerlink" href="#kinds-of-sessions" title="Permalink to this headline">¶</a></h2>
+<p>There are two kinds of sessions.</p>
+<ul class="simple">
+<li><cite>normal sessions</cite> are the most common: they are related to users and
+carry security checks coming with user credentials</li>
+<li><cite>internal sessions</cite> have all the powers; they are also used in only a
+few situations where you don&#8217;t already have an adequate session at
+hand, like: user authentication, data synchronisation in
+multi-source contexts</li>
+</ul>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Do not confuse the session type with their connection mode, for
+instance : <cite>in memory</cite> or <cite>pyro</cite>.</p>
+</div>
+<p>Normal sessions are typically named <cite>_cw</cite> in most appobjects or
+sometimes just <cite>session</cite>.</p>
+<p>Internal sessions are available from the <cite>Repository</cite> object and are
+to be used like this:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">repo</span><span class="o">.</span><span class="n">internal_session</span><span class="p">()</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">do_stuff_with</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>
+<span class="k">finally</span><span class="p">:</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Do not forget to close such a session after use for a session leak
+will quickly lead to an application crash.</p>
+</div>
+</div>
+<div class="section" id="authentication-and-management-of-sessions">
+<h2>6.1.2. Authentication and management of sessions<a class="headerlink" href="#authentication-and-management-of-sessions" title="Permalink to this headline">¶</a></h2>
+<p>The authentication process is a ballet involving a few dancers:</p>
+<ul class="simple">
+<li>through its <cite>connect</cite> method the top-level application object (the
+<cite>CubicWebPublisher</cite>) will open a session whenever a web request
+comes in; it asks the <cite>session manager</cite> to open a session (giving
+the web request object as context) using <cite>open_session</cite><ul>
+<li>the session manager asks its authentication manager (which is a
+<cite>component</cite>) to authenticate the request (using <cite>authenticate</cite>)<ul>
+<li>the authentication manager asks, in order, to its authentication
+information retrievers, a login and an opaque object containing
+other credentials elements (calling <cite>authentication_information</cite>),
+giving the request object each time<ul>
+<li>the default retriever (oddly named <cite>LoginPasswordRetreiver</cite>)
+will in turn defer login and password fetching to the request
+object (which, depending on the authentication mode (<cite>cookie</cite>
+or <cite>http</cite>), will do the appropriate things and return a login
+and a password)</li>
+</ul>
+</li>
+<li>the authentication manager, on success, asks the <cite>Repository</cite>
+object to connect with the found credentials (using <cite>connect</cite>)<ul>
+<li>the repository object asks authentication to all of its
+sources which support the <cite>CWUser</cite> entity with the given
+credentials; when successful it can build the cwuser entity,
+from which a regular <cite>Session</cite> object is made; it returns the
+session id<ul>
+<li>the source in turn will delegate work to an authentifier
+class that defines the ultimate <cite>authenticate</cite> method (for
+instance the native source will query the database against
+the provided credentials)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>the authentication manager, on success, will call back _all_
+retrievers with <cite>authenticated</cite> and return its authentication
+data (on failure, it will try the anonymous login or, if the
+configuration forbids it, raise an <cite>AuthenticationError</cite>)</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="writing-authentication-plugins">
+<h2>6.1.3. Writing authentication plugins<a class="headerlink" href="#writing-authentication-plugins" title="Permalink to this headline">¶</a></h2>
+<p>Sometimes CubicWeb&#8217;s out-of-the-box authentication schemes (cookie and
+http) are not sufficient. Nowadays there is a plethore of such schemes
+and the framework cannot provide them all, but as the sequence above
+shows, it is extensible.</p>
+<p>Two levels have to be considered when writing an authentication
+plugin: the web client and the repository.</p>
+<p>We invented a scenario where it makes sense to have a new plugin in
+each side: some middleware will do pre-authentication and under the
+right circumstances add a new HTTP <cite>x-foo-user</cite> header to the query
+before it reaches the CubicWeb instance. For a concrete example of
+this, see the <a class="reference external" href="http://www.cubicweb.org/project/cubicweb-trustedauth">trustedauth</a> cube.</p>
+<div class="section" id="repository-authentication-plugins">
+<h3>6.1.3.1. Repository authentication plugins<a class="headerlink" href="#repository-authentication-plugins" title="Permalink to this headline">¶</a></h3>
+<p>On the repository side, it is possible to register a source
+authentifier using the following kind of code:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.server.sources</span> <span class="kn">import</span> <span class="n">native</span>
+
+<span class="k">class</span> <span class="nc">FooAuthentifier</span><span class="p">(</span><span class="n">native</span><span class="o">.</span><span class="n">LoginPasswordAuthentifier</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; a source authentifier plugin</span>
+<span class="sd">    if &#39;foo&#39; in authentication information, no need to check</span>
+<span class="sd">    password</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">auth_rql</span> <span class="o">=</span> <span class="s">&#39;Any X WHERE X is CWUser, X login </span><span class="si">%(login)s</span><span class="s">&#39;</span>
+
+    <span class="k">def</span> <span class="nf">authenticate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="n">login</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return CWUser eid for the given login</span>
+<span class="sd">        if this account is defined in this source,</span>
+<span class="sd">        else raise `AuthenticationError`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;authentication by </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s">&#39;foo&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">FooAuthentifier</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">authenticate</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">login</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">rset</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">auth_rql</span><span class="p">,</span> <span class="p">{</span><span class="s">&#39;login&#39;</span><span class="p">:</span> <span class="n">login</span><span class="p">})</span>
+            <span class="k">return</span> <span class="n">rset</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">session</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;authentication failure (</span><span class="si">%s</span><span class="s">)&#39;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">AuthenticationError</span><span class="p">(</span><span class="s">&#39;foo user is unknown to us&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Since repository authentifiers are not appobjects, we have to register
+them through a <cite>server_startup</cite> hook.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">ServerStartupHook</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">Hook</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; register the foo authenticator &quot;&quot;&quot;</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;fooauthenticatorregisterer&#39;</span>
+    <span class="n">events</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;server_startup&#39;</span><span class="p">,)</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;registering foo authentifier&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">repo</span><span class="o">.</span><span class="n">system_source</span><span class="o">.</span><span class="n">add_authentifier</span><span class="p">(</span><span class="n">FooAuthentifier</span><span class="p">())</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="web-authentication-plugins">
+<h3>6.1.3.2. Web authentication plugins<a class="headerlink" href="#web-authentication-plugins" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">XFooUserRetriever</span><span class="p">(</span><span class="n">authentication</span><span class="o">.</span><span class="n">LoginPasswordRetreiver</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; authenticate by the x-foo-user http header</span>
+<span class="sd">    or just do normal login/password authentication</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;x-foo-user&#39;</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">authentication_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">req</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;retrieve authentication information from the given request, raise</span>
+<span class="sd">        NoAuthInfo if expected information is not found</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;web authenticator building auth info&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+           <span class="n">login</span> <span class="o">=</span> <span class="n">req</span><span class="o">.</span><span class="n">get_header</span><span class="p">(</span><span class="s">&#39;x-foo-user&#39;</span><span class="p">)</span>
+           <span class="k">if</span> <span class="n">login</span><span class="p">:</span>
+               <span class="k">return</span> <span class="n">login</span><span class="p">,</span> <span class="p">{</span><span class="s">&#39;foo&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">}</span>
+           <span class="k">else</span><span class="p">:</span>
+               <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">XFooUserRetriever</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">authentication_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">req</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
+           <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;web authenticator failed (</span><span class="si">%s</span><span class="s">)&#39;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">authentication</span><span class="o">.</span><span class="n">NoAuthInfo</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">authenticated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">retriever</span><span class="p">,</span> <span class="n">req</span><span class="p">,</span> <span class="n">cnx</span><span class="p">,</span> <span class="n">login</span><span class="p">,</span> <span class="n">authinfo</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;callback when return authentication information have opened a</span>
+<span class="sd">        repository connection successfully. Take care req has no session</span>
+<span class="sd">        attached yet, hence req.execute isn&#39;t available.</span>
+
+<span class="sd">        Here we set a flag on the request to indicate that the user is</span>
+<span class="sd">        foo-authenticated. Can be used by a selector</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;web authenticator running post authentication callback&#39;</span><span class="p">)</span>
+        <span class="n">cnx</span><span class="o">.</span><span class="n">foo_user</span> <span class="o">=</span> <span class="n">authinfo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;foo&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the <cite>authenticated</cite> method we add (in an admitedly slightly hackish
+way) an attribute to the connection object. This, in turn, can be used
+to build a selector dispatching on the fact that the user was
+preauthenticated or not.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="nd">@objectify_selector</span>
+<span class="k">def</span> <span class="nf">foo_authenticated</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">req</span><span class="p">,</span> <span class="n">rset</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">cnx</span><span class="p">,</span> <span class="s">&#39;foo_user&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">req</span><span class="o">.</span><span class="n">foo_user</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="mi">0</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="hooks.html" title="6.2. Hooks and Operations"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="6. Repository customization"
+             >previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Repository development</a> &raquo;</li>
+          <li><a href="index.html" >6. Repository customization</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
