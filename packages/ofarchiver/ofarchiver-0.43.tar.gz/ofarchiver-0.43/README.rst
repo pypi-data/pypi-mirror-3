@@ -1,0 +1,148 @@
+Introduction
+============
+
+OfArchiver generates HTML archives of chat rooms on an
+`Openfire <http://www.igniterealtime.org/projects/openfire>`_
+instant messaging server.
+
+Example usage is as follows::
+
+    from ofarchiver import OfArchiver
+
+    ofa = OfArchiver()
+    for room in ofa.get_rooms():
+        ofa.gen_archive(room)
+
+A script called *ofarchiver* is also installed, which takes advantage of the
+`multiprocessing <http://docs.python.org/dev/library/multiprocessing.html>`_
+Python module to speed up archive generation on installations with multiple
+chat rooms.  It can serve as a cron job to generate archives at a given
+interval.
+
+Requirements
+============
+
+* An Openfire server with chat rooms (tested with 3.7.0).
+* MySQL as the Openfire database (tested with 5.0).
+* A web server (tested with Apache 2.2 and its
+  `mod_autoindex <http://httpd.apache.org/docs/2.2/mod/mod_autoindex.html>`_
+  module).
+* Python 2.6 or higher (available for RHEL/CentOS 5 in
+  `EPEL <http://fedoraproject.org/wiki/EPEL>`_ as
+  `python26 <http://fedoraproject.org/wiki/Python26>`_).
+
+Installation
+============
+
+* With ``pip``::
+
+    sudo pip install OfArchiver
+
+* With ``easy_install``::
+
+    sudo easy_install OfArchiver
+
+* From source::
+
+    git clone http://github.com/egnyte/ofarchiver
+    cd ofarchiver
+    python setup.py build
+    sudo python setup.py install
+
+Configuration
+=============
+
+Openfire
+--------
+
+The `Monitoring Service
+<http://www.igniterealtime.org/projects/openfire/plugins/monitoring/readme.html>`_
+Openfire plugin must be installed and configured.
+
+1. Log into the Openfire admin panel and select the *Plugins* tab.
+2. Install the ``Monitoring Service`` plugin.
+3. Select the *Server* tab, then the *Archiving* subtab.
+4. Under *Archiving Settings*, enable **Archive group chats**.
+
+OfArchiver
+----------
+
+An *ofarchiver.ini* configuration file is included which must be copied to
+one of the following locations (listed in the order in which they are checked):
+
+* */usr/local/etc*
+* */etc*
+* The user's home directory (**$HOME**)
+
+It consists of the following sections (mandatory options have a ******):
+
+main
+~~~~
+
+  basedir **
+    The base directory in which to generate the HTML archive.
+
+  confserver **
+    The name of the Openfire conference server.
+
+  db **
+    The type of database used by Openfire (only ``mysql`` is currently
+    supported).
+
+  debug
+    Whether to enable debugging statements.
+
+  logfile
+    A file in which to log informational and/or debugging messages.
+
+  org
+    The name of the organization running Openfire.
+
+  rooms
+    A list of rooms for which to generate archives.
+
+db
+~~
+
+  hostname **
+    The hostname of the MySQL server.
+
+  username **
+    A MySQL user, either Openfire's or one created just for OfArchiver
+    (only ``SELECT`` privileges on the *ofMessageArchive* table is needed).
+
+  password **
+    The password for the MySQL user above.
+
+  database **
+    The MySQL database used by Openfire.
+
+colors
+~~~~~~
+
+  enabled
+    Whether to enable colors to more easily differentiate chat room members.
+
+  names
+    A list of colors to choose from.
+
+Web Server
+----------
+
+A web server with automatic directory index generation is required to view
+the HTML archive.  Here is a sample configuration for Apache, with
+*/var/www/html/ofarchive* as the archive base directory::
+
+    <Directory /var/www/html/ofarchive>
+      Options +Indexes
+      IndexOptions FancyIndexing
+      IndexOrderDefault Descending Date
+    </Directory>
+
+Adding authentication and encryption is highly recommended.
+
+Thanks
+======
+
+* `Egnyte <http://www.egnyte.com>`_ for allowing and encouraging me to
+  release this software.
