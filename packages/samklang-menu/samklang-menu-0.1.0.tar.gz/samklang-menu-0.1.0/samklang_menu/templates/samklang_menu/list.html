@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load mptt_tags %}
+
+{% block title %}{% trans "List menu" %}{% endblock %}
+
+{% block content %}
+<h1>{{ root.name }}<span title="{% trans "Add root node" %}" id="new_item_{{ root.id }}" class="new_item"></span></h1>
+<ol class="nested_sortable">
+    {% recursetree menu %}
+        <li id="item_{{ node.id }}">
+            <div>{{ node.name }}
+                <span title="{% trans "Delete node" %}" id="delete_item_{{ node.id }}" class="delete_item"></span>
+                <span title="{% trans "Add child to node" %}" id="new_item_{{ node.id }}" class="new_item"></span>
+            </div>
+            {% if not node.is_leaf_node %}
+                <ol>
+                    {{ children }}
+                </ol>
+            {% endif %}
+        </li>
+    {% endrecursetree %}
+</ol>
+<form action="" method="post" class="uniForm">
+    {% csrf_token %}
+    <input type="hidden" name="mptt_tree" value="{}" id="mptt_tree" />
+    <input type="hidden" name="tree_id" value="{{ tree_id }}" />
+    <div class="buttonHolder">
+        <button type="submit" name="submit" class="primaryAction" id="submit_menu">
+            {% trans "Save" %}
+        </button>
+    </div>
+</form>
+{% endblock content %}
+
+{% block sidebar %}
+    <div id="new_menu_item"></div>
+    <ul class="menus">
+        {% for m in menus %}
+            <li><a href="{% url strekmann_menu_list m.tree_id %}">{{ m }}</a></li>
+        {% endfor %}
+    </ul>
+{% endblock sidebar %}
+
+{% block footerscript %}
+    $('ol.nested_sortable').nestedSortable({
+        disableNesting: 'no-nest',
+    	forcePlaceholderSize: true,
+    	handle: 'div',
+    	helper:	'clone',
+    	items: 'li',
+    	opacity: 0.6,
+    	placeholder: 'placeholder',
+    	tabSize: 25,
+    	tolerance: 'pointer',
+    	toleranceElement: '> div',
+    });
+
+    $('#submit_menu').click(function(){
+        var tree = $('ol.nested_sortable').nestedSortable('toArray', {startDepthCount: 0});
+        tree = JSON.stringify(tree);
+    	$('#mptt_tree').val(tree);
+    });
+
+    // add onclick to delete-item-buttons
+    $("span.delete_item").each(function(index){
+        $(this).click(function(){
+           var id = $(this).attr('id').split('_');
+           id = id[2];
+           $.ajax({
+               url: '{% url strekmann_menu_delete tree_id %}',
+               type: 'POST',
+               data: 'node_id='+id,
+               success: function(data){
+                   location.reload();
+               }
+           });
+        });
+    });
+
+    // add onclick to new-item-buttons
+    $("span.new_item").each(function(index){
+        $(this).click(function(){
+            var id = $(this).attr('id').split('_');
+            id = id[2];
+
+            $.ajax({
+                url: '{% url strekmann_menu_new tree_id %}',
+                type: 'GET',
+                data: 'parent_id='+id,
+                success: function(data){
+                    $("#new_menu_item").html(data);
+                }
+            });
+        });
+    });
+{% endblock footerscript %}
