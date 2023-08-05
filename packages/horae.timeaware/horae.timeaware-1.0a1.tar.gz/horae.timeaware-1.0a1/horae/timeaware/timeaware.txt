@@ -1,0 +1,347 @@
+Guided user story
+=================
+
+Let's first make an object aware of time (holding multiple time entries)
+
+    >>> from horae.timeaware.timeaware import TimeAware, TimeEntry
+    >>> from datetime import datetime, timedelta
+    >>> entries = TimeAware()
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 1, 8)
+    >>> entry.date_end = datetime(2011, 1, 1, 8)+timedelta(hours=5)
+    >>> entry.hours()
+    5.0
+    >>> entries.append(entry)
+    >>> entries.hours()
+    5.0
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 1, 14)
+    >>> entry.date_end = datetime(2011, 1, 1, 14)+timedelta(hours=4, minutes=30)
+    >>> entry.hours()
+    4.5
+    >>> entries.append(entry)
+    >>> entries.hours()
+    9.5
+
+Overlapping entries
+-------------------
+
+Entries are always flattened before doing any calculations. Overlapping entries get combined.
+
+    >>> overlapping = TimeAware()
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 1, 9)
+    >>> entry.date_end = datetime(2011, 1, 1, 9)+timedelta(hours=5)
+    >>> entry.hours()
+    5.0
+    >>> overlapping.append(entry)
+    >>> overlapping = entries + overlapping
+    >>> len(overlapping.entries())
+    1
+    >>> overlapping.hours()
+    10.5
+
+Repeating time entries
+----------------------
+
+Now let's add some repeating time entries
+
+Yearly
+''''''
+
+    >>> from horae.timeaware import interfaces
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 2, 1, 8)
+    >>> entry.date_end = datetime(2011, 2, 1, 8)+timedelta(hours=5)
+    >>> entry.repeat = interfaces.REPEAT_YEARLY
+    >>> entry.entries()
+    Traceback (most recent call last):
+    ...
+    ValueError: ('daterange', 'daterange required for infinite repeating events')
+    >>> entry.hours()
+    Traceback (most recent call last):
+    ...
+    ValueError: ('daterange', 'daterange required for infinite repeating events')
+    >>> nonrepeating = entry.entries((datetime(2011, 2, 1), datetime(2012, 3, 1)))
+    >>> len(nonrepeating)
+    2
+    >>> nonrepeating[0].date_start == entry.date_start
+    True
+    >>> nonrepeating[0].date_end == entry.date_end
+    True
+    >>> nonrepeating[1].date_start == entry.date_start+timedelta(days=365)
+    True
+    >>> nonrepeating[1].date_end == entry.date_end+timedelta(days=365)
+    True
+
+What about leap years?
+
+    >>> nonrepeating = entry.entries((datetime(2012, 3, 1), datetime(2013, 3, 1)))
+    >>> len(nonrepeating)
+    1
+    >>> nonrepeating[0].date_start == entry.date_start+timedelta(days=365)+timedelta(366)
+    True
+    >>> nonrepeating[0].date_end == entry.date_end+timedelta(days=365)+timedelta(366)
+    True
+
+The entries returned are intersected with the provided daterange
+
+    >>> nonrepeating = entry.entries((datetime(2011, 2, 1, 9), datetime(2012, 2, 1, 11)))
+    >>> len(nonrepeating)
+    2
+    >>> nonrepeating[0].date_start == datetime(2011, 2, 1, 9)
+    True
+    >>> nonrepeating[0].hours()
+    4.0
+    >>> nonrepeating[1].date_end == datetime(2012, 2, 1, 11)
+    True
+    >>> nonrepeating[1].hours()
+    3.0
+
+Now let's have a look at the other repeating possibilities
+
+Monthly
+'''''''
+
+    >>> entry.repeat = interfaces.REPEAT_MONTHLY
+    >>> nonrepeating = entry.entries((datetime(2011, 2, 1), datetime(2012, 3, 1)))
+    >>> len(nonrepeating)
+    13
+    >>> [(e.date_start.year, e.date_start.month) for e in nonrepeating]
+    [(2011, 2), (2011, 3), (2011, 4), (2011, 5), (2011, 6), (2011, 7), (2011, 8), (2011, 9), (2011, 10), (2011, 11), (2011, 12), (2012, 1), (2012, 2)]
+
+Weekly
+''''''
+
+    >>> entry.repeat = interfaces.REPEAT_WEEKLY
+    >>> nonrepeating = entry.entries((datetime(2011, 2, 1), datetime(2011, 3, 1)))
+    >>> len(nonrepeating)
+    4
+    >>> [(e.date_start.month, e.date_start.day) for e in nonrepeating]
+    [(2, 1), (2, 8), (2, 15), (2, 22)]
+
+On work days
+''''''''''''
+
+    >>> entry.repeat = interfaces.REPEAT_WORKDAYS
+    >>> nonrepeating = entry.entries((datetime(2011, 2, 1), datetime(2011, 2, 13)))
+    >>> len(nonrepeating)
+    9
+    >>> [(e.date_start.month, e.date_start.day) for e in nonrepeating]
+    [(2, 1), (2, 2), (2, 3), (2, 4), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11)]
+
+Daily
+'''''
+
+    >>> entry.repeat = interfaces.REPEAT_DAILY
+    >>> nonrepeating = entry.entries((datetime(2011, 2, 1), datetime(2011, 2, 10)))
+    >>> len(nonrepeating)
+    9
+    >>> [(e.date_start.month, e.date_start.day) for e in nonrepeating]
+    [(2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9)]
+
+Adding and subtracting
+----------------------
+
+Combining time aware objects is possible by adding them
+
+    >>> entries2 = TimeAware()
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 2, 7)
+    >>> entry.date_end = datetime(2011, 1, 2, 12, 30)
+    >>> entries2.append(entry)
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 2, 14)
+    >>> entry.date_end = datetime(2011, 1, 2, 17, 30)
+    >>> entries2.append(entry)
+    >>> len(entries2.entries())
+    2
+    >>> entries2.hours()
+    9.0
+    >>> len(entries.entries())
+    2
+    >>> entries.hours()
+    9.5
+    >>> combined = entries + entries2
+    >>> len(combined.entries())
+    4
+    >>> combined.hours()
+    18.5
+
+Subtracting is done similarly but is only possible for time aware objects containing no infinitely repeating entries
+otherwise the subtract method has to be used and passed a daterange and returns a list of time entries
+
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 4, 8)
+    >>> entry.date_end = datetime(2011, 1, 4, 18, 30)
+    >>> entry2 = TimeEntry()
+    >>> entry2.date_start = datetime(2011, 1, 4, 12)
+    >>> entry2.date_end = datetime(2011, 1, 4, 18, 30)
+    >>> subtracted = entry - entry2
+    >>> len(subtracted)
+    1
+    >>> subtracted[0].date_start == entry.date_start
+    True
+    >>> subtracted[0].date_end == entry2.date_start
+    True
+    >>> entry2 = TimeEntry()
+    >>> entry2.date_start = datetime(2011, 1, 4, 8)
+    >>> entry2.date_end = datetime(2011, 1, 4, 12, 30)
+    >>> subtracted = entry - entry2
+    >>> len(subtracted)
+    1
+    >>> subtracted[0].date_start == entry2.date_end
+    True
+    >>> subtracted[0].date_end == entry.date_end
+    True
+    >>> subtracted = entry2 - entry
+    >>> len(subtracted)
+    0
+    >>> entry3 = TimeEntry()
+    >>> entry3.date_start = datetime(2011, 1, 4, 10, 15)
+    >>> entry3.date_end = datetime(2011, 1, 4, 14)
+    >>> subtracted = entry - entry3
+    >>> len(subtracted)
+    2
+    >>> subtracted[0].date_start == entry.date_start
+    True
+    >>> subtracted[0].date_end == entry3.date_start
+    True
+    >>> subtracted[1].date_start == entry3.date_end
+    True
+    >>> subtracted[1].date_end == entry.date_end
+    True
+
+Now let's try to subtract from a repeating entry
+
+    >>> entry.repeat = interfaces.REPEAT_DAILY
+    >>> entry - entry3
+    Traceback (most recent call last):
+    ...
+    ValueError: ('daterange', 'daterange required for infinite repeating events')
+    >>> subtracted = entry.subtract(entry3, (datetime(2011, 1, 4), datetime(2011, 1, 6)))
+    >>> len(subtracted)
+    3
+    >>> subtracted[0].date_start == entry.date_start
+    True
+    >>> subtracted[0].date_end == entry3.date_start
+    True
+    >>> subtracted[1].date_start == entry3.date_end
+    True
+    >>> subtracted[1].date_end == entry.date_end
+    True
+    >>> subtracted[2].date_start == entry.date_start+timedelta(days=1)
+    True
+    >>> subtracted[2].date_end == entry.date_end+timedelta(days=1)
+    True
+
+What about subtracting repeating entries from repeating entries?
+
+    >>> entry3.repeat = interfaces.REPEAT_DAILY
+    >>> subtracted = entry.subtract(entry3, (datetime(2011, 1, 4), datetime(2011, 1, 6)))
+    >>> len(subtracted)
+    4
+    >>> subtracted[0].date_start == entry.date_start
+    True
+    >>> subtracted[0].date_end == entry3.date_start
+    True
+    >>> subtracted[1].date_start == entry3.date_end
+    True
+    >>> subtracted[1].date_end == entry.date_end
+    True
+    >>> subtracted[2].date_start == entry.date_start+timedelta(days=1)
+    True
+    >>> subtracted[2].date_end == entry3.date_start+timedelta(days=1)
+    True
+    >>> subtracted[3].date_start == entry3.date_end+timedelta(days=1)
+    True
+    >>> subtracted[3].date_end == entry.date_end+timedelta(days=1)
+    True
+
+Subtracting from time awares containing multiple time entries is also possible
+
+    >>> entries = TimeAware()
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 5, 8, 15)
+    >>> entry.date_end = datetime(2011, 1, 5, 12, 30)
+    >>> entries.append(entry)
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 5, 14)
+    >>> entry.date_end = datetime(2011, 1, 5, 18, 30)
+    >>> entries.append(entry)
+    >>> entries.hours()
+    8.75
+    >>> entries2 = TimeAware()
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 5, 12)
+    >>> entry.date_end = datetime(2011, 1, 5, 14, 30)
+    >>> entries2.append(entry)
+    >>> entry = TimeEntry()
+    >>> entry.date_start = datetime(2011, 1, 5, 16)
+    >>> entry.date_end = datetime(2011, 1, 5, 17)
+    >>> entries2.append(entry)
+    >>> entries2.hours()
+    3.5
+    >>> subtracted = entries - entries2
+    >>> subtracted.hours()
+    6.75
+    >>> entries = subtracted.entries()
+    >>> len(entries)
+    3
+    >>> entries[0].date_start == datetime(2011, 1, 5, 8, 15)
+    True
+    >>> entries[0].date_end == datetime(2011, 1, 5, 12)
+    True
+    >>> entries[1].date_start == datetime(2011, 1, 5, 14, 30)
+    True
+    >>> entries[1].date_end == datetime(2011, 1, 5, 16)
+    True
+    >>> entries[2].date_start == datetime(2011, 1, 5, 17)
+    True
+    >>> entries[2].date_end == datetime(2011, 1, 5, 18, 30)
+    True
+
+Now for a slightly more realistic example. Let's say John is working from 8.00 to 12.00 and from
+13.30 to 18.00 on all work days.
+
+    >>> worktime = TimeAware()
+    >>> morning = TimeEntry()
+    >>> morning.date_start = datetime(2011, 1, 3, 8)
+    >>> morning.date_end = datetime(2011, 1, 3, 12)
+    >>> morning.repeat = interfaces.REPEAT_WORKDAYS
+    >>> worktime.append(morning)
+    >>> afternoon = TimeEntry()
+    >>> afternoon.date_start = datetime(2011, 1, 3, 13, 30)
+    >>> afternoon.date_end = datetime(2011, 1, 3, 18)
+    >>> afternoon.repeat = interfaces.REPEAT_WORKDAYS
+    >>> worktime.append(afternoon)
+
+Let's see how many hours John is working during one day and through the whole 2011.
+
+    >>> worktime.hours((datetime(2011, 1, 3), datetime(2011, 1, 4)))
+    8.5
+    >>> worktime.hours((datetime(2011, 1, 1), datetime(2012, 1, 1)))
+    2210.0
+
+Now let's say every 4th Friday he takes one day off. Additionally he is on vacation from 
+February 21st 2011 till 13th of March.
+
+    >>> absence = TimeAware()
+    >>> friday = TimeEntry()
+    >>> friday.date_start = datetime(2011, 1, 7)
+    >>> friday.date_end = datetime(2011, 1, 8)
+    >>> friday.repeat = interfaces.REPEAT_4WEEKS
+    >>> absence.append(friday)
+    >>> vacation = TimeEntry()
+    >>> vacation.date_start = datetime(2011, 2, 21)
+    >>> vacation.date_end = datetime(2011, 3, 13)
+    >>> absence.append(vacation)
+
+Let's see what happens to the hours John is working in 2011 which should result in a reduction
+of the 13 Fridays and 15 days of the vacation where one of them is one of the Fridays already counted.
+Which leads us to 27 days multiplied by 8.5 hours resulting in 229.5 hours and thus 1980.5 total work
+hours in 2011.
+
+    >>> effective_worktime = worktime.subtract(absence, (datetime(2011, 1, 1), datetime(2012, 1, 1)))
+    >>> effective_worktime.hours()
+    1980.5
