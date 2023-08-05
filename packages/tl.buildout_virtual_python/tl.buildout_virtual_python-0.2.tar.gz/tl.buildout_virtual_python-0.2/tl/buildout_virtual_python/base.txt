@@ -1,0 +1,77 @@
+=============================================================
+zc.buildout recipe for creating a virtual Python installation
+=============================================================
+
+
+What happens without a virtual Python
+=====================================
+
+When installing eggs with `zc.recipe.egg`:
+
+>>> mkdir("fancy")
+
+>>> write("buildout.cfg", """
+... [buildout]
+... parts = egg
+...
+... [egg]
+... recipe = zc.recipe.egg
+... eggs = tl.buildout_virtual_python
+... extra-paths = %s/fancy
+... interpreter = py
+... """ % sample_buildout)
+
+>>> _ = system(buildout)
+
+the scripts created in ``bin/`` get to see the eggs and extra Python paths:
+
+>>> print system('bin/py -c "import tl.buildout_virtual_python"')
+>>> print system('bin/py -c "import sys; print sys.path"')
+[...fancy...]
+
+but their ``sys.executable`` won't have access to other code installed by the
+buildout:
+
+>>> SYS_EXECUTABLE = """bin/py -c '''
+... import sys; import subprocess
+... subprocess.call([sys.executable, "-c", "%s"])
+... '''"""
+
+>>> print system(SYS_EXECUTABLE % "import tl.buildout_virtual_python")
+Traceback (most recent call last):...
+ImportError: No module named tl.buildout_virtual_python
+
+>>> "fancy" in system(SYS_EXECUTABLE % "import sys; print sys.path")
+False
+
+
+How this is fixed with a virtual Python
+=======================================
+
+This time, we create a part for a virtual Python environment and use that for
+testing interpreter:
+
+>>> write("buildout.cfg", """
+... [buildout]
+... parts = egg
+...
+... [vpython]
+... recipe = tl.buildout_virtual_python
+... eggs = tl.buildout_virtual_python
+... extra-paths = %s/fancy
+...
+... [egg]
+... recipe = zc.recipe.egg
+... eggs = zc.recipe.egg # we need to specify some egg
+... python = vpython
+... interpreter = py
+... """ % sample_buildout)
+
+>>> _ = system(buildout)
+
+Now the ``sys.executable`` of the scripts in ``bin/`` does have access to
+other code installed by the buildout:
+
+>>> print system(SYS_EXECUTABLE % "import tl.buildout_virtual_python")
+>>> print system(SYS_EXECUTABLE % "import sys; print sys.path")
+[...fancy...]
