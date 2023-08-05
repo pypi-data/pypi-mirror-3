@@ -1,0 +1,49 @@
+#
+# Copyright (c) 2009 Adam Tauno Williams <awilliam@whitemice.org>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#
+from datetime         import datetime, timedelta
+from pytz             import timezone
+from sqlalchemy       import *
+from sqlalchemy.orm   import *
+from coils.foundation import *
+from coils.core       import *
+from coils.core.logic import CreateCommand
+from command          import CompanyCommand
+
+class CreateCompany(CreateCommand, CompanyCommand):
+
+    def __init__(self):
+        CreateCommand.__init__(self)
+        self.sd = ServerDefaultsManager()
+        self._C_company_values = { }
+
+    def run(self):
+        CreateCommand.run(self)
+        types = self._list_subtypes_types_for_entity('LSAddressType')
+        self._initialize_addresses(types)
+        types = self._list_subtypes_types_for_entity('LSTeleType')
+        self._initialize_telephones(types)
+        self._initialize_company_values()
+        self._set_company_values()
+        self._set_projects()
+        self._set_access()
+        self.obj.number = 'OGo{0}'.format(self.obj.object_id)
+        self.obj.login = 'OGo{0}'.format(self.obj.object_id)
+        self._set_comment_text()

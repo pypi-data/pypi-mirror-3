@@ -1,0 +1,124 @@
+#!/usr/bin/python2.6
+# Copyright (c) 2009, 2010, 2011, 2012 Adam Tauno Williams <awilliam@whitemice.org>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+import getopt, sys, os
+from coils.foundation import change_to_backend_usergroup
+from coils.core       import MasterService, initialize_COILS, BundleManager
+from coils.net        import HTTPService, SMTPService
+
+def usage():
+    print """
+        Start OpenGroupware Coils service components
+        --help            Display this message.
+        --store=          Set the BLOB store root; defaults to "/var/lib/opengroupware.org"
+        --group=          Set the group to run services as; defaults to "skyrix"
+        --user=           Set the user to run services as; defaults to "ogo".
+    """
+    return
+
+
+def main(argv):
+
+    silent     = False
+    username   = 'ogo'
+    groupname  = 'skyrix'
+    storeroot  = '/var/lib/opengroupware.org'
+    changeuser = True
+    add_modules = [ ]
+    ban_modules = [ ]
+    do_not_start = [ ]
+
+    try:
+        opts, args = getopt.getopt(argv, "hag:u:s:i:x:d:q",
+                                         [ "help",
+                                           "quiet", 
+                                           "asuser", 
+                                           "user=", 
+                                           "group=",
+                                           "store=", 
+                                           "do-not-start=",
+                                           "add-bundle=", 
+                                           "ban-bundle="])
+    except getopt.GetoptError, e:
+        print e
+        usage()
+        sys.exit(2)
+    else:
+        for opt, arg in opts:
+            if opt in ("-h", "--help"):
+                usage()
+                sys.exit(0)
+            elif opt in ("-a", "--asuser"):
+                changeuser = False
+            elif opt in ("-q", "--quiet"):
+                silent = True                
+            elif opt in ("-u", "--user"):
+                username = arg
+            elif opt in ("-g", "--group"):
+                groupname = arg
+            elif opt in ("-s", "--store"):
+                storeroot = arg
+            elif opt in ("-i", "--add-bundle"):
+                add_modules.append(arg)
+            elif opt in ("-x", "--ban-bundle"):
+                ban_modules.append(arg)
+            elif opt in ("-d", "--do-not-start"):
+                print arg
+                do_not_start.append(arg)                
+
+    if (changeuser):
+        change_to_backend_usergroup(username, groupname)
+
+    initialize_COILS( { 'store_root':     storeroot,
+                        'extra_modules':  add_modules,
+                        'banned_modules': ban_modules } )
+
+    master = MasterService()
+    
+    for name in BundleManager.list_services():
+        if name != 'coils.master':
+            if not (name in do_not_start):
+                if not silent: print('Controlling service "{0}"'.format(name))
+                master.append_service(name, BundleManager.get_service(name))
+            else:
+                 if not silent: print('Ignoring service "{0}"'.format(name))
+
+    
+    if 'coils.http' not in do_not_start:
+        if not silent: print('Controlling service "coils.http"')
+        master.append_service('coils.http', HTTPService())
+    else:
+         if not silent: print('Ignoring "coils.http"')
+        
+    if 'coils.smtpd' not in do_not_start:
+        if not silent: print('Controlling service "coils.smtpd"')
+        master.append_service('coils.smtpd', SMTPService())
+    else:
+         if not silent: print('Ignoring service "coils.smtpd"')
+
+    master.start()
+    if not silent: print('Starting....')
+    master.run()
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
