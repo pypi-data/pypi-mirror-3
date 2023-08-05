@@ -1,0 +1,566 @@
+=========
+objectlog
+=========
+
+The objectlog package provides a customizable log for a single object.  The
+system was designed to provide information for a visual log of important
+object changes and to provide analyzable information for metrics.
+
+- It provides automatic recording for each log entry of a timestamp and the
+  principals in the request when the log was made.
+
+- Given a schema of data to collect about the object, it automatically
+  calculates and stores changesets from the last log entry, primarily to
+  provide a quick and easy answer to the question "what changed?" and
+  secondarily to reduce database size.
+
+- It accepts optional summary and detail values that allow the system or users
+  to annotate the entries with human-readable messages.
+
+- It allows each log entry to be annotated with zero or more marker interfaces
+  so that log entries may be classified with an interface.
+
+Moreover, the log entries can be set to occur at transition boundaries, and
+to only ocur if a change was made (according to the changeset) since the last
+log entry.
+
+To show this, we need to set up a dummy interaction.  We do this below, then
+create an object with a log, then actually make a log.
+
+    >>> import zope.security.management
+    >>> import zope.security.interfaces
+    >>> import zope.app.security.interfaces
+    >>> from zope import interface, schema
+    >>> from zope.app.testing import ztapi
+    >>> class DummyPrincipal(object):
+    ...     interface.implements(zope.security.interfaces.IPrincipal)
+    ...     def __init__(self, id, title, description):
+    ...         self.id = unicode(id)
+    ...         self.title = title
+    ...         self.description = description
+    ...
+    >>> alice = DummyPrincipal('alice', 'Alice Aal', 'first principal')
+    >>> betty = DummyPrincipal('betty', 'Betty Barnes', 'second principal')
+    >>> cathy = DummyPrincipal('cathy', 'Cathy Camero', 'third principal')
+    >>> class DummyParticipation(object):
+    ...     interface.implements(zope.security.interfaces.IParticipation)
+    ...     interaction = principal = None
+    ...     def __init__(self, principal):
+    ...         self.principal = principal
+    ...
+    >>> import zope.publisher.interfaces
+
+    >>> import zc.objectlog
+    >>> import zope.location
+    >>> WORKING = u"Where I'm working"
+    >>> COUCH = u"On couch"
+    >>> BED = u"On bed"
+    >>> KITCHEN = u"In kitchen"
+    >>> class ICat(interface.Interface):
+    ...     name = schema.TextLine(title=u"Name", required=True)
+    ...     location = schema.Choice(
+    ...         (WORKING, COUCH, BED, KITCHEN),
+    ...         title=u"Location", required=False)
+    ...     weight = schema.Int(title=u"Weight in Pounds", required=True)
+    ...     getAge, = schema.accessors(
+    ...         schema.Int(title=u"Age in Years", readonly=True,
+    ...         required=False))
+    ...
+    >>> import persistent
+    >>> class Cat(persistent.Persistent):
+    ...     interface.implements(ICat)
+    ...     def __init__(self, name, weight, age, location=None):
+    ...         self.name = name
+    ...         self.weight = weight
+    ...         self.location = location
+    ...         self._age = age
+    ...         self.log = zc.objectlog.Log(ICat)
+    ...         zope.location.locate(self.log, self, 'log')
+    ...     def getAge(self):
+    ...         return self._age
+    ...
+
+Notice in the __init__ for cat that we located the log on the cat.  This is
+an important step, as it enables the automatic changesets.
+
+Now we are set up to look at examples.  With one exception, each example
+runs within a faux interaction so we can see how the principal_ids
+attribute works.  First we'll see that len works, that the record_schema
+attribute is set properly, that the timestamp uses a pytz.utc timezone for
+the timestamp, that log iteration works, and that summary, details, and data
+were set properly.
+
+    >>> import pytz, datetime
+    >>> a_p = DummyParticipation(alice)
+    >>> interface.directlyProvides(a_p, zope.publisher.interfaces.IRequest)
+    >>> zope.security.management.newInteraction(a_p)
+    >>> emily = Cat(u'Emily', 16, 5, WORKING)
+    >>> len(emily.log)
+    0
+    >>> emily.log.record_schema is ICat
+    True
+    >>> before = datetime.datetime.now(pytz.utc)
+    >>> entry = emily.log(
+    ...     u'Starting to keep track of Emily',
+    ...     u'Looks like\nshe might go upstairs soon')
+    >>> entry is emily.log[0]
+    True
+    >>> after = datetime.datetime.now(pytz.utc)
+    >>> len(emily.log)
+    1
+    >>> before <= entry.timestamp <= after
+    True
+    >>> entry.timestamp.tzinfo is pytz.utc
+    True
+    >>> entry.principal_ids
+    (u'alice',)
+    >>> list(emily.log) == [entry]
+    True
+    >>> entry.record_schema is ICat
+    True
+    >>> entry.summary
+    u'Starting to keep track of Emily'
+    >>> entry.details
+    u'Looks like\nshe might go upstairs soon'
+
+The record and the record_changes should have a full set of values from the
+object.  The record has a special security checker that allows users to
+access any field defined on the schema, but not to access any others nor to
+write any values.
+
+    >>> record = emily.log[0].record
+    >>> record.name
+    u'Emily'
+    >>> record.location==WORKING
+    True
+    >>> record.weight
+    16
+    >>> record.getAge()
+    5
+    >>> ICat.providedBy(record)
+    True
+    >>> emily.log[0].record_changes == {
+    ... 'name': u'Emily', 'weight': 16, 'location': u"Where I'm working",
+    ... 'getAge': 5}
+    True
+    >>> from zope.security.checker import ProxyFactory
+    >>> proxrecord = ProxyFactory(record)
+    >>> ICat.providedBy(proxrecord)
+    True
+    >>> from zc.objectlog import interfaces
+    >>> interfaces.IRecord.providedBy(proxrecord)
+    True
+    >>> from zope.security import canAccess, canWrite
+    >>> canAccess(record, 'name')
+    True
+    >>> canAccess(record, 'weight')
+    True
+    >>> canAccess(record, 'location')
+    True
+    >>> canAccess(record, 'getAge')
+    True
+    >>> canAccess(record, 'shazbot') # doctest: +ELLIPSIS
+    Traceback (most recent call last):
+    ...
+    ForbiddenAttribute: ('shazbot', ...
+    >>> canWrite(record, 'name')
+    False
+    >>> zope.security.management.endInteraction()
+
+Interactions with multiple principals are correctly recorded as well.  Note
+that non-request participations are not included in the records.  We also
+look a bit more at the record and the change set.
+
+    >>> a_p = DummyParticipation(alice)
+    >>> b_p = DummyParticipation(betty)
+    >>> c_p = DummyParticipation(cathy)
+    >>> interface.directlyProvides(a_p, zope.publisher.interfaces.IRequest)
+    >>> interface.directlyProvides(b_p, zope.publisher.interfaces.IRequest)
+    >>> zope.security.management.newInteraction(a_p, b_p, c_p)
+    >>> emily.location = KITCHEN
+    >>> entry = emily.log(u"Sounds like she's eating", u"Dry food,\nin fact.")
+    >>> len(emily.log)
+    2
+    >>> emily.log[0].summary
+    u'Starting to keep track of Emily'
+    >>> emily.log[1].summary
+    u"Sounds like she's eating"
+    >>> after <= emily.log[1].timestamp <= datetime.datetime.now(pytz.utc)
+    True
+    >>> emily.log[1].principal_ids # cathy was not a request, so not included
+    (u'alice', u'betty')
+    >>> emily.log[1].details
+    u'Dry food,\nin fact.'
+    >>> emily.log[1].record_changes
+    {'location': u'In kitchen'}
+    >>> record = emily.log[1].record
+    >>> record.location
+    u'In kitchen'
+    >>> record.name
+    u'Emily'
+    >>> record.weight
+    16
+    >>> zope.security.management.endInteraction()
+
+It is possible to make a log without an interaction as well.
+
+    >>> emily._age = 6
+    >>> entry = emily.log(u'Happy Birthday') # no interaction
+    >>> len(emily.log)
+    3
+    >>> emily.log[2].principal_ids
+    ()
+    >>> emily.log[2].record_changes
+    {'getAge': 6}
+    >>> record = emily.log[2].record
+    >>> record.location
+    u'In kitchen'
+    >>> record.name
+    u'Emily'
+    >>> record.weight
+    16
+    >>> record.getAge()
+    6
+
+Entries may be marked with marker interfaces to categorize them.  This approach
+may be difficult with security proxies, so it may be changed.  We'll do all
+the rest of our examples within the same interaction.
+
+    >>> c_p = DummyParticipation(cathy)
+    >>> interface.directlyProvides(c_p, zope.publisher.interfaces.IRequest)
+    >>> zope.security.management.newInteraction(c_p)
+    >>> emily.location = None
+    >>> emily.weight = 17
+    >>> class IImportantLogEntry(interface.Interface):
+    ...     "A marker interface for log entries"
+    >>> interface.directlyProvides(
+    ...     emily.log(u'Emily is in transit...and ate a bit too much'),
+    ...     IImportantLogEntry)
+    >>> len(emily.log)
+    4
+    >>> [e for e in emily.log if IImportantLogEntry.providedBy(e)] == [
+    ...     emily.log[3]]
+    True
+    >>> emily.log[3].principal_ids
+    (u'cathy',)
+    >>> emily.log[3].record_changes=={'weight': 17, 'location': None}
+    True
+    >>> record = emily.log[3].record
+    >>> old_record = emily.log[2].record
+    >>> record.name == old_record.name == u'Emily'
+    True
+    >>> record.weight
+    17
+    >>> old_record.weight
+    16
+    >>> record.location # None
+    >>> old_record.location
+    u'In kitchen'
+
+Making a log will fail if the record it is trying to make does not conform
+to its schema.
+
+    >>> emily.location = u'Outside'
+    >>> emily.log(u'This should never happen')
+    Traceback (most recent call last):
+    ...
+    ConstraintNotSatisfied: Outside
+    >>> len(emily.log)
+    4
+    >>> emily.location = BED
+
+It will also fail if the arguments passed to it are not correct.
+
+    >>> emily.log("This isn't unicode so will not succeed")
+    Traceback (most recent call last):
+    ...
+    WrongType: ("This isn't unicode so will not succeed", <type 'unicode'>)
+    >>> len(emily.log)
+    4
+    >>> success = emily.log(u"Yay, unicode")
+
+The following is commented out until we have more
+
+    # >>> emily.log(u"Data without an interface won't work", None, 'boo hoo')
+    Traceback (most recent call last):
+    ...
+    WrongContainedType: []
+
+Zero or more additional arbitrary data objects may be included on the log entry
+as long as they implement an interface.
+
+    >>> class IConsumableRecord(interface.Interface):
+    ...     dry_food = schema.Int(
+    ...         title=u"Dry found consumed in ounces", required=False)
+    ...     wet_food = schema.Int(
+    ...         title=u"Wet food consumed in ounces", required=False)
+    ...     water = schema.Int(
+    ...         title=u"Water consumed in teaspoons", required=False)
+    ...
+
+    # >>> class ConsumableRecord(object):
+    ...     interface.implements(IConsumableRecord)
+    ...     def __init__(self, dry_food=None, wet_food=None, water=None):
+    ...         self.dry_food = dry_food
+    ...         self.wet_food = wet_food
+    ...         self.water = water
+    ...
+    # >>> entry = emily.log(u'Collected eating records', None, ConsumableRecord(1))
+    # >>> len(emily.log)
+    5
+    # >>> len(emily.log[4].data)
+    1
+    # >>> IConsumableRecord.providedBy(emily.log[4].data[0])
+    True
+    # >>> emily.log[4].data[0].dry_food
+    1
+
+__getitem__ and __iter__ work as normal for a Python sequence, including
+support for extended slices.
+
+    >>> list(emily.log) == [emily.log[0], emily.log[1], emily.log[2],
+    ...                     emily.log[3], emily.log[4]]
+    True
+    >>> emily.log[-1] is emily.log[4]
+    True
+    >>> emily.log[0] is emily.log[-5]
+    True
+    >>> emily.log[5]
+    Traceback (most recent call last):
+    ...
+    IndexError: list index out of range
+    >>> emily.log[-6]
+    Traceback (most recent call last):
+    ...
+    IndexError: list index out of range
+    >>> emily.log[4:2:-1] == [emily.log[4], emily.log[3]]
+    True
+
+The log's record_schema may be changed as long as there are no logs or the
+interface extends (or is) the interface for the last log.
+
+    >>> emily.log.record_schema = IConsumableRecord # doctest: +ELLIPSIS
+    Traceback (most recent call last):
+    ...
+    ValueError: Once entries have been made, may only change schema to one...
+    >>> class IExtendedCat(ICat):
+    ...     parent_object_intid = schema.Int(title=u"Parent Object")
+    ...
+    >>> emily.log.record_schema = IExtendedCat
+    >>> emily.log.record_schema = ICat
+    >>> emily.log.record_schema = IExtendedCat
+    >>> class ExtendedCatAdapter(object):
+    ...     interface.implements(IExtendedCat)
+    ...     def __init__(self, cat): # getAge is left off
+    ...         self.name = cat.name
+    ...         self.weight = cat.weight
+    ...         self.location = cat.location
+    ...         self.parent_object_intid = 42
+    ...
+    >>> ztapi.provideAdapter((ICat,), IExtendedCat, ExtendedCatAdapter)
+    >>> entry = emily.log(u'First time with extended interface')
+    >>> emily.log.record_schema = ICat # doctest: +ELLIPSIS
+    Traceback (most recent call last):
+    ...
+    ValueError: Once entries have been made, may only change schema to one...
+    >>> emily.log[5].record_changes == {
+    ...     'parent_object_intid': 42, 'getAge': None}
+    True
+    >>> record = emily.log[5].record
+    >>> record.parent_object_intid
+    42
+    >>> record.name
+    u'Emily'
+    >>> record.location
+    u'On bed'
+    >>> record.weight
+    17
+    >>> record.getAge() # None
+    >>> IExtendedCat.providedBy(record)
+    True
+    >>> old_record = emily.log[3].record
+    >>> IExtendedCat.providedBy(old_record)
+    False
+    >>> ICat.providedBy(old_record)
+    True
+    >>> old_record.parent_object_intid # doctest: +ELLIPSIS
+    Traceback (most recent call last):
+    ...
+    AttributeError: ...
+
+Entries support convenience next and previous attributes, which make them
+act like immutable doubly linked lists:
+
+    >>> entry = emily.log[5]
+    >>> entry.previous is emily.log[4]
+    True
+    >>> entry.next # None
+    >>> entry.previous.previous.previous.previous.previous is emily.log[0]
+    True
+    >>> emily.log[0].previous # None
+    >>> emily.log[0].next is emily.log[1]
+    True
+
+Objectlogs also support deferring until the end of a transaction.  To show
+this, we will need a sample database, a transaction, and key reference
+adapters.  We show the simplest example first.
+
+    >>> from ZODB.tests import util
+    >>> import transaction
+
+    >>> db = util.DB()
+    >>> connection = db.open()
+    >>> root = connection.root()
+    >>> root["emily"] = emily
+    >>> transaction.commit()
+    >>> import zope.app.keyreference.persistent
+    >>> import zope.app.keyreference.interfaces
+    >>> import ZODB.interfaces
+    >>> import persistent.interfaces
+    >>> from zope import component
+    >>> component.provideAdapter(
+    ...     zope.app.keyreference.persistent.KeyReferenceToPersistent,
+    ...     (persistent.interfaces.IPersistent,),
+    ...     zope.app.keyreference.interfaces.IKeyReference)
+    >>> component.provideAdapter(
+    ...     zope.app.keyreference.persistent.connectionOfPersistent,
+    ...     (persistent.interfaces.IPersistent,),
+    ...     ZODB.interfaces.IConnection)
+
+    >>> len(emily.log)
+    6
+    >>> emily.log(u'This one is deferred', defer=True) # returns None: deferred!
+    >>> len(emily.log)
+    6
+    >>> transaction.commit()
+    >>> len(emily.log)
+    7
+    >>> emily.log[6].summary
+    u'This one is deferred'
+    >>> emily.log[6].record_changes
+    {}
+
+While this is interesting, the point is to capture changes to the object,
+whether or not they happened when the log was called.  Here is a more pertinent
+example, then.
+
+    >>> len(emily.log)
+    7
+    >>> emily.weight = 16
+    >>> emily.log(u'Also deferred', defer=True) # returns None: deferred!
+    >>> len(emily.log)
+    7
+    >>> emily.location = COUCH
+    >>> transaction.commit()
+    >>> len(emily.log)
+    8
+    >>> emily.log[7].summary
+    u'Also deferred'
+    >>> import pprint
+    >>> pprint.pprint(emily.log[7].record_changes)
+    {'location': u'On couch', 'weight': 16}
+
+Multiple deferred log entries can be deferred, if desired.
+
+    >>> emily.log(u'One log', defer=True)
+    >>> emily.log(u'Two log', defer=True)
+    >>> len(emily.log)
+    8
+    >>> transaction.commit()
+    >>> len(emily.log)
+    10
+    >>> emily.log[8].summary
+    u'One log'
+    >>> emily.log[9].summary
+    u'Two log'
+
+Another option is if_changed.  It should not make a log unless there was a
+change.
+
+    >>> len(emily.log)
+    10
+    >>> emily.log(u'If changed', if_changed=True) # returns None: no change!
+    >>> len(emily.log)
+    10
+    >>> emily.location = BED
+    >>> entry = emily.log(u'If changed', if_changed=True)
+    >>> len(emily.log)
+    11
+    >>> emily.log[10] is entry
+    True
+    >>> entry.summary
+    u'If changed'
+    >>> pprint.pprint(entry.record_changes)
+    {'location': u'On bed'}
+    >>> transaction.commit()
+
+The two options, if_changed and defer, can be used together.  This makes for
+a log entry that will only be made at a transition boundary if there have
+been no previous changes.  Note that a log entry that occurs whether or not
+changes were made (hereafter called a "required" log entry) that is also
+deferred will always eliminate any deferred if_changed log entry, even if the
+required log entry was registered later in the transaction.
+
+    >>> len(emily.log)
+    11
+    >>> emily.log(u'Another', defer=True, if_changed=True) # returns None
+    >>> transaction.commit()
+    >>> len(emily.log)
+    11
+    >>> emily.log(u'Yet another', defer=True, if_changed=True) # returns None
+    >>> emily.location = COUCH
+    >>> len(emily.log)
+    11
+    >>> transaction.commit()
+    >>> len(emily.log)
+    12
+    >>> emily.log[11].summary
+    u'Yet another'
+    >>> emily.location = KITCHEN
+    >>> entry = emily.log(u'non-deferred entry', if_changed=True)
+    >>> len(emily.log)
+    13
+    >>> entry.summary
+    u'non-deferred entry'
+    >>> emily.log(u'will not write', defer=True, if_changed=True)
+    >>> transaction.commit()
+    >>> len(emily.log)
+    13
+    >>> emily.log(u'will not write', defer=True, if_changed=True)
+    >>> emily.location = WORKING
+    >>> emily.log(u'also will not write', defer=True, if_changed=True)
+    >>> emily.log(u'required, deferred', defer=True)
+    >>> len(emily.log)
+    13
+    >>> transaction.commit()
+    >>> len(emily.log)
+    14
+    >>> emily.log[13].summary
+    u'required, deferred'
+
+This should all work in the presence of multiple objects, of course.
+
+    >>> sam = Cat(u'Sam', 20, 4)
+    >>> root['sam'] = sam
+    >>> transaction.commit()
+    >>> sam.weight = 19
+    >>> sam.log(u'Auto log', defer=True, if_changed=True)
+    >>> sam.log(u'Sam lost weight!', defer=True)
+    >>> sam.log(u'Saw sam today', defer=True)
+    >>> emily.log(u'Auto log', defer=True, if_changed=True)
+    >>> emily.weight = 15
+    >>> transaction.commit()
+    >>> len(sam.log)
+    2
+    >>> sam.log[0].summary
+    u'Sam lost weight!'
+    >>> sam.log[1].summary
+    u'Saw sam today'
+    >>> len(emily.log)
+    15
+    >>> emily.log[14].summary
+    u'Auto log'
+
+    >>> # TEAR DOWN
+    >>> zope.security.management.endInteraction()
+    >>> ztapi.unprovideUtility(zope.app.security.interfaces.IAuthentication)

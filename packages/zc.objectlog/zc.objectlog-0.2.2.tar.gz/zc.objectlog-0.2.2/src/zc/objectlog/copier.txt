@@ -1,0 +1,53 @@
+The copier module provides an adapter that can be used with
+zc.copy.copy (and thus the replacement ObjectCopier also in the
+same module) so that copies of objects with an object log get fresh logs.
+
+For instance, consider the following.
+
+    >>> import zope.interface
+    >>> import zope.schema
+    >>> import zope.location
+    >>> import zc.objectlog
+    >>> class ICat(zope.interface.Interface):
+    ...     name = zope.schema.TextLine(title=u"Name", required=True)
+    ...
+    >>> import persistent
+    >>> class Cat(persistent.Persistent):
+    ...     zope.interface.implements(ICat)
+    ...     def __init__(self, name):
+    ...         self.name = name
+    ...         self.log = zc.objectlog.Log(ICat)
+    ...         zope.location.locate(self.log, self, 'log')
+    ...
+    >>> emily = Cat(u'Emily')
+    >>> len(emily.log)
+    0
+    >>> entry = emily.log(u'Said hello to Emily')
+    >>> len(emily.log)
+    1
+
+Without the adapter, in theory copying an object copies the log, and
+all of the entries.  This would be wasteful--logs can be very long--and
+incorrect, at least for many use cases--the clone is a new object, and
+should get a fresh objectlog.
+
+In reality, as of this writing, the problem is worse: the log cannot be copied
+because of a problem with unpickling an internal data structure.
+
+The adapter addresses all of the problems.
+
+    >>> import zope.component
+    >>> import zc.objectlog.copier
+    >>> import zc.copy
+    >>> zope.component.provideAdapter(
+    ...     zc.objectlog.copier.objectlog_copyfactory)
+    >>> emily_clone = zc.copy.copy(emily)
+    >>> len(emily_clone.log)
+    0
+    >>> emily_clone.log.__parent__ is emily_clone
+    True
+
+Just to make sure that emily hasn't been touched:
+
+    >>> len(emily.log)
+    1

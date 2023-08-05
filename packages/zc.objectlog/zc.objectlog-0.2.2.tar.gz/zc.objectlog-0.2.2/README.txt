@@ -1,0 +1,1 @@
+a customizable log for a single object in Zope 3.
