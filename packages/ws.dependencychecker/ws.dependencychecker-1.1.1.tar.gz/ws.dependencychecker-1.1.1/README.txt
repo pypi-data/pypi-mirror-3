@@ -1,0 +1,127 @@
+====================
+ws.dependencychecker
+====================
+
+This package provides a ``dependencychecker`` script that checks whether an egg
+declares all packages it imports in its setup.py.
+
+.. contents:: :depth: 1
+
+Usage
+=====
+
+::
+
+    dependencychecker [-h] [-v] [-z] package
+
+    Checks whether imported packages are declared in setup.py.
+
+    positional arguments:
+      package        setuptools `requirement string`_,
+                     e.g. ws.dependencychecker or ws.dependencychecker[test]
+
+    optional arguments:
+      -h, --help     show this help message and exit
+      -v, --verbose  Print all lines importing missing packages
+      -z, --zcml     Scan ZCML files
+      -m , --mapping   Filename with additional egg-->packages mappings
+
+Supported Python versions: 2.6, 2.7
+(3.x is not supported because some dependencies are not ported yet, e.g.
+zope.component).
+
+Although ``dependencychecker`` does not import any files, it needs the package
+and its dependencies to be on the ``PYTHONPATH`` so they are accessible via
+``pkg_resources.working_set``.
+
+By default, ``dependencychecker`` prints a list of undeclared package names,
+formatted ready for copy&paste into your setup.py's ``install_requires`` list,
+like this::
+
+    $ depcheck ws.dependencychecker
+    'gocept.testing.mock',
+
+If you want more details, use the verbose mode (pass ``-v``)::
+
+    $ depcheck ws.dependencychecker -v
+    /home/wosc/depcheck/src/ws/dependencychecker/tests/test_check.py:4:import gocept.testing.mock
+
+To use ws.dependencychecker within a buildout, use a snippet like this, for
+example::
+
+    [depcheck]
+    recipe = zc.recipe.egg
+    eggs =
+        ${test:eggs}
+        ws.dependencychecker
+
+.. _`requirement string`: http://peak.telecommunity.com/DevCenter/PkgResources#requirements-parsing
+
+
+Eggs that contain several packages
+==================================
+
+With most eggs, the egg name and the provided package name is the same (e.g.
+depending on the ``zope.interface`` egg will enable you to import
+``zope.interface``, but nothing else). Some eggs, however, contain more than
+one package, and/or packages with different names (e.g. the ``ZODB3`` egg
+contains the packages ``ZODB``, ``BTrees``, and ``persistent``).
+
+``ws.dependencychecker`` has a few heuristics built-in (ZODB, setuptools) to
+deal with that, but when that's not enough for your project, you can pass in a
+mapping file of the following format::
+
+    [egg_name]
+    package1
+    package2
+
+So in the ZODB example (which is actually built-in), that looks like::
+
+    [ZODB3]
+    ZODB
+    BTrees
+    persistent
+
+You don't need to repeat the egg name itself, so in the case of ``setuptools``
+(which also contains ``pkg_resources``), that looks like::
+
+    [setuptools]
+    pkg_resources
+
+
+Known limitations
+=================
+
+* Only recognizes modules of the standard library for Python 2.7 at the moment.
+
+* The built-in mappings for eggs that include several or differently named
+  packages are quite limited. Suggestions welcome!
+
+* Does not recognize multiple packages imported on a single line
+  (``import foo, bar`` will only pick up ``foo``),
+  but this spelling is frowned upon by `PEP 8`_, anyway.
+
+* Wrongly recognizes includes within multiline comments in ZCML.
+
+* Does not support scanning zipped eggs.
+
+
+.. _`PEP 8`: http://www.python.org/dev/peps/pep-0008/
+
+
+Related packages
+================
+
+- `importchecker`_ finds import statements that are not used in the code.
+
+.. _`importchecker`: http://pypi.python.org/pypi/importchecker
+
+Development
+===========
+
+The source code is available in the mercurial repository at
+http://code.wosc.de/hg/public/ws.dependencychecker.
+
+Please report any bugs you find to `Wolfgang Schnerring`_.
+
+.. _`Wolfgang Schnerring`: mailto:wosc@wosc.de
