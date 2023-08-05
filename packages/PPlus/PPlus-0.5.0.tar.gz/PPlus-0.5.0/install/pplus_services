@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# Debian LSB info for PPlus services
+# TODO: $remote_fs $network $syslog or $all?
+### BEGIN INIT INFO
+# Provides:          pplus_services
+# Required-Start:    $all
+# Required-Stop:     $all
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts PPlus services
+# Description:       Starts PPlus services: starts pplusserver.py in the background and mounts disk space
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+# Parameters
+DISK_NODE_IP=%(DISK_NODE_IP)s
+DISK_NODE_PATH=%(DISK_NODE_PATH)s
+DISK_PATH=%(DISK_PATH)s
+USER=%(USER)s
+NCORES=%(WORKERS)s
+
+#user.notice by default
+LOGGER="logger -t pplus_services -i"
+
+start() {
+        log_daemon_msg  "Starting pplus related services"
+        echo            "Starting pplus related services" | $LOGGER
+
+        su $USER -c "pplusserver.py -a -w $NCORES -r" &
+
+        PID=`ps -ef | grep "[p]plusserver.py" | awk '{print $2}'`
+        if [ ! -z "$PID" ]; then
+            log_daemon_msg  "pplusserver running: $PID"
+            echo            "pplusserver running: $PID" | $LOGGER
+        fi
+
+        if test -d $DISK_PATH
+        then
+            mount -t nfs $DISK_NODE_IP:$DISK_NODE_PATH $DISK_PATH
+            DCONT=`mount -l | grep $DISK_NODE_IP`
+            if [ ! -z "$DCONT" ]; then
+                log_daemon_msg  "disk mounted"
+                echo            "disk mounted" | $LOGGER
+            fi
+        fi
+}
+
+stop() {
+        log_daemon_msg  "Stopping pplus related services"
+        echo            "Stopping pplus related services" | $LOGGER
+
+        PID=`ps -ef | egrep "[p]plusserver|[p]pworker.py" | awk '{print $2}'`
+        if [ ! -z "$PID" ]; then
+            kill -9 $PID
+            log_daemon_msg  "pplusserver stopped"
+            echo            "pplusserver stopped" | $LOGGER
+        fi
+
+        DCONT=`mount -l | grep $DISK_NODE_IP`
+        if [ ! -z "$DCONT" ]; then
+            umount $DISK_PATH
+            log_daemon_msg  "disk unmounted"
+            echo            "disk unmounted" | $LOGGER
+        fi
+}
+
+pplus_services_status() {
+        log_daemon_msg  "Checking pplus related services"
+        echo            "Checking pplus related services" | $LOGGER
+
+        PID=`ps -ef | grep "[p]plusserver.py" | awk '{print $2}'`
+        DCONT=`mount -l | grep $DISK_NODE_IP`
+        RETVAL=0
+        if [ -z "$PID" ]; then
+            log_daemon_msg  "pplusserver not running"
+            echo            "pplusserver not running" | $LOGGER
+            RETVAL=1
+        else
+            log_daemon_msg  "pplusserver running: $PID"
+            echo            "pplusserver running: $PID" | $LOGGER
+        fi
+        if [ -z "$DCONT" ]; then
+            log_daemon_msg  "disk not mounted"
+            echo            "disk not mounted" | $LOGGER
+            RETVAL=1
+        else
+            log_daemon_msg  "disk mounted"
+            echo            "disk mounted" | $LOGGER
+        fi
+        exit $RETVAL
+}
+
+restart(){
+        stop
+        start
+}
+
+force_reload(){
+        restart
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        ;;
+    force-reload)
+        force_reload
+        ;;
+    status)
+        pplus_services_status
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart|force-reload}"
+        exit 0
+esac
