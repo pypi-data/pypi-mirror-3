@@ -1,0 +1,94 @@
+JS library generation
+=====================
+
+The Javascript file used by our tool content will depend on the settings of the user.
+
+    >>> self.login_as_manager()
+    >>> self.addProduct('zest.cachetuning')
+
+1 - Automatic JS rebuilding
+---------------------------
+
+When the settings for the product are saved, the compressed JS files
+are rebuilded.
+
+We first create a simple function that extracts all JS files registered
+in the page:
+
+    >>> import re
+    >>> def extract_js_files():
+    ...     self.browser.open('http://nohost/plone')
+    ...     exp = re.compile(r'/((\w|-|\.)+)\.js')
+    ...     return [t[0] for t in sorted(exp.findall(self.browser.contents))]
+
+    >>> before_saving = extract_js_files()
+
+We now save the tool:
+
+    >>> self.browser.open('http://nohost/plone/portal_zestcachetuning/edit')
+    >>> self.browser.getControl(name='form.button.save').click()
+
+The list of JS file is now different as the whole thing as been rebuilded:
+
+    >>> before_saving == extract_js_files()
+    False
+
+Note: this one fails with Plone 4 - it works on the normal instance,
+but during tests the names of the JS files stay the same :/
+
+
+This only applis when debug mode is set in the portal_javascripts:
+
+    >>> portal_js = self.portal.portal_javascripts
+    >>> portal_js.getDebugMode()
+    False
+
+We now turn JS debug mode on, saving the tool will not make any change:
+
+    >>> portal_js.setDebugMode(True)
+    >>> before_saving = extract_js_files()
+
+    >>> self.browser.open('http://nohost/plone/portal_zestcachetuning/edit')
+    >>> self.browser.getControl(name='form.button.save').click()
+
+    >>> before_saving == extract_js_files()
+    True
+
+Back to the default mode, which will rebuild the compressed files:
+
+    >>> portal_js.setDebugMode(False)
+    >>> before_saving == extract_js_files()
+    False
+
+2 - Replace username with Javascript:
+-------------------------------------
+
+First, we'll simply disable this option:
+
+    >>> self.browser.open('http://nohost/plone/portal_zestcachetuning/edit')
+    >>> self.browser.getControl(name='jq_replace_username:boolean').value = False
+    >>> self.browser.getControl(name='form.button.save').click()
+
+It will disable calling the 'replace_fullname' method call:
+
+    >>> self.browser.open('http://nohost/plone/zest.cachetuning.js')
+    >>> 'replace_fullname();' in self.browser.contents
+    False
+
+If we enable the option again, the method is called:
+
+    >>> self.browser.open('http://nohost/plone/portal_zestcachetuning/edit')
+    >>> self.browser.getControl(name='jq_replace_username:boolean').value = True
+    >>> self.browser.getControl(name='form.button.save').click()
+    >>> self.browser.open('http://nohost/plone/zest.cachetuning.js')
+    >>> 'replace_fullname();' in self.browser.contents
+    True
+
+We can also specify a custom CSS query to find the username:
+
+    >>> self.browser.open('http://nohost/plone/portal_zestcachetuning/edit')
+    >>> self.browser.getControl(name='jq_replace_username_selector').value = '.my_custom_selector'
+    >>> self.browser.getControl(name='form.button.save').click()
+    >>> self.browser.open('http://nohost/plone/zest.cachetuning.js')
+    >>> "var username_holder = $('.my_custom_selector');" in self.browser.contents
+    True
