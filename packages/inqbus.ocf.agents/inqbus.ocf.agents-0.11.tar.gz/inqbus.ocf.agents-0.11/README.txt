@@ -1,0 +1,347 @@
+======================================================================
+inqbus.ocf.agents : Pacemaker OCF resource agents for daemon processes
+======================================================================
+
+:Version: 0.1
+:Download: http://pypi.python.org/pypi/inqbus.ocf.agents
+:Keywords: python, OCF, resource agents, pacemaker, openvpn, daemon process
+
+.. contents::
+    :local:
+
+Overview
+========
+
+OCF compatible resource agent classes programmed in python.
+Usually OCF-Agents are written as unix shell-script. 
+We are running lots of high avaible python processes which are controlled by 
+pacemaker. Using shell for controlling Python processes feels awkward, 
+so we builded a python integration framework for OCF compatible agents.
+
+What do you get
+---------------
+
+This package gives you some generic OCF agent classes for PID controlled daemons:
+
+* pidagent
+* openvpn
+
+based on the `inqbus.ocf.generic <http://pypi.python.org/pypi/inqbus.ocf.generic>`_ framework.
+
+The inqbus.ocf.generic framework keeps away from you the gory details
+you have to go into writing an OCF compatible resource agent.
+Powerfull base classes bring to you:
+
+* A good test coverage of the agent code (How to test a shell script?)
+* Support of the complete set of OCF exitcodes and their respective business logik
+* OCF Paramter classes for integer, string, etc. values
+* Predefined generic OCF handlers (meta-data, validate)
+* The generation of the XML meta data is done for you automagically
+* Easy addition of handlers for e.g. start/stop/status
+* Inheritance of resource agents: encapsulate agent business logic and share it among similiar reasource agents
+
+Inqbus.ocf.agents in addition brings the following functionality
+
+* the business logic for controlling the PID file
+* checking for the running state of the PID
+* starting and stopping the daemon (with checking for zombies and staggered kill signals to bring a process really down if it has to die)
+* checking for the PID status
+
+in the base class PIDBaseAgent.
+
+What is missing
+---------------
+
+We did not implement any business logic for the actions:
+
+    * notify
+    * demote
+    * promote
+    * master/slave
+    * reload
+    
+but inqbus.ocf.generic framework can represent any OCF action that 
+is specified yet or in the future - just implement a handler 
+for the desired action::
+
+    class MyAgent(Agent):
+
+        def config(self):
+            """
+            Register my actions 
+            """
+            self.handlers['notify'] = Handler(MyAgent.do_notify, 10)
+            self.handlers['future'] = Handler(MyAgent.do_future, 10)
+
+
+Implementation
+==============
+
+The PIDAgent and Openvpn classes are derived from PIDBaseAgent with minimal
+programming efford::
+
+    from pidbaseagent import PIDBaseAgent
+    from inqbus.ocf.generic.parameter import OCFString
+
+    class PIDAgent(PIDBaseAgent):
+
+        def add_params(self):
+            self.add_parameter(OCFString("executable",
+                                longdesc="Path to the executable",
+                                shortdesc="executable",
+                                required= True) )
+            self.add_parameter(OCFString( "pid_file",
+                                longdesc="Path to the pid file",
+                                shortdesc="executable",
+                                required= True) )
+
+        def get_pid_file(self):
+	    """tell the base class to find the PID file in the parameter 'pid_file'"""
+            return self.params.pid_file.value
+
+        def get_executable(self):
+	    """tell the base class how to find the executable path in the parameter 'executable'"""
+            return self.params.executable.value
+
+    def main():
+        """Entry point for the reasource agent shellscript"""
+        import sys
+        PIDAgent().run(sys.argv)
+
+    if __name__ == "__main__" : main()
+        """Entry point for the command line"""
+
+
+
+To use the inqbus.ocf.agents agent classes you need to set only one symlink per
+agent class into your Pacemaker (or other OCF HA) system.
+
+Building arbitrary resource agent classes e.g. for IP addresses is
+easy utilizing the inqbus.ocf.generic <http://pypi.python.org/inqbus.ocf.generic>_ framework.
+
+Documentation
+=============
+
+.. note ::
+    The dokumentation is not uploaded to packages.python.org yet.
+    Please stay tuned. 
+
+This file and the source files for openvpn and the PIDAgent classes serve as a
+simple introduction to inqbus.ocf.agents. For more in depth
+documentation on writing your own reasource agents with the
+inqbus.ocf framework, have a look at
+
+* `inqbus.ocf.agents documentation http://packages.python.org/inqbus.ocf.agents <http://packages.python.org/inqbus.ocf.agents>`_
+* `inqbus.ocf.generic ocf agent developer documentation http://packages.python.org/inqbus.ocf.generic <http://packages.python.org/inqbus.ocf.generic>`_
+
+Requirements
+============
+
+Python >=2.7 or Python 3.x
+
+
+Installation
+============
+
+We recomment a buildout based installation into a virtual environment
+but you may install inqbus.ocf.agents via pip or easy_install as
+well.
+
+Installation via buildout
+-------------------------
+
+.. note::
+    This installation guide asumes /opt/ocf as installation directory.
+    Please adjust the installation directory to your needs.
+
+Build a virtual environment::
+
+    :/opt$ virtualenv --no-site-packages ocf
+    :/opt$ cd ocf
+    :/opt/ocf$ source bin/activate
+    (ocf):/opt/ocf$
+
+Install the make environment buildout and initialize it::
+
+    (ocf):/opt/ocf$ easy_install zc.buildout
+    (ocf):/opt/ocf$ ./bin/buildout init
+
+Create a buildout.cfg::
+
+    [buildout]                                                                                                                                                       
+    parts = app                                                                                                                                                      
+            pidagent                                                                                                                                                 
+            openvpn                                                                                                                                                  
+                                                                                                                                                                 
+    # Buildout directories to use.                                                                                                                                   
+    eggs-directory          = eggs                                                                                                                                   
+                                                                                                                                                                 
+    ###############################################################################                                                                                  
+    # Download links for packages                                                                                                                                    
+    # -----------------------------------------------------------------------------
+    # Add additional egg download sources here.                                                                                                                      
+    # Note that pypi.propertyshelf.com and mypypi.inqbus.de require authentication.                                                                                  
+    find-links = http://mypypi.inqbus.de/privateEggs                                                                                                                 
+                                                                                                                                                                     
+    ###############################################################################
+    # Extensions                                                                                  
+    # -----------------------------------------------------------------------------
+    # Load several extensions.
+    extensions = lovely.buildouthttp                                                                                                                                                                
+                                                                                                                                                                 
+    [app]                                                                                                                                                            
+    recipe = z3c.recipe.scripts                                                                                                                                      
+    eggs = inqbus.ocf.agents                                                                                                                                         
+    interpreter = python_ocf                                                                                                                                         
+                                                                                                                                                                 
+    [openvpn]                                                                                                                                                        
+    recipe = collective.recipe.template                                                                                                                              
+    output = ${buildout:directory}/bin/openvpn.sh                                                                                                                    
+    inline =                                                                                                                                                         
+        #!/bin/bash                                                                                                                                                  
+        ${buildout:directory}/../bin/python ${buildout:directory}/bin/openvpn $*                                                                                     
+    mode = 755                                                                                                                                                       
+                                                                                                                                                                 
+    [pidagent]                                                                                                                                                       
+    recipe = collective.recipe.template                                                                                                                              
+    output = ${buildout:directory}/bin/pidagent.sh                                                                                                                   
+    inline =                                                                                                                                                         
+        #!/bin/bash                                                                                                                                                  
+        ${buildout:directory}/../bin/python ${buildout:directory}/bin/pidagent $*                                                                                    
+    mode = 755                                                                     
+
+run buildout to install the package::
+
+    (ocf):/opt/ocf$ ./bin/buildout
+
+.. note::
+    There will be to executable files installed for each agent. E.g. 
+    for the openvpn agent::
+    
+        openvpn
+            A python console script, referencing the python interpreter with an
+            appropriate python path.
+           
+        openvpn.sh
+            A bash console wrapper around the openvpn python console script.
+            This is a tribute to pacemaker which calls the agent via the bash interpreter.
+            These kind of wrapper scripts you have to use as agents for pacemaker. 
+
+
+Configuration
+=============
+
+First check the installation::
+
+    (ocf):/opt/ocf$ ./bin/openvpn.sh
+    Usage: openvpn.py <start|validate-all|stop|monitor|meta-data>
+
+
+.. note::
+    You have to identify the OCF agent location of your OS to proceed.
+    On Debian the OCF agents live under::
+
+       /usr/lib/ocf/resource.d/
+
+    Also you are free to set a provider directory for the agents. Here we asume as provider name ::
+
+	inqbus
+
+Integrating the openvpn agent class into Pacemaker::
+
+    :/opt/ocf$ cd /usr/lib/ocf/resource.d/
+    :/usr/lib/ocf/resource.d/$ mkdir inqbus
+    :/usr/lib/ocf/resource.d/$ cd inqbus
+    :/usr/lib/ocf/resource.d/inqbus$ ln -s /opt/ocf/bin/openvpn.sh .
+
+.. note::
+    You may repeat this last line with other resource agent classes (also available yet: pidagent)::
+
+        :/usr/lib/ocf/resource.d/inqbus$ ln -s /opt/ocf/bin/pidagent.sh .
+
+Now the configuration is complete an you can use the OCF python
+resource agents as the others that came with heartbeat or pacemaker.
+
+Running the tests
+=================
+
+The test are formulated using the nose testing framework. 
+
+.. note::
+    Please be carefull running the tests! The tests will use the TEMP-Directory 
+    and create some files in there. More agressivly the tests will bring up 
+    unix-processes since the agents are intended to do exactly that thing. 
+    PIDagent will use the harmless dummy_daemon implementation of a NOOP unix daemon 
+    that comes with this package. The OpenVPN-Agent will try to start a 
+    true openvpn-instance at localhost:1194.  
+
+To run the tests you need the source code. There are two ways to
+obtain it.
+
+#. Clone the Mercurial repository from BitBucket_::
+
+    $ hg clone https://bitbucket.org/inqbus/inqbus.ocf.agents
+
+..  _BitBucket: https://bitbucket.org/inqbus/inqbus.ocf.agents
+
+#. Download the package from PyPI_ and unpack it::
+
+    $ wget http://pypi.python.org/packages/source/i/inqbus.ocf.agents/inqbus.ocf.agents-0.1.tar.gz
+    $ tar xzvf inqbus.ocf.agents-0.1.tar.gz
+
+..  _PyPI: http://pypi.python.org/pypi/inqbus.ocf.agents
+
+Testing with buildout
+---------------------
+
+The easiest way to test is with buildout::
+   
+    $ ./bin/buildout
+    ...
+    $ ./bin/nose --with-coverage
+    ...
+    inqbus.ocf.agents.openvpn            91%   
+    inqbus.ocf.agents.pidagent           83% 
+    inqbus.ocf.agents.pidbaseagent       74%
+    inqbus.ocf.generic.agent             88% 
+    inqbus.ocf.generic.container         100%   
+    inqbus.ocf.generic.exits             84%
+    inqbus.ocf.generic.handlers          96%
+    inqbus.ocf.generic.parameter         83%
+  
+The test coverage is high. We includet the ocf-tester testcases in our test suite.
+Maximum testcoverage is only possible if running the tests as root since most 
+of the tests are integration tests, which steer real unix daemons. In case 
+of the openvpn agent a real openvpn instance is brought up.
+
+Dispite the high level of testing there is still a portion of 10 to 26% of 
+untested code. This code mainly attributes to the many plausability exits 
+that are not easily tested. How should we test for a broken filesystem or 
+a process that has become a zombie? If you think you have the answer to that 
+questions, you are warmest welcome in the development team.
+  
+Testing with ocf-tester
+-----------------------
+
+Independently of the python tests pacemaker comes with the ocf-tester script. 
+You may use the dummy_daemon that comes with inqbus.ocf.agents to test the pidagent::
+ 
+    :/opt/ocf/buildout$ ocf-tester -n test \ 
+    -o pid_file=/tmp/dummy_daemon.pid \
+    -o executable=./bin/dummy_daemon \
+    `pwd`/bin/pidagent.sh
+
+Bugs and Issues
+===============
+
+This software is work in progress. Please help us to improve it:
+https://bitbucket.org/inqbus/inqbus.ocf.agents
+
+Please contact volker.jaenisch@inqbus.de if you have any question. 
+
+
+License                                                                                                                                                          
+=======                                                                                                                                                          
+                                                                                                                                                                 
+This software is licensed under the New BSD License. See the LICENSE.txt file in                                                                                     
+the top distribution directory for the full license text.                 
