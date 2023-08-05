@@ -1,0 +1,104 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-US"
+      lang="en-US"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="plone">
+
+<head>
+
+    <metal:block fill-slot="css_slot">
+        <style type="text/css" media="screen"
+               tal:condition="exists:portal/atcontenttypes.css"
+               tal:content="string:@import url($portal_url/atcontenttypes.css);"></style>
+    </metal:block>
+
+</head>
+
+<body>
+
+<div metal:fill-slot="main">
+<metal:main_macro define-macro="main"
+     tal:define="imagerepository here/@@image_repository_view;
+                 here_url here/absolute_url;
+                 images imagerepository/queryImageRepository;
+                 keywords python:imagerepository.getSearchKeywordsFromResults(images);
+                 Batch python:modules['Products.CMFPlone'].Batch;
+                 b_start python:request.get('b_start', 0);
+                 batch python:Batch(images, 40, int(b_start), orphan=1);
+                 imagerepository_template here_url">
+
+    <h1 tal:content="here/pretty_title_or_id" class="documentFirstHeading">Title or id</h1>
+
+    <tal:keywords metal:define-macro="keywords"
+                  tal:define="makeImageRepositoryQuery python:imagerepository.makeImageRepositoryQuery;">
+        <div tal:content="here/Description" tal:condition="here/Description" class="documentDescription">
+            Description
+        </div>
+    
+        <select style="float: right; clear: right"
+                onchange="window.location.href=this.options[this.selectedIndex].value"
+                tal:condition="keywords">
+            <option value="" i18n:translate="label_only_these_keywords">Only show images with keyword&hellip;</option>
+            <tal:block tal:repeat="keyword keywords">
+            <option 
+i18n:translate="" tal:content="python:keywords.getValue(keyword)"
+                    tal:attributes="value python: '%s?%s' % (imagerepository_template, makeImageRepositoryQuery(data=request.form, add={'keywords':[keyword]}))">
+                    
+            </option>
+            </tal:block>
+        </select>
+
+        <div tal:define="request_keywords request/keywords|nothing"
+             tal:condition="request_keywords">
+            <tal:block tal:repeat="keyword request_keywords">
+                <tal:keyword tal:replace="keyword" />
+                <a href=""
+                   title="Remove this keyword from search"
+                   tal:attributes="href python: '%s?%s' % (imagerepository_template, makeImageRepositoryQuery(data=request.form, omit={'keywords':[keyword]}))"
+                    >(-)</a>
+                <tal:arrow tal:condition="not:repeat/keyword/end">
+                    &rarr;
+                </tal:arrow>
+            </tal:block>
+        </div>
+
+        <div class="visualClear"><!-- --></div>
+    </tal:keywords>
+
+    <div tal:condition="images"
+         metal:use-macro="here/batch_macros/macros/navigation" />
+
+    <tal:images metal:define-macro="images"
+                tal:condition="batch"
+                tal:repeat="image batch">
+        <div class="photoAlbumEntry">
+            <a tal:define="id python:int(b_start)+int(repeat['image'].number()-1)"
+               tal:attributes="href string:${image/getURL}/view;
+                               title image/Description">
+                <span class="photoAlbumEntryWrapper">
+                    <img tal:replace="structure python:imagerepository.thumbnail_tag(image)" />
+                </span>
+                <span class="photoAlbumEntryTitle" tal:content="image/pretty_title_or_id">
+                   Title
+                </span>
+            </a>
+        </div>
+    </tal:images>
+
+    <div class="visualClear"><!-- --></div>
+
+    <p class="discreet"
+       i18n:domain="atcontenttypes"
+       i18n:translate="text_no_albums_uploaded"
+       tal:condition="not:images">
+        No albums or photos uploaded yet.
+    </p>
+
+    <div tal:condition="images"
+         metal:use-macro="here/batch_macros/macros/navigation" />
+
+</metal:main_macro>
+</div>
+
+</body>
+
+</html>
