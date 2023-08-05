@@ -1,0 +1,43 @@
+#! /bin/bash
+
+# Change directories to the root of the project
+BASEDIR=${1:-"/tmp/chula-docs-build"}
+SRC=$(dirname $0)
+cd $SRC/..
+
+# Validate the base dir exists
+mkdir -p "$BASEDIR"
+
+# Fetch the current version for which docs are being generated
+version=$(grep -o -E '[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z._-]*' chula/__init__.py)
+
+# Specify the output location (this will include a version number)
+dest=$BASEDIR/$version
+mkdir -p $dest
+
+# Truncate any existing docs so the generation is pristine
+if [ -f "$dest/searchindex.js" ]; then
+    rm -rf $dest/*
+    echo "Previous docs purged..."
+fi
+
+# Start up a webserver and unittest the documentation (then stop the server)
+port=$(grep PORT chula/test/bat.py | grep -E -o '[0-9]+')
+scripts/chula-run -p $port apps/example/webapp > /dev/null 2>&1 &
+pid=$!
+sphinx-build -q -E -b doctest docs $dest
+passed=$?
+kill $pid
+
+# Generate documentation if the above tests passed
+if [ $passed == 0 ]; then
+    sphinx-build -q -E -b html docs $dest
+else
+    echo "Doctest checks failed, fix and try again."
+    exit 1
+fi
+
+# Print browsable path
+echo
+echo "file://$dest/index.html"
+
