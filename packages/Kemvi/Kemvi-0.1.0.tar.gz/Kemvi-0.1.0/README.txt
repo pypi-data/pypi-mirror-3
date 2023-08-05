@@ -1,0 +1,1 @@
+`Kemvi <http://kemvi.com>`_ is a semantic search engine for computable data.
