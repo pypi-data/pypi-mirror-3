@@ -1,0 +1,110 @@
+Introduction
+============
+
+The ``horae.dashboard`` package provides user and group dashboards for the Horae
+resource planning system. Every user and groups has its own dashboard which may
+contain multiple widgets which may be individually positioned and resized.
+
+Widgets
+=======
+
+There are several dashboard widgets already implemented:
+
+**Time tracking**
+  A widget to track time on tickets
+**User tickets**
+  A widget listing the tickets the current user is responsible for
+**Latest**
+  A widget listing the latest changed objects of the current user
+**Notifications**
+  A widget listing the latest notifications for the current user. Only available if the
+  optional `horae.notification <http://pypi.python.org/pypi/horae.notification>`_
+  package is installed.
+**Work time tracking**
+  A widget to track the work time of human resources. Only available if the optional
+  `horae.resources <http://pypi.python.org/pypi/horae.resources>`_ package is installed.
+**Reports**
+  A widget displaying the results of a previously created report. Only available
+  if the optional `horae.reports <http://pypi.python.org/pypi/horae.reports>`_ package
+  is installed.
+
+Creating widgets
+================
+
+Creating custom dashboard widgets is possible through the pluggable architecture of
+the package. A widget consists of at least four parts:
+
+**Interface**
+  The interface defining the schema of the widget and extends the base schema provided
+  by ``horae.dashboard.interfaces.IWidget``
+**Widget factory**
+  A named global utility implementing ``horae.dashboard.interfaces.IWidgetFactory``
+**Widget**
+  A persistent widget extending ``horae.dashboard.dashboard.Widget`` and implementing
+  the Interface mentioned above
+**View**
+  The view named ``index`` rendering the widget in the dashboard
+
+A sample widget having one custom field which is later rendered on the widgets view
+would be implemented as followed::
+
+    import grok
+    
+    from zope import schema
+    from zope.schema.fieldproperty import FieldProperty
+    
+    from horae.dashboard import dashboard, interfaces
+    
+    class ISampleWidget(interfaces.IWidget):
+    
+        content = schema.TextLine(
+            title = u'Content',
+            required = True
+        )
+    
+    class SampleWidgetFactory(grok.GlobalUtility):
+        grok.name('sample')
+        grok.implements(interfaces.IWidgetFactory)
+    
+        name = u'Sample'
+        schema = ISampleWidget
+    
+        def __call__(self):
+            return SampleWidget()
+    
+    class SampleWidget(dashboard.Widget):
+        grok.implements(ISampleWidget)
+    
+        title = u'Sample'
+        content = FieldProperty(ISampleWidget['content'])
+    
+    class SampleWidgetIndex(grok.View):
+        grok.name('index')
+        grok.require('horae.View')
+        grok.context(ISampleWidget)
+        
+        def render(self):
+            return self.context.content
+
+Dependencies
+============
+
+Horae
+-----
+
+* `horae.auth <http://pypi.python.org/pypi/horae.auth>`_
+* `horae.autocomplete <http://pypi.python.org/pypi/horae.autocomplete>`_
+* `horae.core <http://pypi.python.org/pypi/horae.core>`_
+* `horae.datetime <http://pypi.python.org/pypi/horae.datetime>`_
+* `horae.layout <http://pypi.python.org/pypi/horae.layout>`_
+* `horae.lifecycle <http://pypi.python.org/pypi/horae.lifecycle>`_
+* `horae.properties <http://pypi.python.org/pypi/horae.properties>`_
+* `horae.ticketing <http://pypi.python.org/pypi/horae.ticketing>`_
+* `horae.timeaware <http://pypi.python.org/pypi/horae.timeaware>`_
+
+Third party
+-----------
+
+* `grok <http://pypi.python.org/pypi/grok>`_
+* `fanstatic <http://pypi.python.org/pypi/fanstatic>`_
+* `zope.fanstatic <http://pypi.python.org/pypi/zope.fanstatic>`_
