@@ -1,0 +1,28 @@
+Change History
+**************
+
+0.1.3 (2011-12-28)
+==================
+
+- Added 'version' option to specify explicit rubygems version.
+
+0.1.2 (2011-11-09)
+==================
+
+- New version of rubygems includes symlinks in .tgz archyve and extracted by
+  setuptools.archive_util extractor ignores all symlinks. This causes missing
+  files in extracted folder. Now rubygemsrecipe downloads .zip archyve instead
+  of .tgz.
+
+0.1.1 (2011-10-04)
+==================
+
+- Fixed issue with name of gem executable, which can be different depending on
+  how ruby is istalled on host system.
+
+- Install rubygems if gem executable is not found, not rubygems direcotry.
+
+0.1 (2011-09-07)
+================
+
+- Initial public release.
