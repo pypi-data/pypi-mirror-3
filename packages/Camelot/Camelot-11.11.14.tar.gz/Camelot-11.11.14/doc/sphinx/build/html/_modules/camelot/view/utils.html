@@ -1,0 +1,406 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.utils &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.utils</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+<span class="sd">&quot;&quot;&quot;Helper functions for the view subpackage&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">HTMLParser</span> <span class="kn">import</span> <span class="n">HTMLParser</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">date</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">operator</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.sql</span> <span class="kn">import</span> <span class="n">like_op</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.sql.operators</span> <span class="kn">import</span> <span class="n">between_op</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.utils&#39;</span><span class="p">)</span>
+
+<span class="c">#</span>
+<span class="c"># Cached date and time formats, for internal use only</span>
+<span class="c">#</span>
+<span class="n">_local_date_format</span> <span class="o">=</span> <span class="bp">None</span>
+<span class="n">_local_datetime_format</span> <span class="o">=</span> <span class="bp">None</span>
+<span class="n">_local_time_format</span> <span class="o">=</span> <span class="bp">None</span>
+
+<div class="viewcode-block" id="local_date_format"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.local_date_format">[docs]</a><span class="k">def</span> <span class="nf">local_date_format</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Get the local data format and cache it for reuse&quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_local_date_format</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_local_date_format</span><span class="p">:</span>
+        <span class="n">locale</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QLocale</span><span class="p">()</span>
+        <span class="n">format_sequence</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;y*&#39;</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">dateFormat</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">ShortFormat</span><span class="p">)))</span>
+        <span class="c"># make sure a year always has 4 numbers</span>
+        <span class="n">format_sequence</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s">&#39;yyyy&#39;</span><span class="p">)</span>
+        <span class="n">_local_date_format</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="s">u&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">format_sequence</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">_local_date_format</span>
+</div>
+<div class="viewcode-block" id="local_datetime_format"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.local_datetime_format">[docs]</a><span class="k">def</span> <span class="nf">local_datetime_format</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Get the local datatime format and cache it for reuse&quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_local_datetime_format</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_local_datetime_format</span><span class="p">:</span>
+        <span class="n">locale</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QLocale</span><span class="p">()</span>
+        <span class="n">format_sequence</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;y*&#39;</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">dateTimeFormat</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">ShortFormat</span><span class="p">)))</span>
+        <span class="c"># make sure a year always has 4 numbers</span>
+        <span class="n">format_sequence</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s">&#39;yyyy&#39;</span><span class="p">)</span>
+        <span class="n">_local_datetime_format</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="s">u&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">format_sequence</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">_local_datetime_format</span>
+</div>
+<div class="viewcode-block" id="local_time_format"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.local_time_format">[docs]</a><span class="k">def</span> <span class="nf">local_time_format</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Get the local time format and cache it for reuse&quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_local_time_format</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_local_time_format</span><span class="p">:</span>
+        <span class="n">locale</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QLocale</span><span class="p">()</span>
+        <span class="n">_local_time_format</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">timeFormat</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">ShortFormat</span><span class="p">)</span> <span class="p">)</span>
+    <span class="k">return</span> <span class="n">_local_time_format</span>
+</div>
+<div class="viewcode-block" id="default_language"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.default_language">[docs]</a><span class="k">def</span> <span class="nf">default_language</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;takes arguments, to be able to use this function as a</span>
+<span class="sd">    default field attribute&quot;&quot;&quot;</span>
+    <span class="n">locale</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QLocale</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">name</span><span class="p">())</span>
+</div>
+<div class="viewcode-block" id="ParsingError"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.ParsingError">[docs]</a><span class="k">class</span> <span class="nc">ParsingError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span> <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="string_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.string_from_string">[docs]</a><span class="k">def</span> <span class="nf">string_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="bool_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.bool_from_string">[docs]</a><span class="k">def</span> <span class="nf">bool_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;false&#39;</span><span class="p">,</span> <span class="s">&#39;true&#39;</span><span class="p">]:</span> <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">eval</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">capitalize</span><span class="p">())</span>
+</div>
+<span class="k">def</span> <span class="nf">_insert_string</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Inserts new inside original at pos.&#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">original</span><span class="p">[:</span><span class="n">pos</span><span class="p">]</span> <span class="o">+</span> <span class="n">new</span> <span class="o">+</span> <span class="n">original</span><span class="p">[</span><span class="n">pos</span><span class="p">:]</span>
+
+<div class="viewcode-block" id="date_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.date_from_string">[docs]</a><span class="k">def</span> <span class="nf">date_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">QDate</span>
+    <span class="kn">import</span> <span class="nn">string</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">local_date_format</span><span class="p">()</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">QDate</span><span class="o">.</span><span class="n">fromString</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dt</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+        <span class="c">#</span>
+        <span class="c"># if there is a mismatch of 1 in length between format and</span>
+        <span class="c"># string, prepend a 0, to handle the case of 1/11/2011</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="s">&#39;0&#39;</span> <span class="o">+</span> <span class="n">s</span>
+            <span class="n">dt</span> <span class="o">=</span> <span class="n">QDate</span><span class="o">.</span><span class="n">fromString</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dt</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+        <span class="c">#</span>
+	<span class="c"># try alternative separators</span>
+        <span class="c">#</span>
+        <span class="n">separators</span> <span class="o">=</span> <span class="s">u&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">string</span><span class="o">.</span><span class="n">ascii_letters</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">separators</span><span class="p">:</span>
+            <span class="n">alternative_string</span> <span class="o">=</span> <span class="s">u&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([(</span><span class="n">c</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">string</span><span class="o">.</span><span class="n">digits</span> <span class="k">else</span> <span class="n">separators</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">s</span><span class="p">])</span>
+            <span class="n">dt</span> <span class="o">=</span> <span class="n">QDate</span><span class="o">.</span><span class="n">fromString</span><span class="p">(</span><span class="n">alternative_string</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dt</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+        <span class="c"># try parsing without separators</span>
+        <span class="c"># attention : using non ascii letters will fail on windows</span>
+        <span class="c"># string.letters then contains non ascii letters of which we don&#39;t know the</span>
+        <span class="c"># encoding, so we cannot convert them to unicode to compare them</span>
+        <span class="n">only_letters_format</span> <span class="o">=</span> <span class="s">u&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">string</span><span class="o">.</span><span class="n">ascii_letters</span><span class="p">])</span>
+        <span class="n">only_letters_string</span> <span class="o">=</span> <span class="s">u&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">s</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="n">string</span><span class="o">.</span><span class="n">ascii_letters</span><span class="o">+</span><span class="n">string</span><span class="o">.</span><span class="n">digits</span><span class="p">)])</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">QDate</span><span class="o">.</span><span class="n">fromString</span><span class="p">(</span><span class="n">only_letters_string</span><span class="p">,</span> <span class="n">only_letters_format</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dt</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+            <span class="c"># try parsing without the year, and take the current year by default</span>
+            <span class="n">only_letters_format</span> <span class="o">=</span> <span class="s">u&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">only_letters_format</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;y&#39;</span><span class="p">]])</span>
+            <span class="n">dt</span> <span class="o">=</span> <span class="n">QDate</span><span class="o">.</span><span class="n">fromString</span><span class="p">(</span><span class="n">only_letters_string</span><span class="p">,</span> <span class="n">only_letters_format</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">dt</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+<span class="c">#                # try parsing without year and month, and take the current year and month by default</span>
+<span class="c">#                only_letters_format = u&#39;&#39;.join([c for c in only_letters_format if c not in [&#39;M&#39;]])</span>
+<span class="c">#                dt = QDate.fromString(only_letters_string, only_letters_format)</span>
+<span class="c">#                if not dt.isValid():</span>
+<span class="c">#                    raise ParsingError()</span>
+<span class="c">#                else:</span>
+<span class="c">#                    today = date.today()</span>
+<span class="c">#                    return date(today.year, today.month, dt.day())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">date</span><span class="p">(</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">()</span><span class="o">.</span><span class="n">year</span><span class="p">,</span> <span class="n">dt</span><span class="o">.</span><span class="n">month</span><span class="p">(),</span> <span class="n">dt</span><span class="o">.</span><span class="n">day</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">date</span><span class="p">(</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="p">(),</span> <span class="n">dt</span><span class="o">.</span><span class="n">month</span><span class="p">(),</span> <span class="n">dt</span><span class="o">.</span><span class="n">day</span><span class="p">())</span>
+</div>
+<div class="viewcode-block" id="time_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.time_from_string">[docs]</a><span class="k">def</span> <span class="nf">time_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">QTime</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">local_time_format</span><span class="p">()</span>
+    <span class="n">tm</span> <span class="o">=</span> <span class="n">QTime</span><span class="o">.</span><span class="n">fromString</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tm</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">time</span><span class="p">(</span> <span class="n">tm</span><span class="o">.</span><span class="n">hour</span><span class="p">(),</span> <span class="n">tm</span><span class="o">.</span><span class="n">minute</span><span class="p">(),</span> <span class="n">tm</span><span class="o">.</span><span class="n">second</span><span class="p">()</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="datetime_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.datetime_from_string">[docs]</a><span class="k">def</span> <span class="nf">datetime_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">QDateTime</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">local_datetime_format</span><span class="p">()</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">QDateTime</span><span class="o">.</span><span class="n">fromString</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dt</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">datetime</span><span class="p">(</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">year</span><span class="p">(),</span> <span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">month</span><span class="p">(),</span> <span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">day</span><span class="p">(),</span> 
+                    <span class="n">dt</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">.</span><span class="n">hour</span><span class="p">(),</span> <span class="n">dt</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">.</span><span class="n">minute</span><span class="p">(),</span> <span class="n">dt</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">.</span><span class="n">second</span><span class="p">())</span>
+</div>
+<div class="viewcode-block" id="code_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.code_from_string">[docs]</a><span class="k">def</span> <span class="nf">code_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">separator</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">s</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">separator</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="int_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.int_from_string">[docs]</a><span class="k">def</span> <span class="nf">int_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">isspace</span><span class="p">():</span> <span class="k">return</span> <span class="nb">int</span><span class="p">()</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="nb">int</span><span class="p">()</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">i</span>
+
+</div>
+<div class="viewcode-block" id="float_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.float_from_string">[docs]</a><span class="k">def</span> <span class="nf">float_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="n">locale</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QLocale</span><span class="p">()</span>
+    <span class="n">f</span><span class="p">,</span> <span class="n">ok</span> <span class="o">=</span> <span class="n">locale</span><span class="o">.</span><span class="n">toFloat</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ParsingError</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">f</span>
+
+</div>
+<div class="viewcode-block" id="pyvalue_from_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.pyvalue_from_string">[docs]</a><span class="k">def</span> <span class="nf">pyvalue_from_string</span><span class="p">(</span><span class="n">pytype</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="nb">unicode</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">bool_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="n">date</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">date_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="n">time</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">date_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="n">datetime</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">datetime_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">float_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pytype</span> <span class="ow">is</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">int_from_string</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="enumeration_to_string"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.enumeration_to_string">[docs]</a><span class="k">def</span> <span class="nf">enumeration_to_string</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">ugettext</span><span class="p">(</span><span class="nb">unicode</span><span class="p">(</span><span class="n">value</span> <span class="ow">or</span> <span class="s">u&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">,</span> <span class="s">&#39; &#39;</span><span class="p">)</span><span class="o">.</span><span class="n">capitalize</span><span class="p">())</span>
+</div>
+<span class="n">operator_names</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">operator</span><span class="o">.</span><span class="n">eq</span> <span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;=&#39;</span> <span class="p">),</span>
+    <span class="n">operator</span><span class="o">.</span><span class="n">ne</span> <span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;!=&#39;</span> <span class="p">),</span>
+    <span class="n">operator</span><span class="o">.</span><span class="n">lt</span> <span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;&lt;&#39;</span> <span class="p">),</span>
+    <span class="n">operator</span><span class="o">.</span><span class="n">le</span> <span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;&lt;=&#39;</span> <span class="p">),</span>
+    <span class="n">operator</span><span class="o">.</span><span class="n">gt</span> <span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;&gt;&#39;</span> <span class="p">),</span>
+    <span class="n">operator</span><span class="o">.</span><span class="n">ge</span> <span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;&gt;=&#39;</span> <span class="p">),</span>
+    <span class="n">like_op</span> <span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;like&#39;</span> <span class="p">),</span>
+    <span class="n">between_op</span><span class="p">:</span> <span class="n">_</span><span class="p">(</span> <span class="s">u&#39;between&#39;</span> <span class="p">),</span>
+<span class="p">}</span>
+
+<div class="viewcode-block" id="text_from_richtext"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.utils.text_from_richtext">[docs]</a><span class="k">def</span> <span class="nf">text_from_richtext</span><span class="p">(</span><span class="n">unstripped_text</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;funciton that returns a list of lines with escaped data, to be used in templates for example</span>
+<span class="sd">    :arg unstripped_text: string</span>
+<span class="sd">    :return: list of strings</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">strings</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">unstripped_text</span><span class="p">:</span>
+	    <span class="k">return</span> <span class="n">strings</span>
+
+    <span class="k">class</span> <span class="nc">HtmlToTextParser</span><span class="p">(</span><span class="n">HTMLParser</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">handle_endtag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">tag</span> <span class="o">==</span> <span class="s">&#39;br&#39;</span><span class="p">:</span>
+                <span class="n">strings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">handle_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">xml.sax.saxutils</span> <span class="kn">import</span> <span class="n">escape</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">data</span><span class="p">:</span>
+                <span class="n">strings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">escape</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">HtmlToTextParser</span><span class="p">()</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">feed</span><span class="p">(</span><span class="n">unstripped_text</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">strings</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

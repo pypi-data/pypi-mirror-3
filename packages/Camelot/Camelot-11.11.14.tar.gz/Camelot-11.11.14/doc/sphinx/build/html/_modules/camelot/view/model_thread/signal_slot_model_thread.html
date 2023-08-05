@@ -1,0 +1,388 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.model_thread.signal_slot_model_thread &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../../index.html" />
+    <link rel="up" title="camelot.view.model_thread" href="../model_thread.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../model_thread.html" accesskey="U">camelot.view.model_thread</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.model_thread.signal_slot_model_thread</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Created on Sep 9, 2009</span>
+
+<span class="sd">@author: tw55413</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.model_thread.signal_slot_model_thread&#39;</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">AbstractModelThread</span><span class="p">,</span> <span class="n">gui_function</span><span class="p">,</span> <span class="n">setup_model</span>
+<span class="kn">from</span> <span class="nn">camelot.core.threading</span> <span class="kn">import</span> <span class="n">synchronized</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.exception</span> <span class="kn">import</span> <span class="n">register_exception</span>
+
+<div class="viewcode-block" id="Task"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.Task">[docs]</a><span class="k">class</span> <span class="nc">Task</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">):</span>
+
+    <span class="n">finished</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+    <span class="n">exception</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">()):</span>
+        <span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_request</span> <span class="o">=</span> <span class="n">request</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="n">args</span>
+
+<div class="viewcode-block" id="Task.clear"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.Task.clear">[docs]</a>    <span class="k">def</span> <span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;clear this tasks references to other objects&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_request</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="Task.execute"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.Task.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;executing </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_args</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">result</span> <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># don&#39;t handle StopIteration as a normal exception, but return a new</span>
+        <span class="c"># instance of StopIteration (in order to not keep alive a stack trace),</span>
+        <span class="c"># and to signal to the caller that an iterator has ended</span>
+        <span class="c">#</span>
+        <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="ne">StopIteration</span><span class="p">()</span> <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">exc_info</span> <span class="o">=</span> <span class="n">register_exception</span><span class="p">(</span><span class="n">logger</span><span class="p">,</span> <span class="s">&#39;exception caught in model thread while executing </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exception</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">exc_info</span> <span class="p">)</span>
+            <span class="c"># the stack might contain references to QT objects which could be kept alive this way</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exc_clear</span><span class="p">()</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span> <span class="s">&#39;unhandled exception in model thread&#39;</span> <span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exc_clear</span><span class="p">()</span>
+</div></div>
+<div class="viewcode-block" id="TaskHandler"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.TaskHandler">[docs]</a><span class="k">class</span> <span class="nc">TaskHandler</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A task handler is an object that handles tasks that appear in a queue,</span>
+<span class="sd">    when its handle_task method is called, it will sequentially handle all tasks</span>
+<span class="sd">    that are in the queue.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">task_handler_busy_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">bool</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">queue</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param queue: the queue from which to pop a task when handle_task</span>
+<span class="sd">        is called&quot;&quot;&quot;</span>
+        <span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutex</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_queue</span> <span class="o">=</span> <span class="n">queue</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tasks_done</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_busy</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;TaskHandler created.&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TaskHandler.busy"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.TaskHandler.busy">[docs]</a>    <span class="k">def</span> <span class="nf">busy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return True/False: indicating if this task handler is busy&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_busy</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="TaskHandler.handle_task"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.TaskHandler.handle_task">[docs]</a>    <span class="k">def</span> <span class="nf">handle_task</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handle all tasks that are in the queue&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_busy</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">task_handler_busy_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="bp">True</span> <span class="p">)</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">while</span> <span class="n">task</span><span class="p">:</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+            <span class="c"># we keep track of the tasks done to prevent them being garbage collected</span>
+            <span class="c"># apparently when they are garbage collected, they are recycled, but their</span>
+            <span class="c"># signal slot connections seem to survive this recycling.</span>
+            <span class="c"># @todo: this should be investigated in more detail, since we are causing</span>
+            <span class="c">#        a deliberate memory leak here</span>
+            <span class="c">#</span>
+            <span class="c"># not keeping track of the tasks might result in corruption</span>
+            <span class="c">#</span>
+            <span class="c"># see : http://www.riverbankcomputing.com/pipermail/pyqt/2011-August/030452.html</span>
+            <span class="c">#</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tasks_done</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+            <span class="n">task</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">task_handler_busy_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="bp">False</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_busy</span> <span class="o">=</span> <span class="bp">False</span>
+</div></div>
+<div class="viewcode-block" id="SignalSlotModelThread"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.SignalSlotModelThread">[docs]</a><span class="k">class</span> <span class="nc">SignalSlotModelThread</span><span class="p">(</span> <span class="n">AbstractModelThread</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A model thread implementation that uses signals and slots</span>
+<span class="sd">    to communicate between the model thread and the gui thread</span>
+
+<span class="sd">    there is no explicit model thread verification on these methods,</span>
+<span class="sd">    since this model thread might not be THE model thread.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">task_available</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">setup_thread</span> <span class="o">=</span> <span class="n">setup_model</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        @param setup_thread: function to be called at startup of the thread to initialize</span>
+<span class="sd">        everything, by default this will setup the model.  set to None if nothing should</span>
+<span class="sd">        be done.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.model_thread.garbage_collector</span> <span class="kn">import</span> <span class="n">GarbageCollector</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SignalSlotModelThread</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="n">setup_thread</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutex</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_request_queue</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_busy</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">GarbageCollector</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="SignalSlotModelThread.run"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.SignalSlotModelThread.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;model thread started&#39;</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span> <span class="o">=</span> <span class="n">TaskHandler</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span><span class="o">.</span><span class="n">task_handler_busy_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thread_busy</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">QueuedConnection</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread_busy</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_setup_thread</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">exc_info</span> <span class="o">=</span> <span class="n">register_exception</span><span class="p">(</span><span class="n">logger</span><span class="p">,</span> <span class="s">&#39;Exception when setting up the SignalSlotModelThread&#39;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">setup_exception_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">exc_info</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread_busy</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;thread setup finished&#39;</span><span class="p">)</span>
+        <span class="c"># Some tasks might have been posted before the signals were connected to the task handler,</span>
+        <span class="c"># so once force the handling of tasks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span><span class="o">.</span><span class="n">handle_task</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_busy</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;model thread stopped&#39;</span><span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="nb">bool</span> <span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_thread_busy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">busy_state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">thread_busy_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">busy_state</span> <span class="p">)</span>
+
+    <span class="nd">@synchronized</span>
+<div class="viewcode-block" id="SignalSlotModelThread.post"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.SignalSlotModelThread.post">[docs]</a>    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">exception</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="p">()</span> <span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span><span class="p">:</span>
+            <span class="c"># creating this connection in the model thread throws QT exceptions</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">task_available</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span><span class="o">.</span><span class="n">handle_task</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">QueuedConnection</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="c"># response should be a slot method of a QObject</span>
+        <span class="k">if</span> <span class="n">response</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s"> -&gt; </span><span class="si">%s</span><span class="s">.</span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">im_self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="n">Task</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+        <span class="c"># QObject::connect is a thread safe function</span>
+        <span class="k">if</span> <span class="n">response</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">im_self</span> <span class="o">!=</span> <span class="bp">None</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">im_self</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">)</span>
+            <span class="c"># verify if the response has been defined as a slot</span>
+            <span class="c">#assert hasattr(response, &#39;__pyqtSignature__&#39;)</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="n">response</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">QueuedConnection</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">exception</span><span class="p">:</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">exception</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="n">exception</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">QueuedConnection</span> <span class="p">)</span>
+        <span class="c"># task.moveToThread(self)</span>
+        <span class="c"># only put the task in the queue when it is completely set up</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_request_queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+        <span class="c">#print &#39;task created ---&gt;&#39;, id(task)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">task_available</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+</div>
+    <span class="nd">@synchronized</span>
+<div class="viewcode-block" id="SignalSlotModelThread.stop"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.SignalSlotModelThread.stop">[docs]</a>    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quit</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">True</span>
+    </div>
+    <span class="nd">@synchronized</span>
+<div class="viewcode-block" id="SignalSlotModelThread.pop"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.SignalSlotModelThread.pop">[docs]</a>    <span class="k">def</span> <span class="nf">pop</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Pop a task from the queue, return None if the queue is empty&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_request_queue</span><span class="p">):</span>
+            <span class="n">task</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request_queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">task</span>
+</div>
+    <span class="nd">@synchronized</span>
+<div class="viewcode-block" id="SignalSlotModelThread.busy"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.SignalSlotModelThread.busy">[docs]</a>    <span class="k">def</span> <span class="nf">busy</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True or False indicating wether either the model or the</span>
+<span class="sd">        gui thread is doing something&quot;&quot;&quot;</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">time</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">app</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QCoreApplication</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">app</span><span class="o">.</span><span class="n">hasPendingEvents</span><span class="p">()</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_request_queue</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_task_handler</span><span class="o">.</span><span class="n">busy</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_setup_busy</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="SignalSlotModelThread.wait_on_work"><a class="viewcode-back" href="../../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.signal_slot_model_thread.SignalSlotModelThread.wait_on_work">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_work</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wait for all work to be finished, this function should only be used</span>
+<span class="sd">        to do unit testing and such, since it will block the calling thread until</span>
+<span class="sd">        all work is done&quot;&quot;&quot;</span>
+        <span class="n">app</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QCoreApplication</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">busy</span><span class="p">():</span>
+            <span class="n">app</span><span class="o">.</span><span class="n">processEvents</span><span class="p">()</span>
+
+<span class="c">#    app = QCoreApplication.instance()</span>
+<span class="c">#    waiting = True</span>
+<span class="c">#    while waiting:</span>
+<span class="c">#      waiting = False</span>
+<span class="c">#      if app.hasPendingEvents():</span>
+<span class="c">#        app.processEvents()</span>
+<span class="c">#        waiting = True</span>
+</pre></div></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../model_thread.html" >camelot.view.model_thread</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

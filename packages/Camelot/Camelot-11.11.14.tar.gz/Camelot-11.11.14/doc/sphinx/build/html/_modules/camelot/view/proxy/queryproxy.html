@@ -1,0 +1,462 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.proxy.queryproxy &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../../index.html" />
+    <link rel="up" title="camelot.view.proxy" href="../proxy.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../proxy.html" accesskey="U">camelot.view.proxy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.proxy.queryproxy</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;Proxies representing the results of a query&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.proxy.queryproxy&#39;</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">collection_proxy</span> <span class="kn">import</span> <span class="n">CollectionProxy</span><span class="p">,</span> <span class="n">strip_data_from_object</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">model_function</span><span class="p">,</span> <span class="n">gui_function</span><span class="p">,</span> <span class="n">post</span>
+
+
+<div class="viewcode-block" id="QueryTableProxy"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy">[docs]</a><span class="k">class</span> <span class="nc">QueryTableProxy</span><span class="p">(</span><span class="n">CollectionProxy</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The QueryTableProxy contains a limited copy of the data in the SQLAlchemy</span>
+<span class="sd">    model, which is fetched from the database to be used as the model for a</span>
+<span class="sd">    QTableView</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">admin</span><span class="p">,</span> <span class="n">query_getter</span><span class="p">,</span> <span class="n">columns_getter</span><span class="p">,</span>
+                 <span class="n">max_number_of_rows</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">edits</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">cache_collection_proxy</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;@param query_getter: a model_thread function that returns a query, can be None at construction time and set later&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;initialize query table&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span> <span class="o">=</span> <span class="n">query_getter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sort_decorator</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mapper</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">mapper</span>
+        <span class="c">#rows appended to the table which have not yet been flushed to the</span>
+        <span class="c">#database, and as such cannot be a result of the query</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">QueryTableProxy</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">admin</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="p">[],</span>
+                                              <span class="n">columns_getter</span><span class="p">,</span> 
+                                              <span class="n">max_number_of_rows</span><span class="o">=</span><span class="n">max_number_of_rows</span><span class="p">,</span> 
+                                              <span class="n">edits</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                                              <span class="n">cache_collection_proxy</span><span class="o">=</span><span class="n">cache_collection_proxy</span><span class="p">)</span>     
+        
+<div class="viewcode-block" id="QueryTableProxy.get_query_getter"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.get_query_getter">[docs]</a>    <span class="k">def</span> <span class="nf">get_query_getter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sort_decorator</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_sort_decorator</span><span class="p">()</span>
+            
+        <span class="k">def</span> <span class="nf">sorted_query_getter</span><span class="p">(</span> <span class="n">query_getter</span><span class="p">,</span> <span class="n">sort_decorator</span> <span class="p">):</span>
+            <span class="k">return</span> <span class="n">sort_decorator</span><span class="p">(</span> <span class="n">query_getter</span><span class="p">()</span> <span class="p">)</span>
+            
+        <span class="k">return</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span> <span class="n">sorted_query_getter</span><span class="p">,</span>
+                                  <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span><span class="p">,</span>
+                                  <span class="bp">self</span><span class="o">.</span><span class="n">_sort_decorator</span> <span class="p">)</span>
+    </div>
+    <span class="k">def</span> <span class="nf">_update_unflushed_rows</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Does nothing since all rows returned by a query are flushed&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+    
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_clean_appended_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove those rows from appended rows that have been flushed&quot;&quot;&quot;</span>
+        <span class="n">flushed_rows</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="p">:</span>
+            <span class="n">primary_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mapper</span><span class="o">.</span><span class="n">primary_key_from_instance</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">primary_key</span><span class="p">:</span>
+                <span class="n">flushed_rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">flushed_rows</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="QueryTableProxy.getRowCount"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.getRowCount">[docs]</a>    <span class="k">def</span> <span class="nf">getRowCount</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_clean_appended_rows</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_query_getter</span><span class="p">()()</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="QueryTableProxy.setQuery"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.setQuery">[docs]</a>    <span class="k">def</span> <span class="nf">setQuery</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_getter</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set the query and refresh the view&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span> <span class="o">=</span> <span class="n">query_getter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+        </div>
+<div class="viewcode-block" id="QueryTableProxy.get_collection"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.get_collection">[docs]</a>    <span class="k">def</span> <span class="nf">get_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;In case the collection is requested of a QueryProxy, we will return</span>
+<span class="sd">        a collection getter for a collection that reuses the data already queried by</span>
+<span class="sd">        the collection proxy, and available in the cache.</span>
+<span class="sd">         </span>
+<span class="sd">        We do this to :</span>
+<span class="sd">        </span>
+<span class="sd">        1. Prevent an unneeded query when the collection is used to fetch an object already</span>
+<span class="sd">           fetched by the query proxy (eg when a form is opened on a table view)</span>
+<span class="sd">           </span>
+<span class="sd">        2. To make sure the index of an object in the query proxy is the same as the index</span>
+<span class="sd">           in the returned collection.  Should we do the same query twice (once to fill the</span>
+<span class="sd">           query proxy, and once to fill the returned collection), the same object might appear</span>
+<span class="sd">           in a different row.  eg when a form is opened in a table view, the form contains </span>
+<span class="sd">           another record than the selected row in the table.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_query_getter</span><span class="p">()()</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    </div>
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_set_sort_decorator</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="bp">None</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;set the sort decorator attribute of this model to a function that</span>
+<span class="sd">        sorts a query by the given column using the given order.  When no</span>
+<span class="sd">        arguments are given, use the default sorting, which is according to</span>
+<span class="sd">        the primary keys of the model.  This to impose a string ordening of</span>
+<span class="sd">        the rows in the model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.exc</span> <span class="kn">import</span> <span class="n">InvalidRequestError</span>
+        
+        <span class="n">class_attributes_to_sort_by</span><span class="p">,</span> <span class="n">join</span> <span class="o">=</span> <span class="p">[],</span> <span class="bp">None</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">orm</span><span class="o">.</span><span class="n">class_mapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">entity</span><span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># First sort according the requested column</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="n">column</span> <span class="o">!=</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">order</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="nb">property</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="n">field_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span><span class="p">[</span><span class="n">column</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">class_attribute</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">entity</span><span class="p">,</span> <span class="n">field_name</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">property</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span>
+                    <span class="n">field_name</span><span class="p">,</span>
+                    <span class="n">resolve_synonyms</span><span class="o">=</span><span class="bp">True</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="n">InvalidRequestError</span><span class="p">:</span>
+                <span class="c">#</span>
+                <span class="c"># If the field name is not a property of the mapper, we cannot</span>
+                <span class="c"># sort it using sql</span>
+                <span class="c">#</span>
+                <span class="k">pass</span>
+            
+            <span class="c"># If the field is a relation: </span>
+            <span class="c">#  If it specifies an order_by option we have to join the related table, </span>
+            <span class="c">#  else we use the foreing key as sort field, without joining</span>
+            <span class="k">if</span> <span class="nb">property</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">property</span><span class="p">,</span> <span class="n">orm</span><span class="o">.</span><span class="n">properties</span><span class="o">.</span><span class="n">PropertyLoader</span><span class="p">):</span>
+                <span class="n">target</span> <span class="o">=</span> <span class="nb">property</span><span class="o">.</span><span class="n">_get_target</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">target</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">target</span><span class="o">.</span><span class="n">order_by</span><span class="p">:</span>
+                        <span class="n">join</span> <span class="o">=</span> <span class="n">field_name</span>
+                        <span class="n">class_attribute</span> <span class="o">=</span> <span class="n">target</span><span class="o">.</span><span class="n">order_by</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c">#</span>
+                        <span class="c"># _foreign_keys is for sqla pre 0.6.4</span>
+                        <span class="c"># </span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="nb">property</span><span class="p">,</span> <span class="s">&#39;_foreign_keys&#39;</span><span class="p">):</span>
+                            <span class="n">class_attribute</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">property</span><span class="o">.</span><span class="n">_foreign_keys</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">else</span><span class="p">:</span>                             
+                            <span class="n">class_attribute</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">property</span><span class="o">.</span><span class="n">_calculated_foreign_keys</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">property</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">order</span><span class="p">:</span>
+                    <span class="n">class_attributes_to_sort_by</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">class_attribute</span><span class="o">.</span><span class="n">desc</span><span class="p">()</span> <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">class_attributes_to_sort_by</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">class_attribute</span> <span class="p">)</span>
+                    
+        <span class="c">#</span>
+        <span class="c"># Next sort according to default sort column if any</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="n">mapper</span><span class="o">.</span><span class="n">order_by</span><span class="p">:</span>
+            <span class="n">class_attributes_to_sort_by</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="n">mapper</span><span class="o">.</span><span class="n">order_by</span> <span class="p">)</span>
+            
+        <span class="c">#</span>
+        <span class="c"># In the end, sort according to the primary keys of the model, to enforce</span>
+        <span class="c"># a unique order in any case</span>
+        <span class="c">#</span>
+        <span class="n">class_attributes_to_sort_by</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="n">mapper</span><span class="o">.</span><span class="n">primary_key</span> <span class="p">)</span>
+                                
+        <span class="k">def</span> <span class="nf">sort_decorator</span><span class="p">(</span><span class="n">class_attributes_to_sort_by</span><span class="p">,</span> <span class="n">join</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">join</span><span class="p">:</span>
+                <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">join</span><span class="p">)</span>                            
+            <span class="k">if</span> <span class="n">class_attributes_to_sort_by</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">query</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span> <span class="o">*</span><span class="n">class_attributes_to_sort_by</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">query</span>       
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sort_decorator</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span> <span class="n">sort_decorator</span><span class="p">,</span>
+                                                  <span class="n">class_attributes_to_sort_by</span><span class="p">,</span> 
+                                                  <span class="n">join</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span>
+        
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="QueryTableProxy.sort"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.sort">[docs]</a>    <span class="k">def</span> <span class="nf">sort</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">order</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Overwrites the :meth:`QAbstractItemModel.sort` method</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">post</span><span class="p">(</span> <span class="n">functools</span><span class="o">.</span><span class="n">update_wrapper</span><span class="p">(</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_sort_decorator</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">order</span> <span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_sort_decorator</span> <span class="p">),</span> 
+              <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_content</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="QueryTableProxy.append"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.append">[docs]</a>    <span class="k">def</span> <span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add an object to this collection, used when inserting a new</span>
+<span class="sd">        row, overwrite this method for specific behaviour in subclasses&quot;&quot;&quot;</span>
+        <span class="n">primary_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mapper</span><span class="o">.</span><span class="n">primary_key_from_instance</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">None</span> <span class="ow">in</span> <span class="n">primary_key</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="QueryTableProxy.remove"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.remove">[docs]</a>    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">o</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">-</span> <span class="mi">1</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="QueryTableProxy.getData"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.queryproxy.QueryTableProxy.getData">[docs]</a>    <span class="k">def</span> <span class="nf">getData</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generator for all the data queried by this proxy&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">_i</span><span class="p">,</span><span class="n">o</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_query_getter</span><span class="p">()()</span><span class="o">.</span><span class="n">all</span><span class="p">()):</span>
+                <span class="k">yield</span> <span class="n">strip_data_from_object</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">())</span>
+</div>
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_get_collection_range</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the objects in a certain range of the collection</span>
+<span class="sd">        :return: an iterator over the objects in the collection, starting at </span>
+<span class="sd">        offset, until limit</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_query_getter</span><span class="p">()()</span><span class="o">.</span><span class="n">offset</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">limit</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">query</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+                    
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_extend_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Extend the cache around the rows under request&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span><span class="p">:</span>
+            <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_and_limit_rows_to_get</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">limit</span><span class="p">:</span>
+                <span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">()</span>
+                <span class="c">#</span>
+                <span class="c"># try to move the offset further by looking if the</span>
+                <span class="c"># objects are already in the cache.</span>
+                <span class="c">#</span>
+                <span class="c"># this has the advantage that we might not need a query,</span>
+                <span class="c"># and more important, that objects remain at the same row</span>
+                <span class="c"># while their position in the query might have been changed</span>
+                <span class="c"># since the previous query.</span>
+                <span class="c">#</span>
+                <span class="n">rows_in_cache</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">limit</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">cached_obj</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">get_entity_at_row</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>                        
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_add_data</span><span class="p">(</span> <span class="n">columns</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">cached_obj</span><span class="p">)</span>
+                        <span class="n">rows_in_cache</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                        <span class="k">break</span>
+                <span class="c">#</span>
+                <span class="c"># query the remaining rows</span>
+                <span class="c">#</span>
+                <span class="n">query_offset</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">+</span> <span class="n">rows_in_cache</span>
+                <span class="n">query_limit</span> <span class="o">=</span> <span class="n">limit</span> <span class="o">-</span> <span class="n">rows_in_cache</span>
+                <span class="k">if</span> <span class="n">query_limit</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">obj</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_collection_range</span><span class="p">(</span><span class="n">query_offset</span><span class="p">,</span> 
+                                                                        <span class="n">query_limit</span><span class="p">)</span> <span class="p">):</span>
+                        <span class="n">row</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="n">query_offset</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">previous_obj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">get_entity_at_row</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">previous_obj</span> <span class="o">!=</span> <span class="n">obj</span><span class="p">:</span>
+                                <span class="k">continue</span>
+                        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                            <span class="k">pass</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_add_data</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+                <span class="n">rows_in_query</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="p">))</span>
+                <span class="c"># Verify if rows that have not yet been flushed have been </span>
+                <span class="c"># requested</span>
+                <span class="k">if</span> <span class="n">offset</span><span class="o">+</span><span class="n">limit</span> <span class="o">&gt;=</span> <span class="n">rows_in_query</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">rows_in_query</span><span class="p">,</span> <span class="n">offset</span><span class="p">),</span> <span class="nb">min</span><span class="p">(</span><span class="n">offset</span><span class="o">+</span><span class="n">limit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span><span class="p">)):</span>
+                        <span class="n">obj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_object</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_add_data</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>                
+            <span class="k">return</span> <span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">limit</span><span class="p">)</span>
+
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_get_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the object corresponding to row.  If row is smaller than 0</span>
+<span class="sd">        (in case of an invalid widget mapper), None is returned as an object&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">row</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_appended_rows</span><span class="p">()</span>
+            <span class="n">rows_in_query</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">row</span> <span class="o">&gt;=</span> <span class="n">rows_in_query</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_appended_rows</span><span class="p">[</span><span class="n">row</span> <span class="o">-</span> <span class="n">rows_in_query</span><span class="p">]</span>
+            <span class="c"># first try to get the primary key out of the cache, if it&#39;s not</span>
+            <span class="c"># there, query the collection_getter</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">get_entity_at_row</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="c"># momentary hack for list error that prevents forms to be closed</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_query_getter</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_query_getter</span><span class="p">()()</span><span class="o">.</span><span class="n">offset</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                    <span class="n">res</span> <span class="o">=</span> <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="c"># @todo: remove this try catch and find out why it </span>
+                <span class="c"># sometimes fails</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="k">pass</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../proxy.html" >camelot.view.proxy</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

@@ -1,0 +1,1293 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.proxy.collection_proxy &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../../index.html" />
+    <link rel="up" title="camelot.view.proxy" href="../proxy.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../proxy.html" accesskey="U">camelot.view.proxy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.proxy.collection_proxy</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;Proxy representing a collection of entities that live in the model thread.</span>
+
+<span class="sd">The proxy represents them in the gui thread and provides access to the data</span>
+<span class="sd">with zero delay.  If the data is not yet present in the proxy, dummy data is</span>
+<span class="sd">returned and an update signal is emitted when the correct data is available.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span> <span class="s">&#39;camelot.view.proxy.collection_proxy&#39;</span> <span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4.QtCore</span> <span class="kn">import</span> <span class="n">Qt</span><span class="p">,</span> <span class="n">QThread</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span><span class="p">,</span> <span class="n">QtCore</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">is_deleted</span>
+<span class="kn">from</span> <span class="nn">camelot.core.files.storage</span> <span class="kn">import</span> <span class="n">StoredFile</span>
+<span class="kn">from</span> <span class="nn">camelot.view.art</span> <span class="kn">import</span> <span class="n">Icon</span>
+<span class="kn">from</span> <span class="nn">camelot.view.fifo</span> <span class="kn">import</span> <span class="n">Fifo</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls</span> <span class="kn">import</span> <span class="n">delegates</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.exception</span> <span class="kn">import</span> <span class="n">register_exception</span>
+<span class="kn">from</span> <span class="nn">camelot.view.remote_signals</span> <span class="kn">import</span> <span class="n">get_signal_handler</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">gui_function</span><span class="p">,</span> \
+                                      <span class="n">model_function</span><span class="p">,</span> <span class="n">post</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.files.storage</span> <span class="kn">import</span> <span class="n">StoredImage</span>
+
+<div class="viewcode-block" id="ProxyDict"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.ProxyDict">[docs]</a><span class="k">class</span> <span class="nc">ProxyDict</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Subclass of dictionary to fool the QVariant object and prevent</span>
+<span class="sd">    it from converting dictionary keys to whatever Qt object, but keep</span>
+<span class="sd">    everything python&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="DelayedProxy"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.DelayedProxy">[docs]</a><span class="k">class</span> <span class="nc">DelayedProxy</span><span class="p">(</span> <span class="nb">object</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A proxy object needs to be constructed within the GUI thread. Construct</span>
+<span class="sd">    a delayed proxy when the construction of a proxy is needed within the Model</span>
+<span class="sd">    thread.  On first occasion the delayed proxy will be converted to a real</span>
+<span class="sd">    proxy within the GUI thread</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">admin</span><span class="p">,</span> <span class="n">collection_getter</span><span class="p">,</span> <span class="n">columns_getter</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_collection_getter</span> <span class="o">=</span> <span class="n">collection_getter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns_getter</span> <span class="o">=</span> <span class="n">columns_getter</span>
+
+    <span class="nd">@gui_function</span>
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="n">CollectionProxy</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_admin</span><span class="p">,</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">_collection_getter</span><span class="p">,</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">_columns_getter</span> <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_collection_getter</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">collection</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+               <span class="k">return</span> <span class="s">u&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">unicode</span><span class="p">(</span><span class="n">o</span><span class="p">)</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">o</span><span class="p">,</span><span class="n">_i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">collection</span><span class="p">,</span>
+                                                                      <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">))))</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+               <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span> <span class="s">&#39;could not convert object to unicode&#39;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="s">u&#39;&#39;</span>
+</div>
+<span class="nd">@model_function</span>
+<div class="viewcode-block" id="strip_data_from_object"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.strip_data_from_object">[docs]</a><span class="k">def</span> <span class="nf">strip_data_from_object</span><span class="p">(</span> <span class="n">obj</span><span class="p">,</span> <span class="n">columns</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;For every column in columns, get the corresponding value from the</span>
+<span class="sd">    object.  Getting a value from an object is time consuming, so using</span>
+<span class="sd">    this function should be minimized.</span>
+<span class="sd">    :param obj: the object of which to get data</span>
+<span class="sd">    :param columns: a list of columns for which to get data</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">row_data</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">create_collection_getter</span><span class="p">(</span> <span class="n">o</span><span class="p">,</span> <span class="n">attr</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span> <span class="n">o</span><span class="p">,</span> <span class="n">attr</span> <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">_i</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="n">columns</span> <span class="p">):</span>
+        <span class="n">field_attributes</span> <span class="o">=</span> <span class="n">col</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">field_value</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">getter</span> <span class="o">=</span> <span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;getter&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;python_type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="nb">list</span><span class="p">:</span>
+                <span class="n">field_value</span> <span class="o">=</span> <span class="n">DelayedProxy</span><span class="p">(</span> <span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;admin&#39;</span><span class="p">],</span>
+                                            <span class="n">create_collection_getter</span><span class="p">(</span> <span class="n">obj</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">),</span>
+                                            <span class="n">field_attributes</span><span class="p">[</span><span class="s">&#39;admin&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get_columns</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">field_value</span> <span class="o">=</span> <span class="n">getter</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">Exception</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">NameError</span><span class="p">),</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;ProgrammingError : could not get field </span><span class="si">%s</span><span class="s"> of object of type </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">obj</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">),</span>
+                         <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">row_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">field_value</span> <span class="p">)</span>
+    <span class="k">return</span> <span class="n">row_data</span>
+</div>
+<span class="nd">@model_function</span>
+<div class="viewcode-block" id="stripped_data_to_unicode"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.stripped_data_to_unicode">[docs]</a><span class="k">def</span> <span class="nf">stripped_data_to_unicode</span><span class="p">(</span> <span class="n">stripped_data</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">static_field_attributes</span><span class="p">,</span> <span class="n">dynamic_field_attributes</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Extract for each field in the row data a &#39;visible&#39; form of</span>
+<span class="sd">    data&quot;&quot;&quot;</span>
+
+    <span class="n">row_data</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">field_data</span><span class="p">,</span> <span class="n">static_attributes</span><span class="p">,</span> <span class="n">dynamic_attributes</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span> <span class="n">stripped_data</span><span class="p">,</span> <span class="n">static_field_attributes</span><span class="p">,</span> <span class="n">dynamic_field_attributes</span> <span class="p">):</span>
+        <span class="n">unicode_data</span> <span class="o">=</span> <span class="s">u&#39;&#39;</span>
+        <span class="n">choices</span> <span class="o">=</span> <span class="n">dynamic_attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span> <span class="s">&#39;choices&#39;</span><span class="p">,</span> <span class="n">static_attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;choices&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">))</span>
+        <span class="k">if</span> <span class="s">&#39;unicode_format&#39;</span> <span class="ow">in</span> <span class="n">static_attributes</span><span class="p">:</span>
+            <span class="n">unicode_format</span> <span class="o">=</span> <span class="n">static_attributes</span><span class="p">[</span><span class="s">&#39;unicode_format&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">field_data</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">unicode_data</span> <span class="o">=</span> <span class="n">unicode_format</span><span class="p">(</span> <span class="n">field_data</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">choices</span><span class="p">:</span>
+            <span class="n">unicode_data</span> <span class="o">=</span> <span class="n">field_data</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">choices</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">field_data</span><span class="p">:</span>
+                    <span class="n">unicode_data</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field_data</span><span class="p">,</span> <span class="nb">list</span> <span class="p">):</span>
+            <span class="n">unicode_data</span> <span class="o">=</span> <span class="s">u&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="p">[</span><span class="nb">unicode</span><span class="p">(</span> <span class="n">e</span> <span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">field_data</span><span class="p">]</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field_data</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="p">):</span>
+            <span class="c"># datetime should come before date since datetime is a subtype of date</span>
+            <span class="k">if</span> <span class="n">field_data</span><span class="o">.</span><span class="n">year</span> <span class="o">&gt;=</span> <span class="mi">1900</span><span class="p">:</span>
+                <span class="n">unicode_data</span> <span class="o">=</span> <span class="n">field_data</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s">&#39;</span><span class="si">%d</span><span class="s">/%m/%Y %H:%M&#39;</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field_data</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span> <span class="p">):</span>
+            <span class="k">if</span> <span class="n">field_data</span><span class="o">.</span><span class="n">year</span> <span class="o">&gt;=</span> <span class="mi">1900</span><span class="p">:</span>
+                <span class="n">unicode_data</span> <span class="o">=</span> <span class="n">field_data</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span> <span class="s">&#39;</span><span class="si">%d</span><span class="s">/%m/%Y&#39;</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field_data</span><span class="p">,</span> <span class="n">StoredImage</span><span class="p">):</span>
+            <span class="n">unicode_data</span> <span class="o">=</span> <span class="n">field_data</span><span class="o">.</span><span class="n">checkout_thumbnail</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">field_data</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">unicode_data</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span> <span class="n">field_data</span> <span class="p">)</span>
+        <span class="n">row_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">unicode_data</span> <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">row_data</span>
+</div>
+<span class="kn">from</span> <span class="nn">camelot.view.proxy</span> <span class="kn">import</span> <span class="n">ValueLoading</span>
+
+<div class="viewcode-block" id="EmptyRowData"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.EmptyRowData">[docs]</a><span class="k">class</span> <span class="nc">EmptyRowData</span><span class="p">(</span> <span class="nb">object</span> <span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">column</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="n">ValueLoading</span>
+</div>
+<span class="n">empty_row_data</span> <span class="o">=</span> <span class="n">EmptyRowData</span><span class="p">()</span>
+
+<div class="viewcode-block" id="SortingRowMapper"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.SortingRowMapper">[docs]</a><span class="k">class</span> <span class="nc">SortingRowMapper</span><span class="p">(</span> <span class="nb">dict</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Class mapping rows of a collection 1:1 without sorting</span>
+<span class="sd">    and filtering, unless a mapping has been defined explicitly&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">SortingRowMapper</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">row</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy">[docs]</a><span class="k">class</span> <span class="nc">CollectionProxy</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QAbstractTableModel</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The CollectionProxy contains a limited copy of the data in the actual</span>
+<span class="sd">    collection, usable for fast visualisation in a QTableView</span>
+
+<span class="sd">    the CollectionProxy has some class attributes that can be overwritten when</span>
+<span class="sd">    subclassing it :</span>
+
+<span class="sd">    * header_icon : the icon to be used in the vertical header</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_header_font</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">font</span><span class="p">()</span>
+    <span class="n">_header_font_required</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">font</span><span class="p">()</span>
+    <span class="n">_header_font_required</span><span class="o">.</span><span class="n">setBold</span><span class="p">(</span> <span class="bp">True</span> <span class="p">)</span>
+
+    <span class="n">header_icon</span> <span class="o">=</span> <span class="n">Icon</span><span class="p">(</span> <span class="s">&#39;tango/16x16/places/folder.png&#39;</span> <span class="p">)</span>
+
+    <span class="n">item_delegate_changed_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+    <span class="n">row_changed_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">exception_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+    <span class="n">rows_removed_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">()</span>
+
+    <span class="nd">@gui_function</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> 
+                  <span class="n">admin</span><span class="p">,</span> 
+                  <span class="n">collection_getter</span><span class="p">,</span> 
+                  <span class="n">columns_getter</span><span class="p">,</span>
+                  <span class="n">max_number_of_rows</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> 
+                  <span class="n">edits</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> 
+                  <span class="n">flush_changes</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+                  <span class="n">cache_collection_proxy</span> <span class="o">=</span> <span class="bp">None</span>
+                  <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">:param admin: the admin interface for the items in the collection</span>
+
+<span class="sd">:param collection_getter: a function that takes no arguments and returns</span>
+<span class="sd">the collection that will be visualized. This function will be called inside</span>
+<span class="sd">the model thread, to prevent delays when this function causes the database</span>
+<span class="sd">to be hit.  If the collection is a list, it should not contain any duplicate</span>
+<span class="sd">elements.</span>
+
+<span class="sd">:param columns_getter: a function that takes no arguments and returns the</span>
+<span class="sd">columns that will be cached in the proxy. This function will be called</span>
+<span class="sd">inside the model thread.</span>
+
+<span class="sd">:param cache_collection_proxy: the CollectionProxy on which this CollectionProxy</span>
+<span class="sd">will reuse the cache. Passing a cache has the advantage that objects that were</span>
+<span class="sd">present in the original cache will remain at the same row in the new cache</span>
+<span class="sd">This is used when a form is created from a tableview.  Because between the last</span>
+<span class="sd">query of the tableview, and the first of the form, the object might have changed</span>
+<span class="sd">position in the query.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CollectionProxy</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">get_model_thread</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">logger</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s">&#39;.</span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;initialize query table for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">admin</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutex</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_horizontal_header_height</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFontMetrics</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header_font_required</span> <span class="p">)</span><span class="o">.</span><span class="n">height</span><span class="p">()</span> <span class="o">+</span> <span class="mi">10</span>
+        <span class="n">vertical_header_font_height</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFontMetrics</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header_font</span> <span class="p">)</span><span class="o">.</span><span class="n">height</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_header_height</span> <span class="o">=</span> <span class="n">vertical_header_font_height</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">lines_per_row</span> <span class="o">+</span> <span class="mi">10</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">iconSize</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSize</span><span class="p">(</span> <span class="n">vertical_header_font_height</span><span class="p">,</span>
+                                      <span class="n">vertical_header_font_height</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_icon</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">form_icon</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_icon</span><span class="o">.</span><span class="n">getQIcon</span><span class="p">()</span><span class="o">.</span><span class="n">pixmap</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">iconSize</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">form_icon</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">validator</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">create_validator</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_collection_getter</span> <span class="o">=</span> <span class="n">collection_getter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">column_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flush_changes</span> <span class="o">=</span> <span class="n">flush_changes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">delegate_manager</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mt</span> <span class="o">=</span> <span class="n">get_model_thread</span><span class="p">()</span>
+        <span class="c"># Set database connection and load data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_static_field_attributes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_max_number_of_rows</span> <span class="o">=</span> <span class="n">max_number_of_rows</span>
+        <span class="k">if</span> <span class="n">cache_collection_proxy</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span> <span class="o">=</span> <span class="n">cache_collection_proxy</span><span class="o">.</span><span class="n">display_cache</span><span class="o">.</span><span class="n">shallow_copy</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span> <span class="o">=</span> <span class="n">cache_collection_proxy</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">shallow_copy</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span> <span class="o">=</span> <span class="n">cache_collection_proxy</span><span class="o">.</span><span class="n">attributes_cache</span><span class="o">.</span><span class="n">shallow_copy</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>        
+            <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span> <span class="o">=</span> <span class="n">Fifo</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span> <span class="o">=</span> <span class="n">Fifo</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span> <span class="o">=</span> <span class="n">Fifo</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+        <span class="c"># The rows in the table for which a cache refill is under request</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_requests</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="c"># The rows that have unflushed changes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sort_and_filter</span> <span class="o">=</span> <span class="n">SortingRowMapper</span><span class="p">()</span>
+        <span class="c"># Set edits</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">edits</span> <span class="o">=</span> <span class="n">edits</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_changed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_emit_changes</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span> <span class="o">=</span> <span class="n">get_signal_handler</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span><span class="o">.</span><span class="n">connect_signals</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">get_columns</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span> <span class="o">=</span> <span class="n">columns_getter</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_static_field_attributes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_static_field_attributes</span><span class="p">([</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span>
+
+        <span class="n">post</span><span class="p">(</span> <span class="n">get_columns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">setColumns</span> <span class="p">)</span>
+<span class="c">#    # the initial collection might contain unflushed rows</span>
+        <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_unflushed_rows</span> <span class="p">)</span>
+<span class="c">#    # in that way the number of rows is requested as well</span>
+        <span class="k">if</span> <span class="n">cache_collection_proxy</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">setRowCount</span><span class="p">(</span> <span class="n">cache_collection_proxy</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">getRowCount</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">setRowCount</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;initialization finished&#39;</span> <span class="p">)</span>
+
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="CollectionProxy.max_number_of_rows"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.max_number_of_rows">[docs]</a>    <span class="k">def</span> <span class="nf">max_number_of_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The maximum number of rows to be displayed at once&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_max_number_of_rows</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy.get_validator"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.get_validator">[docs]</a>    <span class="k">def</span> <span class="nf">get_validator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">validator</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy.map_to_source"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.map_to_source">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sorted_row_number</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Converts a sorted row number to a row number of the source</span>
+<span class="sd">        collection&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sort_and_filter</span><span class="p">[</span><span class="n">sorted_row_number</span><span class="p">]</span>
+</div>
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_update_unflushed_rows</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Verify all rows to see if some of them should be added to the</span>
+<span class="sd">        unflushed rows&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span> <span class="p">):</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="s">&#39;id&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span><span class="o">.</span><span class="n">add</span><span class="p">(</span> <span class="n">i</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="CollectionProxy.hasUnflushedRows"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.hasUnflushedRows">[docs]</a>    <span class="k">def</span> <span class="nf">hasUnflushedRows</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The model has rows that have not been flushed to the database yet,</span>
+<span class="sd">        because the row is invalid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">has_unflushed_rows</span> <span class="o">=</span> <span class="p">(</span> <span class="nb">len</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span> <span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;hasUnflushed rows : </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">has_unflushed_rows</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">has_unflushed_rows</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="CollectionProxy.getRowCount"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.getRowCount">[docs]</a>    <span class="k">def</span> <span class="nf">getRowCount</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="c"># make sure we don&#39;t count an object twice if it is twice</span>
+        <span class="c"># in the list, since this will drive the cache nuts</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span> <span class="nb">set</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">rows</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.revertRow"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.revertRow">[docs]</a>    <span class="k">def</span> <span class="nf">revertRow</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">row</span> <span class="p">):</span>
+        <span class="k">def</span> <span class="nf">create_refresh_entity</span><span class="p">(</span> <span class="n">row</span> <span class="p">):</span>
+
+            <span class="nd">@model_function</span>
+            <span class="k">def</span> <span class="nf">refresh_entity</span><span class="p">():</span>
+                <span class="n">o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_object</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">refresh</span><span class="p">(</span> <span class="n">o</span> <span class="p">)</span>
+                <span class="k">return</span> <span class="n">row</span><span class="p">,</span> <span class="n">o</span>
+
+            <span class="k">return</span> <span class="n">refresh_entity</span>
+
+        <span class="n">post</span><span class="p">(</span> <span class="n">create_refresh_entity</span><span class="p">(</span> <span class="n">row</span> <span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_revert_row</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">tuple</span><span class="p">)</span>
+    <span class="nd">@gui_function</span>
+    <span class="k">def</span> <span class="nf">_revert_row</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row_and_entity</span> <span class="p">):</span>
+        <span class="n">row</span><span class="p">,</span> <span class="n">entity</span> <span class="o">=</span> <span class="n">row_and_entity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">handleRowUpdate</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span><span class="o">.</span><span class="n">sendEntityUpdate</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">entity</span> <span class="p">)</span>
+
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.refresh"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.refresh">[docs]</a>    <span class="k">def</span> <span class="nf">refresh</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">getRowCount</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_content</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="nd">@gui_function</span>
+    <span class="k">def</span> <span class="nf">_refresh_content</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rows</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span> <span class="o">=</span> <span class="n">Fifo</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span> <span class="o">=</span> <span class="n">Fifo</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span> <span class="o">=</span> <span class="n">Fifo</span><span class="p">(</span> <span class="mi">10</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_number_of_rows</span> <span class="p">)</span>
+        <span class="n">locker</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutexLocker</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setRowCount</span><span class="p">(</span> <span class="n">rows</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="CollectionProxy.set_collection_getter"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.set_collection_getter">[docs]</a>    <span class="k">def</span> <span class="nf">set_collection_getter</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">collection_getter</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;set collection getter&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_collection_getter</span> <span class="o">=</span> <span class="n">collection_getter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="CollectionProxy.get_collection"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.get_collection">[docs]</a>    <span class="k">def</span> <span class="nf">get_collection</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_collection_getter</span><span class="p">()</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.handleRowUpdate"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.handleRowUpdate">[docs]</a>    <span class="k">def</span> <span class="nf">handleRowUpdate</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">row</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handles the update of a row when this row might be out of date&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span><span class="o">.</span><span class="n">delete_by_row</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">delete_by_row</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span><span class="o">.</span><span class="n">delete_by_row</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="mi">0</span> <span class="p">),</span>
+                               <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_count</span> <span class="p">)</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="nb">object</span><span class="p">,</span> <span class="nb">object</span> <span class="p">)</span>
+<div class="viewcode-block" id="CollectionProxy.handle_entity_update"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.handle_entity_update">[docs]</a>    <span class="k">def</span> <span class="nf">handle_entity_update</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">sender</span><span class="p">,</span> <span class="n">entity</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handles the entity signal, indicating that the model is out of</span>
+<span class="sd">        date&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s"> received entity update signal&#39;</span> <span class="o">%</span> \
+                     <span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">sender</span> <span class="o">!=</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span><span class="o">.</span><span class="n">get_row_by_entity</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;entity not in cache&#39;</span> <span class="p">)</span>
+                <span class="k">return</span>
+            <span class="c">#</span>
+            <span class="c"># Because the entity is updated, it might no longer be in our</span>
+            <span class="c"># collection, therefore, make sure we don&#39;t access the collection</span>
+            <span class="c"># to strip data of the entity</span>
+            <span class="c">#</span>
+            <span class="k">def</span> <span class="nf">create_entity_update</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">entity</span><span class="p">):</span>
+
+                <span class="k">def</span> <span class="nf">entity_update</span><span class="p">():</span>
+                    <span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_add_data</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">entity</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">row</span>
+
+                <span class="k">return</span> <span class="n">entity_update</span>
+
+            <span class="n">post</span><span class="p">(</span><span class="n">create_entity_update</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">entity</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_emit_changes</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;duplicate update&#39;</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="nb">object</span><span class="p">,</span> <span class="nb">object</span> <span class="p">)</span>
+<div class="viewcode-block" id="CollectionProxy.handle_entity_delete"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.handle_entity_delete">[docs]</a>    <span class="k">def</span> <span class="nf">handle_entity_delete</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">sender</span><span class="p">,</span> <span class="n">entity</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handles the entity signal, indicating that the model is out of</span>
+<span class="sd">        date&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;received entity delete signal&#39;</span> <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># simply removing the entity from the collection might have</span>
+        <span class="c"># undesirable effects.  eg when a form is pointing to this entity, </span>
+        <span class="c"># so instead update the entity</span>
+        <span class="c">#</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">handle_entity_update</span><span class="p">(</span> <span class="n">sender</span><span class="p">,</span> <span class="n">entity</span> <span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="nb">object</span><span class="p">,</span> <span class="nb">object</span> <span class="p">)</span>
+<div class="viewcode-block" id="CollectionProxy.handle_entity_create"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.handle_entity_create">[docs]</a>    <span class="k">def</span> <span class="nf">handle_entity_create</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">sender</span><span class="p">,</span> <span class="n">entity</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handles the entity signal, indicating that the model is out of</span>
+<span class="sd">        date&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;received entity create signal&#39;</span> <span class="p">)</span>
+        <span class="c"># @todo : decide what to do when a new entity has been created,</span>
+        <span class="c">#         probably do nothing</span>
+        <span class="k">return</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<div class="viewcode-block" id="CollectionProxy.setRowCount"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.setRowCount">[docs]</a>    <span class="k">def</span> <span class="nf">setRowCount</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">rows</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Callback method to set the number of rows</span>
+<span class="sd">        @param rows the new number of rows</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">=</span> <span class="n">rows</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layoutChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy.getItemDelegate"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.getItemDelegate">[docs]</a>    <span class="k">def</span> <span class="nf">getItemDelegate</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: a DelegateManager for this model, or None if no DelegateManager yet available</span>
+<span class="sd">        a DelegateManager will be available once the item_delegate_changed signal has been emitted&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;getItemDelegate&#39;</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">delegate_manager</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy.getColumns"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.getColumns">[docs]</a>    <span class="k">def</span> <span class="nf">getColumns</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: the columns as set by the setColumns method&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.setColumns"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.setColumns">[docs]</a>    <span class="k">def</span> <span class="nf">setColumns</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">columns</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Callback method to set the columns</span>
+
+<span class="sd">        :param columns: a list with fields to be displayed of the form [(&#39;field_name&#39;, field_attributes), ...] as</span>
+<span class="sd">        returned by the getColumns method of the ElixirAdmin class</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;setColumns&#39;</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">column_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span> <span class="n">columns</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span> <span class="o">=</span> <span class="n">columns</span>
+
+        <span class="n">delegate_manager</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">DelegateManager</span><span class="p">()</span>
+        <span class="n">delegate_manager</span><span class="o">.</span><span class="n">set_columns_desc</span><span class="p">(</span> <span class="n">columns</span> <span class="p">)</span>
+
+        <span class="c"># set a delegate for the vertical header</span>
+        <span class="n">delegate_manager</span><span class="o">.</span><span class="n">insertColumnDelegate</span><span class="p">(</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">(</span><span class="n">parent</span> <span class="o">=</span> <span class="n">delegate_manager</span><span class="p">)</span> <span class="p">)</span>
+
+        <span class="c">#</span>
+        <span class="c"># this loop can take a while to complete, so processEvents is called regulary</span>
+        <span class="c">#</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="n">columns</span> <span class="p">):</span>
+<span class="c">#            if i%10==0:</span>
+<span class="c">#                QtCore.QCoreApplication.processEvents(QtCore.QEventLoop.ExcludeSocketNotifiers, 100)</span>
+            <span class="n">field_name</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;creating delegate for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">field_name</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="s">&#39;delegate&#39;</span> <span class="ow">in</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">delegate</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;delegate&#39;</span><span class="p">](</span> <span class="n">parent</span> <span class="o">=</span> <span class="n">delegate_manager</span><span class="p">,</span> <span class="o">**</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;ProgrammingError : could not create delegate for field </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">field_name</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+                    <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">(</span> <span class="n">parent</span> <span class="o">=</span> <span class="n">delegate_manager</span><span class="p">,</span> <span class="o">**</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span>
+                <span class="n">delegate_manager</span><span class="o">.</span><span class="n">insertColumnDelegate</span><span class="p">(</span> <span class="n">i</span><span class="p">,</span> <span class="n">delegate</span> <span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;python_type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="nb">str</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;length&#39;</span><span class="p">]:</span>
+                    <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">(</span> <span class="n">parent</span> <span class="o">=</span> <span class="n">delegate_manager</span><span class="p">,</span> <span class="n">maxlength</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;length&#39;</span><span class="p">]</span> <span class="p">)</span>
+                    <span class="n">delegate_manager</span><span class="o">.</span><span class="n">insertColumnDelegate</span><span class="p">(</span> <span class="n">i</span><span class="p">,</span> <span class="n">delegate</span> <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">TextEditDelegate</span><span class="p">(</span> <span class="n">parent</span> <span class="o">=</span> <span class="n">delegate_manager</span><span class="p">,</span> <span class="o">**</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span>
+                    <span class="n">delegate_manager</span><span class="o">.</span><span class="n">insertColumnDelegate</span><span class="p">(</span> <span class="n">i</span><span class="p">,</span> <span class="n">delegate</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">(</span><span class="n">parent</span> <span class="o">=</span> <span class="n">delegate_manager</span><span class="p">)</span>
+                <span class="n">delegate_manager</span><span class="o">.</span><span class="n">insertColumnDelegate</span><span class="p">(</span> <span class="n">i</span><span class="p">,</span> <span class="n">delegate</span> <span class="p">)</span>
+
+        <span class="c"># Only set the delegate manager when it is fully set up</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">delegate_manager</span> <span class="o">=</span> <span class="n">delegate_manager</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">item_delegate_changed_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layoutChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy.rowCount"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.rowCount">[docs]</a>    <span class="k">def</span> <span class="nf">rowCount</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="bp">None</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy.columnCount"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.columnCount">[docs]</a>    <span class="k">def</span> <span class="nf">columnCount</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="bp">None</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_count</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.headerData"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.headerData">[docs]</a>    <span class="k">def</span> <span class="nf">headerData</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">section</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">role</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;In case the columns have not been set yet, don&#39;t even try to get</span>
+<span class="sd">        information out of them</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">orientation</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">Horizontal</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">section</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_count</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QAbstractTableModel</span><span class="o">.</span><span class="n">headerData</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">section</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">role</span> <span class="p">)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">()[</span><span class="n">section</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;name&#39;</span><span class="p">])</span> <span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">FontRole</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span> <span class="s">&#39;nullable&#39;</span> <span class="ow">in</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="ow">and</span> \
+                   <span class="p">(</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;nullable&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">False</span> <span class="p">):</span>
+                    <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header_font_required</span> <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header_font</span> <span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">SizeHintRole</span><span class="p">:</span>
+                <span class="n">option</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QStyleOptionViewItem</span><span class="p">()</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">delegate_manager</span><span class="p">:</span>
+                    <span class="n">editor_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delegate_manager</span><span class="o">.</span><span class="n">sizeHint</span><span class="p">(</span> <span class="n">option</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="mi">0</span><span class="p">,</span> <span class="n">section</span> <span class="p">)</span> <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">editor_size</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSize</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="k">if</span> <span class="s">&#39;minimal_column_width&#39;</span> <span class="ow">in</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">minimal_column_width</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFontMetrics</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header_font</span> <span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">(</span> <span class="n">Qt</span><span class="o">.</span><span class="n">TextSingleLine</span><span class="p">,</span> <span class="s">&#39;A&#39;</span> <span class="p">)</span><span class="o">.</span><span class="n">width</span><span class="p">()</span><span class="o">*</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;minimal_column_width&#39;</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">minimal_column_width</span> <span class="o">=</span> <span class="mi">100</span>
+                <span class="n">editable</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">if</span> <span class="s">&#39;editable&#39;</span> <span class="ow">in</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">editable</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;editable&#39;</span><span class="p">]</span>
+                <span class="n">label_size</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFontMetrics</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header_font_required</span> <span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">(</span> <span class="n">Qt</span><span class="o">.</span><span class="n">TextSingleLine</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s">&#39;name&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="s">&#39; &#39;</span> <span class="p">)</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span> <span class="n">minimal_column_width</span><span class="p">,</span> <span class="n">label_size</span><span class="o">.</span><span class="n">width</span><span class="p">()</span> <span class="o">+</span> <span class="mi">10</span> <span class="p">)</span>
+                <span class="k">if</span> <span class="n">editable</span><span class="p">:</span>
+                    <span class="n">size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span> <span class="n">size</span><span class="p">,</span> <span class="n">editor_size</span><span class="o">.</span><span class="n">width</span><span class="p">()</span> <span class="p">)</span>
+                <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSize</span><span class="p">(</span> <span class="n">size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_horizontal_header_height</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">SizeHintRole</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_icon</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSize</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">iconSize</span><span class="o">.</span><span class="n">width</span><span class="p">()</span> <span class="o">+</span> <span class="mi">10</span><span class="p">,</span>
+                                                          <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_header_height</span> <span class="p">)</span> <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c"># if there is no icon, the line numbers will be displayed, so create some space for those</span>
+                    <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QSize</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFontMetrics</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header_font</span> <span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">(</span> <span class="n">Qt</span><span class="o">.</span><span class="n">TextSingleLine</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rows</span><span class="p">)</span> <span class="p">)</span><span class="o">.</span><span class="n">width</span><span class="p">()</span> <span class="o">+</span> <span class="mi">10</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_header_height</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">DecorationRole</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_icon</span>
+<span class="c">#      elif role == Qt.DisplayRole:</span>
+<span class="c">#        return QtCore.QVariant()</span>
+        <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QAbstractTableModel</span><span class="o">.</span><span class="n">headerData</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">section</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">role</span> <span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.sort"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.sort">[docs]</a>    <span class="k">def</span> <span class="nf">sort</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">order</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;reimplementation of the QAbstractItemModel its sort function&quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">create_sort</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+
+            <span class="k">def</span> <span class="nf">sort</span><span class="p">():</span>
+                <span class="n">unsorted_collection</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span><span class="n">o</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">o</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">())]</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">item</span><span class="p">:</span><span class="nb">getattr</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span><span class="p">[</span><span class="n">column</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">unsorted_collection</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">j</span><span class="p">,(</span><span class="n">i</span><span class="p">,</span><span class="n">_o</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">unsorted_collection</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_sort_and_filter</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">unsorted_collection</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">sort</span>
+
+        <span class="n">post</span><span class="p">(</span><span class="n">create_sort</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">order</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_content</span><span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.data"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.data">[docs]</a>    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">role</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: the data at index for the specified role</span>
+<span class="sd">        This function will return ValueLoading when the data has not</span>
+<span class="sd">        yet been fetched from the underlying model.  It will then send</span>
+<span class="sd">        a request to the model thread to fetch this data.  Once the data</span>
+<span class="sd">        is readily available, the dataChanged signal will be emitted</span>
+
+<span class="sd">        Using Qt.UserRole as a role will return all the field attributes</span>
+<span class="sd">        of the index.</span>
+<span class="sd">        </span>
+<span class="sd">        Using Qt.UserRole+1 will return the object of which an attribute</span>
+<span class="sd">        is displayed in that specific cell</span>
+<span class="sd">        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span><span class="o">.</span><span class="n">isValid</span><span class="p">()</span> <span class="ow">or</span> \
+           <span class="ow">not</span> <span class="p">(</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rowCount</span><span class="p">(</span> <span class="n">index</span> <span class="p">)</span> <span class="p">)</span> <span class="ow">or</span> \
+           <span class="ow">not</span> <span class="p">(</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">columnCount</span><span class="p">(</span> <span class="n">index</span> <span class="p">)</span> <span class="p">):</span>
+            <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">role</span> <span class="ow">in</span> <span class="p">(</span><span class="n">Qt</span><span class="o">.</span><span class="n">EditRole</span><span class="p">,</span> <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">EditRole</span><span class="p">:</span>
+                <span class="n">cache</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cache</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_row_data</span><span class="p">(</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="n">cache</span> <span class="p">)</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">value</span><span class="p">,</span> <span class="n">DelayedProxy</span> <span class="p">):</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="p">()</span>
+                <span class="c"># store the created proxy, to prevent recreation of it</span>
+                <span class="c"># afterwards.</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">value</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="p">):</span>
+                <span class="c"># Putting a python datetime into a QVariant and returning</span>
+                <span class="c"># it to a PyObject seems to be buggy, therefore we chop the</span>
+                <span class="c"># microseconds</span>
+                <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QDateTime</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">year</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">month</span><span class="p">,</span>
+                                             <span class="n">value</span><span class="o">.</span><span class="n">day</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">hour</span><span class="p">,</span>
+                                             <span class="n">value</span><span class="o">.</span><span class="n">minute</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">second</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="n">value</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">ToolTipRole</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_field_attribute_value</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="s">&#39;tooltip&#39;</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">BackgroundRole</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_field_attribute_value</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="s">&#39;background_color&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QColor</span><span class="p">(</span><span class="s">&#39;White&#39;</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">UserRole</span><span class="p">:</span>
+            <span class="n">field_attributes</span> <span class="o">=</span> <span class="n">ProxyDict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_static_field_attributes</span><span class="p">[</span><span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()])</span>
+            <span class="n">dynamic_field_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_row_data</span><span class="p">(</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span> <span class="p">)[</span><span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="n">dynamic_field_attributes</span> <span class="o">!=</span> <span class="n">ValueLoading</span><span class="p">:</span>
+                <span class="n">field_attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span> <span class="n">dynamic_field_attributes</span> <span class="p">)</span>
+            <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span><span class="n">field_attributes</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">UserRole</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">get_entity_at_row</span><span class="p">(</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">(</span> <span class="n">ValueLoading</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QVariant</span><span class="p">()</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_field_attribute_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">field_attribute</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the values for the static and the dynamic field attributes at once</span>
+<span class="sd">        :return: the value of the field attribute&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_static_field_attributes</span><span class="p">[</span><span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()][</span><span class="n">field_attribute</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_row_data</span><span class="p">(</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span> <span class="p">)[</span><span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="n">ValueLoading</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">None</span>
+            <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">field_attribute</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_handle_update_requests</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c">#</span>
+        <span class="c"># Copy the update requests and clear the list of requests</span>
+        <span class="c">#</span>
+        <span class="n">locker</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutexLocker</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="p">)</span>
+        <span class="n">update_requests</span> <span class="o">=</span> <span class="p">[</span><span class="n">u</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_requests</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_requests</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+        <span class="c">#</span>
+        <span class="c"># Handle the requests</span>
+        <span class="c">#</span>
+        <span class="n">return_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">flushed</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">update_requests</span><span class="p">:</span>
+            <span class="n">attribute</span><span class="p">,</span> <span class="n">field_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">()[</span><span class="n">column</span><span class="p">]</span>
+
+            <span class="kn">from</span> <span class="nn">sqlalchemy.exc</span> <span class="kn">import</span> <span class="n">DatabaseError</span>
+            <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span>
+            <span class="n">new_value</span> <span class="o">=</span> <span class="n">value</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;set data for row </span><span class="si">%s</span><span class="s">;col </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="n">column</span> <span class="p">)</span> <span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">new_value</span> <span class="o">==</span> <span class="n">ValueLoading</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">None</span>
+
+            <span class="c">#</span>
+            <span class="c"># don&#39;t use _get_object, but only update objects which are in the</span>
+            <span class="c"># cache, otherwise it is not sure that the object updated is the</span>
+            <span class="c"># one that was edited</span>
+            <span class="c">#</span>
+            <span class="n">o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">get_entity_at_row</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">o</span><span class="p">:</span>
+                <span class="c"># the object might have been deleted from the collection while the editor</span>
+                <span class="c"># was still open</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;this object is no longer in the collection&#39;</span> <span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="k">return</span>
+            
+            <span class="c">#</span>
+            <span class="c"># the object might have been deleted while an editor was open</span>
+            <span class="c"># </span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">is_deleted</span><span class="p">(</span> <span class="n">o</span> <span class="p">):</span>
+                <span class="k">return</span>
+
+            <span class="n">old_value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span> <span class="n">o</span><span class="p">,</span> <span class="n">attribute</span> <span class="p">)</span>
+            <span class="c">#</span>
+            <span class="c"># When the value is a related object, the related object might have changed</span>
+            <span class="c">#</span>
+            <span class="n">changed</span> <span class="o">=</span> <span class="p">(</span> <span class="n">new_value</span> <span class="o">!=</span> <span class="n">old_value</span> <span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+              <span class="n">field_attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;embedded&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span> <span class="ow">and</span> \
+              <span class="n">field_attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;target&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">))</span>
+            <span class="c">#</span>
+            <span class="c"># In case the attribute is a OneToMany or ManyToMany, we cannot simply compare the</span>
+            <span class="c"># old and new value to know if the object was changed, so we&#39;ll</span>
+            <span class="c"># consider it changed anyway</span>
+            <span class="c">#</span>
+            <span class="n">direction</span> <span class="o">=</span> <span class="n">field_attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span> <span class="s">&#39;direction&#39;</span><span class="p">,</span> <span class="bp">None</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="n">direction</span> <span class="ow">in</span> <span class="p">(</span> <span class="n">orm</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">MANYTOMANY</span><span class="p">,</span> <span class="n">orm</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">ONETOMANY</span> <span class="p">):</span>
+                <span class="n">changed</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">if</span> <span class="n">changed</span><span class="p">:</span>
+                <span class="c"># update the model</span>
+                <span class="n">model_updated</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="nb">setattr</span><span class="p">(</span> <span class="n">o</span><span class="p">,</span> <span class="n">attribute</span><span class="p">,</span> <span class="n">new_value</span> <span class="p">)</span>
+                    <span class="c">#</span>
+                    <span class="c"># setting this attribute, might trigger a default function to return a value,</span>
+                    <span class="c"># that was not returned before</span>
+                    <span class="c">#</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">set_defaults</span><span class="p">(</span> <span class="n">o</span><span class="p">,</span> <span class="n">include_nullable_fields</span><span class="o">=</span><span class="bp">False</span> <span class="p">)</span>
+                    <span class="n">model_updated</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span> <span class="s">u&quot;Can&#39;t set attribute </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span> <span class="n">attribute</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">(</span> <span class="n">new_value</span> <span class="p">)</span> <span class="p">),</span> <span class="n">exc_info</span> <span class="o">=</span> <span class="n">e</span> <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                    <span class="c"># type error can be raised in case we try to set to a collection</span>
+                    <span class="k">pass</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">flush_changes</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">validator</span><span class="o">.</span><span class="n">isValid</span><span class="p">(</span> <span class="n">row</span> <span class="p">):</span>
+                    <span class="c"># save the state before the update</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="n">o</span> <span class="p">)</span>
+                    <span class="k">except</span> <span class="n">DatabaseError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="c">#@todo: when flushing fails, the object should not be removed from the unflushed rows ??</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span> <span class="s">&#39;Programming Error, could not flush object&#39;</span><span class="p">,</span> <span class="n">exc_info</span> <span class="o">=</span> <span class="n">e</span> <span class="p">)</span>
+                    <span class="n">locker</span><span class="o">.</span><span class="n">relock</span><span class="p">()</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                    <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+                    <span class="c">#</span>
+                    <span class="c"># we can only track history if the model was updated, and it was</span>
+                    <span class="c"># flushed before, otherwise it has no primary key yet</span>
+                    <span class="c">#</span>
+                    <span class="k">if</span> <span class="n">model_updated</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="s">&#39;id&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">o</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+                        <span class="c">#</span>
+                        <span class="c"># in case of files or relations, we cannot pickle them</span>
+                        <span class="c">#</span>
+                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">old_value</span><span class="p">,</span> <span class="n">StoredFile</span> <span class="p">):</span>
+                            <span class="n">old_value</span> <span class="o">=</span> <span class="n">old_value</span><span class="o">.</span><span class="n">name</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">direction</span><span class="p">:</span>
+                            <span class="kn">from</span> <span class="nn">camelot.model.memento</span> <span class="kn">import</span> <span class="n">BeforeUpdate</span>
+                            <span class="c"># only register the update when the camelot model is active</span>
+                            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">BeforeUpdate</span><span class="p">,</span> <span class="s">&#39;query&#39;</span><span class="p">):</span>
+                                <span class="kn">from</span> <span class="nn">camelot.model.authentication</span> <span class="kn">import</span> <span class="n">getCurrentAuthentication</span>
+                                <span class="n">history</span> <span class="o">=</span> <span class="n">BeforeUpdate</span><span class="p">(</span> <span class="n">model</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">__name__</span> <span class="p">),</span>
+                                                       <span class="n">primary_key</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                                                       <span class="n">previous_attributes</span> <span class="o">=</span> <span class="p">{</span><span class="n">attribute</span><span class="p">:</span><span class="n">old_value</span><span class="p">},</span>
+                                                       <span class="n">authentication</span> <span class="o">=</span> <span class="n">getCurrentAuthentication</span><span class="p">()</span> <span class="p">)</span>
+
+                                <span class="k">try</span><span class="p">:</span>
+                                    <span class="n">history</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+                                <span class="k">except</span> <span class="n">DatabaseError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span> <span class="s">&#39;Programming Error, could not flush history&#39;</span><span class="p">,</span> <span class="n">exc_info</span> <span class="o">=</span> <span class="n">e</span> <span class="p">)</span>
+                <span class="c"># update the cache</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_add_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">(),</span> <span class="n">row</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span>
+                <span class="c">#@todo: update should only be sent remotely when flush was done</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span><span class="o">.</span><span class="n">sendEntityUpdate</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">o</span> <span class="p">)</span>
+                <span class="k">for</span> <span class="n">depending_obj</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_depending_objects</span><span class="p">(</span> <span class="n">o</span> <span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span><span class="o">.</span><span class="n">sendEntityUpdate</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">depending_obj</span> <span class="p">)</span>
+                <span class="n">return_list</span><span class="o">.</span><span class="n">append</span><span class="p">((</span> <span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="mi">0</span> <span class="p">),</span> <span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">()</span> <span class="p">)</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="k">elif</span> <span class="n">flushed</span><span class="p">:</span>
+                <span class="n">locker</span><span class="o">.</span><span class="n">relock</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;old value equals new value, no need to flush this object&#39;</span> <span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">return_list</span>
+
+
+<div class="viewcode-block" id="CollectionProxy.setData"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.setData">[docs]</a>    <span class="k">def</span> <span class="nf">setData</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">role</span> <span class="o">=</span> <span class="n">Qt</span><span class="o">.</span><span class="n">EditRole</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Value should be a function taking no arguments that returns the data to</span>
+<span class="sd">        be set</span>
+
+<span class="sd">        This function will then be called in the model_thread</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#</span>
+        <span class="c"># prevent data of being set in rows not actually in this model</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">False</span>
+        
+        <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="n">Qt</span><span class="o">.</span><span class="n">EditRole</span><span class="p">:</span>
+
+            <span class="c"># if the field is not editable, don&#39;t waste any time and get out of here</span>
+            <span class="c"># editable should be explicitely True, since the _get_field_attribute_value</span>
+            <span class="c"># might return intermediary values such as ValueLoading ??</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_field_attribute_value</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="s">&#39;editable&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="k">return</span>
+
+            <span class="n">locker</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutexLocker</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span> <span class="p">)</span>
+            <span class="n">flushed</span> <span class="o">=</span> <span class="p">(</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span><span class="o">.</span><span class="n">add</span><span class="p">(</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_requests</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="p">(</span><span class="n">flushed</span><span class="p">,</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">(),</span> <span class="n">value</span><span class="p">)</span> <span class="p">)</span>
+            <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+            <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_update_requests</span> <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">True</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="nd">@gui_function</span>
+    <span class="k">def</span> <span class="nf">_emit_changes</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">row</span> <span class="p">):</span>
+        <span class="k">if</span> <span class="n">row</span><span class="o">!=</span><span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dataChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="mi">0</span> <span class="p">),</span>
+                                   <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_count</span> <span class="p">)</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="CollectionProxy.flags"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.flags">[docs]</a>    <span class="k">def</span> <span class="nf">flags</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">index</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the item flags for the given index&quot;&quot;&quot;</span>
+        <span class="n">flags</span> <span class="o">=</span> <span class="n">Qt</span><span class="o">.</span><span class="n">ItemIsEnabled</span> <span class="o">|</span> <span class="n">Qt</span><span class="o">.</span><span class="n">ItemIsSelectable</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_field_attribute_value</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="s">&#39;editable&#39;</span><span class="p">):</span>
+            <span class="n">flags</span> <span class="o">=</span> <span class="n">flags</span> <span class="o">|</span> <span class="n">Qt</span><span class="o">.</span><span class="n">ItemIsEditable</span>
+        <span class="k">return</span> <span class="n">flags</span>
+</div>
+    <span class="k">def</span> <span class="nf">_add_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add data from object o at a row in the cache</span>
+<span class="sd">        :param columns: the columns of which to strip data</span>
+<span class="sd">        :param row: the row in the cache into which to add data</span>
+<span class="sd">        :param obj: the object from which to strip the data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">is_deleted</span><span class="p">(</span> <span class="n">obj</span> <span class="p">):</span>
+            <span class="n">row_data</span> <span class="o">=</span> <span class="n">strip_data_from_object</span><span class="p">(</span> <span class="n">obj</span><span class="p">,</span> <span class="n">columns</span> <span class="p">)</span>
+            <span class="n">dynamic_field_attributes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_dynamic_field_attributes</span><span class="p">(</span> <span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">)))</span>
+            <span class="n">static_field_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_static_field_attributes</span><span class="p">(</span> <span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">)</span> <span class="p">)</span>
+            <span class="n">unicode_row_data</span> <span class="o">=</span> <span class="n">stripped_data_to_unicode</span><span class="p">(</span> <span class="n">row_data</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">static_field_attributes</span><span class="p">,</span> <span class="n">dynamic_field_attributes</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">row_data</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
+            <span class="n">dynamic_field_attributes</span> <span class="o">=</span>  <span class="p">[{</span><span class="s">&#39;editable&#39;</span><span class="p">:</span><span class="bp">False</span><span class="p">}]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
+            <span class="n">static_field_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_static_field_attributes</span><span class="p">(</span> <span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">)</span> <span class="p">)</span>
+            <span class="n">unicode_row_data</span> <span class="o">=</span> <span class="p">[</span><span class="s">u&#39;&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
+        <span class="n">locker</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutexLocker</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">row_data</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">unicode_row_data</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">dynamic_field_attributes</span> <span class="p">)</span>
+        <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+        <span class="c">#</span>
+        <span class="c"># it might be that the CollectionProxy is deleted on the QT side of</span>
+        <span class="c"># the application</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_deleted</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">row_changed_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_skip_row</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: True if the object obj is already in the cache, but at a</span>
+<span class="sd">        different row then row.  If this is the case, this object should not</span>
+<span class="sd">        be put in the cache at row, and this row should be skipped alltogether.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">get_row_by_entity</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">!=</span><span class="n">row</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">_offset_and_limit_rows_to_get</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;From the current set of rows to get, find the first</span>
+<span class="sd">        continuous range of rows that should be fetched.</span>
+<span class="sd">        :return: (offset, limit)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">previous_length</span><span class="p">,</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+        <span class="c">#</span>
+        <span class="c"># wait for a while until the rows under request don&#39;t change any</span>
+        <span class="c"># more</span>
+        <span class="c">#</span>
+        <span class="n">locker</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutexLocker</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">previous_length</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span><span class="p">):</span>
+            <span class="n">previous_length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span><span class="p">)</span>
+            <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+            <span class="n">QThread</span><span class="o">.</span><span class="n">msleep</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+            <span class="n">locker</span><span class="o">.</span><span class="n">relock</span><span class="p">()</span>
+        <span class="c">#</span>
+        <span class="c"># now filter out all rows that have been put in the cache</span>
+        <span class="c"># the gui thread didn&#39;t know about</span>
+        <span class="c">#</span>
+        <span class="n">rows_to_get</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span>
+        <span class="n">rows_already_there</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows_to_get</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">has_data_at_row</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+                <span class="n">rows_already_there</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+        <span class="n">rows_to_get</span><span class="o">.</span><span class="n">difference_update</span><span class="p">(</span> <span class="n">rows_already_there</span> <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># see if there is anything left to do</span>
+        <span class="c">#</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">rows_to_get</span><span class="p">:</span>
+                <span class="n">rows_to_get</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">rows_to_get</span><span class="p">)</span>
+                <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+                <span class="n">rows_to_get</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+                <span class="n">offset</span> <span class="o">=</span> <span class="n">rows_to_get</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="c">#</span>
+                <span class="c"># find first discontinuity</span>
+                <span class="c">#</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">rows_to_get</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">rows_to_get</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="n">offset</span><span class="p">]</span> <span class="o">!=</span> <span class="n">i</span><span class="p">:</span>
+                        <span class="k">break</span>
+                <span class="n">limit</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="n">offset</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;index error with rows_to_get </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">unicode</span><span class="p">(</span><span class="n">rows_to_get</span><span class="p">),</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">e</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">limit</span><span class="p">)</span>
+
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_extend_cache</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Extend the cache around the rows under request&quot;&quot;&quot;</span>
+        <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_and_limit_rows_to_get</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">()</span>
+            <span class="n">collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span>
+            <span class="n">skipped_rows</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">offset</span> <span class="o">+</span> <span class="n">limit</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span><span class="p">)):</span>
+                <span class="n">object_found</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="k">while</span> <span class="ow">not</span> <span class="n">object_found</span><span class="p">:</span>
+                    <span class="n">unsorted_row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sort_and_filter</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                    <span class="n">obj</span> <span class="o">=</span> <span class="n">collection</span><span class="p">[</span><span class="n">unsorted_row</span><span class="o">+</span><span class="n">skipped_rows</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_skip_row</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+                        <span class="n">skipped_rows</span> <span class="o">=</span> <span class="n">skipped_rows</span> <span class="o">+</span> <span class="mi">1</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_add_data</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+                        <span class="n">object_found</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="p">(</span> <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span> <span class="p">)</span>
+
+    <span class="nd">@model_function</span>
+    <span class="k">def</span> <span class="nf">_get_object</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">sorted_row_number</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the object corresponding to row</span>
+<span class="sd">        :return: the object at row row or None if the row index is invalid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c"># first try to get the primary key out of the cache, if it&#39;s not</span>
+            <span class="c"># there, query the collection_getter</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">get_entity_at_row</span><span class="p">(</span> <span class="n">sorted_row_number</span> <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()[</span><span class="bp">self</span><span class="o">.</span><span class="n">map_to_source</span><span class="p">(</span><span class="n">sorted_row_number</span><span class="p">)]</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">tuple</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_cache_extended</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">interval</span> <span class="p">):</span>
+        <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span> <span class="o">=</span> <span class="n">interval</span>
+        <span class="n">locker</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutexLocker</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span><span class="o">.</span><span class="n">difference_update</span><span class="p">(</span> <span class="nb">set</span><span class="p">(</span> <span class="nb">range</span><span class="p">(</span> <span class="n">offset</span><span class="p">,</span> <span class="n">offset</span> <span class="o">+</span> <span class="n">limit</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_get_row_data</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">cache</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the data which is to be visualized at a certain row of the</span>
+<span class="sd">        table, if needed, post a refill request the cache to get the object</span>
+<span class="sd">        and its neighbours in the cache, meanwhile, return an empty object</span>
+<span class="sd">        :param row: the row of the table for which to get the data</span>
+<span class="sd">        :param cache: the cache out of which to get row data</span>
+<span class="sd">        :return: row_data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">get_data_at_row</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+            <span class="c">#</span>
+            <span class="c"># check if data is None, then the cache was a copy of previous</span>
+            <span class="c"># cache, and the data should be refetched</span>
+            <span class="c">#</span>
+            <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span>
+            <span class="k">return</span> <span class="n">data</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">row</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span><span class="p">:</span>
+                <span class="n">locker</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QMutexLocker</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rows_under_request</span><span class="o">.</span><span class="n">add</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+                <span class="n">locker</span><span class="o">.</span><span class="n">unlock</span><span class="p">()</span>
+                <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extend_cache</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache_extended</span> <span class="p">)</span>
+            <span class="k">return</span> <span class="n">empty_row_data</span>
+
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="CollectionProxy.remove"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.remove">[docs]</a>    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">o</span> <span class="p">):</span>
+        <span class="n">collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">collection</span><span class="p">:</span>
+            <span class="n">collection</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">o</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">-=</span> <span class="mi">1</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="CollectionProxy.append"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.append">[docs]</a>    <span class="k">def</span> <span class="nf">append</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">o</span> <span class="p">):</span>
+        <span class="n">collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">o</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">collection</span><span class="p">:</span>
+            <span class="n">collection</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">o</span> <span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="CollectionProxy.remove_objects"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.remove_objects">[docs]</a>    <span class="k">def</span> <span class="nf">remove_objects</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">objects_to_remove</span><span class="p">,</span> <span class="n">delete</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param objects_to_remove: a list of objects that need to be removed</span>
+<span class="sd">        from the collection</span>
+<span class="sd">        :param delete: True if the objects need to be deleted</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#</span>
+        <span class="c"># it might be impossible to determine the depending objects once</span>
+        <span class="c"># the object has been removed from the collection</span>
+        <span class="c">#</span>
+        <span class="n">depending_objects</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span> <span class="n">itertools</span><span class="o">.</span><span class="n">chain</span><span class="o">.</span><span class="n">from_iterable</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_depending_objects</span><span class="p">(</span> <span class="n">o</span> <span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">objects_to_remove</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">objects_to_remove</span><span class="p">:</span>
+            <span class="c">#</span>
+            <span class="c"># We should not update depending objects that have</span>
+            <span class="c"># been deleted themselves</span>
+            <span class="c">#</span>
+            <span class="k">if</span> <span class="n">delete</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">depending_objects</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+            <span class="c">#</span>
+            <span class="c"># if needed, delete the objects</span>
+            <span class="c">#</span>
+            <span class="k">if</span> <span class="n">delete</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span><span class="o">.</span><span class="n">sendEntityDelete</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">obj</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+                <span class="c"># remove only when delete took place without exception</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># even if the object is not deleted, it needs to be flushed to make</span>
+                <span class="c"># sure the persisted object is out of the collection as well</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">(</span> <span class="n">obj</span> <span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+            <span class="c">#</span>
+            <span class="c"># remove the entity from the cache, only if the delete and remove</span>
+            <span class="c"># took place without exception</span>
+            <span class="c">#</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">display_cache</span><span class="o">.</span><span class="n">delete_by_entity</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">attributes_cache</span><span class="o">.</span><span class="n">delete_by_entity</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">edit_cache</span><span class="o">.</span><span class="n">delete_by_entity</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">depending_obj</span> <span class="ow">in</span> <span class="n">depending_objects</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span><span class="o">.</span><span class="n">sendEntityUpdate</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">depending_obj</span> <span class="p">)</span>
+        <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">getRowCount</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_content</span> <span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.remove_rows"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.remove_rows">[docs]</a>    <span class="k">def</span> <span class="nf">remove_rows</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">delete</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove the entity associated with this row from this collection</span>
+<span class="sd">        @param rows: a list with the numbers of the rows to remove</span>
+<span class="sd">        @param delete: delete the entity as well</span>
+<span class="sd">        </span>
+<span class="sd">        The rows_removed signal will be emitted when the removal was </span>
+<span class="sd">        successful, otherwise the exception_signal will be emitted.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;remove rows&#39;</span> <span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">create_delete_function</span><span class="p">(</span> <span class="n">rows</span> <span class="p">):</span>
+
+            <span class="k">def</span> <span class="nf">delete_function</span><span class="p">():</span>
+                <span class="sd">&quot;&quot;&quot;Remove all rows from the underlying collection</span>
+<span class="sd">                :return: the number of rows left in the collection&quot;&quot;&quot;</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">objects_to_remove</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_object</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">remove_objects</span><span class="p">(</span> <span class="n">objects_to_remove</span><span class="p">,</span> <span class="n">delete</span> <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">rows_removed_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
+                    <span class="n">exc_info</span> <span class="o">=</span> <span class="n">register_exception</span><span class="p">(</span> <span class="n">logger</span><span class="p">,</span>
+                                                   <span class="s">&#39;exception while removing rows&#39;</span><span class="p">,</span>
+                                                   <span class="n">exc</span> <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">exception_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">exc_info</span> <span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">delete_function</span>
+
+        <span class="n">post</span><span class="p">(</span> <span class="n">create_delete_function</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">True</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.copy_row"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.copy_row">[docs]</a>    <span class="k">def</span> <span class="nf">copy_row</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">row</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Copy the entity associated with this row to the end of the collection</span>
+<span class="sd">        :param row: the row number</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">create_copy_function</span><span class="p">(</span> <span class="n">row</span> <span class="p">):</span>
+
+            <span class="k">def</span> <span class="nf">copy_function</span><span class="p">():</span>
+                <span class="n">o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_object</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+                <span class="n">new_object</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span> <span class="n">o</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">append_object</span><span class="p">(</span><span class="n">new_object</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">copy_function</span>
+
+        <span class="n">post</span><span class="p">(</span> <span class="n">create_copy_function</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">True</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="CollectionProxy.append_object"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.append_object">[docs]</a>    <span class="k">def</span> <span class="nf">append_object</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">obj</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Append an object to this collection, set the possible defaults and flush</span>
+<span class="sd">        the object if possible/needed</span>
+<span class="sd">        </span>
+<span class="sd">        :param obj: the object to be added to the collection</span>
+<span class="sd">        :return: the new number of rows in the collection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span> <span class="n">rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">beginInsertRows</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">(),</span> <span class="n">row</span><span class="p">,</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+        <span class="c"># defaults might depend on object being part of a collection</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">set_defaults</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span><span class="o">.</span><span class="n">add</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">flush_changes</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">validator</span><span class="o">.</span><span class="n">objectValidity</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span> <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="n">obj</span> <span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">unflushed_rows</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">for</span> <span class="n">depending_obj</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_depending_objects</span><span class="p">(</span> <span class="n">obj</span> <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span><span class="o">.</span><span class="n">sendEntityUpdate</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">depending_obj</span> <span class="p">)</span>
+<span class="c"># TODO : it&#39;s not because an object is added to this list, that it was created</span>
+<span class="c"># it might as well exist already, eg. manytomany relation</span>
+<span class="c">#      from camelot.model.memento import Create</span>
+<span class="c">#      from camelot.model.authentication import getCurrentAuthentication</span>
+<span class="c">#      history = Create(model=unicode(self.admin.entity.__name__),</span>
+<span class="c">#                       primary_key=o.id,</span>
+<span class="c">#                       authentication = getCurrentAuthentication())</span>
+<span class="c">#      elixir.session.flush([history])</span>
+<span class="c">#      self.rsh.sendEntityCreate(self, o)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span> <span class="o">=</span> <span class="n">rows</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">endInsertRows</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rows</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="CollectionProxy.append_row"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.append_row">[docs]</a>    <span class="k">def</span> <span class="nf">append_row</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">object_getter</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param object_getter: a function that returns the object to be put in the</span>
+<span class="sd">        appended row.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">create_append_function</span><span class="p">(</span> <span class="n">getter</span> <span class="p">):</span>
+
+            <span class="k">def</span> <span class="nf">append_function</span><span class="p">():</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">append_object</span><span class="p">(</span> <span class="n">getter</span><span class="p">()</span> <span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">append_function</span>
+
+        <span class="n">post</span><span class="p">(</span> <span class="n">create_append_function</span><span class="p">(</span> <span class="n">object_getter</span> <span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_content</span> <span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="CollectionProxy.getData"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.getData">[docs]</a>    <span class="k">def</span> <span class="nf">getData</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generator for all the data queried by this proxy&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">_i</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span> <span class="p">):</span>
+            <span class="k">yield</span> <span class="n">strip_data_from_object</span><span class="p">(</span> <span class="n">o</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">getColumns</span><span class="p">()</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CollectionProxy.get_admin"><a class="viewcode-back" href="../../../../api2/camelot.view.proxy.html#camelot.view.proxy.collection_proxy.CollectionProxy.get_admin">[docs]</a>    <span class="k">def</span> <span class="nf">get_admin</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the admin object associated with this model&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span>
+</pre></div></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../proxy.html" >camelot.view.proxy</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

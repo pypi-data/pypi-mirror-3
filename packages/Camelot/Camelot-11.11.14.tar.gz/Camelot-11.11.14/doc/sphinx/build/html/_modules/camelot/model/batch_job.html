@@ -1,0 +1,289 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.model.batch_job &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.model.batch_job</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+<span class="sd">&quot;&quot;&quot;Most applications need to perform some scheduled jobs to process information.</span>
+<span class="sd">Users need to be able to monitor the functioning of those scheduled jobs.</span>
+
+<span class="sd">These classes provide the means to store the result of batch jobs to enable the user to</span>
+<span class="sd">review or plan them.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">sqlalchemy.types</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">orm</span><span class="p">,</span> <span class="n">sql</span>
+
+<span class="kn">from</span> <span class="nn">elixir.entity</span> <span class="kn">import</span> <span class="n">Entity</span>
+<span class="kn">from</span> <span class="nn">elixir.options</span> <span class="kn">import</span> <span class="n">using_options</span>
+<span class="kn">from</span> <span class="nn">elixir.fields</span> <span class="kn">import</span> <span class="n">Field</span>
+<span class="kn">from</span> <span class="nn">elixir.relationships</span> <span class="kn">import</span> <span class="n">ManyToOne</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext_lazy</span> <span class="k">as</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">camelot.model</span> <span class="kn">import</span> <span class="n">metadata</span>
+<span class="kn">from</span> <span class="nn">camelot.view</span> <span class="kn">import</span> <span class="n">filters</span>
+<span class="kn">from</span> <span class="nn">camelot.admin.entity_admin</span> <span class="kn">import</span> <span class="n">EntityAdmin</span>
+<span class="kn">from</span> <span class="nn">camelot.admin.action</span> <span class="kn">import</span> <span class="n">Action</span>
+<span class="kn">from</span> <span class="nn">camelot.core.document</span> <span class="kn">import</span> <span class="n">documented_entity</span>
+<span class="kn">import</span> <span class="nn">camelot.types</span>
+
+<span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="n">__metadata__</span> <span class="o">=</span> <span class="n">metadata</span>
+
+<div class="viewcode-block" id="BatchJobType"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJobType">[docs]</a><span class="k">class</span> <span class="nc">BatchJobType</span><span class="p">(</span><span class="n">Entity</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The type of batch job, the user will be able to filter his</span>
+<span class="sd">    jobs based on their type.  A type might be &#39;Create management reports&#39; &quot;&quot;&quot;</span>
+    <span class="n">using_options</span><span class="p">(</span> <span class="n">tablename</span> <span class="o">=</span> <span class="s">&#39;batch_job_type&#39;</span> <span class="p">)</span>
+    <span class="n">name</span>   <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">256</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;BatchJobType&#39;</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+    
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BatchJobType.get_or_create"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJobType.get_or_create">[docs]</a>    <span class="k">def</span> <span class="nf">get_or_create</span><span class="p">(</span> <span class="n">cls</span><span class="p">,</span> <span class="n">name</span> <span class="p">):</span>
+        <span class="n">batch_job_type</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span> <span class="n">name</span> <span class="o">=</span> <span class="n">name</span> <span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">batch_job_type</span><span class="p">:</span>
+            <span class="n">batch_job_type</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span> <span class="n">name</span> <span class="o">=</span> <span class="n">name</span> <span class="p">)</span>
+            <span class="n">batch_job_type</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">batch_job_type</span>
+    </div>
+<div class="viewcode-block" id="BatchJobType.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJobType.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Batch job type&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">,</span> <span class="s">&#39;parent&#39;</span><span class="p">]</span>
+        </div></div>
+<span class="n">BatchJobType</span> <span class="o">=</span> <span class="n">documented_entity</span><span class="p">()(</span> <span class="n">BatchJobType</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="hostname"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.hostname">[docs]</a><span class="k">def</span> <span class="nf">hostname</span><span class="p">():</span>
+    <span class="kn">import</span> <span class="nn">socket</span>
+    <span class="k">return</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">()</span>
+    </div>
+<div class="viewcode-block" id="CancelBatchJob"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.CancelBatchJob">[docs]</a><span class="k">class</span> <span class="nc">CancelBatchJob</span><span class="p">(</span> <span class="n">Action</span> <span class="p">):</span>
+    
+<div class="viewcode-block" id="CancelBatchJob.model_run"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.CancelBatchJob.model_run">[docs]</a>    <span class="k">def</span> <span class="nf">model_run</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">model_context</span> <span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.action_steps</span> <span class="kn">import</span> <span class="n">FlushSession</span>
+        <span class="k">for</span> <span class="n">batch_job</span> <span class="ow">in</span> <span class="n">model_context</span><span class="o">.</span><span class="n">get_selection</span><span class="p">():</span>
+            <span class="n">batch_job</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="s">&#39;canceled&#39;</span>
+        <span class="k">yield</span> <span class="n">FlushSession</span><span class="p">(</span> <span class="n">model_context</span><span class="o">.</span><span class="n">session</span> <span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="BatchJob"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJob">[docs]</a><span class="k">class</span> <span class="nc">BatchJob</span><span class="p">(</span><span class="n">Entity</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Information the batch job that is planned, running or has run&quot;&quot;&quot;</span>
+    <span class="n">using_options</span><span class="p">(</span> <span class="n">tablename</span> <span class="o">=</span> <span class="s">&#39;batch_job&#39;</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;-date&#39;</span><span class="p">]</span> <span class="p">)</span>
+    <span class="n">date</span>    <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">DateTime</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">)</span>
+    <span class="n">host</span>    <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">256</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">hostname</span><span class="p">)</span>
+    <span class="nb">type</span>    <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;BatchJobType&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">ondelete</span> <span class="o">=</span> <span class="s">&#39;restrict&#39;</span><span class="p">,</span> <span class="n">onupdate</span> <span class="o">=</span> <span class="s">&#39;cascade&#39;</span><span class="p">)</span>
+    <span class="n">status</span>  <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Enumeration</span><span class="p">([</span> <span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="s">&#39;planned&#39;</span><span class="p">),</span> 
+                                                <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s">&#39;running&#39;</span><span class="p">),</span> 
+                                                <span class="p">(</span><span class="mi">0</span><span class="p">,</span>  <span class="s">&#39;success&#39;</span><span class="p">),</span> 
+                                                <span class="p">(</span><span class="mi">1</span><span class="p">,</span>  <span class="s">&#39;warnings&#39;</span><span class="p">),</span> 
+                                                <span class="p">(</span><span class="mi">2</span><span class="p">,</span>  <span class="s">&#39;errors&#39;</span><span class="p">),</span>
+                                                <span class="p">(</span><span class="mi">3</span><span class="p">,</span>  <span class="s">&#39;canceled&#39;</span><span class="p">),</span> <span class="p">]),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;planned&#39;</span> <span class="p">)</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">RichText</span><span class="p">())</span>
+    
+<div class="viewcode-block" id="BatchJob.is_canceled"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJob.is_canceled">[docs]</a>    <span class="k">def</span> <span class="nf">is_canceled</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Verifies if this Batch Job is canceled.  Returns :keyword:`True` if </span>
+<span class="sd">        it is.  This verification is done without using the ORM, so the verification</span>
+<span class="sd">        has no impact on the current session or the objects itself.  This method</span>
+<span class="sd">        is thus suited to call inside a running batch job to verifiy if another</span>
+<span class="sd">        user has canceled the running job.</span>
+<span class="sd">        </span>
+<span class="sd">        :return: :keyword:`True` or :keyword:`False`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">orm</span><span class="o">.</span><span class="n">class_mapper</span><span class="p">(</span> <span class="n">BatchJob</span> <span class="p">)</span><span class="o">.</span><span class="n">mapped_table</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="n">sql</span><span class="o">.</span><span class="n">select</span><span class="p">(</span> <span class="p">[</span><span class="n">table</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">status</span><span class="p">]</span> <span class="p">)</span><span class="o">.</span><span class="n">where</span><span class="p">(</span> <span class="n">table</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">id</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">bind</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span> <span class="n">query</span> <span class="p">):</span>
+            <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;canceled&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+        </div>
+<div class="viewcode-block" id="BatchJob.add_exception_to_message"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJob.add_exception_to_message">[docs]</a>    <span class="k">def</span> <span class="nf">add_exception_to_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exception</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;If an exception occurs in a batch job, this method can be used to add</span>
+<span class="sd">        the stack trace of the exception to the message&quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">traceback</span><span class="o">,</span> <span class="nn">cStringIO</span>
+        <span class="n">sio</span> <span class="o">=</span> <span class="n">cStringIO</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()</span>
+        <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">(</span><span class="nb">file</span><span class="o">=</span><span class="n">sio</span><span class="p">)</span>
+        <span class="n">traceback_print</span> <span class="o">=</span> <span class="n">sio</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span>
+        <span class="n">sio</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;&lt;br/&gt;&#39;</span> <span class="o">+</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">exception</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;&lt;br/&gt;&lt;font color=&quot;grey&quot;&gt;&#39;</span> <span class="o">+</span>  <span class="n">traceback_print</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">,</span> <span class="s">&#39;&lt;br/&gt;&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;&lt;/font&gt;&#39;</span>
+        </div>
+<div class="viewcode-block" id="BatchJob.add_strings_to_message"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJob.add_strings_to_message">[docs]</a>    <span class="k">def</span> <span class="nf">add_strings_to_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strings</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param strings: a list or generator of strings&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s">u&#39;&lt;br/&gt;&#39;</span> <span class="o">+</span> <span class="s">&#39;&lt;br/&gt;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">strings</span><span class="p">))</span>
+        </div>
+<div class="viewcode-block" id="BatchJob.Admin"><a class="viewcode-back" href="../../../api2/camelot.model.html#camelot.model.batch_job.BatchJob.Admin">[docs]</a>    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Batch job&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;date&#39;</span><span class="p">,</span> <span class="s">&#39;host&#39;</span><span class="p">,</span> <span class="s">&#39;type&#39;</span><span class="p">,</span> <span class="s">&#39;status&#39;</span><span class="p">]</span>
+        <span class="n">list_filter</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">,</span> <span class="n">filters</span><span class="o">.</span><span class="n">ComboBoxFilter</span><span class="p">(</span><span class="s">&#39;host&#39;</span><span class="p">)]</span>
+        <span class="n">form_display</span> <span class="o">=</span> <span class="n">list_display</span> <span class="o">+</span> <span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span>
+        <span class="n">form_actions</span> <span class="o">=</span> <span class="p">[</span> <span class="n">CancelBatchJob</span><span class="p">()</span> <span class="p">]</span>
+        </div></div>
+<span class="n">BatchJob</span> <span class="o">=</span> <span class="n">documented_entity</span><span class="p">()(</span> <span class="n">BatchJob</span> <span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

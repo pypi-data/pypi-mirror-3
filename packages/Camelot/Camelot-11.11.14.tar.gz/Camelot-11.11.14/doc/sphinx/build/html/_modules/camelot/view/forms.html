@@ -1,0 +1,843 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.forms &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.forms</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;Classes to layout fields on a form.  These are mostly used for specifying the</span>
+<span class="sd">form_display attribute in Admin classes, but they can be used on their own as</span>
+<span class="sd">well.  Form classes can be used recursive.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span> <span class="s">&#39;camelot.view.forms&#39;</span> <span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span><span class="p">,</span> <span class="n">QtGui</span>
+
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">gui_function</span>
+
+<div class="viewcode-block" id="Form"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Form">[docs]</a><span class="k">class</span> <span class="nc">Form</span><span class="p">(</span> <span class="nb">list</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base Form class to put fields on a form.  The base class of a form is</span>
+<span class="sd">a list.  So the form itself is nothing more than a list of field names or</span>
+<span class="sd">sub-forms.  A form can thus be manipulated using the list&#39;s method such as</span>
+<span class="sd">append or insert.</span>
+<span class="sd">    </span>
+<span class="sd">A form can be converted to a</span>
+<span class="sd">QT widget by calling its render method.  The base form uses the QFormLayout</span>
+<span class="sd">to render a form::</span>
+
+<span class="sd">    class Admin(EntityAdmin):</span>
+<span class="sd">      form_display = Form([&#39;title&#39;, &#39;short_description&#39;, &#39;director&#39;, &#39;release_date&#39;])</span>
+
+<span class="sd">..image:: /_static/form/form.png</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">,</span> <span class="n">scrollbars</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span> <span class="n">columns</span> <span class="o">=</span> <span class="mi">1</span>  <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param content: an iterable with the field names and forms to render</span>
+<span class="sd">        :param columns: the number of columns in which to order the fields.</span>
+
+<span class="sd">        eg : with 2 columns, the fields [&#39;street&#39;, &#39;city&#39;, &#39;country&#39;] will</span>
+<span class="sd">        be ordered as :</span>
+
+<span class="sd">        +-------------+--------------+</span>
+<span class="sd">        | street      | city         |</span>
+<span class="sd">        +-------------+--------------+</span>
+<span class="sd">        | country     |              |</span>
+<span class="sd">        +-------------+--------------+</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Form</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="n">content</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scrollbars</span> <span class="o">=</span> <span class="n">scrollbars</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span> <span class="o">=</span> <span class="n">columns</span>
+
+<div class="viewcode-block" id="Form.get_fields"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Form.get_fields">[docs]</a>    <span class="k">def</span> <span class="nf">get_fields</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: the fields, visible in this form&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">field</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fields_from_form</span><span class="p">()]</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_fields_from_form</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">Form</span> <span class="p">):</span>
+                <span class="k">for</span> <span class="n">nested_field</span> <span class="ow">in</span>  <span class="n">field</span><span class="o">.</span><span class="n">_get_fields_from_form</span><span class="p">():</span>
+                    <span class="k">yield</span> <span class="n">nested_field</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="p">(</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span> <span class="p">)</span> <span class="p">)</span>
+                <span class="k">yield</span> <span class="n">field</span><span class="p">;</span>
+
+
+<div class="viewcode-block" id="Form.remove_field"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Form.remove_field">[docs]</a>    <span class="k">def</span> <span class="nf">remove_field</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">original_field</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove a field from the form, This function can be used to modify</span>
+<span class="sd">        inherited forms.</span>
+
+<span class="sd">        :param original_field: the name of the field to be removed</span>
+<span class="sd">        :return: True if the field was found and removed</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">c</span><span class="p">,</span> <span class="n">Form</span> <span class="p">):</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">remove_field</span><span class="p">(</span> <span class="n">original_field</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="n">original_field</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span> <span class="n">original_field</span> <span class="p">)</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="Form.replace_field"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Form.replace_field">[docs]</a>    <span class="k">def</span> <span class="nf">replace_field</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Replace a field on this form with another field.  This function can be used to</span>
+<span class="sd">        modify inherited forms.</span>
+
+<span class="sd">        :param original_field : the name of the field to be replace</span>
+<span class="sd">        :param new_field : the name of the new field</span>
+<span class="sd">        :return: True if the original field was found and replaced.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">c</span><span class="p">,</span> <span class="n">Form</span> <span class="p">):</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">replace_field</span><span class="p">(</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="n">original_field</span><span class="p">:</span>
+                <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_field</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="Form.add_field"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Form.add_field">[docs]</a>    <span class="k">def</span> <span class="nf">add_field</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">new_field</span> <span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;Form(</span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="s">u&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="nb">unicode</span><span class="p">(</span> <span class="n">c</span> <span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span> <span class="p">)</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="Form.render_ooxml"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Form.render_ooxml">[docs]</a>    <span class="k">def</span> <span class="nf">render_ooxml</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">delegates</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generator for lines of text in Office Open XML representing this form, using tables</span>
+<span class="sd">        :param obj: the object or entity that will be rendered</span>
+<span class="sd">        :param delegates: a dictionary mapping field names to their delegate</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">yield</span> <span class="s">&#39;&lt;w:tbl&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;    &lt;w:tblPr&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;      &lt;w:tblW w:w=&quot;0&quot; w:type=&quot;auto&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;      &lt;w:tblBorders&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;          &lt;w:top w:val=&quot;single&quot; w:sz=&quot;4&quot; wx:bdrwidth=&quot;10&quot; w:space=&quot;0&quot; w:color=&quot;auto&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;          &lt;w:left w:val=&quot;single&quot; w:sz=&quot;4&quot; wx:bdrwidth=&quot;10&quot; w:space=&quot;0&quot; w:color=&quot;auto&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;          &lt;w:bottom w:val=&quot;single&quot; w:sz=&quot;4&quot; wx:bdrwidth=&quot;10&quot; w:space=&quot;0&quot; w:color=&quot;auto&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;          &lt;w:right w:val=&quot;single&quot; w:sz=&quot;4&quot; wx:bdrwidth=&quot;10&quot; w:space=&quot;0&quot; w:color=&quot;auto&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;          &lt;w:insideH w:val=&quot;single&quot; w:sz=&quot;4&quot; wx:bdrwidth=&quot;10&quot; w:space=&quot;0&quot; w:color=&quot;auto&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;          &lt;w:insideV w:val=&quot;single&quot; w:sz=&quot;4&quot; wx:bdrwidth=&quot;10&quot; w:space=&quot;0&quot; w:color=&quot;auto&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;        &lt;/w:tblBorders&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;      &lt;w:tblLook w:val=&quot;04A0&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;    &lt;/w:tblPr&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;    &lt;w:tblGrid&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;      &lt;w:gridCol w:w=&quot;4811&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;      &lt;w:gridCol w:w=&quot;4811&quot;/&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;    &lt;/w:tblGrid&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;    &lt;w:tr&gt;&#39;</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">field</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">index</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="s">&#39;    &lt;/w:tr&gt;&lt;w:tr&gt;&#39;</span>
+            <span class="k">yield</span> <span class="s">&#39;&lt;w:tc&gt;&#39;</span>
+            <span class="k">yield</span> <span class="s">&#39;  &lt;w:tcPr&gt;&#39;</span>
+            <span class="k">yield</span> <span class="s">&#39;    &lt;w:tcW w:w=&quot;4811&quot; w:type=&quot;dxa&quot;/&gt;&#39;</span>
+            <span class="k">yield</span> <span class="s">&#39;    &lt;w:shd w:val=&quot;clear&quot; w:color=&quot;auto&quot; w:fill=&quot;auto&quot;/&gt;&#39;</span>
+            <span class="k">yield</span> <span class="s">&#39;  &lt;/w:tcPr&gt;&#39;</span>
+            <span class="k">yield</span> <span class="s">&#39;&lt;w:p&gt;&#39;</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">Label</span><span class="p">):</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">render_ooxml</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">Form</span><span class="p">):</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">render_ooxml</span><span class="p">(</span> <span class="n">obj</span><span class="p">,</span> <span class="n">delegates</span> <span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+                <span class="n">delegate</span> <span class="o">=</span> <span class="n">delegates</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">delegate</span><span class="o">.</span><span class="n">render_ooxml</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">line</span>
+            <span class="k">yield</span> <span class="s">&#39;&lt;/w:p&gt;&#39;</span>
+            <span class="k">yield</span> <span class="s">&#39;&lt;/w:tc&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;&lt;/w:tr&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;&lt;/w:tbl&gt;&#39;</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="Form.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Form.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param widgets: a :class:`camelot.view.controls.formview.FormEditors` object</span>
+<span class="sd">            that is able to create the widgets for this form</span>
+<span class="sd">        :param parent: the :class:`QtGui.QWidget` in which the form is placed</span>
+<span class="sd">        :param toplevel: a :keyword:`boolean` indicating if this form is toplevel,</span>
+<span class="sd">            or a child form of another form.  A toplevel form will be expanding,</span>
+<span class="sd">            while a non toplevel form is only expanding if it contains other</span>
+<span class="sd">            expanding elements.</span>
+
+<span class="sd">        :return: a QWidget into which the form is rendered</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;rendering </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span> <span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls.editors.wideeditor</span> <span class="kn">import</span> <span class="n">WideEditor</span>
+        <span class="n">form_widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="n">form_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="c"># where 1 column in the form is a label and a field, so two columns in the grid</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_columns</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+        <span class="c"># make sure all columns have the same width</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">columns</span><span class="o">*</span><span class="mi">2</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">%</span><span class="mi">2</span><span class="p">:</span>
+                <span class="n">form_layout</span><span class="o">.</span><span class="n">setColumnStretch</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">row_span</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="k">class</span> <span class="nc">cursor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+            <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">row</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">col</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="k">def</span> <span class="nf">next_row</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">row</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">col</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="k">def</span> <span class="nf">next_col</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">col</span> <span class="o">+</span> <span class="mi">2</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">col</span> <span class="o">&gt;=</span> <span class="n">columns</span> <span class="o">*</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">next_row</span><span class="p">()</span>
+
+            <span class="k">def</span> <span class="nf">next_empty_row</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="o">!=</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">next_row</span><span class="p">()</span>
+
+            <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">return</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">,</span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">col</span><span class="p">)</span>
+
+        <span class="n">c</span> <span class="o">=</span> <span class="n">cursor</span><span class="p">()</span>
+
+        <span class="n">has_vertical_expanding_row</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="n">size_policy</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">Form</span> <span class="p">):</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">next_empty_row</span><span class="p">()</span>
+                <span class="n">col_span</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">columns</span>
+                <span class="n">f</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">render</span><span class="p">(</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="bp">False</span> <span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">f</span><span class="p">,</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLayout</span> <span class="p">):</span>
+                    <span class="c">#</span>
+                    <span class="c"># this should maybe be recursive ??</span>
+                    <span class="c">#</span>
+                    <span class="k">for</span> <span class="n">layout_item_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span> <span class="n">f</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="p">):</span>
+                        <span class="n">layout_item</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">itemAt</span><span class="p">(</span> <span class="n">layout_item_index</span> <span class="p">)</span>
+                        <span class="n">layout_item_widget</span> <span class="o">=</span> <span class="n">layout_item</span><span class="o">.</span><span class="n">widget</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">layout_item_widget</span> <span class="ow">and</span> <span class="n">layout_item_widget</span><span class="o">.</span><span class="n">sizePolicy</span><span class="p">()</span><span class="o">.</span><span class="n">verticalPolicy</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span><span class="p">:</span>
+                            <span class="n">has_vertical_expanding_row</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="n">form_layout</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span> <span class="n">f</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">row_span</span><span class="p">,</span> <span class="n">col_span</span> <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">form_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">f</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">row_span</span><span class="p">,</span> <span class="n">col_span</span> <span class="p">)</span>
+                    <span class="n">size_policy</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">sizePolicy</span><span class="p">()</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">next_row</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">editor</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">create_editor</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">form_widget</span> <span class="p">)</span>
+                <span class="k">if</span> <span class="n">editor</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">editor</span><span class="p">,</span> <span class="p">(</span> <span class="n">WideEditor</span><span class="p">,</span> <span class="p">)</span> <span class="p">):</span>
+                        <span class="n">c</span><span class="o">.</span><span class="n">next_empty_row</span><span class="p">()</span>
+                        <span class="n">col_span</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">columns</span>
+                        <span class="n">label</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">create_label</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">editor</span><span class="p">,</span> <span class="n">form_widget</span> <span class="p">)</span>
+                        <span class="k">if</span> <span class="n">label</span><span class="p">:</span>
+                            <span class="n">form_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">label</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">row_span</span><span class="p">,</span> <span class="n">col_span</span> <span class="p">)</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">next_row</span><span class="p">()</span>
+                        <span class="n">form_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">editor</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">row_span</span><span class="p">,</span> <span class="n">col_span</span> <span class="p">)</span>
+                        <span class="n">c</span><span class="o">.</span><span class="n">next_row</span><span class="p">()</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">col_span</span> <span class="o">=</span> <span class="mi">1</span>
+                        <span class="n">label</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">create_label</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">editor</span><span class="p">,</span> <span class="n">form_widget</span> <span class="p">)</span>
+                        <span class="k">if</span> <span class="n">label</span><span class="p">:</span>
+                            <span class="n">form_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">label</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">col</span><span class="p">,</span> <span class="n">row_span</span><span class="p">,</span> <span class="n">col_span</span> <span class="p">)</span>
+                        <span class="n">form_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">editor</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">col</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">row_span</span><span class="p">,</span> <span class="n">col_span</span> <span class="p">)</span>
+                        <span class="n">c</span><span class="o">.</span><span class="n">next_col</span><span class="p">()</span>
+                    <span class="n">size_policy</span> <span class="o">=</span> <span class="n">editor</span><span class="o">.</span><span class="n">sizePolicy</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&#39;ProgrammingError : widgets should contain a widget for field </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">unicode</span><span class="p">(</span><span class="n">field</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">size_policy</span> <span class="ow">and</span> <span class="n">size_policy</span><span class="o">.</span><span class="n">verticalPolicy</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span><span class="p">:</span>
+                <span class="n">has_vertical_expanding_row</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">has_vertical_expanding_row</span><span class="p">)</span> <span class="ow">and</span> <span class="n">toplevel</span> <span class="ow">and</span> <span class="n">form_layout</span><span class="o">.</span><span class="n">rowCount</span><span class="p">():</span>
+            <span class="n">form_layout</span><span class="o">.</span><span class="n">setRowStretch</span><span class="p">(</span> <span class="n">form_layout</span><span class="o">.</span><span class="n">rowCount</span><span class="p">(),</span> <span class="mi">1</span> <span class="p">)</span>
+
+        <span class="c"># fix embedded forms</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">toplevel</span><span class="p">:</span>
+            <span class="n">form_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span> <span class="p">)</span>
+  
+        <span class="k">if</span> <span class="n">toplevel</span> <span class="ow">or</span> <span class="n">has_vertical_expanding_row</span><span class="p">:</span>
+            <span class="n">form_widget</span><span class="o">.</span><span class="n">setSizePolicy</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span><span class="p">,</span>
+                                       <span class="n">QtGui</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span> <span class="p">)</span>
+        <span class="n">form_widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">form_layout</span> <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scrollbars</span><span class="p">:</span>
+            <span class="n">scroll_area</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QScrollArea</span><span class="p">(</span> <span class="n">parent</span> <span class="p">)</span>
+            <span class="c"># we should inherit parent&#39;s background color</span>
+            <span class="n">scroll_area</span><span class="o">.</span><span class="n">setWidget</span><span class="p">(</span> <span class="n">form_widget</span> <span class="p">)</span>
+            <span class="n">scroll_area</span><span class="o">.</span><span class="n">setWidgetResizable</span><span class="p">(</span> <span class="bp">True</span> <span class="p">)</span>
+            <span class="n">scroll_area</span><span class="o">.</span><span class="n">setFrameStyle</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFrame</span><span class="o">.</span><span class="n">NoFrame</span> <span class="p">)</span>
+            <span class="k">return</span> <span class="n">scroll_area</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;end rendering </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">form_widget</span>
+
+</div></div>
+<div class="viewcode-block" id="Label"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Label">[docs]</a><span class="k">class</span> <span class="nc">Label</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Render a label with a QLabel&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">alignment</span><span class="o">=</span><span class="s">&#39;left&#39;</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param label : string to be displayed in the label</span>
+<span class="sd">        :param alignment : alignment of text in the label. values that make sense &#39;left&#39;, &#39;right&#39; or &#39;center&#39;</span>
+<span class="sd">        :param style : string of cascading stylesheet instructions</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">Label</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="p">[]</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label</span> <span class="o">=</span> <span class="n">label</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alignment</span> <span class="o">=</span> <span class="n">alignment</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">style</span> <span class="o">=</span> <span class="n">style</span>
+
+<div class="viewcode-block" id="Label.render_ooxml"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Label.render_ooxml">[docs]</a>    <span class="k">def</span> <span class="nf">render_ooxml</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generator for label text in Office Open XML representing this form&quot;&quot;&quot;</span>
+        <span class="k">yield</span> <span class="s">&#39;&lt;w:r&gt;&#39;</span>
+        <span class="k">yield</span> <span class="s">&#39;  &lt;w:t&gt;</span><span class="si">%s</span><span class="s">&lt;/w:t&gt;&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span>
+        <span class="k">yield</span> <span class="s">&#39;&lt;/w:r&gt;&#39;</span>
+
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="Label.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.Label.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">style</span><span class="p">:</span>
+            <span class="n">widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span> <span class="s">&#39;&lt;p align=&quot;</span><span class="si">%s</span><span class="s">&quot; style=&quot;</span><span class="si">%s</span><span class="s">&quot;&gt;</span><span class="si">%s</span><span class="s">&lt;/p&gt;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alignment</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">style</span><span class="p">,</span><span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">))</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span> <span class="s">&#39;&lt;p align=&quot;</span><span class="si">%s</span><span class="s">&quot;&gt;</span><span class="si">%s</span><span class="s">&lt;/p&gt;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alignment</span><span class="p">,</span><span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">))</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">widget</span>
+</div></div>
+<div class="viewcode-block" id="DelayedTabWidget"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.DelayedTabWidget">[docs]</a><span class="k">class</span> <span class="nc">DelayedTabWidget</span><span class="p">(</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QTabWidget</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Helper class for :class:`TabForm` to delay the creation of tabs to</span>
+<span class="sd">the moment the tab is shown.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span>  <span class="n">widgets</span><span class="p">,</span> <span class="n">tabs</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span> <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">DelayedTabWidget</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_widgets</span> <span class="o">=</span> <span class="n">widgets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_forms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c">#</span>
+        <span class="c"># keep track for each of the tabs wether they are expanding,</span>
+        <span class="c">#</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_expanding</span> <span class="o">=</span> <span class="p">[</span><span class="bp">False</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">tabs</span><span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># set dummy tab widgets</span>
+        <span class="c">#</span>
+        <span class="k">for</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">tab_form</span> <span class="ow">in</span> <span class="n">tabs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_forms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">tab_form</span> <span class="p">)</span>
+            <span class="n">tab_widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">addTab</span><span class="p">(</span> <span class="n">tab_widget</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">tab_label</span><span class="p">)</span> <span class="p">)</span>
+        <span class="c">#</span>
+        <span class="c"># render the first tab and continue rendering until we have</span>
+        <span class="c"># a tab with an expanding size policy, because then we know</span>
+        <span class="c"># the widget itself should be expanding, and we can delay</span>
+        <span class="c"># the rendering of the other tabs</span>
+        <span class="c">#</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">tabs</span><span class="p">)</span> <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">render_tab</span><span class="p">(</span> <span class="n">i</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_vertical_expanding</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">setSizePolicy</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span><span class="p">,</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span><span class="p">)</span>
+                <span class="c">#</span>
+                <span class="c"># if one of the tabs is expanding, the others should have spacer</span>
+                <span class="c"># items to stretch</span>
+                <span class="c">#</span>
+                <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">vertical_expanding_of_widget</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_expanding</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">vertical_expanding_of_widget</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+                        <span class="n">tab_widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">widget</span><span class="p">(</span> <span class="n">j</span> <span class="p">)</span>
+                        <span class="n">tab_widget</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addStretch</span><span class="p">(</span> <span class="mi">1</span> <span class="p">)</span>                
+                <span class="k">break</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currentChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_tab</span> <span class="p">)</span>
+            
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="nb">int</span> <span class="p">)</span>
+<div class="viewcode-block" id="DelayedTabWidget.render_tab"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.DelayedTabWidget.render_tab">[docs]</a>    <span class="k">def</span> <span class="nf">render_tab</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">index</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Render the tab at index</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tab_widget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">widget</span><span class="p">(</span> <span class="n">index</span> <span class="p">)</span>
+        <span class="n">layout</span> <span class="o">=</span> <span class="n">tab_widget</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">layout</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># this tab has been rendered before</span>
+            <span class="k">return</span>
+        <span class="n">layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">(</span> <span class="n">tab_widget</span> <span class="p">)</span>
+        <span class="n">tab_form</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forms</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="n">tab_form_widget</span> <span class="o">=</span> <span class="n">tab_form</span><span class="o">.</span><span class="n">render</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_widgets</span><span class="p">,</span> <span class="n">tab_widget</span><span class="p">,</span> <span class="bp">False</span> <span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">tab_form_widget</span> <span class="p">)</span>
+        <span class="n">tab_widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">layout</span> <span class="p">)</span>
+        <span class="n">size_policy</span> <span class="o">=</span> <span class="n">tab_form_widget</span><span class="o">.</span><span class="n">sizePolicy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">size_policy</span><span class="o">.</span><span class="n">verticalPolicy</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Expanding</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_expanding</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_expanding</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="c">#</span>
+        <span class="c"># if other widgets are expanding, and this one isn&#39;t, add some stretch</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vertical_expanding</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">==</span> <span class="bp">False</span> <span class="ow">and</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_vertical_expanding</span><span class="p">):</span>
+            <span class="n">tab_widget</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addStretch</span><span class="p">(</span> <span class="mi">1</span> <span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="TabForm"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.TabForm">[docs]</a><span class="k">class</span> <span class="nc">TabForm</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Render forms within a QTabWidget::</span>
+
+<span class="sd">    from = TabForm([(&#39;First tab&#39;, [&#39;title&#39;, &#39;short_description&#39;]),</span>
+<span class="sd">                    (&#39;Second tab&#39;, [&#39;director&#39;, &#39;release_date&#39;])])</span>
+
+<span class="sd">.. image:: /_static/form/tab_form.png</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">NORTH</span> <span class="o">=</span> <span class="s">&#39;North&#39;</span>
+    <span class="n">SOUTH</span> <span class="o">=</span> <span class="s">&#39;South&#39;</span>
+    <span class="n">WEST</span> <span class="o">=</span> <span class="s">&#39;West&#39;</span>
+    <span class="n">EAST</span> <span class="o">=</span> <span class="s">&#39;East&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">tabs</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="n">NORTH</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param tabs: a list of tuples of (tab_label, tab_form)</span>
+<span class="sd">        :param position: the position of the tabs with respect to the pages</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">tabs</span><span class="p">,</span> <span class="nb">list</span> <span class="p">)</span>
+        <span class="k">assert</span> <span class="n">position</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">NORTH</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">SOUTH</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">WEST</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">EAST</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">position</span> <span class="o">=</span> <span class="n">position</span>
+        <span class="k">for</span> <span class="n">tab</span> <span class="ow">in</span> <span class="n">tabs</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">tab</span><span class="p">,</span> <span class="nb">tuple</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span> <span class="o">=</span> <span class="p">[(</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">structure_to_form</span><span class="p">(</span> <span class="n">tab_form</span> <span class="p">)</span> <span class="p">)</span> <span class="k">for</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">tab_form</span> <span class="ow">in</span> <span class="n">tabs</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">TabForm</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="nb">sum</span><span class="p">(</span> <span class="p">(</span> <span class="n">tab_form</span><span class="o">.</span><span class="n">get_fields</span><span class="p">()</span>
+                                      <span class="k">for</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">tab_form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span> <span class="p">),</span> <span class="p">[]</span> <span class="p">)</span> <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;TabForm { </span><span class="si">%s</span><span class="se">\n</span><span class="s">        }&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="s">u&#39;</span><span class="se">\n</span><span class="s">  &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s"> : </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="n">label</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">(</span> <span class="n">form</span> <span class="p">)</span> <span class="p">)</span> <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span> <span class="p">)</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="TabForm.add_tab_at_index"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.TabForm.add_tab_at_index">[docs]</a>    <span class="k">def</span> <span class="nf">add_tab_at_index</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">tab_form</span><span class="p">,</span> <span class="n">index</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add a tab to the form at the specified index</span>
+
+<span class="sd">  :param tab_label: the name to the tab</span>
+<span class="sd">  :param tab_form: the form to display in the tab or a list of field names.</span>
+<span class="sd">  :param index: the position of tab in the tabs list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tab_form</span> <span class="o">=</span> <span class="n">structure_to_form</span><span class="p">(</span> <span class="n">tab_form</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span> <span class="n">index</span><span class="p">,</span> <span class="p">(</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">tab_form</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="p">[</span><span class="n">tab_form</span><span class="p">]</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TabForm.add_tab"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.TabForm.add_tab">[docs]</a>    <span class="k">def</span> <span class="nf">add_tab</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">tab_form</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add a tab to the form</span>
+
+<span class="sd">    :param tab_label: the name of the tab</span>
+<span class="sd">    :param tab_form: the form to display in the tab or a list of field names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tab_form</span> <span class="o">=</span> <span class="n">structure_to_form</span><span class="p">(</span> <span class="n">tab_form</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="p">(</span> <span class="n">tab_label</span><span class="p">,</span> <span class="n">tab_form</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="p">[</span><span class="n">tab_form</span><span class="p">]</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TabForm.get_tab"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.TabForm.get_tab">[docs]</a>    <span class="k">def</span> <span class="nf">get_tab</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">tab_label</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the tab form of associated with a tab_label, use this function to</span>
+<span class="sd">        modify the underlying tab_form in case of inheritance</span>
+
+<span class="sd">    :param tab_label : a label of a tab as passed in the construction method</span>
+<span class="sd">    :return: the tab_form corresponding to tab_label</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="n">tab_label</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">form</span>
+</div>
+<div class="viewcode-block" id="TabForm.replace_field"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.TabForm.replace_field">[docs]</a>    <span class="k">def</span> <span class="nf">replace_field</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TabForm</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">replace_field</span><span class="p">(</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">_label</span><span class="p">,</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">form</span><span class="o">.</span><span class="n">replace_field</span><span class="p">(</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="TabForm.remove_field"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.TabForm.remove_field">[docs]</a>    <span class="k">def</span> <span class="nf">remove_field</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">original_field</span> <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TabForm</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">remove_field</span><span class="p">(</span> <span class="n">original_field</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">_label</span><span class="p">,</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">form</span><span class="o">.</span><span class="n">remove_field</span><span class="p">(</span> <span class="n">original_field</span> <span class="p">):</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_fields_from_form</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">for</span> <span class="n">_label</span><span class="p">,</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">form</span><span class="o">.</span><span class="n">_get_fields_from_form</span><span class="p">():</span>
+                <span class="k">yield</span> <span class="n">field</span>
+
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="TabForm.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.TabForm.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;rendering </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="p">)</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">DelayedTabWidget</span><span class="p">(</span> <span class="n">widgets</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabs</span><span class="p">,</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="n">widget</span><span class="o">.</span><span class="n">setTabPosition</span><span class="p">(</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QTabWidget</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">position</span><span class="p">)</span> <span class="p">)</span>                
+        <span class="k">return</span> <span class="n">widget</span>
+</div></div>
+<div class="viewcode-block" id="HBoxForm"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.HBoxForm">[docs]</a><span class="k">class</span> <span class="nc">HBoxForm</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">  Render different forms in a horizontal box::</span>
+
+<span class="sd">    form = forms.HBoxForm([[&#39;title&#39;, &#39;short_description&#39;], [&#39;director&#39;, &#39;release_date&#39;]])</span>
+
+<span class="sd">  .. image:: /_static/form/hbox_form.png</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">scrollbars</span><span class="o">=</span><span class="bp">False</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param columns: a list of forms to display in the different columns</span>
+<span class="sd">        of the horizontal box&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">columns</span><span class="p">,</span> <span class="nb">list</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">structure_to_form</span><span class="p">(</span> <span class="n">col</span> <span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">HBoxForm</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="nb">sum</span><span class="p">(</span> <span class="p">(</span> <span class="n">column_form</span><span class="o">.</span><span class="n">get_fields</span><span class="p">()</span>
+                                      <span class="k">for</span> <span class="n">column_form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="p">),</span> <span class="p">[]</span> <span class="p">),</span> <span class="n">scrollbars</span><span class="o">=</span><span class="n">scrollbars</span> <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;HBoxForm [ </span><span class="si">%s</span><span class="se">\n</span><span class="s">         ]&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="s">&#39;         </span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="p">[</span><span class="nb">unicode</span><span class="p">(</span> <span class="n">form</span> <span class="p">)</span> <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span> <span class="p">)</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="HBoxForm.replace_field"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.HBoxForm.replace_field">[docs]</a>    <span class="k">def</span> <span class="nf">replace_field</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+        <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">form</span><span class="o">.</span><span class="n">replace_field</span><span class="p">(</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_fields_from_form</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">form</span><span class="o">.</span><span class="n">_get_fields_from_form</span><span class="p">():</span>
+                <span class="k">yield</span> <span class="n">field</span>
+
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="HBoxForm.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.HBoxForm.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;rendering </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="p">)</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="n">form_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QHBoxLayout</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">form</span><span class="o">.</span><span class="n">render</span><span class="p">(</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">widget</span><span class="p">,</span> <span class="bp">False</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">f</span><span class="p">,</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLayout</span> <span class="p">):</span>
+                <span class="n">form_layout</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span> <span class="n">f</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">form_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">f</span> <span class="p">)</span>
+        <span class="n">widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">form_layout</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">widget</span>
+</div></div>
+<div class="viewcode-block" id="VBoxForm"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.VBoxForm">[docs]</a><span class="k">class</span> <span class="nc">VBoxForm</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">  Render different forms or widgets in a vertical box::</span>
+
+<span class="sd">    form = forms.VBoxForm([[&#39;title&#39;, &#39;short_description&#39;], [&#39;director&#39;, &#39;release_date&#39;]])</span>
+
+<span class="sd">  .. image:: /_static/form/vbox_form.png</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">rows</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param rows: a list of forms to display in the different columns</span>
+<span class="sd">        of the horizontal box</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">rows</span><span class="p">,</span> <span class="nb">list</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">=</span> <span class="p">[</span><span class="n">structure_to_form</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">VBoxForm</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="nb">sum</span><span class="p">(</span> <span class="p">(</span> <span class="n">row_form</span><span class="o">.</span><span class="n">get_fields</span><span class="p">()</span> <span class="k">for</span> <span class="n">row_form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="p">),</span> <span class="p">[]</span> <span class="p">)</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="VBoxForm.replace_field"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.VBoxForm.replace_field">[docs]</a>    <span class="k">def</span> <span class="nf">replace_field</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+        <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">form</span><span class="o">.</span><span class="n">replace_field</span><span class="p">(</span> <span class="n">original_field</span><span class="p">,</span> <span class="n">new_field</span> <span class="p">):</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_fields_from_form</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">form</span><span class="o">.</span><span class="n">_get_fields_from_form</span><span class="p">():</span>
+                <span class="k">yield</span> <span class="n">field</span>
+
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;VBoxForm [ </span><span class="si">%s</span><span class="se">\n</span><span class="s">         ]&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="s">&#39;         </span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="p">[</span><span class="nb">unicode</span><span class="p">(</span> <span class="n">form</span> <span class="p">)</span> <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">]</span> <span class="p">)</span> <span class="p">)</span>
+
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="VBoxForm.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.VBoxForm.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;rendering </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="p">)</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="n">form_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">form</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">form</span><span class="o">.</span><span class="n">render</span><span class="p">(</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">widget</span><span class="p">,</span> <span class="bp">False</span> <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">f</span><span class="p">,</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QLayout</span> <span class="p">):</span>
+                <span class="n">form_layout</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span> <span class="n">f</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">form_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">f</span> <span class="p">)</span>
+        <span class="n">widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">form_layout</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">widget</span>
+</div></div>
+<div class="viewcode-block" id="ColumnSpan"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.ColumnSpan">[docs]</a><span class="k">class</span> <span class="nc">ColumnSpan</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">num</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num</span> <span class="o">=</span> <span class="n">num</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">field</span> <span class="o">=</span> <span class="n">field</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">ColumnSpan</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="GridForm"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.GridForm">[docs]</a><span class="k">class</span> <span class="nc">GridForm</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Put different fields into a grid, without a label.  Row or column labels can be added</span>
+<span class="sd">  using the Label form::</span>
+
+<span class="sd">    GridForm([[&#39;title&#39;, &#39;short_description&#39;], [&#39;director&#39;,&#39;release_date&#39;]])</span>
+
+<span class="sd">  .. image:: /_static/form/grid_form.png</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">nomargins</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param grid: A list for each row in the grid, containing a list with all fields that should be put in that row</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">grid</span><span class="p">,</span> <span class="nb">list</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="n">grid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nomargins</span> <span class="o">=</span> <span class="n">nomargins</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="nb">list</span> <span class="p">)</span>
+            <span class="n">fields</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">GridForm</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="n">fields</span> <span class="p">)</span>
+
+<div class="viewcode-block" id="GridForm.append_row"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.GridForm.append_row">[docs]</a>    <span class="k">def</span> <span class="nf">append_row</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param row: the list of fields that should come in the additional row</span>
+<span class="sd">        use this method to modify inherited grid forms&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">row</span><span class="p">,</span> <span class="nb">list</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="GridForm.append_column"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.GridForm.append_column">[docs]</a>    <span class="k">def</span> <span class="nf">append_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param column: the list of fields that should come in the additional column</span>
+<span class="sd">        use this method to modify inherited grid forms&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">column</span><span class="p">,</span> <span class="nb">list</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span><span class="p">,</span> <span class="n">additional_field</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">,</span> <span class="n">column</span><span class="p">):</span>
+            <span class="n">row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">additional_field</span><span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="GridForm.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.GridForm.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="n">grid_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="p">):</span>
+            <span class="n">skip</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">field</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span> <span class="n">row</span> <span class="p">):</span>
+                <span class="n">num</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">ColumnSpan</span> <span class="p">):</span>
+                    <span class="n">num</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">num</span>
+                    <span class="n">field</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">field</span>
+
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">Form</span> <span class="p">):</span>
+                    <span class="n">grid_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">field</span><span class="o">.</span><span class="n">render</span><span class="p">(</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="p">),</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="n">skip</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">num</span> <span class="p">)</span>
+                    <span class="n">skip</span> <span class="o">+=</span> <span class="n">num</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">editor</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">create_editor</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="n">widget</span> <span class="p">)</span>
+                    <span class="n">grid_layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">editor</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="n">skip</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">num</span> <span class="p">)</span>
+                    <span class="n">skip</span> <span class="o">+=</span> <span class="n">num</span> <span class="o">-</span> <span class="mi">1</span>
+
+        <span class="n">widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">grid_layout</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">toplevel</span><span class="p">:</span>
+            <span class="n">grid_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span> <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">widget</span>
+</div></div>
+<div class="viewcode-block" id="WidgetOnlyForm"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.WidgetOnlyForm">[docs]</a><span class="k">class</span> <span class="nc">WidgetOnlyForm</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Renders a single widget without its label, typically a one2many widget&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">field</span> <span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">field</span><span class="p">,</span> <span class="p">(</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span> <span class="n">WidgetOnlyForm</span><span class="p">,</span> <span class="bp">self</span> <span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="p">)</span>
+
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="WidgetOnlyForm.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.WidgetOnlyForm.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span> <span class="s">&#39;rendering </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="p">)</span>
+        <span class="n">editor</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">create_editor</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fields</span><span class="p">()[</span><span class="mi">0</span><span class="p">],</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">editor</span>
+</div></div>
+<div class="viewcode-block" id="GroupBoxForm"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.GroupBoxForm">[docs]</a><span class="k">class</span> <span class="nc">GroupBoxForm</span><span class="p">(</span> <span class="n">Form</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">  Renders a form within a QGroupBox::</span>
+
+<span class="sd">    class Admin(EntityAdmin):</span>
+<span class="sd">      form_display = GroupBoxForm(&#39;Movie&#39;, [&#39;title&#39;, &#39;short_description&#39;])</span>
+
+<span class="sd">  .. image:: /_static/form/group_box_form.png</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">content</span><span class="p">,</span> <span class="n">scrollbars</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">min_width</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">min_height</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="mi">1</span> <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="n">title</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_width</span> <span class="o">=</span> <span class="n">min_width</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_height</span> <span class="o">=</span> <span class="n">min_height</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="n">Form</span><span class="p">):</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="p">[</span><span class="n">content</span><span class="p">]</span>
+        <span class="n">Form</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">,</span> <span class="n">scrollbars</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span> <span class="p">)</span>
+
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="GroupBoxForm.render"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.GroupBoxForm.render">[docs]</a>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">parent</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">toplevel</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">):</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QGroupBox</span><span class="p">(</span> <span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">),</span> <span class="n">parent</span> <span class="p">)</span>
+        <span class="n">layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_width</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_height</span><span class="p">:</span>
+            <span class="n">widget</span><span class="o">.</span><span class="n">setMinimumSize</span> <span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_height</span> <span class="p">)</span>
+        <span class="n">widget</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span> <span class="n">layout</span> <span class="p">)</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="n">Form</span><span class="o">.</span><span class="n">render</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">widgets</span><span class="p">,</span> <span class="n">widget</span><span class="p">,</span> <span class="bp">False</span> <span class="p">)</span>
+        <span class="n">layout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span> <span class="n">form</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">widget</span>
+</div></div>
+<div class="viewcode-block" id="structure_to_form"><a class="viewcode-back" href="../../../api2/camelot.view.html#camelot.view.forms.structure_to_form">[docs]</a><span class="k">def</span> <span class="nf">structure_to_form</span><span class="p">(</span> <span class="n">structure</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Convert a python data structure to a form, using the following rules :</span>
+
+<span class="sd">   * if structure is an instance of Form, return structure</span>
+<span class="sd">   * if structure is a list, create a Form from this list</span>
+
+<span class="sd">  This function is mainly used in the Admin class to construct forms out of</span>
+<span class="sd">  the form_display attribute</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">structure</span><span class="p">,</span> <span class="n">Form</span> <span class="p">):</span>
+        <span class="k">return</span> <span class="n">structure</span>
+    <span class="k">return</span> <span class="n">Form</span><span class="p">(</span> <span class="n">structure</span> <span class="p">)</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

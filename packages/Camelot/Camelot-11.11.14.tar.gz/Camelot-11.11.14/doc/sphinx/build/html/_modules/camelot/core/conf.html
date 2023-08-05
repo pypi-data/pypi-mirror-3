@@ -1,0 +1,244 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.core.conf &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.core.conf</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">The global configuration of a Camelot application is handled through a LazyProxy</span>
+<span class="sd">object that reads settings from various targets.  The default target reads</span>
+<span class="sd">the attributes from the &#39;settings&#39; module, if this is found on the PYTHONPATH.</span>
+
+<span class="sd">To access the global configuration, simply import the settings object::</span>
+<span class="sd">    </span>
+<span class="sd">    from camelot.core.conf import settings</span>
+<span class="sd">    </span>
+<span class="sd">    print settings.CAMELOT_MEDIA_ROOT</span>
+<span class="sd">    </span>
+<span class="sd">Developers can add targets to the settings proxy, to enable reading settings</span>
+<span class="sd">from other sources.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.core.conf&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="LazyProxy"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.conf.LazyProxy">[docs]</a><span class="k">class</span> <span class="nc">LazyProxy</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A lazy proxy of the &#39;settings&#39; module on the PYTHONPATH, or other</span>
+<span class="sd">    targets that contain global configuration.  This proxy behaves as a list</span>
+<span class="sd">    to which targets can be appended.  The value of the first target in the</span>
+<span class="sd">    list that has the requested attribute will be returned.</span>
+<span class="sd">    </span>
+<span class="sd">    The Proxy is Lazy, because on each request of an attribute, the target</span>
+<span class="sd">    is queried again.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+            
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">append_settings_module</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+                <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">LOGGER</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span> <span class="s">u&#39;no such settings attribute : </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">name</span> <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">__hasattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">append_settings_module</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+        
+<div class="viewcode-block" id="LazyProxy.append_settings_module"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.conf.LazyProxy.append_settings_module">[docs]</a>    <span class="k">def</span> <span class="nf">append_settings_module</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Import the &#39;settings&#39; module and append it as a target to</span>
+<span class="sd">        the list of targets.  This function will be called, if no other</span>
+<span class="sd">        targets are specified&quot;&quot;&quot;</span>
+        
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">mod</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="s">&#39;settings&#39;</span><span class="p">,</span> <span class="p">{},</span> <span class="p">{},</span> <span class="p">[</span><span class="s">&#39;&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">,</span> <span class="s">&quot;Could not import settings (Is it on sys.path? Does it have syntax errors?): </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">mod</span> <span class="p">)</span>
+</div></div>
+<span class="n">settings</span> <span class="o">=</span> <span class="n">LazyProxy</span><span class="p">()</span>
+
+<div class="viewcode-block" id="SimpleSettings"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.conf.SimpleSettings">[docs]</a><span class="k">class</span> <span class="nc">SimpleSettings</span><span class="p">(</span> <span class="nb">object</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Settings that can be used for the creation of a simple Camelot</span>
+<span class="sd">    application.  Use these settings by appending them to the global settings</span>
+<span class="sd">    at application startup::</span>
+<span class="sd">    </span>
+<span class="sd">        from camelot.core.conf import settings, SimpleSettings</span>
+<span class="sd">        </span>
+<span class="sd">        settings.append( SimpleSettings(&#39;myapp&#39;) )</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">author</span><span class="p">,</span> <span class="n">name</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param author: the name of the writer of the application</span>
+<span class="sd">        :param name: the name of the application</span>
+<span class="sd">        </span>
+<span class="sd">        these name will be used to create a folder where the local data will </span>
+<span class="sd">        be stored.</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="k">if</span> <span class="p">(</span><span class="s">&#39;win&#39;</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="s">&#39;darwin&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="p">):</span>
+            <span class="kn">import</span> <span class="nn">winpaths</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_local_folder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">winpaths</span><span class="o">.</span><span class="n">get_local_appdata</span><span class="p">(),</span> <span class="n">author</span><span class="p">,</span> <span class="n">name</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_local_folder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s">&#39;~&#39;</span><span class="p">),</span> <span class="s">u&#39;.</span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">author</span><span class="p">,</span> <span class="n">name</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_folder</span> <span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_folder</span> <span class="p">)</span>
+            
+<div class="viewcode-block" id="SimpleSettings.CAMELOT_MEDIA_ROOT"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.conf.SimpleSettings.CAMELOT_MEDIA_ROOT">[docs]</a>    <span class="k">def</span> <span class="nf">CAMELOT_MEDIA_ROOT</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_folder</span><span class="p">,</span> <span class="s">&#39;media&#39;</span> <span class="p">)</span>
+    </div>
+<div class="viewcode-block" id="SimpleSettings.ENGINE"><a class="viewcode-back" href="../../../api2/camelot.core.html#camelot.core.conf.SimpleSettings.ENGINE">[docs]</a>    <span class="k">def</span> <span class="nf">ENGINE</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">create_engine</span>
+        <span class="k">return</span> <span class="n">create_engine</span><span class="p">(</span><span class="s">u&#39;sqlite:///</span><span class="si">%s</span><span class="s">/data.sqlite&#39;</span><span class="o">%</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_folder</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

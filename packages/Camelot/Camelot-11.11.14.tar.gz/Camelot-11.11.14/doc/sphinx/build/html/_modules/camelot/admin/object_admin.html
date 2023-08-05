@@ -1,0 +1,1034 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.admin.object_admin &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.admin.object_admin</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;Admin class for Plain Old Python Object&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.object_admin&#39;</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">gui_function</span><span class="p">,</span> <span class="n">model_function</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.tableview</span> <span class="kn">import</span> <span class="n">TableView</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span> <span class="k">as</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext_lazy</span>
+<span class="kn">from</span> <span class="nn">camelot.view.proxy.collection_proxy</span> <span class="kn">import</span> <span class="n">CollectionProxy</span>
+<span class="kn">from</span> <span class="nn">validator.object_validator</span> <span class="kn">import</span> <span class="n">ObjectValidator</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<div class="viewcode-block" id="FieldAttributesList"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.FieldAttributesList">[docs]</a><span class="k">class</span> <span class="nc">FieldAttributesList</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A list with field attributes that documents them for</span>
+<span class="sd">    sphinx&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_list</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param original_list: the list with field attributes</span>
+<span class="sd">        to document&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FieldAttributesList</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">original_list</span><span class="p">)</span>
+        <span class="n">template</span> <span class="o">=</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s"> * :ref:`</span><span class="si">%s</span><span class="s"> &lt;field-attribute-</span><span class="si">%s</span><span class="s">&gt;`&quot;</span>
+        <span class="n">doc</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">template</span><span class="o">%</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">original_list</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">doc</span>
+</div>
+<span class="n">DYNAMIC_FIELD_ATTRIBUTES</span> <span class="o">=</span> <span class="n">FieldAttributesList</span><span class="p">([</span><span class="s">&#39;tooltip&#39;</span><span class="p">,</span> <span class="s">&#39;color&#39;</span><span class="p">,</span> <span class="s">&#39;background_color&#39;</span><span class="p">,</span>
+                                                <span class="s">&#39;editable&#39;</span><span class="p">,</span> <span class="s">&#39;choices&#39;</span><span class="p">,</span>
+                                                <span class="s">&#39;prefix&#39;</span><span class="p">,</span> <span class="s">&#39;suffix&#39;</span><span class="p">,</span> <span class="s">&#39;arrow&#39;</span><span class="p">,</span>
+                                                <span class="s">&#39;new_message&#39;</span><span class="p">,</span> <span class="s">&#39;default&#39;</span><span class="p">,</span>
+                                                <span class="s">&#39;precision&#39;</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="ObjectAdmin"><a class="viewcode-back" href="../../../doc/object_admin.html#camelot.admin.object_admin.ObjectAdmin">[docs]</a><span class="k">class</span> <span class="nc">ObjectAdmin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The ObjectAdmin class describes the interface that will be used</span>
+<span class="sd">to interact with objects of a certain class.  The behaviour of this class</span>
+<span class="sd">and the resulting interface can be tuned by specifying specific class</span>
+<span class="sd">attributes:</span>
+
+<span class="sd">**The name used in the GUI**</span>
+
+<span class="sd">The name used in the GUI for things like window titles and such can</span>
+<span class="sd">be specified using the verbose_name attribute.</span>
+
+<span class="sd">.. attribute:: verbose_name</span>
+
+<span class="sd">    A human-readable name for the object, singular ::</span>
+
+<span class="sd">        verbose_name = _(&#39;movie&#39;)</span>
+
+<span class="sd">    If this isn&#39;t given, the class name will be used</span>
+
+<span class="sd">.. attribute:: verbose_name_plural</span>
+
+<span class="sd">    A human-readable name for the object, plural ::</span>
+
+<span class="sd">        verbose_name_plural = _(&#39;movies&#39;)</span>
+
+<span class="sd">    If this isn&#39;t given, Camelot will use verbose_name + &quot;s&quot;</span>
+
+<span class="sd">**Fields displayed**</span>
+
+<span class="sd">.. attribute:: list_display</span>
+
+<span class="sd">    a list with the fields that should be displayed in a table view</span>
+
+<span class="sd">.. attribute:: list_columns_frozen</span>
+
+<span class="sd">    the number of columns on the left of the tableview that should be frozen</span>
+<span class="sd">    (don&#39;t dissapear when the user uses the horizontal scroll bar), defaults</span>
+<span class="sd">    to zero</span>
+
+<span class="sd">.. attribute:: lines_per_row</span>
+
+<span class="sd">    An integer number specifying the height of a row in the table view, expressed</span>
+<span class="sd">    as the number of lines of text it should be able to display.  Defaults to 1.</span>
+
+<span class="sd">.. attribute:: form_display</span>
+
+<span class="sd">    a list with the fields that should be displayed in a form view, defaults to</span>
+<span class="sd">    the same fields as those specified in list_display ::</span>
+
+<span class="sd">        class Admin(EntityAdmin):</span>
+<span class="sd">            form_display = [&#39;title&#39;, &#39;rating&#39;, &#39;cover&#39;]</span>
+
+<span class="sd">    instead of telling which fields to display. It is also possible to define</span>
+<span class="sd">    the form itself ::</span>
+
+<span class="sd">        from camelot.view.forms import Form, TabForm, WidgetOnlyForm, HBoxForm</span>
+
+<span class="sd">        class Admin(EntityAdmin):</span>
+<span class="sd">            form_display = TabForm([</span>
+<span class="sd">            (&#39;Movie&#39;, Form([</span>
+<span class="sd">              HBoxForm([[&#39;title&#39;, &#39;rating&#39;], WidgetOnlyForm(&#39;cover&#39;)]),</span>
+<span class="sd">              &#39;short_description&#39;,</span>
+<span class="sd">              &#39;releasedate&#39;,</span>
+<span class="sd">              &#39;director&#39;,</span>
+<span class="sd">              &#39;script&#39;,</span>
+<span class="sd">              &#39;genre&#39;,</span>
+<span class="sd">              &#39;description&#39;, &#39;tags&#39;], scrollbars=True)),</span>
+<span class="sd">            (&#39;Cast&#39;, WidgetOnlyForm(&#39;cast&#39;))</span>
+<span class="sd">          ])</span>
+
+<span class="sd">**Behaviour**</span>
+
+<span class="sd">.. attribute:: save_mode</span>
+
+<span class="sd">    Specifies when the data should be send from the view to the model and flushed</span>
+<span class="sd">    to the database.  The default mode is &#39;on_change&#39;, meaning that every change</span>
+<span class="sd">    in the view will be send immediately to the database.  Other possibilities are :</span>
+
+<span class="sd">      * &#39;on_leave&#39; : the data will be send from the view to the model when the view</span>
+<span class="sd">                     is closed, eg. : the form is closed.</span>
+
+<span class="sd">.. attribute:: delete_mode</span>
+
+<span class="sd">    Indicates if the deletion of an object should be confirmed by the user, defaults</span>
+<span class="sd">    to &#39;on_request&#39;, indicating object should be deleted when the user hits the trash</span>
+<span class="sd">    button.  Other possibilities are :</span>
+
+<span class="sd">      * &#39;on_confirm&#39; : the user will be asked for confirmation before the delete</span>
+<span class="sd">        takes place.</span>
+
+<span class="sd">.. attribute:: form_size</span>
+
+<span class="sd">    a tuple indicating the size of a form view, defaults to (700,500)</span>
+
+<span class="sd">.. attribute:: form_actions</span>
+
+<span class="sd">    Actions to be accessible by pushbuttons on the side of a form,</span>
+<span class="sd">    a list of tuples (button_label, action_function) where action_function</span>
+<span class="sd">    takes as its single argument, a method that returns the the object that</span>
+<span class="sd">    was displayed by the form when the button was pressed::</span>
+
+<span class="sd">        class Admin(EntityAdmin):</span>
+<span class="sd">            form_actions = [(&#39;Foo&#39;, lamda o_getter:print &#39;foo&#39;)]</span>
+
+<span class="sd">**Field attributes**</span>
+
+<span class="sd">.. attribute:: field_attributes</span>
+
+<span class="sd">    A dictionary specifying for each field of the model some additional</span>
+<span class="sd">    attributes on how they should be displayed.  All of these attributes</span>
+<span class="sd">    are propagated to the constructor of the delegate of this field::</span>
+
+<span class="sd">        class Movie(Entity):</span>
+<span class="sd">            title = Field(Unicode(50))</span>
+<span class="sd">    </span>
+<span class="sd">            class Admin(EntityAdmin):</span>
+<span class="sd">                list_display = [&#39;title&#39;]</span>
+<span class="sd">                field_attributes = dict(title=dict(editable=False))</span>
+
+<span class="sd">    The :ref:`doc-admin-field_attributes` documentation describes the various keys</span>
+<span class="sd">    that can be used in the field attributes class attribute of an ObjectAdmin </span>
+<span class="sd">    or EntityAdmin.</span>
+
+<span class="sd">**Window state**</span>
+
+<span class="sd">.. attribute:: form_state</span>
+
+<span class="sd">    Set this attribute to &#39;maximized&#39; or &#39;minimized&#39; for respective behaviour. These are the only two defined at the moment.</span>
+<span class="sd">    Please use the constants defined in camelot.core.constants (MINIMIZE and MAXIMIZE).</span>
+<span class="sd">    Note that this attr needs to be set at the form, highest in the form hierarchy to work. Setting this on embedded forms</span>
+<span class="sd">    will not influence the window state. Example::</span>
+
+<span class="sd">        class Movie(Entity):</span>
+<span class="sd">            title = Field(Unicode(50))</span>
+<span class="sd">    </span>
+<span class="sd">            class Admin(EntityAdmin):</span>
+<span class="sd">                from camelot.core import constants</span>
+<span class="sd">                list_display = [&#39;title&#39;]</span>
+<span class="sd">                form_state = constants.MAXIMIZED</span>
+<span class="sd">                field_attributes = dict(title=dict(editable=False))</span>
+
+<span class="sd">**Varia**</span>
+
+<span class="sd">.. attribute:: model</span>
+
+<span class="sd">    The QAbstractItemModel class to be used to display collections of this object,</span>
+<span class="sd">    defaults to a CollectionProxy</span>
+
+<span class="sd">.. attribute:: TableView</span>
+
+<span class="sd">    The QWidget class to be used when a table view is needed</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">verbose_name</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">verbose_name_plural</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">list_display</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">list_columns_frozen</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">lines_per_row</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">validator</span> <span class="o">=</span> <span class="n">ObjectValidator</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">CollectionProxy</span>
+    <span class="n">fields</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">form_display</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">list_filter</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">list_charts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">list_actions</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">list_size</span> <span class="o">=</span> <span class="p">(</span><span class="mi">600</span><span class="p">,</span> <span class="mi">400</span><span class="p">)</span>
+    <span class="n">form_size</span> <span class="o">=</span> <span class="p">(</span><span class="mi">700</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>
+    <span class="n">form_actions</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">field_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">form_state</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">icon</span> <span class="o">=</span> <span class="bp">None</span> <span class="c"># Default</span>
+    
+    <span class="c">#</span>
+    <span class="c"># Behavioral attributes</span>
+    <span class="c"># </span>
+    <span class="n">save_mode</span> <span class="o">=</span> <span class="s">&#39;on_edit&#39;</span>
+    <span class="n">delete_mode</span> <span class="o">=</span> <span class="s">&#39;on_request&#39;</span>
+
+    <span class="n">TableView</span> <span class="o">=</span> <span class="n">TableView</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_admin</span><span class="p">,</span> <span class="n">entity</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param app_admin: the application admin object for this application, </span>
+<span class="sd">            if None, then the default application_admin is taken</span>
+<span class="sd">        :param entity: the entity class for which this admin instance is to be</span>
+<span class="sd">            used</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.remote_signals</span> <span class="kn">import</span> <span class="n">get_signal_handler</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">app_admin</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">camelot.admin.application_admin</span> <span class="kn">import</span> <span class="n">get_application_admin</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span> <span class="o">=</span> <span class="n">get_application_admin</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span> <span class="o">=</span> <span class="n">app_admin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rsh</span> <span class="o">=</span> <span class="n">get_signal_handler</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">entity</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">get_model_thread</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entity</span> <span class="o">=</span> <span class="n">entity</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mt</span> <span class="o">=</span> <span class="n">get_model_thread</span><span class="p">()</span>
+        <span class="c">#</span>
+        <span class="c"># caches to prevent recalculation of things</span>
+        <span class="c">#</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_field_attributes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_subclasses</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;Admin </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;ObjectAdmin(</span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ObjectAdmin.get_name"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_name">[docs]</a>    <span class="k">def</span> <span class="nf">get_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_verbose_name"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_verbose_name">[docs]</a>    <span class="k">def</span> <span class="nf">get_verbose_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        
+<span class="c">#        def uncamelize(text):</span>
+<span class="c">#            def downcase(matchobj):</span>
+<span class="c">#                return &quot;_&quot; + matchobj.group(0).lower()</span>
+<span class="c">#            if text:</span>
+<span class="c">#                text = text[0].lower() + re.sub(r&#39;([A-Z])&#39;, downcase, text[1:])</span>
+<span class="c">#            return text </span>
+
+        <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">verbose_name</span> <span class="ow">or</span> <span class="n">_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">__name__</span><span class="o">.</span><span class="n">capitalize</span><span class="p">())</span>
+        <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_verbose_name_plural"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_verbose_name_plural">[docs]</a>    <span class="k">def</span> <span class="nf">get_verbose_name_plural</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">verbose_name_plural</span>
+            <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">()</span> <span class="o">+</span> <span class="s">&#39;s&#39;</span><span class="p">)</span>
+        <span class="p">)</span>
+        </div>
+<div class="viewcode-block" id="ObjectAdmin.get_icon"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_icon">[docs]</a>    <span class="k">def</span> <span class="nf">get_icon</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">icon</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_verbose_identifier"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_verbose_identifier">[docs]</a>    <span class="k">def</span> <span class="nf">get_verbose_identifier</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create an identifier for an object that is interpretable</span>
+<span class="sd">        for the user, eg : the primary key of an object.  This verbose identifier can</span>
+<span class="sd">        be used to generate a title for a form view of an object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">u&#39;</span><span class="si">%s</span><span class="s"> : </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_verbose_name</span><span class="p">(),</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_entity_admin"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_entity_admin">[docs]</a>    <span class="k">def</span> <span class="nf">get_entity_admin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_entity_admin</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_save_mode"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_save_mode">[docs]</a>    <span class="k">def</span> <span class="nf">get_save_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_mode</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_delete_mode"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_delete_mode">[docs]</a>    <span class="k">def</span> <span class="nf">get_delete_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">delete_mode</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_delete_message"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_delete_message">[docs]</a>    <span class="k">def</span> <span class="nf">get_delete_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Are you sure you want to delete this&#39;</span><span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_form_actions"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_form_actions">[docs]</a>    <span class="k">def</span> <span class="nf">get_form_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: a list of FormAction objects</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.admin.action.form_action</span> <span class="kn">import</span> <span class="n">structure_to_form_actions</span>
+        <span class="k">return</span> <span class="n">structure_to_form_actions</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_actions</span> <span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_list_actions"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_list_actions">[docs]</a>    <span class="k">def</span> <span class="nf">get_list_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_actions</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_depending_objects"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_depending_objects">[docs]</a>    <span class="k">def</span> <span class="nf">get_depending_objects</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Overwrite this function to generate a list of objects that depend on a given</span>
+<span class="sd">        object.  When obj is modified by the user, this function will be called to determine</span>
+<span class="sd">        which other objects need their views updated.</span>
+
+<span class="sd">        :param obj: an object of the type that is managed by this admin class</span>
+<span class="sd">        :return: an iterator over objects that depend on obj</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[]</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_subclass_tree"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_subclass_tree">[docs]</a>    <span class="k">def</span> <span class="nf">get_subclass_tree</span><span class="p">(</span> <span class="bp">self</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get a tree of admin classes representing the subclasses of the class</span>
+<span class="sd">        represented by this admin class</span>
+
+<span class="sd">        :return: [(subclass_admin, [(subsubclass_admin, [...]),...]),...]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">subclasses</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">subclass</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">__subclasses__</span><span class="p">():</span>
+            <span class="n">subclass_admin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_related_entity_admin</span><span class="p">(</span><span class="n">subclass</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">subclass_admin</span><span class="o">!=</span><span class="bp">self</span><span class="p">:</span>
+                <span class="n">subclasses</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
+                    <span class="n">subclass_admin</span><span class="p">,</span>
+                    <span class="n">subclass_admin</span><span class="o">.</span><span class="n">get_subclass_tree</span><span class="p">()</span>
+                <span class="p">))</span>
+
+        <span class="k">def</span> <span class="nf">sort_admins</span><span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="n">a2</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">cmp</span><span class="p">(</span><span class="n">a1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get_verbose_name_plural</span><span class="p">(),</span> <span class="n">a2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get_verbose_name_plural</span><span class="p">())</span>
+
+        <span class="n">subclasses</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="nb">cmp</span><span class="o">=</span><span class="n">sort_admins</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">subclasses</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_related_admin"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_related_admin">[docs]</a>    <span class="k">def</span> <span class="nf">get_related_admin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get an admin object for another object class.  Taking into account</span>
+<span class="sd">        preferences of this admin object or for those of admin object higher up</span>
+<span class="sd">        the chain such as the application admin object.</span>
+
+<span class="sd">        :param cls: the class for which an admin object is requested</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cls</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="n">related_admin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="o">.</span><span class="n">get_entity_admin</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">related_admin</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;no related admin found for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">related_admin</span>
+        </div>
+<div class="viewcode-block" id="ObjectAdmin.get_related_entity_admin"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_related_entity_admin">[docs]</a>    <span class="k">def</span> <span class="nf">get_related_entity_admin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;deprecated : use get_related_admin&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_related_admin</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_static_field_attributes"><a class="viewcode-back" href="../../../doc/field_attributes.html#camelot.admin.object_admin.ObjectAdmin.get_static_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_static_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_names</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convenience function to get all the field attributes</span>
+<span class="sd">        that are static (don&#39;t depend on the object being visualized).  This</span>
+<span class="sd">        method is only called once for a table or form view, independent of</span>
+<span class="sd">        the number of objects/records being visualized.</span>
+
+<span class="sd">        :param field_names: a list of field names</span>
+<span class="sd">        :return: [{field_attribute_name:field_attribute_value, ...}, {}, ...]</span>
+
+<span class="sd">        The returned list has the same order than the requested</span>
+<span class="sd">        field_names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">field_name</span> <span class="ow">in</span> <span class="n">field_names</span><span class="p">:</span>
+            <span class="n">field_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_field_attributes</span><span class="p">(</span><span class="n">field_name</span><span class="p">)</span>
+            <span class="n">static_field_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">field_attributes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">DYNAMIC_FIELD_ATTRIBUTES</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                    <span class="n">static_field_attributes</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">yield</span> <span class="n">static_field_attributes</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_dynamic_field_attributes"><a class="viewcode-back" href="../../../doc/field_attributes.html#camelot.admin.object_admin.ObjectAdmin.get_dynamic_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_dynamic_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">field_names</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convenience function to get all the field attributes</span>
+<span class="sd">        that are dynamic (depend on the object being visualized). This method</span>
+<span class="sd">        is called once for each object/row in a table view and once for</span>
+<span class="sd">        each object being visualized in a form view.</span>
+
+<span class="sd">        :param field_names: a list of field names</span>
+<span class="sd">        :param obj: the object at the row for which to get the values of the dynamic field attributes</span>
+<span class="sd">        :return: [{field_attribute_name:field_attribute_value, ...}, {}, ...]</span>
+
+<span class="sd">        The returned list has the same order than the requested</span>
+<span class="sd">        field_names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">field_name</span> <span class="ow">in</span> <span class="n">field_names</span><span class="p">:</span>
+            <span class="n">field_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_field_attributes</span><span class="p">(</span><span class="n">field_name</span><span class="p">)</span>
+            <span class="n">dynamic_field_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">field_attributes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">DYNAMIC_FIELD_ATTRIBUTES</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                    <span class="n">return_value</span> <span class="o">=</span> <span class="bp">None</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">return_value</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">NameError</span><span class="p">),</span> <span class="n">exc</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">u&#39;error in field_attribute function of </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">name</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">exc</span><span class="p">)</span>
+                    <span class="k">finally</span><span class="p">:</span>
+                        <span class="n">dynamic_field_attributes</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">return_value</span>
+            <span class="k">yield</span> <span class="n">dynamic_field_attributes</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.get_field_attributes"><a class="viewcode-back" href="../../../doc/field_attributes.html#camelot.admin.object_admin.ObjectAdmin.get_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the attributes needed to visualize the field field_name.  This</span>
+<span class="sd">        function is called by get_static_field_attributes and</span>
+<span class="sd">        get_dynamic_field_attributes.</span>
+
+<span class="sd">        This function first tries to fill the dictionary with field</span>
+<span class="sd">        attributes for a field with those gathered through introspection,</span>
+<span class="sd">        and then updates them with those found in the field_attributes</span>
+<span class="sd">        class attribute.</span>
+
+<span class="sd">        :param field_name: the name of the field</span>
+<span class="sd">        :return: a dictionary of attributes needed to visualize the field</span>
+
+<span class="sd">        The values of the returned dictionary either contain the value</span>
+<span class="sd">        of the field attribute, or in the case of dynamic field attributes,</span>
+<span class="sd">        a function that returns the value of the field attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+
+            <span class="k">def</span> <span class="nf">create_default_getter</span><span class="p">(</span><span class="n">field_name</span><span class="p">):</span>
+                <span class="k">return</span> <span class="k">lambda</span> <span class="n">o</span><span class="p">:</span><span class="nb">getattr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">field_name</span><span class="p">)</span>
+
+            <span class="kn">from</span> <span class="nn">camelot.view.controls</span> <span class="kn">import</span> <span class="n">delegates</span>
+            <span class="c">#</span>
+            <span class="c"># Default attributes for all fields</span>
+            <span class="c">#</span>
+            <span class="n">attributes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                <span class="n">getter</span><span class="o">=</span><span class="n">create_default_getter</span><span class="p">(</span><span class="n">field_name</span><span class="p">),</span>
+                <span class="n">field_name</span><span class="o">=</span><span class="n">field_name</span><span class="p">,</span>
+                <span class="n">python_type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+                <span class="n">length</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                <span class="n">tooltip</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                <span class="n">background_color</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                <span class="n">minimal_column_width</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+                <span class="n">editable</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                <span class="n">nullable</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                <span class="n">widget</span><span class="o">=</span><span class="s">&#39;str&#39;</span><span class="p">,</span>
+                <span class="n">blank</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                <span class="n">delegate</span><span class="o">=</span><span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">,</span>
+                <span class="n">validator_list</span><span class="o">=</span><span class="p">[],</span>
+                <span class="n">name</span><span class="o">=</span><span class="n">ugettext_lazy</span><span class="p">(</span><span class="n">field_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span> <span class="s">&#39;_&#39;</span><span class="p">,</span> <span class="s">&#39; &#39;</span> <span class="p">)</span><span class="o">.</span><span class="n">capitalize</span><span class="p">())</span>
+            <span class="p">)</span>
+            <span class="c">#</span>
+            <span class="c"># Field attributes forced by the field_attributes property</span>
+            <span class="c">#</span>
+            <span class="n">forced_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">forced_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+            <span class="c">#</span>
+            <span class="c"># TODO : move part of logic from entity admin class over here</span>
+            <span class="c">#</span>
+
+            <span class="c">#</span>
+            <span class="c"># Overrule introspected field_attributes with those defined</span>
+            <span class="c">#</span>
+            <span class="n">attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">forced_attributes</span><span class="p">)</span>
+
+            <span class="c">#</span>
+            <span class="c"># In case of a &#39;target&#39; field attribute, instantiate an appropriate</span>
+            <span class="c"># &#39;admin&#39; attribute</span>
+            <span class="c">#</span>
+
+            <span class="k">def</span> <span class="nf">get_entity_admin</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+                <span class="sd">&quot;&quot;&quot;Helper function that instantiated an Admin object for a</span>
+<span class="sd">                target entity class</span>
+
+<span class="sd">                :param target: an entity class for which an Admin object is</span>
+<span class="sd">                needed</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">fa</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+                    <span class="n">target</span> <span class="o">=</span> <span class="n">fa</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;target&#39;</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+                    <span class="n">admin_class</span> <span class="o">=</span> <span class="n">fa</span><span class="p">[</span><span class="s">&#39;admin&#39;</span><span class="p">]</span>
+                    <span class="k">return</span> <span class="n">admin_class</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_admin</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_related_entity_admin</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="s">&#39;target&#39;</span> <span class="ow">in</span> <span class="n">attributes</span><span class="p">:</span>
+                <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;admin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_entity_admin</span><span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;target&#39;</span><span class="p">])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">attributes</span>
+            <span class="k">return</span> <span class="n">attributes</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_columns"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_columns">[docs]</a>    <span class="k">def</span> <span class="nf">get_columns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The columns to be displayed in the list view, returns a list of pairs</span>
+<span class="sd">        of the name of the field and its attributes needed to display it</span>
+<span class="sd">        properly</span>
+
+<span class="sd">        @return: [(field_name,</span>
+<span class="sd">                  {&#39;widget&#39;: widget_type,</span>
+<span class="sd">                   &#39;editable&#39;: True or False,</span>
+<span class="sd">                   &#39;blank&#39;: True or False,</span>
+<span class="sd">                   &#39;validator_list&#39;:[...],</span>
+<span class="sd">                   &#39;name&#39;:&#39;Field name&#39;}),</span>
+<span class="sd">                 ...]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">field</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_field_attributes</span><span class="p">(</span><span class="n">field</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_display</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="ObjectAdmin.create_validator"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.create_validator">[docs]</a>    <span class="k">def</span> <span class="nf">create_validator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">validator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_fields"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_fields">[docs]</a>    <span class="k">def</span> <span class="nf">get_fields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_display</span><span class="p">:</span>
+            <span class="n">fields</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_form_display</span><span class="p">()</span><span class="o">.</span><span class="n">get_fields</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">fields</span><span class="p">:</span>
+            <span class="n">fields</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fields</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fields</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_display</span>
+        <span class="n">fields_and_attributes</span> <span class="o">=</span>  <span class="p">[</span>
+                <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_field_attributes</span><span class="p">(</span><span class="n">field</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="n">fields_and_attributes</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_all_fields_and_attributes"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_all_fields_and_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_all_fields_and_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A dictionary of (field_name:field_attributes) for all fields that can</span>
+<span class="sd">        possibly appear in a list or a form or for which field attributes have</span>
+<span class="sd">        been defined</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_columns</span><span class="p">())</span>
+        <span class="n">fields</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_fields</span><span class="p">()))</span>
+        <span class="k">return</span> <span class="n">fields</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.get_form_display"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.get_form_display">[docs]</a>    <span class="k">def</span> <span class="nf">get_form_display</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.forms</span> <span class="kn">import</span> <span class="n">Form</span><span class="p">,</span> <span class="n">structure_to_form</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_display</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">structure_to_form</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">form_display</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_display</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Form</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list_display</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Form</span><span class="p">([])</span>
+</div>
+    <span class="k">def</span> <span class="nf">_apply_form_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">widget</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;apply the consequences of the form_state class attribute</span>
+<span class="sd">        to a widget&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;form_state&#39;</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">camelot.core</span> <span class="kn">import</span> <span class="n">constants</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_state</span> <span class="o">==</span> <span class="n">constants</span><span class="o">.</span><span class="n">MAXIMIZED</span><span class="p">:</span>
+                <span class="n">widget</span><span class="o">.</span><span class="n">setWindowState</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">WindowMaximized</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_state</span> <span class="o">==</span> <span class="n">constants</span><span class="o">.</span><span class="n">MINIMIZED</span><span class="p">:</span>
+                <span class="n">widget</span><span class="o">.</span><span class="n">setWindowState</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">WindowMinimized</span><span class="p">)</span>
+        
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="ObjectAdmin.create_form_view"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.create_form_view">[docs]</a>    <span class="k">def</span> <span class="nf">create_form_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates a Qt widget containing a form view, for a specific index in</span>
+<span class="sd">        a model.  Use this method to create a form view for a collection of objects,</span>
+<span class="sd">        the user will be able to use :kbd:`PgUp`/:kbd:`PgDown` to move to </span>
+<span class="sd">        the next object.</span>
+
+<span class="sd">        :param title: the title of the form view</span>
+<span class="sd">        :param model: the data model to be used to fill the form view</span>
+<span class="sd">        :param index: which row in the data model to display</span>
+<span class="sd">        :param parent: the parent widget for the form</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;creating form view for index </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">index</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls.formview</span> <span class="kn">import</span> <span class="n">FormView</span>
+        <span class="n">form</span> <span class="o">=</span> <span class="n">FormView</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_form_state</span><span class="p">(</span> <span class="n">form</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">form</span>
+
+    <span class="c"># simply copied from EntityAdmin</span></div>
+<div class="viewcode-block" id="ObjectAdmin.set_defaults"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.set_defaults">[docs]</a>    <span class="k">def</span> <span class="nf">set_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">object_instance</span><span class="p">,</span> <span class="n">include_nullable_fields</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set the defaults of an object</span>
+<span class="sd">        :param include_nullable_fields: also set defaults for nullable fields, depending</span>
+<span class="sd">        on the context, this should be set to False to allow the user to set the field</span>
+<span class="sd">        to None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sqlalchemy.schema</span> <span class="kn">import</span> <span class="n">ColumnDefault</span>
+        <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">attributes</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fields</span><span class="p">():</span>
+            <span class="n">has_default</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">default</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;default&#39;</span><span class="p">]</span>
+                <span class="n">has_default</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">if</span> <span class="n">has_default</span><span class="p">:</span>
+                <span class="c">#</span>
+                <span class="c"># prevent the setting of a default value when one has been</span>
+                <span class="c"># set already</span>
+                <span class="c">#</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;getter&#39;</span><span class="p">](</span><span class="n">object_instance</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">value</span><span class="o">!=</span><span class="bp">None</span><span class="p">:</span> <span class="c"># False is a legitimate value for Booleans</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">ColumnDefault</span><span class="p">):</span>
+                    <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+                <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span><span class="n">default</span><span class="p">):</span>
+                    <span class="kn">import</span> <span class="nn">inspect</span>
+                    <span class="n">args</span><span class="p">,</span> <span class="n">_varargs</span><span class="p">,</span> <span class="n">_kwargs</span><span class="p">,</span> <span class="n">_defs</span> <span class="o">=</span> \
+                        <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">default</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+                        <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span><span class="p">(</span><span class="n">object_instance</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">default_value</span> <span class="o">=</span> <span class="n">default</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s">&#39;set default for </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="n">field</span><span class="p">,</span>
+                        <span class="nb">unicode</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">object_instance</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                        <span class="s">&#39;Programming Error : could not set&#39;</span>
+                        <span class="s">&#39; attribute </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s"> on </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="n">field</span><span class="p">,</span>
+                            <span class="n">default_value</span><span class="p">,</span>
+                            <span class="n">object_instance</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+                        <span class="p">),</span>
+                        <span class="n">exc_info</span><span class="o">=</span><span class="n">exc</span>
+                    <span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="ObjectAdmin.create_object_form_view"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.create_object_form_view">[docs]</a>    <span class="k">def</span> <span class="nf">create_object_form_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">object_getter</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a form view for a single object, :kbd:`PgUp`/:kbd:`PgDown` </span>
+<span class="sd">        will do nothing.</span>
+
+<span class="sd">        :param title: the title of the form view</span>
+<span class="sd">        :param object_getter: a function taking no arguments, and returning the object</span>
+<span class="sd">        :param parent: the parent widget for the form</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">create_collection_getter</span><span class="p">(</span> <span class="n">object_getter</span><span class="p">,</span> <span class="n">object_cache</span> <span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Transform an object_getter into a collection_getter which</span>
+<span class="sd">            returns a collection with only the object returned by object</span>
+<span class="sd">            getter.</span>
+
+<span class="sd">            :param object_getter: a function that returns the object that </span>
+<span class="sd">                should be in the collection</span>
+<span class="sd">            :param object_cache: a list that will be used to store the result</span>
+<span class="sd">                of object_getter, to prevent multiple calls of object_getter</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+
+            <span class="k">def</span> <span class="nf">collection_getter</span><span class="p">():</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">object_cache</span><span class="p">:</span>
+                    <span class="n">object_cache</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">object_getter</span><span class="p">()</span> <span class="p">)</span>
+                <span class="k">return</span> <span class="n">object_cache</span>
+
+            <span class="k">return</span> <span class="n">collection_getter</span>
+
+        <span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span>
+                            <span class="n">create_collection_getter</span><span class="p">(</span> <span class="n">object_getter</span><span class="p">,</span> <span class="p">[]</span> <span class="p">),</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">get_fields</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_form_view</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+</div>
+    <span class="nd">@gui_function</span>
+<div class="viewcode-block" id="ObjectAdmin.create_new_view"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.create_new_view">[docs]</a>    <span class="k">def</span> <span class="nf">create_new_view</span><span class="p">(</span><span class="n">admin</span><span class="p">,</span> <span class="n">related_collection_proxy</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a Qt widget containing a form to create a new instance of the</span>
+<span class="sd">        entity related to this admin class</span>
+
+<span class="sd">        The returned class has an &#39;entity_created_signal&#39; that will be fired</span>
+<span class="sd">        when a valid new entity was created by the form</span>
+
+<span class="sd">        :param collection_proxy: if specified, the object will be appended to</span>
+<span class="sd">        its underlying collection upon creation and removed from it upon</span>
+<span class="sd">        discarding.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span><span class="p">,</span> <span class="n">QtCore</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls.view</span> <span class="kn">import</span> <span class="n">AbstractView</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">post</span>
+
+        <span class="k">class</span> <span class="nc">NewObjectCollectionProxy</span><span class="p">(</span> <span class="n">CollectionProxy</span> <span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;A CollectionProxy for creating new objects, the underlying collection</span>
+<span class="sd">            will always be filled with a single object.&quot;&quot;&quot;</span>
+
+            <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">related_collection_proxy</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                <span class="c"># set attributes before initializing NewObjectCollectionProxy,</span>
+                <span class="c"># because this one contains posts that need these attributes</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_related_collection_proxy</span> <span class="o">=</span> <span class="n">related_collection_proxy</span>
+                <span class="nb">super</span><span class="p">(</span><span class="n">NewObjectCollectionProxy</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            
+            <span class="nd">@property</span>
+            <span class="k">def</span> <span class="nf">max_number_of_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">return</span> <span class="mi">1</span>
+
+            <span class="k">def</span> <span class="nf">get_new_object</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">entity</span><span class="p">()</span>
+                    <span class="c"># Give the default fields their value</span>
+                    <span class="n">admin</span><span class="o">.</span><span class="n">set_defaults</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_related_collection_proxy</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_related_collection_proxy</span><span class="o">.</span><span class="n">append_object</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span> <span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span>
+                
+            <span class="k">def</span> <span class="nf">get_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">get_new_object</span><span class="p">()]</span>
+                
+            <span class="k">def</span> <span class="nf">_expunge_new_object</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span><span class="p">:</span>
+                    <span class="n">admin</span><span class="o">.</span><span class="n">expunge</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span> <span class="p">)</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_related_collection_proxy</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_related_collection_proxy</span><span class="o">.</span><span class="n">remove_objects</span><span class="p">(</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_new_object</span><span class="p">],</span>
+                                                                       <span class="n">delete</span> <span class="o">=</span> <span class="bp">False</span> <span class="p">)</span>
+                                                                      
+            <span class="k">def</span> <span class="nf">expunge</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="sd">&quot;&quot;&quot;Discontinue the creation of the new object, expunge it</span>
+<span class="sd">                from its session and the related_collection proxy&quot;&quot;&quot;</span>
+                <span class="n">post</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expunge_new_object</span> <span class="p">)</span>
+
+        <span class="n">model</span> <span class="o">=</span> <span class="n">NewObjectCollectionProxy</span><span class="p">(</span> <span class="n">related_collection_proxy</span><span class="p">,</span>
+                                          <span class="n">admin</span><span class="p">,</span>
+                                          <span class="bp">None</span><span class="p">,</span>
+                                          <span class="n">admin</span><span class="o">.</span><span class="n">get_fields</span><span class="p">,</span>
+                                          <span class="n">max_number_of_rows</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+
+        <span class="n">validator</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">create_validator</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+        <span class="k">class</span> <span class="nc">NewForm</span><span class="p">(</span><span class="n">AbstractView</span><span class="p">):</span>
+
+            <span class="n">entity_created_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+                <span class="n">AbstractView</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">widget_layout</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">widget_layout</span><span class="o">.</span><span class="n">setContentsMargins</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">title</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;New&#39;</span><span class="p">)</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">form_view</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">create_form_view</span><span class="p">(</span>
+                    <span class="n">title</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">parent</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">widget_layout</span><span class="o">.</span><span class="n">insertWidget</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_view</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">widget_layout</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">validate_before_close</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="c">#</span>
+                <span class="c"># every time data has been changed, it could become valid,</span>
+                <span class="c"># when this is the case, it should be propagated</span>
+                <span class="c">#</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">dataChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataChanged</span> <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">form_view</span><span class="o">.</span><span class="n">title_changed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">change_title</span> <span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">emit_if_valid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">valid</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+
+                    <span class="k">def</span> <span class="nf">create_instance_getter</span><span class="p">(</span><span class="n">new_object</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="k">lambda</span><span class="p">:</span><span class="n">new_object</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">entity_created_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">model</span><span class="o">.</span><span class="n">get_new_object</span> <span class="p">)</span>
+
+            <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span> <span class="p">)</span>
+            <span class="k">def</span> <span class="nf">dataChanged</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_index1</span><span class="p">,</span> <span class="n">_index2</span><span class="p">):</span>
+
+                <span class="k">def</span> <span class="nf">validate</span><span class="p">():</span>
+                    <span class="k">return</span> <span class="n">validator</span><span class="o">.</span><span class="n">isValid</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+                <span class="n">post</span><span class="p">(</span><span class="n">validate</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">emit_if_valid</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">showMessage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">valid</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">emit_if_valid</span><span class="p">(</span><span class="n">valid</span><span class="p">)</span>
+                <span class="n">form</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_view</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;form&#39;</span> <span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">valid</span> <span class="ow">and</span> <span class="n">form</span><span class="p">:</span>
+                    <span class="n">row</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">reply</span> <span class="o">=</span> <span class="n">validator</span><span class="o">.</span><span class="n">validityDialog</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">reply</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Discard</span><span class="p">:</span>
+                        <span class="c"># clear mapping to prevent data being written again to</span>
+                        <span class="c"># the model, after we reverted the row</span>
+                        <span class="n">form</span><span class="o">.</span><span class="n">clear_mapping</span><span class="p">()</span>
+                        <span class="n">model</span><span class="o">.</span><span class="n">expunge</span><span class="p">()</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">validate_before_close</span> <span class="o">=</span> <span class="bp">False</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">validate_before_close</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+            <span class="k">def</span> <span class="nf">validateClose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s">&#39;validate before close : </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">validate_before_close</span>
+                <span class="p">)</span>
+                <span class="n">form</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_view</span><span class="o">.</span><span class="n">findChild</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWidget</span><span class="p">,</span> <span class="s">&#39;form&#39;</span> <span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">validate_before_close</span><span class="p">:</span>
+                    <span class="n">form</span><span class="o">.</span><span class="n">submit</span><span class="p">()</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                        <span class="s">&#39;unflushed rows : </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span>
+                        <span class="nb">str</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">hasUnflushedRows</span><span class="p">())</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">hasUnflushedRows</span><span class="p">():</span>
+
+                        <span class="k">def</span> <span class="nf">validate_and_flush</span><span class="p">():</span>
+                            <span class="n">valid</span> <span class="o">=</span> <span class="n">validator</span><span class="o">.</span><span class="n">isValid</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+                                <span class="n">admin</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span> <span class="n">model</span><span class="o">.</span><span class="n">get_new_object</span><span class="p">()</span> <span class="p">)</span>
+                            <span class="k">return</span> <span class="n">valid</span>
+
+                        <span class="n">post</span><span class="p">(</span><span class="n">validate_and_flush</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">showMessage</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="bp">False</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="bp">True</span>
+                <span class="k">return</span> <span class="bp">True</span>
+
+            <span class="k">def</span> <span class="nf">closeEvent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">validateClose</span><span class="p">():</span>
+                    <span class="n">event</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">event</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+
+        <span class="n">form</span> <span class="o">=</span> <span class="n">NewForm</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="n">admin</span><span class="o">.</span><span class="n">_apply_form_state</span><span class="p">(</span> <span class="n">form</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">admin</span><span class="p">,</span> <span class="s">&#39;form_size&#39;</span><span class="p">):</span>
+            <span class="n">form</span><span class="o">.</span><span class="n">setMinimumSize</span><span class="p">(</span><span class="n">admin</span><span class="o">.</span><span class="n">form_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">admin</span><span class="o">.</span><span class="n">form_size</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">form</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.delete"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Delete an entity instance&quot;&quot;&quot;</span>
+        <span class="k">del</span> <span class="n">entity_instance</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.flush"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Flush the pending changes of this entity instance to the backend&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+    </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.expunge"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.expunge">[docs]</a>    <span class="k">def</span> <span class="nf">expunge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove this object from the objects being managed&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.refresh"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.refresh">[docs]</a>    <span class="k">def</span> <span class="nf">refresh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Undo the pending changes to the backend and restore the original</span>
+<span class="sd">        state&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.add"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.add">[docs]</a>    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add an entity instance as a managed entity instance&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+</div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.is_deleted"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.is_deleted">[docs]</a>    <span class="k">def</span> <span class="nf">is_deleted</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: True if the object has been deleted from the persistent</span>
+<span class="sd">            state, False otherwise&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.is_persistent"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.is_persistent">[docs]</a>    <span class="k">def</span> <span class="nf">is_persistent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: True if the object has a persisted state, False otherwise&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    </div>
+    <span class="nd">@model_function</span>
+<div class="viewcode-block" id="ObjectAdmin.copy"><a class="viewcode-back" href="../../../api2/camelot.admin.html#camelot.admin.object_admin.ObjectAdmin.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Duplicate this entity instance&quot;&quot;&quot;</span>
+        <span class="n">new_entity_instance</span> <span class="o">=</span> <span class="n">entity_instance</span><span class="o">.</span><span class="n">__class__</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">new_entity_instance</span>
+</pre></div></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

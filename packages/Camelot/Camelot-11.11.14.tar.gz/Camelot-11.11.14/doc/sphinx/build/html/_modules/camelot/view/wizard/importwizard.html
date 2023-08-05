@@ -1,0 +1,600 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.wizard.importwizard &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../../index.html" />
+    <link rel="up" title="Module code" href="../../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.wizard.importwizard</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;Module for managing imports&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">codecs</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">xls2list</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span> <span class="k">as</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext_lazy</span>
+
+<span class="kn">from</span> <span class="nn">camelot.view.art</span> <span class="kn">import</span> <span class="n">Pixmap</span><span class="p">,</span> <span class="n">ColorScheme</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">post</span>
+<span class="kn">from</span> <span class="nn">camelot.view.wizard.pages.select</span> <span class="kn">import</span> <span class="n">SelectFilePage</span>
+<span class="kn">from</span> <span class="nn">camelot.view.wizard.pages.progress_page</span> <span class="kn">import</span> <span class="n">ProgressPage</span>
+<span class="kn">from</span> <span class="nn">camelot.view.controls.editors.one2manyeditor</span> <span class="kn">import</span> <span class="n">One2ManyEditor</span>
+<span class="kn">from</span> <span class="nn">camelot.view.proxy.collection_proxy</span> <span class="kn">import</span> <span class="n">CollectionProxy</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.wizard.importwizard&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RowData"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowData">[docs]</a><span class="k">class</span> <span class="nc">RowData</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Class representing the data in a single row of the imported file as an</span>
+<span class="sd">    object with attributes column_1, column_2, ..., each representing the data</span>
+<span class="sd">    in a single column of that row.</span>
+
+<span class="sd">    since the imported file might contain less columns than expected, the</span>
+<span class="sd">    RowData object returns None for not existing attributes&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row_number</span><span class="p">,</span> <span class="n">row_data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param row_data: a list containing the data</span>
+<span class="sd">        [column_1_data, column_2_data, ...] for a single row</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">row_number</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">row_data</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="s">&#39;column_</span><span class="si">%i</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+
+<span class="c"># see http://docs.python.org/library/csv.html</span></div>
+<div class="viewcode-block" id="UTF8Recoder"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.UTF8Recoder">[docs]</a><span class="k">class</span> <span class="nc">UTF8Recoder</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Iterator that reads an encoded stream and reencodes the input to</span>
+<span class="sd">    UTF-8.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">encoding</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reader</span> <span class="o">=</span> <span class="n">codecs</span><span class="o">.</span><span class="n">getreader</span><span class="p">(</span><span class="n">encoding</span><span class="p">)(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+<div class="viewcode-block" id="UTF8Recoder.next"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.UTF8Recoder.next">[docs]</a>    <span class="k">def</span> <span class="nf">next</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reader</span><span class="o">.</span><span class="n">next</span><span class="p">()</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+
+
+<span class="c"># see http://docs.python.org/library/csv.html</span></div></div>
+<div class="viewcode-block" id="UnicodeReader"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.UnicodeReader">[docs]</a><span class="k">class</span> <span class="nc">UnicodeReader</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;A CSV reader which will iterate over lines in the CSV file &quot;f&quot;, which is</span>
+<span class="sd">    encoded in the given encoding.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="n">csv</span><span class="o">.</span><span class="n">excel</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s">&#39;utf-8&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">UTF8Recoder</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">encoding</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="n">dialect</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">)</span>
+
+<div class="viewcode-block" id="UnicodeReader.next"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.UnicodeReader.next">[docs]</a>    <span class="k">def</span> <span class="nf">next</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reader</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">[</span><span class="nb">unicode</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">row</span><span class="p">]</span>
+</div>
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+</div>
+<div class="viewcode-block" id="CsvCollectionGetter"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.CsvCollectionGetter">[docs]</a><span class="k">class</span> <span class="nc">CsvCollectionGetter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns data from csv file as a list of RowData objects&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">==</span><span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="kn">import</span> <span class="nn">chardet</span>
+
+            <span class="n">detected</span> <span class="o">=</span> <span class="n">chardet</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())[</span><span class="s">&#39;encoding&#39;</span><span class="p">]</span>
+            <span class="n">enc</span> <span class="o">=</span> <span class="n">detected</span> <span class="ow">or</span> <span class="s">&#39;utf-8&#39;</span>
+
+            <span class="n">items</span> <span class="o">=</span> <span class="n">UnicodeReader</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="n">enc</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">RowData</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">row_data</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row_data</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+            <span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+</div>
+<div class="viewcode-block" id="XlsCollectionGetter"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.XlsCollectionGetter">[docs]</a><span class="k">class</span> <span class="nc">XlsCollectionGetter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns the data from excel file as a list of RowData objects&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s">&#39;utf-8&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span> <span class="o">=</span> <span class="n">encoding</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">rows</span> <span class="o">=</span> <span class="n">xls2list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span> <span class="c"># we skip the first row :)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">RowData</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">row_data</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row_data</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+            <span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator">[docs]</a><span class="k">class</span> <span class="nc">RowDataAdminDecorator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator that transforms the Admin of the class to be imported to an</span>
+<span class="sd">    Admin of the RowData objects to be used when previewing and validating the</span>
+<span class="sd">    data to be imported.</span>
+
+<span class="sd">    based on the field attributes of the original mode, it will turn the</span>
+<span class="sd">    background color pink if the data is invalid for being imported.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">object_admin</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param object_admin: the object_admin object that will be</span>
+<span class="sd">        decorated&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_object_admin</span> <span class="o">=</span> <span class="n">object_admin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_new_field_attributes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_object_admin</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RowDataAdminDecorator.create_validator"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.create_validator">[docs]</a>    <span class="k">def</span> <span class="nf">create_validator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates a validator that validates the data to be imported, the</span>
+<span class="sd">        validator will check if the background of the cell is pink, and if it</span>
+<span class="sd">        is it will mark that object as invalid.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.admin.validator.object_validator</span> <span class="kn">import</span> <span class="n">ObjectValidator</span>
+
+        <span class="k">class</span> <span class="nc">NewObjectValidator</span><span class="p">(</span><span class="n">ObjectValidator</span><span class="p">):</span>
+
+            <span class="k">def</span> <span class="nf">objectValidity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+                <span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_columns</span><span class="p">()</span>
+                <span class="n">dynamic_attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_dynamic_field_attributes</span><span class="p">(</span>
+                    <span class="n">obj</span><span class="p">,</span>
+                    <span class="p">[</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">attrs</span> <span class="ow">in</span> <span class="n">dynamic_attributes</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">attrs</span><span class="p">[</span><span class="s">&#39;background_color&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">ColorScheme</span><span class="o">.</span><span class="n">pink_1</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;we have an invalid field&#39;</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="p">[</span><span class="s">&#39;invalid field&#39;</span><span class="p">]</span>
+                <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="k">return</span> <span class="n">NewObjectValidator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator.get_fields"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.get_fields">[docs]</a>    <span class="k">def</span> <span class="nf">get_fields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_columns</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator.flush"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;When flush is called, don&#39;t do anything, since we&#39;ll only save the</span>
+<span class="sd">        object when importing them for real&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+    </div>
+<div class="viewcode-block" id="RowDataAdminDecorator.delete"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator.get_field_attributes"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.get_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_field_attributes</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator.get_static_field_attributes"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.get_static_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_static_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_names</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">_field_name</span> <span class="ow">in</span> <span class="n">field_names</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="p">{</span><span class="s">&#39;editable&#39;</span><span class="p">:</span><span class="bp">True</span><span class="p">}</span>
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator.get_dynamic_field_attributes"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.get_dynamic_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">get_dynamic_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">field_names</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">field_name</span> <span class="ow">in</span> <span class="n">field_names</span><span class="p">:</span>
+            <span class="n">attributes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_field_attributes</span><span class="p">(</span><span class="n">field_name</span><span class="p">)</span>
+            <span class="n">string_value</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;getter&#39;</span><span class="p">](</span><span class="n">obj</span><span class="p">)</span>
+            <span class="n">valid</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">if</span> <span class="s">&#39;from_string&#39;</span> <span class="ow">in</span> <span class="n">attributes</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;from_string&#39;</span><span class="p">](</span><span class="n">string_value</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="n">valid</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="c"># 0 is valid</span>
+                <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">value</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;nullable&#39;</span><span class="p">]:</span>
+                    <span class="n">valid</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="p">{</span><span class="s">&#39;background_color&#39;</span><span class="p">:</span><span class="bp">None</span><span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="p">{</span><span class="s">&#39;background_color&#39;</span><span class="p">:</span><span class="n">ColorScheme</span><span class="o">.</span><span class="n">pink_1</span><span class="p">}</span>
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator.new_field_attributes"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.new_field_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">new_field_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">original_field_attributes</span><span class="p">,</span> <span class="n">original_field</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls</span> <span class="kn">import</span> <span class="n">delegates</span>
+
+        <span class="k">def</span> <span class="nf">create_getter</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+            <span class="k">return</span> <span class="k">lambda</span> <span class="n">o</span><span class="p">:</span><span class="nb">getattr</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="s">&#39;column_</span><span class="si">%i</span><span class="s">&#39;</span><span class="o">%</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="n">attributes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">original_field_attributes</span><span class="p">)</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;delegate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;python_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;original_field&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">original_field</span>
+        <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;getter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_getter</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="c"># remove some attributes that might disturb the import wizard</span>
+        <span class="k">for</span> <span class="n">attribute</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;background_color&#39;</span><span class="p">,</span> <span class="s">&#39;tooltip&#39;</span><span class="p">]:</span>
+            <span class="n">attributes</span><span class="p">[</span><span class="n">attribute</span><span class="p">]</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_new_field_attributes</span><span class="p">[</span><span class="s">&#39;column_</span><span class="si">%i</span><span class="s">&#39;</span> <span class="o">%</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">attributes</span>
+
+        <span class="k">return</span> <span class="n">attributes</span>
+</div>
+<div class="viewcode-block" id="RowDataAdminDecorator.get_columns"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.RowDataAdminDecorator.get_columns">[docs]</a>    <span class="k">def</span> <span class="nf">get_columns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span>
+
+        <span class="n">original_columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_object_admin</span><span class="o">.</span><span class="n">get_columns</span><span class="p">()</span>
+        <span class="n">new_columns</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span>
+                <span class="s">&#39;column_</span><span class="si">%i</span><span class="s">&#39;</span> <span class="o">%</span><span class="n">i</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">new_field_attributes</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">original_field</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">original_field</span><span class="p">,</span> <span class="n">attributes</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">original_columns</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;editable&#39;</span><span class="p">,</span>  <span class="bp">True</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_columns</span> <span class="o">=</span> <span class="n">new_columns</span>
+
+        <span class="k">return</span> <span class="n">new_columns</span>
+
+</div></div>
+<div class="viewcode-block" id="DataPreviewPage"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.DataPreviewPage">[docs]</a><span class="k">class</span> <span class="nc">DataPreviewPage</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWizardPage</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;DataPreviewPage is the previewing page for the import wizard&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">collection_getter</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls.editors</span> <span class="kn">import</span> <span class="n">NoteEditor</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">DataPreviewPage</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">model</span>
+        <span class="k">assert</span> <span class="n">collection_getter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setTitle</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Data Preview&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setSubTitle</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">&#39;Please review the data below.&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_complete</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="n">validator</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">get_validator</span><span class="p">()</span>
+        <span class="n">validator</span><span class="o">.</span><span class="n">validity_changed_signal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">update_complete</span><span class="p">)</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">layoutChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">validate_all_rows</span><span class="p">)</span>
+        <span class="n">post</span><span class="p">(</span><span class="n">validator</span><span class="o">.</span><span class="n">validate_all_rows</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">collection_getter</span> <span class="o">=</span> <span class="n">collection_getter</span>
+
+        <span class="n">icon</span> <span class="o">=</span> <span class="s">&#39;tango/32x32/mimetypes/x-office-spreadsheet.png&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setPixmap</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWizard</span><span class="o">.</span><span class="n">LogoPixmap</span><span class="p">,</span> <span class="n">Pixmap</span><span class="p">(</span><span class="n">icon</span><span class="p">)</span><span class="o">.</span><span class="n">getQPixmap</span><span class="p">())</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">previewtable</span> <span class="o">=</span> <span class="n">One2ManyEditor</span><span class="p">(</span>
+            <span class="n">admin</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_admin</span><span class="p">(),</span>
+            <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="p">,</span>
+            <span class="n">create_inline</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span>
+            <span class="n">vertical_header_clickable</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_note</span> <span class="o">=</span> <span class="n">NoteEditor</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_note</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">None</span><span class="p">)</span>
+
+        <span class="n">ly</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QVBoxLayout</span><span class="p">()</span>
+        <span class="n">ly</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">previewtable</span><span class="p">)</span>
+        <span class="n">ly</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_note</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setLayout</span><span class="p">(</span><span class="n">ly</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">setCommitPage</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setButtonText</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWizard</span><span class="o">.</span><span class="n">CommitButton</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Import&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_complete</span><span class="p">()</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="DataPreviewPage.validate_all_rows"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.DataPreviewPage.validate_all_rows">[docs]</a>    <span class="k">def</span> <span class="nf">validate_all_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">validator</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">get_validator</span><span class="p">()</span>
+        <span class="n">post</span><span class="p">(</span><span class="n">validator</span><span class="o">.</span><span class="n">validate_all_rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_all_rows_validated</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">_all_rows_validated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_complete</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<div class="viewcode-block" id="DataPreviewPage.update_complete"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.DataPreviewPage.update_complete">[docs]</a>    <span class="k">def</span> <span class="nf">update_complete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_complete</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">get_validator</span><span class="p">()</span><span class="o">.</span><span class="n">number_of_invalid_rows</span><span class="p">()</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">completeChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_complete</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_note</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_note</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="n">_</span><span class="p">(</span>
+                <span class="s">&#39;Please correct the data above before proceeding with the &#39;</span>
+                <span class="s">&#39;import.&lt;br/&gt;Incorrect cells have a pink background.&#39;</span>
+            <span class="p">))</span>
+</div>
+<div class="viewcode-block" id="DataPreviewPage.initializePage"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.DataPreviewPage.initializePage">[docs]</a>    <span class="k">def</span> <span class="nf">initializePage</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Gets all info needed from SelectFilePage and feeds table&quot;&quot;&quot;</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="s">&#39;datasource&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">toString</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_complete</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">completeChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">set_collection_getter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">collection_getter</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">previewtable</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">validate_all_rows</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="DataPreviewPage.validatePage"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.DataPreviewPage.validatePage">[docs]</a>    <span class="k">def</span> <span class="nf">validatePage</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">answer</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">question</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">_</span><span class="p">(</span><span class="s">&#39;Proceed with import&#39;</span><span class="p">),</span>
+            <span class="n">_</span><span class="p">(</span><span class="s">&#39;Importing data cannot be undone,</span><span class="se">\n</span><span class="s">&#39;</span>
+              <span class="s">&#39;are you sure you want to continue&#39;</span><span class="p">),</span>
+            <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Cancel</span><span class="p">,</span>
+            <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Ok</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">answer</span> <span class="o">==</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Ok</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="DataPreviewPage.isComplete"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.DataPreviewPage.isComplete">[docs]</a>    <span class="k">def</span> <span class="nf">isComplete</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_complete</span>
+
+</div></div>
+<div class="viewcode-block" id="FinalPage"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.FinalPage">[docs]</a><span class="k">class</span> <span class="nc">FinalPage</span><span class="p">(</span><span class="n">ProgressPage</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;FinalPage is the final page in the import process&quot;&quot;&quot;</span>
+
+    <span class="n">title</span> <span class="o">=</span> <span class="n">ugettext_lazy</span><span class="p">(</span><span class="s">&#39;Import Progress&#39;</span><span class="p">)</span>
+    <span class="n">sub_title</span> <span class="o">=</span> <span class="n">ugettext_lazy</span><span class="p">(</span><span class="s">&#39;Please wait while data is being imported.&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">admin</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :model: the source model from which to import data</span>
+<span class="sd">        :admin: the admin class of the target data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FinalPage</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="n">icon</span> <span class="o">=</span> <span class="s">&#39;tango/32x32/mimetypes/x-office-spreadsheet.png&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setPixmap</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWizard</span><span class="o">.</span><span class="n">LogoPixmap</span><span class="p">,</span> <span class="n">Pixmap</span><span class="p">(</span><span class="n">icon</span><span class="p">)</span><span class="o">.</span><span class="n">getQPixmap</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setButtonText</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWizard</span><span class="o">.</span><span class="n">FinishButton</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Close&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">progressbar</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QProgressBar</span><span class="p">()</span>
+
+<div class="viewcode-block" id="FinalPage.run"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.FinalPage.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">get_collection</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_maximum_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">collection</span><span class="p">)</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">collection</span><span class="p">):</span>
+            <span class="n">new_entity_instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">entity</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">attributes</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">get_admin</span><span class="p">()</span><span class="o">.</span><span class="n">get_columns</span><span class="p">():</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">from_string</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;from_string&#39;</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span> <span class="s">&#39;field </span><span class="si">%s</span><span class="s"> has no from_string field attribute, dont know how to import it properly&#39;</span><span class="o">%</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;original_field&#39;</span><span class="p">]</span> <span class="p">)</span>
+                    <span class="n">from_string</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_a</span><span class="p">:</span><span class="bp">None</span>
+                <span class="nb">setattr</span><span class="p">(</span>
+                    <span class="n">new_entity_instance</span><span class="p">,</span>
+                    <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;original_field&#39;</span><span class="p">],</span>
+                    <span class="n">from_string</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">field_name</span><span class="p">))</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_entity_instance</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">flush</span><span class="p">(</span><span class="n">new_entity_instance</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_progress_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span>
+                <span class="n">i</span><span class="p">,</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Row </span><span class="si">%i</span><span class="s"> of </span><span class="si">%i</span><span class="s"> imported&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">collection</span><span class="p">))</span>
+            <span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="DataPreviewCollectionProxy"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.DataPreviewCollectionProxy">[docs]</a><span class="k">class</span> <span class="nc">DataPreviewCollectionProxy</span><span class="p">(</span><span class="n">CollectionProxy</span><span class="p">):</span>
+    <span class="n">header_icon</span> <span class="o">=</span> <span class="bp">None</span>
+
+</div>
+<div class="viewcode-block" id="ImportWizard"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.ImportWizard">[docs]</a><span class="k">class</span> <span class="nc">ImportWizard</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWizard</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;ImportWizard provides a two-step wizard for importing data as objects</span>
+<span class="sd">    into Camelot.  To create a custom wizard, subclass this ImportWizard and</span>
+<span class="sd">    overwrite its class attributes.</span>
+
+<span class="sd">    To import a different file format, you probably need a custom</span>
+<span class="sd">    collection_getter for this file type.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">select_file_page</span> <span class="o">=</span> <span class="n">SelectFilePage</span>
+    <span class="n">data_preview_page</span> <span class="o">=</span> <span class="n">DataPreviewPage</span>
+    <span class="n">final_page</span> <span class="o">=</span> <span class="n">FinalPage</span>
+    <span class="n">collection_getter</span> <span class="o">=</span> <span class="n">CsvCollectionGetter</span>
+    <span class="n">window_title</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Import CSV data&#39;</span><span class="p">)</span>
+    <span class="n">rowdata_admin_decorator</span> <span class="o">=</span> <span class="n">RowDataAdminDecorator</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">admin</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param admin: camelot model admin of the destination data&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ImportWizard</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">admin</span>
+        <span class="c">#</span>
+        <span class="c"># Set the size of the wizard to 2/3rd of the screen, since we want to</span>
+        <span class="c"># get some work done here, the user needs to verify and possibly</span>
+        <span class="c"># correct its data</span>
+        <span class="c">#</span>
+        <span class="n">desktop</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QCoreApplication</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">desktop</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setMinimumSize</span><span class="p">(</span><span class="n">desktop</span><span class="o">.</span><span class="n">width</span><span class="p">()</span><span class="o">*</span><span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="n">desktop</span><span class="o">.</span><span class="n">height</span><span class="p">()</span><span class="o">*</span><span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span>
+
+        <span class="n">row_data_admin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rowdata_admin_decorator</span><span class="p">(</span><span class="n">admin</span><span class="p">)</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">DataPreviewCollectionProxy</span><span class="p">(</span>
+            <span class="n">row_data_admin</span><span class="p">,</span>
+            <span class="k">lambda</span><span class="p">:[],</span>
+            <span class="n">row_data_admin</span><span class="o">.</span><span class="n">get_columns</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">window_title</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_pages</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">admin</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setOption</span><span class="p">(</span><span class="n">QtGui</span><span class="o">.</span><span class="n">QWizard</span><span class="o">.</span><span class="n">NoCancelButton</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ImportWizard.add_pages"><a class="viewcode-back" href="../../../../api2/camelot.view.wizard.html#camelot.view.wizard.importwizard.ImportWizard.add_pages">[docs]</a>    <span class="k">def</span> <span class="nf">add_pages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">admin</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add all pages to the import wizard, reimplement this method to add</span>
+<span class="sd">        custom pages to the wizard.  This method is called in the __init__</span>
+<span class="sd">        method, to add all pages to the wizard.</span>
+
+<span class="sd">        :param model: the CollectionProxy that will be used to display the to</span>
+<span class="sd">        be imported data</span>
+<span class="sd">        :param admin: the admin of the destination data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addPage</span><span class="p">(</span><span class="n">SelectFilePage</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addPage</span><span class="p">(</span>
+            <span class="n">DataPreviewPage</span><span class="p">(</span>
+                <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+                <span class="n">collection_getter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">collection_getter</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addPage</span><span class="p">(</span><span class="n">FinalPage</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">admin</span><span class="o">=</span><span class="n">admin</span><span class="p">))</span>
+</pre></div></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

@@ -1,0 +1,343 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Views &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../index.html" />
+    <link rel="up" title="Creating models" href="models.html" />
+    <link rel="next" title="Under the hood" href="under_the_hood.html" />
+    <link rel="prev" title="Calculated Fields" href="calculated_fields.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="under_the_hood.html" title="Under the hood"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="calculated_fields.html" title="Calculated Fields"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../contents.html" >Camelot Documentation contents</a> &raquo;</li>
+          <li><a href="index.html" >Camelot Documentation</a> &raquo;</li>
+          <li><a href="models.html" accesskey="U">Creating models</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="views">
+<span id="id1"></span><h1>Views<a class="headerlink" href="#views" title="Permalink to this headline">¶</a></h1>
+<p>Traditionally, in database land, <strong>views</strong> are queries defined at the database
+level that act like read-only tables.  They allow reuse of common queries
+across an application, and are very suitable for reporting.</p>
+<p>Using <strong>SQLAlchemy</strong> this traditional approach can be used, but a more dynamic
+approach is possible as well.  We can map arbitrary queries to an object,
+and then visualize these objects with <strong>Camelot</strong>.</p>
+<div class="section" id="the-model-to-start-from">
+<h2>The model to start from<a class="headerlink" href="#the-model-to-start-from" title="Permalink to this headline">¶</a></h2>
+<img alt="../_images/table_view_visitorreport.png" src="../_images/table_view_visitorreport.png" />
+<p>In the example movie project, we can take three parts of the model : Person,
+Movie and VisitorReport:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">Person</span><span class="p">(</span> <span class="n">Party</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Person represents natural persons</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">using_options</span><span class="p">(</span> <span class="n">tablename</span> <span class="o">=</span> <span class="s">&#39;person&#39;</span><span class="p">,</span> <span class="n">inheritance</span> <span class="o">=</span> <span class="s">&#39;multi&#39;</span> <span class="p">)</span>
+    <span class="n">first_name</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Unicode</span><span class="p">(</span> <span class="mi">40</span> <span class="p">),</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">)</span>
+    <span class="n">last_name</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span> <span class="n">Unicode</span><span class="p">(</span> <span class="mi">40</span> <span class="p">),</span> <span class="n">required</span> <span class="o">=</span> <span class="bp">True</span> <span class="p">)</span>
+</pre></div>
+</div>
+<p>There is a relation between Person and Movie through the director attribute:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">Movie</span><span class="p">(</span><span class="n">Entity</span><span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;movies&#39;</span><span class="p">)</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">60</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">short_description</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">512</span><span class="p">))</span>
+    <span class="n">releasedate</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">Date</span><span class="p">)</span>
+    <span class="c">#</span>
+    <span class="c"># All relation types are covered with their own editor</span>
+    <span class="c">#</span>
+    <span class="n">director</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;Person&#39;</span><span class="p">)</span>
+    <span class="n">cast</span> <span class="o">=</span> <span class="n">OneToMany</span><span class="p">(</span><span class="s">&#39;Cast&#39;</span><span class="p">)</span>
+    <span class="n">visitor_reports</span> <span class="o">=</span> <span class="n">OneToMany</span><span class="p">(</span><span class="s">&#39;VisitorReport&#39;</span><span class="p">)</span>
+    <span class="n">tags</span> <span class="o">=</span> <span class="n">ManyToMany</span><span class="p">(</span><span class="s">&#39;Tag&#39;</span><span class="p">)</span>
+    <span class="n">genre</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">15</span><span class="p">))</span>
+    <span class="n">rating</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">camelot</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">Rating</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>And a relation between Movie and VisitorReport:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">VisitorReport</span><span class="p">(</span><span class="n">Entity</span><span class="p">):</span>
+    <span class="n">using_options</span><span class="p">(</span><span class="n">tablename</span><span class="o">=</span><span class="s">&#39;visitor_report&#39;</span><span class="p">)</span>
+    <span class="n">movie</span> <span class="o">=</span> <span class="n">ManyToOne</span><span class="p">(</span><span class="s">&#39;Movie&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">date</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">Date</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">today</span><span class="p">)</span>
+    <span class="n">visitors</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">Integer</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="../_images/table_view_visitorreport.png" src="../_images/table_view_visitorreport.png" />
+</div>
+<div class="section" id="definition-of-the-view">
+<h2>Definition of the view<a class="headerlink" href="#definition-of-the-view" title="Permalink to this headline">¶</a></h2>
+<p>Suppose, we now want to display a table with the total numbers of visitors
+for all movies of a director.</p>
+<p>We first define a plain old Python class that represents the expected results :</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">VisitorsPerDirector</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    
+    <span class="k">class</span> <span class="nc">Admin</span><span class="p">(</span><span class="n">EntityAdmin</span><span class="p">):</span>
+        <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">_</span><span class="p">(</span><span class="s">&#39;Visitors per director&#39;</span><span class="p">)</span>
+        <span class="n">list_display</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;first_name&#39;</span><span class="p">,</span> <span class="s">&#39;last_name&#39;</span><span class="p">,</span> <span class="s">&#39;visitors&#39;</span><span class="p">]</span>
+        
+</pre></div>
+</div>
+<p>Then define a function that maps the query that calculates those results
+to the plain old Python object :</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">setup_views</span><span class="p">():</span>
+    <span class="kn">from</span> <span class="nn">sqlalchemy.sql</span> <span class="kn">import</span> <span class="n">select</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">and_</span>
+    <span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="kn">import</span> <span class="n">mapper</span>
+ 
+    <span class="kn">from</span> <span class="nn">camelot.model.authentication</span> <span class="kn">import</span> <span class="n">Person</span>
+    <span class="kn">from</span> <span class="nn">camelot_example.model</span> <span class="kn">import</span> <span class="n">Movie</span><span class="p">,</span> <span class="n">VisitorReport</span>
+    
+    <span class="n">s</span> <span class="o">=</span> <span class="n">select</span><span class="p">([</span><span class="n">Person</span><span class="o">.</span><span class="n">party_id</span><span class="p">,</span>
+                <span class="n">Person</span><span class="o">.</span><span class="n">first_name</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s">&#39;first_name&#39;</span><span class="p">),</span>
+                <span class="n">Person</span><span class="o">.</span><span class="n">last_name</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s">&#39;last_name&#39;</span><span class="p">),</span>
+                <span class="n">func</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span> <span class="n">VisitorReport</span><span class="o">.</span><span class="n">visitors</span> <span class="p">)</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s">&#39;visitors&#39;</span><span class="p">),],</span>
+                <span class="n">whereclause</span> <span class="o">=</span> <span class="n">and_</span><span class="p">(</span> <span class="n">Person</span><span class="o">.</span><span class="n">party_id</span> <span class="o">==</span> <span class="n">Movie</span><span class="o">.</span><span class="n">director_party_id</span><span class="p">,</span>
+                                    <span class="n">Movie</span><span class="o">.</span><span class="n">id</span> <span class="o">==</span> <span class="n">VisitorReport</span><span class="o">.</span><span class="n">movie_id</span><span class="p">),</span>
+                <span class="n">group_by</span> <span class="o">=</span> <span class="p">[</span> <span class="n">Person</span><span class="o">.</span><span class="n">party_id</span><span class="p">,</span> 
+                             <span class="n">Person</span><span class="o">.</span><span class="n">first_name</span><span class="p">,</span> 
+                             <span class="n">Person</span><span class="o">.</span><span class="n">last_name</span> <span class="p">]</span> <span class="p">)</span>
+                            
+    <span class="n">s</span><span class="o">=</span><span class="n">s</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s">&#39;visitors_per_director&#39;</span><span class="p">)</span>
+    
+    <span class="n">mapper</span><span class="p">(</span> <span class="n">VisitorsPerDirector</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">always_refresh</span><span class="o">=</span><span class="bp">True</span> <span class="p">)</span>
+</pre></div>
+</div>
+<p>Put all this in a file called view.py</p>
+</div>
+<div class="section" id="put-into-action">
+<h2>Put into action<a class="headerlink" href="#put-into-action" title="Permalink to this headline">¶</a></h2>
+<p>Then make sure the plain old Python object is mapped to the query, just after
+the Elixir model has been setup, by modifying the setup_model function in
+settings.py:</p>
+<div class="highlight-python"><pre>    def setup_model():
+        import camelot.model
+        import camelot_example.model
+        from elixir import setup_all
+        setup_all(create_tables=True)
+        from camelot.model.authentication import updateLastLogin
+        updateLastLogin()
+        # 
+        # Load sample data with the fixure mechanism
+        #
+        from camelot_example.fixtures import load_movie_fixtures
+        load_movie_fixtures()
+        from camelot.core.sql import update_database_from_model
+        #update_database_from_model()
+        #
+        # setup the views
+        #
+        from camelot_example.view import setup_views
+        setup_views()
+
+</pre>
+</div>
+<p>And add the plain old Python object to a section in the <strong>ApplicationAdmin</strong>:</p>
+<div class="highlight-python"><pre>    def get_sections(self):
+        
+        from camelot.model.memento import Memento
+        from camelot.model.authentication import Person, Organization
+        from camelot.model.i18n import Translation
+        
+        from camelot_example.model import Movie, Tag, VisitorReport
+        from camelot_example.view import VisitorsPerDirector
+# begin import action
+        from camelot_example.importer import ImportCovers
+# end import action
+        
+        return [
+# begin section with action
+                Section( _('Movies'),
+                         self,
+                         Icon('tango/22x22/mimetypes/x-office-presentation.png'),
+                         items = [ Movie, 
+                                   Tag, 
+                                   VisitorReport, 
+                                   VisitorsPerDirector,
+                                   ImportCovers() ]),
+# end section with action
+                Section( _('Relation'),
+                         self,
+                         Icon('tango/22x22/apps/system-users.png'),
+                         items = [ Person, 
+                                   Organization ]),
+                Section( _('Configuration'),
+                         self,
+                         Icon('tango/22x22/categories/preferences-system.png'),
+                         items = [ Memento, 
+                                   Translation ])
+                ]
+</pre>
+</div>
+<img alt="../_images/table_view_visitorsperdirector.png" src="../_images/table_view_visitorsperdirector.png" />
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Views</a><ul>
+<li><a class="reference internal" href="#the-model-to-start-from">The model to start from</a></li>
+<li><a class="reference internal" href="#definition-of-the-view">Definition of the view</a></li>
+<li><a class="reference internal" href="#put-into-action">Put into action</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="calculated_fields.html"
+                        title="previous chapter">Calculated Fields</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="under_the_hood.html"
+                        title="next chapter">Under the hood</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/doc/views.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="under_the_hood.html" title="Under the hood"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="calculated_fields.html" title="Calculated Fields"
+             >previous</a> |</li>
+        <li><a href="../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../contents.html" >Camelot Documentation contents</a> &raquo;</li>
+          <li><a href="index.html" >Camelot Documentation</a> &raquo;</li>
+          <li><a href="models.html" >Creating models</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

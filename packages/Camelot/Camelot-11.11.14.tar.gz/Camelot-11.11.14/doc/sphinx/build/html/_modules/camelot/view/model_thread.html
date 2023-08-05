@@ -1,0 +1,327 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.view.model_thread &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.view.model_thread</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.view.model_thread&#39;</span><span class="p">)</span>
+
+<span class="n">_model_thread_</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="c"># this might be set to False, for unittesting purpose</span>
+<span class="n">verify_threads</span> <span class="o">=</span> <span class="bp">True</span>
+
+<div class="viewcode-block" id="ModelThreadException"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.ModelThreadException">[docs]</a><span class="k">class</span> <span class="nc">ModelThreadException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="model_function"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.model_function">[docs]</a><span class="k">def</span> <span class="nf">model_function</span><span class="p">(</span><span class="n">original_function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator to ensure a function is only called from within the model</span>
+<span class="sd">    thread. If this function is called in another thread, an exception will be</span>
+<span class="sd">    thrown&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">in_model_thread</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;return wether current thread is model thread&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">no_thread_model_thread</span> <span class="kn">import</span> <span class="n">NoThreadModelThread</span>
+        <span class="n">current_thread</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="o">.</span><span class="n">currentThread</span><span class="p">()</span>
+        <span class="n">model_thread</span> <span class="o">=</span> <span class="n">get_model_thread</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">current_thread</span><span class="o">==</span><span class="n">model_thread</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">model_thread</span><span class="p">,</span> <span class="p">(</span><span class="n">NoThreadModelThread</span><span class="p">,)</span>
+        <span class="p">)</span>
+
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">original_function</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="ow">not</span> <span class="n">verify_threads</span><span class="p">)</span> <span class="ow">or</span> <span class="n">in_model_thread</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">original_function</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+</div>
+<div class="viewcode-block" id="gui_function"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.gui_function">[docs]</a><span class="k">def</span> <span class="nf">gui_function</span><span class="p">(</span><span class="n">original_function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator to ensure a function is only called from within the gui</span>
+<span class="sd">    thread. If this function is called in another thread, an exception will be</span>
+<span class="sd">    thrown&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">in_gui_thread</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;return wether current thread is gui thread&quot;&quot;&quot;</span>
+        <span class="n">gui_thread</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">thread</span><span class="p">()</span>
+        <span class="n">current_thread</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="o">.</span><span class="n">currentThread</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">gui_thread</span> <span class="o">==</span> <span class="n">current_thread</span>
+
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">original_function</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="ow">not</span> <span class="n">verify_threads</span><span class="p">)</span> <span class="ow">or</span> <span class="n">in_gui_thread</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">original_function</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+</div>
+<div class="viewcode-block" id="setup_model"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.setup_model">[docs]</a><span class="k">def</span> <span class="nf">setup_model</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Call the setup_model function in the settings&quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">camelot.core.conf</span> <span class="kn">import</span> <span class="n">settings</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">setup_model</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="AbstractModelThread"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.AbstractModelThread">[docs]</a><span class="k">class</span> <span class="nc">AbstractModelThread</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Abstract implementation of a model thread class</span>
+<span class="sd">    Thread in which the model runs, all requests to the model should be</span>
+<span class="sd">    posted to the the model thread.</span>
+
+<span class="sd">    This class ensures the gui thread doesn&#39;t block when the model needs</span>
+<span class="sd">    time to complete tasks by providing asynchronous communication between</span>
+<span class="sd">    the model thread and the gui thread</span>
+<span class="sd">    </span>
+<span class="sd">    The Model thread class provides a number of signals :</span>
+<span class="sd">    </span>
+<span class="sd">    *thread_busy_signal*</span>
+<span class="sd">    </span>
+<span class="sd">    indicates if the model thread is working in the background</span>
+<span class="sd">    </span>
+<span class="sd">    *setup_exception_signal*</span>
+<span class="sd">    </span>
+<span class="sd">    this signal is emitted when there was an exception setting up the model</span>
+<span class="sd">    thread, eg no connection to the database could be made.  this exception</span>
+<span class="sd">    is mostly fatal for the application.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">thread_busy_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="n">setup_exception_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">setup_thread</span><span class="o">=</span><span class="n">setup_model</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param setup_thread: function to be called at startup of the thread</span>
+<span class="sd">        to initialize everything, by default this will setup the model. Set to</span>
+<span class="sd">        None if nothing should be done.&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AbstractModelThread</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">logger</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s">&#39;.</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_thread</span> <span class="o">=</span> <span class="n">setup_thread</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exit</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_traceback</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;model thread constructed&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AbstractModelThread.run"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.AbstractModelThread.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="AbstractModelThread.traceback"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.AbstractModelThread.traceback">[docs]</a>    <span class="k">def</span> <span class="nf">traceback</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The formatted traceback of the last exception in the model thread&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_traceback</span>
+</div>
+<div class="viewcode-block" id="AbstractModelThread.wait_on_work"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.AbstractModelThread.wait_on_work">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_work</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wait for all work to be finished, this function should only be used</span>
+<span class="sd">    to do unit testing and such, since it will block the calling thread until</span>
+<span class="sd">    all work is done&quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="AbstractModelThread.post"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.AbstractModelThread.post">[docs]</a>    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">exception</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">()):</span>
+        <span class="sd">&quot;&quot;&quot;Post a request to the model thread, request should be a function</span>
+<span class="sd">        that takes no arguments. The request function will be called within the</span>
+<span class="sd">        model thread. When the request is finished, on first occasion, the</span>
+<span class="sd">        response function will be called within the gui thread. The response</span>
+<span class="sd">        function takes as arguments, the results of the request function.</span>
+
+<span class="sd">        :param request: function to be called within the model thread</span>
+<span class="sd">        :param response: a slot that will be called with the result of the</span>
+<span class="sd">        request function</span>
+<span class="sd">        :param exception: a slot that will be called in case request throws an</span>
+<span class="sd">        exception</span>
+<span class="sd">        :param args: arguments with which the request function will be called        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="bp">NotImplemented</span>
+</div>
+<div class="viewcode-block" id="AbstractModelThread.busy"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.AbstractModelThread.busy">[docs]</a>    <span class="k">def</span> <span class="nf">busy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True or False indicating wether either the model or the gui</span>
+<span class="sd">        thread is doing something&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    </div>
+<div class="viewcode-block" id="AbstractModelThread.stop"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.AbstractModelThread.stop">[docs]</a>    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Stop the model thread from accepting any further posts.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">True</span>
+</div></div>
+<div class="viewcode-block" id="construct_model_thread"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.construct_model_thread">[docs]</a><span class="k">def</span> <span class="nf">construct_model_thread</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">signal_slot_model_thread</span> <span class="kn">import</span> <span class="n">SignalSlotModelThread</span>
+    <span class="n">_model_thread_</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">SignalSlotModelThread</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="has_model_thread"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.has_model_thread">[docs]</a><span class="k">def</span> <span class="nf">has_model_thread</span><span class="p">():</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">_model_thread_</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+</div>
+<div class="viewcode-block" id="get_model_thread"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.get_model_thread">[docs]</a><span class="k">def</span> <span class="nf">get_model_thread</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">_model_thread_</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="post"><a class="viewcode-back" href="../../../api2/camelot.view.model_thread.html#camelot.view.model_thread.post">[docs]</a><span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">exception</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">()):</span>
+    <span class="sd">&quot;&quot;&quot;Post a request and a response to the default model thread&quot;&quot;&quot;</span>
+    <span class="n">mt</span> <span class="o">=</span> <span class="n">get_model_thread</span><span class="p">()</span>
+    <span class="n">mt</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">exception</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

@@ -1,0 +1,564 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.types &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.types</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Camelot extends the SQLAlchemy field types with a number of its own field</span>
+<span class="sd">types. Those field types are automatically mapped to a specific delegate taking</span>
+<span class="sd">care of the visualisation.</span>
+
+<span class="sd">Those fields are stored in the :mod:`camelot.types` module.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.types&#39;</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">sqlalchemy</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">types</span>
+
+<span class="n">SQLALCHEMY_MAJOR_VERSION</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">sqlalchemy</span><span class="o">.</span><span class="n">__version__</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="kn">from</span> <span class="nn">camelot.core.files.storage</span> <span class="kn">import</span> <span class="n">StoredFile</span><span class="p">,</span> <span class="n">StoredImage</span><span class="p">,</span> <span class="n">Storage</span>
+
+<div class="viewcode-block" id="VirtualAddress"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.VirtualAddress">[docs]</a><span class="k">class</span> <span class="nc">VirtualAddress</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A single field that can be used to enter phone numbers, fax numbers, email</span>
+<span class="sd">    addresses, im addresses.  The editor provides soft validation of the data</span>
+<span class="sd">    entered.  The address or number is stored as a string in the database.</span>
+<span class="sd">      </span>
+<span class="sd">    This column type accepts and returns tuples of strings, the first string is</span>
+<span class="sd">    the :attr:`virtual_address_type`, and the second the address itself.</span>
+<span class="sd">  </span>
+<span class="sd">    eg: ``(&#39;email&#39;,&#39;project-camelot@conceptive.be&#39;)`` is stored as</span>
+<span class="sd">    ``email://project-camelot@conceptive.be``</span>
+<span class="sd">  </span>
+<span class="sd">    .. image:: /_static/virtualaddress_editor.png</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">Unicode</span>
+    <span class="n">virtual_address_types</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;phone&#39;</span><span class="p">,</span> <span class="s">&#39;fax&#39;</span><span class="p">,</span> <span class="s">&#39;mobile&#39;</span><span class="p">,</span> <span class="s">&#39;email&#39;</span><span class="p">,</span> <span class="s">&#39;im&#39;</span><span class="p">,</span> <span class="s">&#39;pager&#39;</span><span class="p">,]</span>
+  
+<div class="viewcode-block" id="VirtualAddress.bind_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.VirtualAddress.bind_processor">[docs]</a>    <span class="k">def</span> <span class="nf">bind_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+  
+        <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">bind_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+          
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="s">u&#39;://&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">return</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+          
+        <span class="k">return</span> <span class="n">processor</span>
+    </div>
+<div class="viewcode-block" id="VirtualAddress.result_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.VirtualAddress.result_processor">[docs]</a>    <span class="k">def</span> <span class="nf">result_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+      
+        <span class="k">if</span> <span class="n">SQLALCHEMY_MAJOR_VERSION</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+      
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    
+            <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                <span class="n">split</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;://&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">split</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">split</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s">u&#39;phone&#39;</span><span class="p">,</span><span class="s">u&#39;&#39;</span><span class="p">)</span>
+            
+        <span class="k">return</span> <span class="n">processor</span>  
+        
+    </div></div>
+<div class="viewcode-block" id="Code"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.Code">[docs]</a><span class="k">class</span> <span class="nc">Code</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;SQLAlchemy column type to store codes.  Where a code is a list of strings</span>
+<span class="sd">    on which a regular expression can be enforced.</span>
+<span class="sd">  </span>
+<span class="sd">    This column type accepts and returns a list of strings and stores them as a</span>
+<span class="sd">    string joined with points.</span>
+<span class="sd">  </span>
+<span class="sd">    eg: ``[&#39;08&#39;, &#39;AB&#39;]`` is stored as ``08.AB``</span>
+<span class="sd">    </span>
+<span class="sd">    .. image:: /_static/editors/CodeEditor_editable.png</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">Unicode</span>
+          
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parts</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s">u&#39;.&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param parts: a list of input masks specifying the mask for each part,</span>
+<span class="sd">        eg ``[&#39;99&#39;, &#39;AA&#39;]``. For valid input masks, see</span>
+<span class="sd">        `QLineEdit &lt;http://www.riverbankcomputing.co.uk/static/Docs/PyQt4/html/qlineedit.html&gt;`_</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">string</span>
+        <span class="n">translator</span> <span class="o">=</span> <span class="n">string</span><span class="o">.</span><span class="n">maketrans</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parts</span> <span class="o">=</span> <span class="n">parts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">separator</span> <span class="o">=</span> <span class="n">separator</span>
+        <span class="n">max_length</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">part</span><span class="o">.</span><span class="n">translate</span><span class="p">(</span><span class="n">translator</span><span class="p">,</span> <span class="s">&#39;&lt;&gt;!&#39;</span><span class="p">))</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">separator</span><span class="p">)</span>
+        <span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">max_length</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        
+<div class="viewcode-block" id="Code.bind_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.Code.bind_processor">[docs]</a>    <span class="k">def</span> <span class="nf">bind_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+  
+        <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">bind_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+          
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">separator</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+          
+        <span class="k">return</span> <span class="n">processor</span>
+    </div>
+<div class="viewcode-block" id="Code.result_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.Code.result_processor">[docs]</a>    <span class="k">def</span> <span class="nf">result_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+      
+        <span class="k">if</span> <span class="n">SQLALCHEMY_MAJOR_VERSION</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+      
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    
+            <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">separator</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s">&#39;&#39;</span> <span class="k">for</span> <span class="n">_p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="p">]</span>
+            
+        <span class="k">return</span> <span class="n">processor</span>
+    </div></div>
+<div class="viewcode-block" id="IPAddress"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.IPAddress">[docs]</a><span class="k">class</span> <span class="nc">IPAddress</span><span class="p">(</span><span class="n">Code</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">IPAddress</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">parts</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;900&#39;</span><span class="p">,</span><span class="s">&#39;900&#39;</span><span class="p">,</span><span class="s">&#39;900&#39;</span><span class="p">,</span><span class="s">&#39;900&#39;</span><span class="p">])</span>
+    </div>
+<div class="viewcode-block" id="Rating"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.Rating">[docs]</a><span class="k">class</span> <span class="nc">Rating</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The rating field is an integer field that is visualized as a number of stars that</span>
+<span class="sd">  can be selected::</span>
+<span class="sd">  </span>
+<span class="sd">    class Movie(Entity):</span>
+<span class="sd">      title = Field(Unicode(60), required=True)</span>
+<span class="sd">      rating = Field(camelot.types.Rating())</span>
+<span class="sd">      </span>
+<span class="sd">  .. image:: /_static/editors/StarEditor_editable.png</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">Integer</span>
+       </div>
+<div class="viewcode-block" id="RichText"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.RichText">[docs]</a><span class="k">class</span> <span class="nc">RichText</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;RichText fields are unlimited text fields which contain html.  The html will be</span>
+<span class="sd">  rendered in a rich text editor.  </span>
+<span class="sd">  </span>
+<span class="sd">    .. image:: /_static/editors/RichTextEditor_editable.png</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">UnicodeText</span>
+     </div>
+<div class="viewcode-block" id="Language"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.Language">[docs]</a><span class="k">class</span> <span class="nc">Language</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The languages are stored as a string in the database of </span>
+<span class="sd">the form language[_country], where :</span>
+
+<span class="sd"> * language is a lowercase, two-letter, ISO 639 language code,</span>
+<span class="sd"> * territory is an uppercase, two-letter, ISO 3166 country code</span>
+<span class="sd"> </span>
+<span class="sd">This used to be implemented using babel, but this was too slow and</span>
+<span class="sd">used too much memory, so now it&#39;s implemented using QT.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">Unicode</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+        </div>
+<div class="viewcode-block" id="Color"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.Color">[docs]</a><span class="k">class</span> <span class="nc">Color</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Color field returns and accepts tuples of the form (r,g,b,a) where</span>
+<span class="sd">r,g,b,a are integers between 0 and 255. The color is stored as an hexadecimal</span>
+<span class="sd">string of the form AARRGGBB into the database, where AA is the transparency, </span>
+<span class="sd">RR is red, GG is green BB is blue::</span>
+<span class="sd">  </span>
+<span class="sd">    class MovieType(Entity):</span>
+<span class="sd">        color = Field(camelot.types.Color())</span>
+
+<span class="sd">.. image:: /_static/editors/ColorEditor_editable.png  </span>
+<span class="sd">  </span>
+<span class="sd">The colors are stored in the database as strings.</span>
+<span class="sd">  </span>
+<span class="sd">Use::</span>
+<span class="sd">    </span>
+<span class="sd">    QColor(*color) </span>
+<span class="sd">    </span>
+<span class="sd">to convert a color tuple to a QColor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">Unicode</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+        
+<div class="viewcode-block" id="Color.bind_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.Color.bind_processor">[docs]</a>    <span class="k">def</span> <span class="nf">bind_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+  
+        <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">bind_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+          
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">):</span>
+                    <span class="k">assert</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+                    <span class="k">assert</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">255</span>
+                <span class="k">return</span> <span class="s">&#39;</span><span class="si">%02X%02X%02X%02X</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">value</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+          
+        <span class="k">return</span> <span class="n">processor</span>
+      </div>
+<div class="viewcode-block" id="Color.result_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.Color.result_processor">[docs]</a>    <span class="k">def</span> <span class="nf">result_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+      
+        <span class="k">if</span> <span class="n">SQLALCHEMY_MAJOR_VERSION</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+            
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    
+            <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">4</span><span class="p">],</span><span class="mi">16</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">4</span><span class="p">:</span><span class="mi">6</span><span class="p">],</span><span class="mi">16</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">6</span><span class="p">:</span><span class="mi">8</span><span class="p">],</span><span class="mi">16</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">],</span><span class="mi">16</span><span class="p">))</span>
+              
+        <span class="k">return</span> <span class="n">processor</span>
+        </div></div>
+<div class="viewcode-block" id="Enumeration"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.Enumeration">[docs]</a><span class="k">class</span> <span class="nc">Enumeration</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The enumeration field stores integers in the database, but represents them as</span>
+<span class="sd">  strings.  This allows efficient storage and querying while preserving readable code.</span>
+<span class="sd">  </span>
+<span class="sd">  Typical use of this field would be a status field.</span>
+<span class="sd">  </span>
+<span class="sd">  Enumeration fields are visualized as a combo box, where the labels in the combo</span>
+<span class="sd">  box are the capitalized strings::</span>
+<span class="sd">  </span>
+<span class="sd">    class Movie(Entity):</span>
+<span class="sd">      title = Field(Unicode(60), required=True)</span>
+<span class="sd">      state = Field(camelot.types.Enumeration([(1,&#39;planned&#39;), (2,&#39;recording&#39;), (3,&#39;finished&#39;), (4,&#39;canceled&#39;)]), </span>
+<span class="sd">                                              index=True, required=True, default=&#39;planning&#39;)</span>
+<span class="sd">  </span>
+<span class="sd">  .. image:: /_static/editors/ChoicesEditor_editable.png  </span>
+<span class="sd">  </span>
+<span class="sd">  If None should be a possible value of the enumeration, add (None, None) to the list of</span>
+<span class="sd">  possible enumerations.  None will be presented as empty in the GUI.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">Integer</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="p">[],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        @param param: choices is a list of tuples.  each tuple contains an integer and its</span>
+<span class="sd">        associated string.  eg. : choices = [(1,&#39;draft&#39;), (2,&#39;approved&#39;)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_int_to_string</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">choices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_string_to_int</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">v</span><span class="p">,</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">choices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">choices</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">choices</span><span class="p">]</span>
+        
+<div class="viewcode-block" id="Enumeration.bind_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.Enumeration.bind_processor">[docs]</a>    <span class="k">def</span> <span class="nf">bind_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+  
+        <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">bind_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+          
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_string_to_int</span><span class="p">[</span><span class="n">value</span><span class="p">]</span>
+                    <span class="k">return</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;could not process enumeration value </span><span class="si">%s</span><span class="s">, possible values are </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s">u&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_string_to_int</span><span class="o">.</span><span class="n">keys</span><span class="p">()))),</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+                    <span class="k">raise</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                        
+        <span class="k">return</span> <span class="n">processor</span>
+    </div>
+<div class="viewcode-block" id="Enumeration.result_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.Enumeration.result_processor">[docs]</a>    <span class="k">def</span> <span class="nf">result_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+      
+        <span class="k">if</span> <span class="n">SQLALCHEMY_MAJOR_VERSION</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+            
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_int_to_string</span><span class="p">[</span><span class="n">value</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;could not process </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">value</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+                    <span class="k">raise</span>
+                
+        <span class="k">return</span> <span class="n">processor</span>
+    </div></div>
+<div class="viewcode-block" id="File"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.File">[docs]</a><span class="k">class</span> <span class="nc">File</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sqlalchemy column type to store files.  Only the location of the file is stored</span>
+<span class="sd">    </span>
+<span class="sd">  This column type accepts and returns a StoredFile. The name of the file is </span>
+<span class="sd">  stored as a string in the database.  A subdirectory upload_to can be specified::</span>
+<span class="sd">  </span>
+<span class="sd">    class Movie(Entity):</span>
+<span class="sd">      script = Field(camelot.types.File(upload_to=&#39;script&#39;))</span>
+<span class="sd">      </span>
+<span class="sd">  .. image:: /_static/editors/FileEditor_editable.png</span>
+<span class="sd">  </span>
+<span class="sd">  Retrieving the actual storage from a File field can be a little cumbersome.</span>
+<span class="sd">  The easy way is taking it from the field attributes, in which it will be</span>
+<span class="sd">  put by default.  If no field attributes are available at the location where</span>
+<span class="sd">  the storage is needed, eg in some function doing document processing, one </span>
+<span class="sd">  needs to go through SQLAlchemy to retrieve it.</span>
+<span class="sd">  </span>
+<span class="sd">  For an &#39;task&#39; object  with a File field named &#39;document&#39;, the</span>
+<span class="sd">  storage can be retrieved::</span>
+<span class="sd">  </span>
+<span class="sd">      from sqlalchemy import orm</span>
+<span class="sd">      </span>
+<span class="sd">      task_mapper = orm.object_mapper( task )</span>
+<span class="sd">      document_property = task_mapper.get_property(&#39;document&#39;)</span>
+<span class="sd">      storage = document_property.columns[0].type.storage</span>
+<span class="sd">      </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">Unicode</span>
+    <span class="n">stored_file_implementation</span> <span class="o">=</span> <span class="n">StoredFile</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">upload_to</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">,</span> <span class="n">storage</span><span class="o">=</span><span class="n">Storage</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param max_length: the maximum length of the name of the file that will</span>
+<span class="sd">        be saved in the database.</span>
+<span class="sd">        </span>
+<span class="sd">        :param upload_to: a subdirectory in the Storage, in which the the file</span>
+<span class="sd">        should be stored.</span>
+<span class="sd">        </span>
+<span class="sd">        :param storage: an alternative storage to use for this field.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_length</span> <span class="o">=</span> <span class="n">max_length</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">storage</span> <span class="o">=</span> <span class="n">storage</span><span class="p">(</span><span class="n">upload_to</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stored_file_implementation</span><span class="p">)</span>
+        <span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">max_length</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        
+<div class="viewcode-block" id="File.bind_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.File.bind_processor">[docs]</a>    <span class="k">def</span> <span class="nf">bind_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+  
+        <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">bind_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+          
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stored_file_implementation</span><span class="p">))</span>
+                <span class="k">return</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+          
+        <span class="k">return</span> <span class="n">processor</span>
+    </div>
+<div class="viewcode-block" id="File.result_processor"><a class="viewcode-back" href="../../api2/camelot.types.html#camelot.types.File.result_processor">[docs]</a>    <span class="k">def</span> <span class="nf">result_processor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+      
+        <span class="k">if</span> <span class="n">SQLALCHEMY_MAJOR_VERSION</span> <span class="o">&gt;=</span> <span class="mi">6</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">,</span> <span class="n">coltype</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="o">.</span><span class="n">result_processor</span><span class="p">(</span><span class="n">dialect</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">impl_processor</span><span class="p">:</span>
+            <span class="n">impl_processor</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span>
+            
+        <span class="k">def</span> <span class="nf">processor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    
+            <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">impl_processor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stored_file_implementation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+              
+        <span class="k">return</span> <span class="n">processor</span>
+      </div></div>
+<div class="viewcode-block" id="Image"><a class="viewcode-back" href="../../doc/fields.html#camelot.types.Image">[docs]</a><span class="k">class</span> <span class="nc">Image</span><span class="p">(</span><span class="n">File</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sqlalchemy column type to store images</span>
+<span class="sd">    </span>
+<span class="sd">  This column type accepts and returns a StoredImage, and stores them in the directory</span>
+<span class="sd">  specified by settings.CAMELOT_MEDIA_ROOT.  The name of the file is stored as a string in</span>
+<span class="sd">  the database.</span>
+<span class="sd">  </span>
+<span class="sd">  The Image field type provides the same functionallity as the File field type, but</span>
+<span class="sd">  the files stored should be images.</span>
+<span class="sd">  </span>
+<span class="sd">  .. image:: /_static/editors/ImageEditor_editable.png</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+  
+    <span class="n">stored_file_implementation</span> <span class="o">=</span> <span class="n">StoredImage</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

@@ -1,0 +1,339 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>camelot.admin.validator.object_validator &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../../../../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../../../../index.html" />
+    <link rel="up" title="Module code" href="../../../index.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for camelot.admin.validator.object_validator</h1><div class="highlight"><pre>
+<span class="c">#  ============================================================================</span>
+<span class="c">#</span>
+<span class="c">#  Copyright (C) 2007-2011 Conceptive Engineering bvba. All rights reserved.</span>
+<span class="c">#  www.conceptive.be / project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is part of the Camelot Library.</span>
+<span class="c">#</span>
+<span class="c">#  This file may be used under the terms of the GNU General Public</span>
+<span class="c">#  License version 2.0 as published by the Free Software Foundation</span>
+<span class="c">#  and appearing in the file license.txt included in the packaging of</span>
+<span class="c">#  this file.  Please review this information to ensure GNU</span>
+<span class="c">#  General Public Licensing requirements will be met.</span>
+<span class="c">#</span>
+<span class="c">#  If you are unsure which license is appropriate for your use, please</span>
+<span class="c">#  visit www.python-camelot.com or contact project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE</span>
+<span class="c">#  WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</span>
+<span class="c">#</span>
+<span class="c">#  For use of this library in commercial applications, please contact</span>
+<span class="c">#  project-camelot@conceptive.be</span>
+<span class="c">#</span>
+<span class="c">#  ============================================================================</span>
+
+<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">copy</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;camelot.admin.validator.object_validator&#39;</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span>
+
+<span class="kn">from</span> <span class="nn">camelot.view.fifo</span> <span class="kn">import</span> <span class="n">Fifo</span>
+<span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">post</span>
+<span class="kn">from</span> <span class="nn">camelot.core.utils</span> <span class="kn">import</span> <span class="n">ugettext</span> <span class="k">as</span> <span class="n">_</span>
+
+
+<div class="viewcode-block" id="ObjectValidator"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator">[docs]</a><span class="k">class</span> <span class="nc">ObjectValidator</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A validator class for normal python objects.  By default this validator</span>
+<span class="sd">    declares all objects valid.  Subclass this class and overwrite it&#39;s</span>
+<span class="sd">    objectValidity method to change it&#39;s behaviour.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">validity_changed_signal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">admin</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">initial_validation</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param mode: a collection proxy the validator should inspect, or None if only the objectValidity method is going</span>
+<span class="sd">        to get used.</span>
+<span class="sd">        :param verifiy_initial_validity: do an inital check to see if all rows in a model are valid, defaults to False,</span>
+<span class="sd">        since this might take a lot of time on large collections.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ObjectValidator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin</span> <span class="o">=</span> <span class="n">admin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message_cache</span> <span class="o">=</span> <span class="n">Fifo</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">model</span><span class="p">:</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">dataChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_changed</span> <span class="p">)</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">layoutChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">layout_changed</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_invalid_rows</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">initial_validation</span><span class="p">:</span>
+            <span class="n">post</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">validate_all_rows</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ObjectValidator.validate_all_rows"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.validate_all_rows">[docs]</a>    <span class="k">def</span> <span class="nf">validate_all_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Force validation of all rows in the model&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">getRowCount</span><span class="p">()):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">isValid</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ObjectValidator.validate_invalid_rows"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.validate_invalid_rows">[docs]</a>    <span class="k">def</span> <span class="nf">validate_invalid_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_invalid_rows</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">isValid</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">()</span>
+<div class="viewcode-block" id="ObjectValidator.layout_changed"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.layout_changed">[docs]</a>    <span class="k">def</span> <span class="nf">layout_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">post</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">validate_invalid_rows</span><span class="p">)</span>
+</div>
+    <span class="nd">@QtCore.pyqtSlot</span><span class="p">(</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">,</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span> <span class="p">)</span>
+<div class="viewcode-block" id="ObjectValidator.data_changed"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.data_changed">[docs]</a>    <span class="k">def</span> <span class="nf">data_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">from_index</span><span class="p">,</span> <span class="n">thru_index</span><span class="p">):</span>
+
+        <span class="k">def</span> <span class="nf">create_validity_updater</span><span class="p">(</span><span class="n">from_row</span><span class="p">,</span> <span class="n">thru_row</span><span class="p">):</span>
+
+            <span class="k">def</span> <span class="nf">validity_updater</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">from_row</span><span class="p">,</span> <span class="n">thru_row</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">isValid</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">validity_updater</span>
+
+        <span class="n">post</span><span class="p">(</span><span class="n">create_validity_updater</span><span class="p">(</span><span class="n">from_index</span><span class="o">.</span><span class="n">row</span><span class="p">(),</span> <span class="n">thru_index</span><span class="o">.</span><span class="n">row</span><span class="p">()))</span>
+</div>
+<div class="viewcode-block" id="ObjectValidator.objectValidity"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.objectValidity">[docs]</a>    <span class="k">def</span> <span class="nf">objectValidity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:return: list of messages explaining invalid data</span>
+<span class="sd">        empty list if object is valid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">camelot.view.controls</span> <span class="kn">import</span> <span class="n">delegates</span>
+        <span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">fields_and_attributes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_columns</span><span class="p">())</span>
+        <span class="n">fields_and_attributes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_fields</span><span class="p">()))</span>
+        <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">attributes</span> <span class="ow">in</span> <span class="n">fields_and_attributes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c"># if the field was not editable, don&#39;t waste any time</span>
+            <span class="k">if</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;editable&#39;</span><span class="p">]:</span>
+                <span class="c">#</span>
+                <span class="c"># If the field embeds another object, that object should be valid as well</span>
+                <span class="c">#</span>
+                <span class="k">if</span> <span class="n">attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;embedded&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">attributes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;target&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">entity_instance</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                        <span class="n">target_admin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">get_related_entity_admin</span><span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;target&#39;</span><span class="p">])</span>
+                        <span class="n">target_validator</span> <span class="o">=</span> <span class="n">target_admin</span><span class="o">.</span><span class="n">create_validator</span><span class="p">(</span><span class="bp">None</span><span class="p">)</span>
+                        <span class="n">messages</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="n">target_validator</span><span class="o">.</span><span class="n">objectValidity</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="p">)</span>
+                        <span class="k">continue</span>
+                <span class="c"># if the field, is nullable, don&#39;t waste time getting its value</span>
+                <span class="c"># @todo: check if field is a primary key instead of checking</span>
+                <span class="c"># whether the name is id, but this should only happen in the entity validator</span>
+                <span class="k">if</span> <span class="n">attributes</span><span class="p">[</span><span class="s">&#39;nullable&#39;</span><span class="p">]</span><span class="o">!=</span><span class="bp">True</span> <span class="ow">and</span> <span class="n">field</span><span class="o">!=</span><span class="s">&#39;id&#39;</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">entity_instance</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;column </span><span class="si">%s</span><span class="s"> is required&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">field</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="s">&#39;delegate&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">attributes</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&#39;no delegate specified for </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">field</span><span class="p">))</span>
+                    <span class="n">is_null</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="k">if</span> <span class="n">value</span><span class="o">==</span><span class="bp">None</span><span class="p">:</span>
+                        <span class="n">is_null</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;delegate&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">delegates</span><span class="o">.</span><span class="n">CodeDelegate</span><span class="p">)</span> <span class="ow">and</span> \
+                         <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                        <span class="n">is_null</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;delegate&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">delegates</span><span class="o">.</span><span class="n">PlainTextDelegate</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                        <span class="n">is_null</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;delegate&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">delegates</span><span class="o">.</span><span class="n">Many2OneDelegate</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">id</span><span class="p">):</span>
+                        <span class="n">is_null</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;delegate&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">delegates</span><span class="o">.</span><span class="n">VirtualAddressDelegate</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                        <span class="n">is_null</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">if</span> <span class="n">is_null</span><span class="p">:</span>
+                        <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s">u&#39;</span><span class="si">%s</span><span class="s"> is a required field&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="n">attributes</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">]))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">u&#39;messages : </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="p">(</span><span class="s">u&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">messages</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">messages</span>
+</div>
+<div class="viewcode-block" id="ObjectValidator.number_of_invalid_rows"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.number_of_invalid_rows">[docs]</a>    <span class="k">def</span> <span class="nf">number_of_invalid_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: the number of invalid rows in a model, as they have been verified</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_invalid_rows</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ObjectValidator.isValid"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.isValid">[docs]</a>    <span class="k">def</span> <span class="nf">isValid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Verify if a row in a model is &#39;valid&#39; meaning it could be flushed to</span>
+<span class="sd">        the database</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;isValid for row </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">row</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">entity_instance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">_get_object</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">entity_instance</span><span class="p">:</span>
+                <span class="n">messages</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">objectValidity</span><span class="p">(</span><span class="n">entity_instance</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">message_cache</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">entity_instance</span><span class="p">,</span> <span class="n">messages</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                <span class="s">&#39;programming error while validating object&#39;</span><span class="p">,</span>
+                <span class="n">exc_info</span><span class="o">=</span><span class="n">e</span>
+            <span class="p">)</span>
+        <span class="n">valid</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">messages</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">valid</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">row</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid_rows</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_invalid_rows</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">validity_changed_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid_rows</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_invalid_rows</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">validity_changed_signal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span> <span class="n">row</span> <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;valid : </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">valid</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">valid</span>
+</div>
+<div class="viewcode-block" id="ObjectValidator.validityMessages"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.validityMessages">[docs]</a>    <span class="k">def</span> <span class="nf">validityMessages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">message_cache</span><span class="o">.</span><span class="n">get_data_at_row</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                <span class="s">&#39;Programming error : isValid should be called &#39;</span>
+                <span class="s">&#39;before calling validityMessage&#39;</span>
+            <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="ObjectValidator.validityDialog"><a class="viewcode-back" href="../../../../api2/camelot.admin.validator.html#camelot.admin.validator.object_validator.ObjectValidator.validityDialog">[docs]</a>    <span class="k">def</span> <span class="nf">validityDialog</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a QDialog that asks the user to discard his changes or</span>
+<span class="sd">        continue to edit the row until it is valid.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtGui</span>
+        <span class="k">return</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="p">(</span>
+            <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Warning</span><span class="p">,</span>
+            <span class="n">_</span><span class="p">(</span><span class="s">&#39;Invalid form&#39;</span><span class="p">),</span>
+            <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">validityMessages</span><span class="p">(</span><span class="n">row</span><span class="p">)),</span>
+            <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Ok</span> <span class="o">|</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">Discard</span><span class="p">,</span>
+            <span class="n">parent</span>
+        <span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../../../../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>

@@ -1,0 +1,332 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>The Two Threads &mdash; Camelot  documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../copyright.html" />
+    <link rel="top" title="Camelot  documentation" href="../index.html" />
+    <link rel="up" title="Camelot Documentation" href="index.html" />
+    <link rel="next" title="Frequently Asked Questions" href="faq.html" />
+    <link rel="prev" title="Camelot Shortcuts" href="shortcuts.html" />
+ 
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-2652891-3']);
+  _gaq.push(['_trackPageview']);
+</script>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="faq.html" title="Frequently Asked Questions"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="shortcuts.html" title="Camelot Shortcuts"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../contents.html" >Camelot Documentation contents</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Camelot Documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="the-two-threads">
+<span id="doc-threads"></span><h1>The Two Threads<a class="headerlink" href="#the-two-threads" title="Permalink to this headline">¶</a></h1>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Release:</th><td class="field-body">trunk</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Date:</th><td class="field-body">November 03, 2011</td>
+</tr>
+</tbody>
+</table>
+<p>Most users of Camelot won&#8217;t need the information in this Chapter
+and can simply enjoy building applications that don&#8217;t freeze.  However,
+if you start customizing your application beyond developing custom
+delegates, this information might be crucial to you.</p>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>A very important aspect of any GUI application is the speed
+with which it responds to the user&#8217;s request.  While it is
+acceptable that some actions take some time to complete, an
+application freezing for even half a second makes the user
+feel uncomfortable.</p>
+<p>From an application developer&#8217;s point of view, potential
+freezes are everywhere (open a file, access a database, do
+some calculations), so we need a structural approach to
+get rid of them.</p>
+<p>Two different approaches are possible.  The first approach
+is split all possibly blocking operations into small parts and hook
+everything together with events.  This is the approach taken
+in some of the QT classes (eg.: the network classes) or in
+the Twisted framework.  The second approach is to use multiple
+threads of execution and make sure the blocking operations
+run in another thread than the GUI.</p>
+<dl class="docutils">
+<dt>Events :</dt>
+<dd><ul class="first last simple">
+<li>No multi-threaded programming needed : no deadlocks etc.</li>
+<li>Every single library you use must support this approach</li>
+</ul>
+</dd>
+<dt>Multiple threads :</dt>
+<dd><ul class="first last simple">
+<li>Scary : potential race conditions and deadlocks</li>
+<li>Can be used with existing libraries</li>
+</ul>
+</dd>
+</dl>
+<p>The Camelot framework was developed using the multi-threaded
+approach.  This allows to build on top of a large number of
+existing libraries (sqlalchemy, PIL, numpy,...) that don&#8217;t support
+the event based approach.</p>
+</div>
+<div class="section" id="two-threads">
+<h2>Two Threads<a class="headerlink" href="#two-threads" title="Permalink to this headline">¶</a></h2>
+<p>To keep the problems associated with multi-threaded programming
+under control, Camelot runs only two threads for its basic
+operations.  Those threads don&#8217;t share any data with each other
+and exchange information using a message queue (the way
+Erlang advocates).  This ensures there are no deadlocks or
+race conditions.</p>
+<p>The first thread, called the GUI Thread contains the QT widgets
+and runs the QT event loop.  No blocking operations should take
+place in this thread.  The second thread contains all the data,
+like objects mapped to the database by sqlalchemy, and is called
+the Model Thread.</p>
+<p>This approach keeps the problem of application freezes under
+control, it won&#8217;t speed up your application when certain actions
+take a long time, but it will ensure the gui remains responsive
+during those actions.</p>
+</div>
+<div class="section" id="the-model-thread">
+<h2>The Model Thread<a class="headerlink" href="#the-model-thread" title="Permalink to this headline">¶</a></h2>
+<p>Since every single operation on a data model is potentially
+blocking (eg : getting an attribute of a class mapped to the
+database by sqlalchemy might trigger a query to the database
+which might be overloaded at that time), the whole data model
+lives in a separate thread and every operation on the data model
+should take place within this thread.</p>
+<p>To keep things simple and avoid the use of locks and data
+synchronization between threads, there is only one such thread,
+called the Model Thread.</p>
+<p>Other threads that want to interact with the model can post
+operations to the model thread using its queue</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">camelot.view.model_thread</span> <span class="kn">import</span> <span class="n">get_model_thread</span>
+
+<span class="n">mt</span> <span class="o">=</span> <span class="n">get_model_thread</span><span class="p">()</span>
+<span class="n">mt</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">my_operation</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>where &#8216;my_operation&#8217; is a function that will then be executed
+within the model thread.</p>
+</div>
+<div class="section" id="the-gui-thread">
+<h2>The GUI Thread<a class="headerlink" href="#the-gui-thread" title="Permalink to this headline">¶</a></h2>
+<p>Now that all potentially blocking operations have been move to the
+model thread, we have a GUI Thread that never blocks.  But the GUI
+thread will need some data from the model to present to the user.</p>
+<p>The GUI thread gets its data by posting an operation to the Model
+Thread that strips some data from the model, this data will then be
+posted by the Model thread to the GUI thread.</p>
+<p>Suppose we want to display the name of the first person in the
+database in a QLabel</p>
+<div class="highlight-python"><pre>from camelot.view.model_thread import get_model_thread
+from PyQt4 import QtGui
+
+class PersonLabel(QtGui.QLabel):
+
+  def __init__(self):
+QtGui.QLabel.__init__(self)
+mt = get_model_thread()
+mt.post(self.strip_data_from_model, self.put_data_on_label)
+
+  def strip_data_from_model(self):
+from camelot.model.authentication import Person
+return Person.query.first().name
+
+  def put_data_on_label(self, name):
+    self.setText(name)</pre>
+</div>
+<p>When the strip_data_from_model method is posted to the Model Thread, it
+will be executed within the Model Thread and its result (the name of the
+person) will be posted back to the GUI thread.  Upon arrival of the name
+in the GUI thread the function put_data_on_label will be executed within
+the GUI thread with as its first argument the name.</p>
+<p>In reality, the stripping of data from the model and presenting this data
+to the gui is taken care off by the proxy classes in camelot.view.proxy.</p>
+</div>
+<div class="section" id="actions">
+<h2>Actions<a class="headerlink" href="#actions" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="proxy-classes">
+<h2>Proxy classes<a class="headerlink" href="#proxy-classes" title="Permalink to this headline">¶</a></h2>
+<blockquote>
+<div><img alt="../_images/collection_proxy.png" src="../_images/collection_proxy.png" />
+</div></blockquote>
+</div>
+<div class="section" id="application-speedup">
+<h2>Application speedup<a class="headerlink" href="#application-speedup" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">The Two Threads</a><ul>
+<li><a class="reference internal" href="#introduction">Introduction</a></li>
+<li><a class="reference internal" href="#two-threads">Two Threads</a></li>
+<li><a class="reference internal" href="#the-model-thread">The Model Thread</a></li>
+<li><a class="reference internal" href="#the-gui-thread">The GUI Thread</a></li>
+<li><a class="reference internal" href="#actions">Actions</a></li>
+<li><a class="reference internal" href="#proxy-classes">Proxy classes</a></li>
+<li><a class="reference internal" href="#application-speedup">Application speedup</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="shortcuts.html"
+                        title="previous chapter">Camelot Shortcuts</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="faq.html"
+                        title="next chapter">Frequently Asked Questions</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/doc/threads.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="faq.html" title="Frequently Asked Questions"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="shortcuts.html" title="Camelot Shortcuts"
+             >previous</a> |</li>
+        <li><a href="../index.html">Camelot  documentation</a> &raquo;</li>
+          <li><a href="../contents.html" >Camelot Documentation contents</a> &raquo;</li>
+          <li><a href="index.html" >Camelot Documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+
+<br/>
+<a href="http://example.com/my_article.html#disqus_thread">Comments</a>
+<br/>
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+  /**
+    * var disqus_identifier; [Optional but recommended: Define a unique identifier (e.g. post id or slug) for this thread] 
+    */
+
+  /** var disqus_developer = 1 **/
+
+  (function() {
+   var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+   dsq.src = 'http://camelot.disqus.com/embed.js';
+   (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript=camelot">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+    <div class="footer">
+        &copy; <a href="../copyright.html">Copyright</a> 2009 - 2011, Conceptive Engineering.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.
+    </div>
+<div class="footer">
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script');
+    ga.src = ('https:' == document.location.protocol ?
+              'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    ga.setAttribute('async', 'true');
+    document.documentElement.firstChild.appendChild(ga);
+  })();
+</script>
+</div>
+
+<script type="text/javascript">
+var disqus_shortname = 'camelot';
+(function () {
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'http://disqus.com/forums/camelot/count.js';
+  (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+}());
+</script>
+
+
+
+  </body>
+</html>
