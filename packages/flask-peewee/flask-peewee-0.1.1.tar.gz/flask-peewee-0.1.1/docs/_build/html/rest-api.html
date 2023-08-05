@@ -1,0 +1,1015 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>REST Api &mdash; flask-peewee v0.1.0 documentation</title>
+    <link rel="stylesheet" href="_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="flask-peewee v0.1.0 documentation" href="index.html" />
+    <link rel="next" title="Example App" href="example.html" />
+    <link rel="prev" title="Authentication" href="auth.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="example.html" title="Example App"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="auth.html" title="Authentication"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">flask-peewee v0.1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="rest-api">
+<span id="id1"></span><h1>REST Api<a class="headerlink" href="#rest-api" title="Permalink to this headline">¶</a></h1>
+<p>flask-peewee comes with some tools for exposing your project&#8217;s models via a
+RESTful API.  There are several components to the <tt class="docutils literal"><span class="pre">rest</span></tt> module, but the basic
+setup is to create an instance of <a class="reference internal" href="#RestAPI" title="RestAPI"><tt class="xref py py-class docutils literal"><span class="pre">RestAPI</span></tt></a> and then register your
+project&#8217;s models with subclasses of <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a>.</p>
+<p>Each <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a> you expose via the API will support, by default,
+the following:</p>
+<ul class="simple">
+<li><cite>/api/&lt;model name&gt;/</cite> &#8211; GET and POST requests</li>
+<li><cite>/api/&lt;model name&gt;/&lt;primary key&gt;/</cite> &#8211; GET, PUT and DELETE requests</li>
+</ul>
+<p>Also, you can filter results by columns on the model using django-style syntax,
+for example:</p>
+<ul class="simple">
+<li><cite>/api/blog/?name=Some%20Blog</cite></li>
+<li><cite>/api/blog/?author__username=some_blogger</cite></li>
+</ul>
+<div class="section" id="getting-started-with-the-api">
+<h2>Getting started with the API<a class="headerlink" href="#getting-started-with-the-api" title="Permalink to this headline">¶</a></h2>
+<p>In this documentation we&#8217;ll start with a very simple API and build it out.  The
+complete version of this API is included in the <em class="xref std std-ref">example-app</em>, so feel free
+to refer there.</p>
+<p>The project will be a simple &#8216;twitter-like&#8217; app where users can post short messages
+and &#8220;follow&#8221; other users.</p>
+<div class="section" id="project-models">
+<h3>Project models<a class="headerlink" href="#project-models" title="Permalink to this headline">¶</a></h3>
+<p>There are three main models - <tt class="docutils literal"><span class="pre">User</span></tt>, <tt class="docutils literal"><span class="pre">Relationship</span></tt> and <tt class="docutils literal"><span class="pre">Message</span></tt> - which
+we will expose via the API.  Here is a truncated version of what they look like:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">()</span>
+    <span class="n">password</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">()</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">()</span>
+    <span class="n">join_date</span> <span class="o">=</span> <span class="n">DateTimeField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">)</span>
+    <span class="n">active</span> <span class="o">=</span> <span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">admin</span> <span class="o">=</span> <span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+<span class="k">class</span> <span class="nc">Relationship</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">from_user</span> <span class="o">=</span> <span class="n">ForeignKeyField</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s">&#39;relationships&#39;</span><span class="p">)</span>
+    <span class="n">to_user</span> <span class="o">=</span> <span class="n">ForeignKeyField</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s">&#39;related_to&#39;</span><span class="p">)</span>
+
+<span class="k">class</span> <span class="nc">Message</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">ForeignKeyField</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">TextField</span><span class="p">()</span>
+    <span class="n">pub_date</span> <span class="o">=</span> <span class="n">DateTimeField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="creating-a-restapi">
+<h3>Creating a RestAPI<a class="headerlink" href="#creating-a-restapi" title="Permalink to this headline">¶</a></h3>
+<p>The <a class="reference internal" href="#RestAPI" title="RestAPI"><tt class="xref py py-class docutils literal"><span class="pre">RestAPI</span></tt></a> acts as a container for the various <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a>
+objects we will expose.  By default it binds all resources to <tt class="docutils literal"><span class="pre">/api/&lt;model-name&gt;/</span></tt>.</p>
+<p>Here we&#8217;ll create a simple api and register our models:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">flaskext.rest</span> <span class="kn">import</span> <span class="n">RestAPI</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">app</span> <span class="c"># our project&#39;s Flask app</span>
+
+<span class="c"># instantiate our api wrapper</span>
+<span class="n">api</span> <span class="o">=</span> <span class="n">RestAPI</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="c"># register our models so they are exposed via /api/&lt;model&gt;/</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Relationship</span><span class="p">)</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Message</span><span class="p">)</span>
+
+<span class="c"># configure the urls</span>
+<span class="n">api</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Now if we hit our project at <tt class="docutils literal"><span class="pre">/api/message/</span></tt> we should get something like the following:</p>
+<div class="highlight-javascript"><div class="highlight"><pre><span class="p">{</span>
+  <span class="s2">&quot;meta&quot;</span><span class="o">:</span> <span class="p">{</span>
+    <span class="s2">&quot;model&quot;</span><span class="o">:</span> <span class="s2">&quot;message&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;next&quot;</span><span class="o">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;page&quot;</span><span class="o">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;previous&quot;</span><span class="o">:</span> <span class="s2">&quot;&quot;</span>
+  <span class="p">},</span>
+  <span class="s2">&quot;objects&quot;</span><span class="o">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;content&quot;</span><span class="o">:</span> <span class="s2">&quot;flask and peewee, together at last!&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;pub_date&quot;</span><span class="o">:</span> <span class="s2">&quot;2011-09-16 18:36:15&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;user_id&quot;</span><span class="o">:</span> <span class="mi">1</span><span class="p">,</span>
+      <span class="s2">&quot;id&quot;</span><span class="o">:</span> <span class="mi">1</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;content&quot;</span><span class="o">:</span> <span class="s2">&quot;Hey, I&#39;m just some user&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;pub_date&quot;</span><span class="o">:</span> <span class="s2">&quot;2011-09-16 18:46:59&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;user_id&quot;</span><span class="o">:</span> <span class="mi">2</span><span class="p">,</span>
+      <span class="s2">&quot;id&quot;</span><span class="o">:</span> <span class="mi">2</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Say we&#8217;re interested in the first message, we can hit <tt class="docutils literal"><span class="pre">/api/message/1/</span></tt> to view
+just the details on that object:</p>
+<div class="highlight-javascript"><div class="highlight"><pre><span class="p">{</span>
+  <span class="nx">content</span><span class="o">:</span> <span class="s2">&quot;flask and peewee, together at last!&quot;</span>
+  <span class="nx">pub_date</span><span class="o">:</span> <span class="s2">&quot;2011-09-16 18:36:15&quot;</span>
+  <span class="nx">user_id</span><span class="o">:</span> <span class="mi">1</span>
+  <span class="nx">id</span><span class="o">:</span> <span class="mi">1</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="customizing-what-is-returned">
+<h3>Customizing what is returned<a class="headerlink" href="#customizing-what-is-returned" title="Permalink to this headline">¶</a></h3>
+<p>If you access the <tt class="docutils literal"><span class="pre">User</span></tt> API endpoint, we quickly notice a problem:</p>
+<div class="highlight-console"><div class="highlight"><pre><span class="gp">$</span> curl http://127.0.0.1:5000/api/user/
+
+<span class="go">{</span>
+<span class="go">  &quot;meta&quot;: {</span>
+<span class="go">    &quot;model&quot;: &quot;user&quot;,</span>
+<span class="go">    &quot;next&quot;: &quot;&quot;,</span>
+<span class="go">    &quot;page&quot;: 1,</span>
+<span class="go">    &quot;previous&quot;: &quot;&quot;</span>
+<span class="go">  },</span>
+<span class="go">  &quot;objects&quot;: [</span>
+<span class="go">    {</span>
+<span class="go">      &quot;username&quot;: &quot;admin&quot;,</span>
+<span class="go">      &quot;admin&quot;: true,</span>
+<span class="go">      &quot;email&quot;: &quot;&quot;,</span>
+<span class="go">      &quot;join_date&quot;: &quot;2011-09-16 18:34:49&quot;,</span>
+<span class="go">      &quot;active&quot;: true,</span>
+<span class="go">      &quot;password&quot;: &quot;d033e22ae348aeb5660fc2140aec35850c4da997&quot;,</span>
+<span class="go">      &quot;id&quot;: 1</span>
+<span class="go">    },</span>
+<span class="go">    {</span>
+<span class="go">      &quot;username&quot;: &quot;coleifer&quot;,</span>
+<span class="go">      &quot;admin&quot;: false,</span>
+<span class="go">      &quot;email&quot;: &quot;coleifer@gmail.com&quot;,</span>
+<span class="go">      &quot;join_date&quot;: &quot;2011-09-16 18:35:56&quot;,</span>
+<span class="go">      &quot;active&quot;: true,</span>
+<span class="go">      &quot;password&quot;: &quot;a94a8fe5ccb19ba61c4c0873d391e987982fbbd3&quot;,</span>
+<span class="go">      &quot;id&quot;: 2</span>
+<span class="go">    }</span>
+<span class="go">  ]</span>
+<span class="go">}</span>
+</pre></div>
+</div>
+<p>Passwords and email addresses are being exposed.  In order to exclude these fields
+from serialization, subclass <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">flaskext.rest</span> <span class="kn">import</span> <span class="n">RestAPI</span><span class="p">,</span> <span class="n">RestResource</span>
+
+<span class="kn">from</span> <span class="nn">app</span> <span class="kn">import</span> <span class="n">app</span> <span class="c"># our project&#39;s Flask app</span>
+
+<span class="c"># instantiate our api wrapper</span>
+<span class="n">api</span> <span class="o">=</span> <span class="n">RestAPI</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="c"># create a special resource for users that excludes email and password</span>
+<span class="k">class</span> <span class="nc">UserResource</span><span class="p">(</span><span class="n">RestResource</span><span class="p">):</span>
+    <span class="n">exclude</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;password&#39;</span><span class="p">,</span> <span class="s">&#39;email&#39;</span><span class="p">,)</span>
+
+<span class="c"># register our models so they are exposed via /api/&lt;model&gt;/</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">UserResource</span><span class="p">)</span> <span class="c"># specify the UserResource</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Relationship</span><span class="p">)</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Message</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now emails and passwords are no longer returned by the API.</p>
+</div>
+<div class="section" id="allowing-users-to-post-messages">
+<h3>Allowing users to post messages<a class="headerlink" href="#allowing-users-to-post-messages" title="Permalink to this headline">¶</a></h3>
+<p>What if we want to create new messages via the Api?  Or modify/delete existing messages?</p>
+<div class="highlight-console"><div class="highlight"><pre><span class="gp">$</span> curl -i -d <span class="s1">&#39;&#39;</span> http://127.0.0.1:5000/api/message/
+
+<span class="go">HTTP/1.0 401 UNAUTHORIZED</span>
+<span class="go">WWW-Authenticate: Basic realm=&quot;Login Required&quot;</span>
+<span class="go">Content-Type: text/html; charset=utf-8</span>
+<span class="go">Content-Length: 21</span>
+<span class="go">Server: Werkzeug/0.8-dev Python/2.6.6</span>
+<span class="go">Date: Thu, 22 Sep 2011 16:14:21 GMT</span>
+
+<span class="go">Authentication failed</span>
+</pre></div>
+</div>
+<p>The authentication failed because the default authentication mechanism only
+allows read-only access.</p>
+<p>In order to allow users to create messages via the API, we need to use a subclass
+of <a class="reference internal" href="#Authentication" title="Authentication"><tt class="xref py py-class docutils literal"><span class="pre">Authentication</span></tt></a> that allows <tt class="docutils literal"><span class="pre">POST</span></tt> requests.  We also want to ensure
+that the requesting user is a member of the site.</p>
+<p>For this we will use the <a class="reference internal" href="#UserAuthentication" title="UserAuthentication"><tt class="xref py py-class docutils literal"><span class="pre">UserAuthentication</span></tt></a> class as the default auth
+mechanism.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">auth</span> <span class="kn">import</span> <span class="n">auth</span> <span class="c"># import the Auth object used by our project</span>
+
+<span class="kn">from</span> <span class="nn">flaskext.rest</span> <span class="kn">import</span> <span class="n">RestAPI</span><span class="p">,</span> <span class="n">RestResource</span><span class="p">,</span> <span class="n">UserAuthentication</span>
+
+<span class="c"># create an instance of UserAuthentication</span>
+<span class="n">user_auth</span> <span class="o">=</span> <span class="n">UserAuthentication</span><span class="p">(</span><span class="n">auth</span><span class="p">)</span>
+
+<span class="c"># instantiate our api wrapper, specifying user_auth as the default</span>
+<span class="n">api</span> <span class="o">=</span> <span class="n">RestAPI</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">default_auth</span><span class="o">=</span><span class="n">user_auth</span><span class="p">)</span>
+
+<span class="c"># create a special resource for users that excludes email and password</span>
+<span class="k">class</span> <span class="nc">UserResource</span><span class="p">(</span><span class="n">RestResource</span><span class="p">):</span>
+    <span class="n">exclude</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;password&#39;</span><span class="p">,</span> <span class="s">&#39;email&#39;</span><span class="p">,)</span>
+
+<span class="c"># register our models so they are exposed via /api/&lt;model&gt;/</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">UserResource</span><span class="p">)</span> <span class="c"># specify the UserResource</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Relationship</span><span class="p">)</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Message</span><span class="p">)</span>
+
+<span class="c"># configure the urls</span>
+<span class="n">api</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Now we should be able to POST new messages.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">httplib2</span>
+
+<span class="n">sock</span> <span class="o">=</span> <span class="n">httplib2</span><span class="o">.</span><span class="n">Http</span><span class="p">()</span>
+<span class="n">sock</span><span class="o">.</span><span class="n">add_credentials</span><span class="p">(</span><span class="s">&#39;admin&#39;</span><span class="p">,</span> <span class="s">&#39;admin&#39;</span><span class="p">)</span> <span class="c"># use basic auth</span>
+
+<span class="n">message</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;user_id&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s">&#39;content&#39;</span><span class="p">:</span> <span class="s">&#39;hello api&#39;</span><span class="p">}</span>
+<span class="n">msg_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+<span class="n">headers</span><span class="p">,</span> <span class="n">resp</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s">&#39;http://localhost:5000/api/message/&#39;</span><span class="p">,</span> <span class="s">&#39;POST&#39;</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">msg_json</span><span class="p">)</span>
+
+<span class="n">response</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The response object will look something like this:</p>
+<div class="highlight-javascript"><div class="highlight"><pre><span class="p">{</span>
+  <span class="s1">&#39;content&#39;</span><span class="o">:</span> <span class="s1">&#39;hello api&#39;</span><span class="p">,</span>
+  <span class="s1">&#39;user_id&#39;</span><span class="o">:</span> <span class="mi">1</span><span class="p">,</span>
+  <span class="s1">&#39;pub_date&#39;</span><span class="o">:</span> <span class="s1">&#39;2011-09-22 11:25:02&#39;</span><span class="p">,</span>
+  <span class="s1">&#39;id&#39;</span><span class="o">:</span> <span class="mi">3</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>There is a problem with this, however.  Notice how the <tt class="docutils literal"><span class="pre">user_id</span></tt> was passed in
+with the POST data?  This effectively will let a user post a message as another user.
+It also means a user can use PUT requests to modify another user&#8217;s message:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># continued from above script</span>
+<span class="n">update</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;content&#39;</span><span class="p">:</span> <span class="s">&#39;haxed you, bro&#39;</span><span class="p">}</span>
+<span class="n">update_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">update</span><span class="p">)</span>
+
+<span class="n">headers</span><span class="p">,</span> <span class="n">resp</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s">&#39;http://127.0.0.1:5000/api/message/2/&#39;</span><span class="p">,</span> <span class="s">&#39;PUT&#39;</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">update_json</span><span class="p">)</span>
+
+<span class="n">response</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The response will look like this:</p>
+<div class="highlight-javascript"><div class="highlight"><pre><span class="p">{</span>
+  <span class="s1">&#39;content&#39;</span><span class="o">:</span> <span class="s1">&#39;haxed you, bro&#39;</span><span class="p">,</span>
+  <span class="s1">&#39;pub_date&#39;</span><span class="o">:</span> <span class="s1">&#39;2011-09-16 18:36:15&#39;</span><span class="p">,</span>
+  <span class="s1">&#39;user_id&#39;</span><span class="o">:</span> <span class="mi">2</span><span class="p">,</span>
+  <span class="s1">&#39;id&#39;</span><span class="o">:</span> <span class="mi">2</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This is a problem &#8211; we need a way of ensuring that users can only edit their
+own messages.  Furthermore, when they create messages we need to make sure the
+message is assigned to them.</p>
+</div>
+<div class="section" id="restricting-api-access-on-a-per-model-basis">
+<h3>Restricting API access on a per-model basis<a class="headerlink" href="#restricting-api-access-on-a-per-model-basis" title="Permalink to this headline">¶</a></h3>
+<p>flask-peewee comes with a special subclass of <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a> that
+restricts POST/PUT/DELETE requests to prevent users from modifying another user&#8217;s
+content.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">flaskext.rest</span> <span class="kn">import</span> <span class="n">RestrictOwnerResource</span>
+
+
+<span class="k">class</span> <span class="nc">MessageResource</span><span class="p">(</span><span class="n">RestrictOwnerResource</span><span class="p">):</span>
+    <span class="n">owner_field</span> <span class="o">=</span> <span class="s">&#39;user&#39;</span>
+
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Message</span><span class="p">,</span> <span class="n">MessageResource</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now, if we try and modify the message, we get a 403 Forbidden:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">headers</span><span class="p">,</span> <span class="n">resp</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s">&#39;http://127.0.0.1:5000/api/message/2/&#39;</span><span class="p">,</span> <span class="s">&#39;PUT&#39;</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">update_json</span><span class="p">)</span>
+<span class="k">print</span> <span class="n">headers</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span>
+
+<span class="c"># prints 403</span>
+</pre></div>
+</div>
+<p>It is fine to modify our own message, though (message with id=1):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">headers</span><span class="p">,</span> <span class="n">resp</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s">&#39;http://127.0.0.1:5000/api/message/1/&#39;</span><span class="p">,</span> <span class="s">&#39;PUT&#39;</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">update_json</span><span class="p">)</span>
+<span class="k">print</span> <span class="n">headers</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span>
+
+<span class="c"># prints 200</span>
+</pre></div>
+</div>
+<p>Under-the-hood, the <a class="reference external" href="https://github.com/coleifer/flask-peewee/blob/master/flaskext/rest.py#L284">implementation</a> of the <a class="reference internal" href="#RestrictOwnerResource" title="RestrictOwnerResource"><tt class="xref py py-class docutils literal"><span class="pre">RestrictOwnerResource</span></tt></a> is pretty simple.</p>
+<ul class="simple">
+<li>PUT / DELETE &#8211; verify the authenticated user is the owner of the object</li>
+<li>POST &#8211; assign the authenticated user as the owner of the new object</li>
+</ul>
+</div>
+<div class="section" id="locking-down-a-resource">
+<h3>Locking down a resource<a class="headerlink" href="#locking-down-a-resource" title="Permalink to this headline">¶</a></h3>
+<p>Suppose we want to restrict normal users from modifying <tt class="docutils literal"><span class="pre">User</span></tt> resources.  For this
+we can use a special subclass of <a class="reference internal" href="#UserAuthentication" title="UserAuthentication"><tt class="xref py py-class docutils literal"><span class="pre">UserAuthentication</span></tt></a> that restricts access
+to administrators:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">flaskext.rest</span> <span class="kn">import</span> <span class="n">AdminAuthentication</span>
+
+<span class="c"># instantiate our user-based auth</span>
+<span class="n">user_auth</span> <span class="o">=</span> <span class="n">UserAuthentication</span><span class="p">(</span><span class="n">auth</span><span class="p">)</span>
+
+<span class="c"># instantiate admin-only auth</span>
+<span class="n">admin_auth</span> <span class="o">=</span> <span class="n">AdminAuthentication</span><span class="p">(</span><span class="n">auth</span><span class="p">)</span>
+
+<span class="c"># instantiate our api wrapper, specifying user_auth as the default</span>
+<span class="n">api</span> <span class="o">=</span> <span class="n">RestAPI</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">default_auth</span><span class="o">=</span><span class="n">user_auth</span><span class="p">)</span>
+
+<span class="c"># register the UserResource with admin auth</span>
+<span class="n">api</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">UserResource</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="n">admin_auth</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="filtering-records-and-querying">
+<h3>Filtering records and querying<a class="headerlink" href="#filtering-records-and-querying" title="Permalink to this headline">¶</a></h3>
+<p>A REST Api is not very useful if it cannot be queried in a meaningful fashion.  To
+this end, the flask-peewee <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a> objects support &#8220;django-style&#8221;
+filtering:</p>
+<div class="highlight-console"><div class="highlight"><pre><span class="gp">$</span> curl http://127.0.0.1:5000/api/message/?user<span class="o">=</span>2
+</pre></div>
+</div>
+<p>This call will return only messages by the <tt class="docutils literal"><span class="pre">User</span></tt> with id=2:</p>
+<div class="highlight-javascript"><div class="highlight"><pre><span class="p">{</span>
+  <span class="s2">&quot;meta&quot;</span><span class="o">:</span> <span class="p">{</span>
+    <span class="s2">&quot;model&quot;</span><span class="o">:</span> <span class="s2">&quot;message&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;next&quot;</span><span class="o">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;page&quot;</span><span class="o">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;previous&quot;</span><span class="o">:</span> <span class="s2">&quot;&quot;</span>
+  <span class="p">},</span>
+  <span class="s2">&quot;objects&quot;</span><span class="o">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;content&quot;</span><span class="o">:</span> <span class="s2">&quot;haxed you, bro&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;pub_date&quot;</span><span class="o">:</span> <span class="s2">&quot;2011-09-16 18:36:15&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;user_id&quot;</span><span class="o">:</span> <span class="mi">2</span><span class="p">,</span>
+      <span class="s2">&quot;id&quot;</span><span class="o">:</span> <span class="mi">2</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Joins can be traversed using the django double-underscore notation:</p>
+<div class="highlight-console"><div class="highlight"><pre><span class="gp">$</span> curl http://127.0.0.1:5000/api/message/?user__username<span class="o">=</span>admin
+</pre></div>
+</div>
+<div class="highlight-javascript"><div class="highlight"><pre><span class="p">{</span>
+  <span class="s2">&quot;meta&quot;</span><span class="o">:</span> <span class="p">{</span>
+    <span class="s2">&quot;model&quot;</span><span class="o">:</span> <span class="s2">&quot;message&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;next&quot;</span><span class="o">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;page&quot;</span><span class="o">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;previous&quot;</span><span class="o">:</span> <span class="s2">&quot;&quot;</span>
+  <span class="p">},</span>
+  <span class="s2">&quot;objects&quot;</span><span class="o">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;content&quot;</span><span class="o">:</span> <span class="s2">&quot;flask and peewee, together at last!&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;pub_date&quot;</span><span class="o">:</span> <span class="s2">&quot;2011-09-16 18:36:15&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;user_id&quot;</span><span class="o">:</span> <span class="mi">1</span><span class="p">,</span>
+      <span class="s2">&quot;id&quot;</span><span class="o">:</span> <span class="mi">1</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;content&quot;</span><span class="o">:</span> <span class="s2">&quot;hello api&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;pub_date&quot;</span><span class="o">:</span> <span class="s2">&quot;2011-09-22 11:25:02&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;user_id&quot;</span><span class="o">:</span> <span class="mi">1</span><span class="p">,</span>
+      <span class="s2">&quot;id&quot;</span><span class="o">:</span> <span class="mi">3</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="sorting-results">
+<h3>Sorting results<a class="headerlink" href="#sorting-results" title="Permalink to this headline">¶</a></h3>
+<p>Results can be sorted by specifying an <tt class="docutils literal"><span class="pre">ordering</span></tt> as a GET argument.  The ordering
+must be a column on the model.</p>
+<p><cite>/api/messages/?ordering=pub_date</cite></p>
+<p>If you would like to order objects &#8220;descending&#8221;, place a &#8220;-&#8221; (hyphen character) before the column name:</p>
+<p><cite>/api/messages/?ordering=-pub_date</cite></p>
+</div>
+<div class="section" id="limiting-results-and-pagination">
+<h3>Limiting results and pagination<a class="headerlink" href="#limiting-results-and-pagination" title="Permalink to this headline">¶</a></h3>
+<p>By default, resources are paginated 20 per-page.  If you want to return less, you
+can specify a <tt class="docutils literal"><span class="pre">limit</span></tt> in the querystring.</p>
+<p><cite>/api/messages/?limit=2</cite></p>
+<p>In the &#8220;meta&#8221; section of the response, URIs for the &#8220;next&#8221; and &#8220;previous&#8221; sets
+of results are available:</p>
+<div class="highlight-javascript"><div class="highlight"><pre><span class="nx">meta</span><span class="o">:</span> <span class="p">{</span>
+  <span class="nx">model</span><span class="o">:</span> <span class="s2">&quot;message&quot;</span>
+  <span class="nx">next</span><span class="o">:</span> <span class="s2">&quot;/api/message/?limit=1&amp;page=3&quot;</span>
+  <span class="nx">page</span><span class="o">:</span> <span class="mi">2</span>
+  <span class="nx">previous</span><span class="o">:</span> <span class="s2">&quot;/api/message/?limit=1&amp;page=1&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="components-of-the-rest-module">
+<h2>Components of the rest module<a class="headerlink" href="#components-of-the-rest-module" title="Permalink to this headline">¶</a></h2>
+<p>The <tt class="docutils literal"><span class="pre">rest</span></tt> module is broken up into three main components:</p>
+<ul class="simple">
+<li><a class="reference internal" href="#RestAPI" title="RestAPI"><tt class="xref py py-class docutils literal"><span class="pre">RestAPI</span></tt></a>, which organizes and exposes resources</li>
+<li><a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a>, which represents a model</li>
+<li><a class="reference internal" href="#Authentication" title="Authentication"><tt class="xref py py-class docutils literal"><span class="pre">Authentication</span></tt></a>, which controls access to a given resource</li>
+</ul>
+<div class="section" id="restapi">
+<h3>RestAPI<a class="headerlink" href="#restapi" title="Permalink to this headline">¶</a></h3>
+<dl class="class">
+<dt id="RestAPI">
+<em class="property">class </em><tt class="descname">RestAPI</tt><a class="headerlink" href="#RestAPI" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="RestAPI.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>app</em><span class="optional">[</span>, <em>prefix='/api'</em><span class="optional">[</span>, <em>default_auth=None</em><span class="optional">]</span><span class="optional">]</span><big>)</big><a class="headerlink" href="#RestAPI.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>app</strong> &#8211; flask application to bind API to</li>
+<li><strong>prefix</strong> &#8211; url to serve REST API from</li>
+<li><strong>default_auth</strong> &#8211; default <a class="reference internal" href="#Authentication" title="Authentication"><tt class="xref py py-class docutils literal"><span class="pre">Authentication</span></tt></a> type to use with registered resources</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestAPI.register">
+<tt class="descname">register</tt><big>(</big><em>model</em><span class="optional">[</span>, <em>provider=RestResource</em><span class="optional">[</span>, <em>auth=None</em><span class="optional">[</span>, <em>allowed_methods=None</em><span class="optional">]</span><span class="optional">]</span><span class="optional">]</span><big>)</big><a class="headerlink" href="#RestAPI.register" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register a model to expose via the API.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> &#8211; <tt class="docutils literal"><span class="pre">Model</span></tt> to expose via API</li>
+<li><strong>provider</strong> &#8211; subclass of <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a> to use for this model</li>
+<li><strong>auth</strong> &#8211; authentication type to use for this resource, falling back to <tt class="xref py py-attr docutils literal"><span class="pre">RestAPI.default_auth</span></tt></li>
+<li><strong>allowed_methods</strong> &#8211; <tt class="docutils literal"><span class="pre">list</span></tt> of HTTP verbs to allow, defaults to <tt class="docutils literal"><span class="pre">['GET',</span> <span class="pre">'POST',</span> <span class="pre">'PUT',</span> <span class="pre">'DELETE']</span></tt></li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestAPI.setup">
+<tt class="descname">setup</tt><big>(</big><big>)</big><a class="headerlink" href="#RestAPI.setup" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register API <tt class="docutils literal"><span class="pre">BluePrint</span></tt> and configure urls</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">call this <strong>after</strong> registering your resources</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="restresource-and-related-classes">
+<h3>RestResource and related classes<a class="headerlink" href="#restresource-and-related-classes" title="Permalink to this headline">¶</a></h3>
+<p>A <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a> is simply a <tt class="docutils literal"><span class="pre">Model</span></tt> that is exposed via the API, and
+encapsulates any logic for restricting which instances to display, controlling
+access to instances, etc.</p>
+<dl class="class">
+<dt id="RestResource">
+<em class="property">class </em><tt class="descname">RestResource</tt><a class="headerlink" href="#RestResource" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="attribute">
+<dt>
+<tt class="descname">paginate_by = 20</tt></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">fields = None</tt></dt>
+<dd><p>A list or tuple of fields to expose when serializing</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">exclude = None</tt></dt>
+<dd><p>A list or tuple of fields to <strong>not</strong> expose when serializing</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">ignore_filters = ('ordering', 'page', 'limit',)</tt></dt>
+<dd><p>A list or tuple of GET arguments to ignore when applying filters</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.get_query">
+<tt class="descname">get_query</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.get_query" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">a <tt class="docutils literal"><span class="pre">SelectQuery</span></tt> containing the model instances to expose by default</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.prepare_data">
+<tt class="descname">prepare_data</tt><big>(</big><em>data</em><big>)</big><a class="headerlink" href="#RestResource.prepare_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method provides a hook for modifying outgoing data.  The default
+implementation no-ops, but you could do any kind of munging here.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><strong>data</strong> &#8211; the dictionary representation of a model returned by the <tt class="docutils literal"><span class="pre">Serializer</span></tt></td>
+</tr>
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">a dictionary of data to hand off</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.save_object">
+<tt class="descname">save_object</tt><big>(</big><em>instance</em>, <em>raw_data</em><big>)</big><a class="headerlink" href="#RestResource.save_object" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>instance</strong> &#8211; <tt class="docutils literal"><span class="pre">Model</span></tt> instance that has already been updated with the incoming <tt class="docutils literal"><span class="pre">raw_data</span></tt></li>
+<li><strong>raw_data</strong> &#8211; data provided in the request</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">a saved instance</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.api_list">
+<tt class="descname">api_list</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.api_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>A view that dispatches based on the HTTP verb to either:</p>
+<ul class="simple">
+<li>GET: <a class="reference internal" href="#RestResource.object_list" title="RestResource.object_list"><tt class="xref py py-meth docutils literal"><span class="pre">object_list()</span></tt></a></li>
+<li>POST: <a class="reference internal" href="#RestResource.create" title="RestResource.create"><tt class="xref py py-meth docutils literal"><span class="pre">create()</span></tt></a></li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><tt class="docutils literal"><span class="pre">Response</span></tt></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.api_detail">
+<tt class="descname">api_detail</tt><big>(</big><em>pk</em><big>)</big><a class="headerlink" href="#RestResource.api_detail" title="Permalink to this definition">¶</a></dt>
+<dd><p>A view that dispatches based on the HTTP verb to either:</p>
+<ul class="simple">
+<li>GET: <a class="reference internal" href="#RestResource.object_detail" title="RestResource.object_detail"><tt class="xref py py-meth docutils literal"><span class="pre">object_detail()</span></tt></a></li>
+<li>PUT: <a class="reference internal" href="#RestResource.edit" title="RestResource.edit"><tt class="xref py py-meth docutils literal"><span class="pre">edit()</span></tt></a></li>
+<li>DELETE: <a class="reference internal" href="#RestResource.delete" title="RestResource.delete"><tt class="xref py py-meth docutils literal"><span class="pre">delete()</span></tt></a></li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><tt class="docutils literal"><span class="pre">Response</span></tt></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.object_list">
+<tt class="descname">object_list</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.object_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a serialized list of <tt class="docutils literal"><span class="pre">Model</span></tt> instances.  These objects may be
+filtered, ordered, and/or paginated.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><tt class="docutils literal"><span class="pre">Response</span></tt></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.object_detail">
+<tt class="descname">object_detail</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.object_detail" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a serialized <tt class="docutils literal"><span class="pre">Model</span></tt> instance.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><tt class="docutils literal"><span class="pre">Response</span></tt></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.create">
+<tt class="descname">create</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.create" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a new <tt class="docutils literal"><span class="pre">Model</span></tt> instance based on the deserialized POST body.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><tt class="docutils literal"><span class="pre">Response</span></tt> containing serialized new object</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.edit">
+<tt class="descname">edit</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.edit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Edits an existing <tt class="docutils literal"><span class="pre">Model</span></tt> instance, updating it with the deserialized PUT body.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><tt class="docutils literal"><span class="pre">Response</span></tt> containing serialized edited object</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.delete">
+<tt class="descname">delete</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.delete" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deletes an existing <tt class="docutils literal"><span class="pre">Model</span></tt> instance from the database.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><tt class="docutils literal"><span class="pre">Response</span></tt> indicating number of objects deleted, i.e. <tt class="docutils literal"><span class="pre">{'deleted':</span> <span class="pre">1}</span></tt></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.get_api_name">
+<tt class="descname">get_api_name</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.get_api_name" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">URL-friendly name to expose this resource as, defaults to the model&#8217;s name</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.check_get">
+<tt class="descname">check_get</tt><big>(</big><span class="optional">[</span><em>obj=None</em><span class="optional">]</span><big>)</big><a class="headerlink" href="#RestResource.check_get" title="Permalink to this definition">¶</a></dt>
+<dd><p>A hook for pre-authorizing a GET request.  By default returns <tt class="xref docutils literal"><span class="pre">True</span></tt>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">Boolean indicating whether to allow the request to continue</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.check_post">
+<tt class="descname">check_post</tt><big>(</big><big>)</big><a class="headerlink" href="#RestResource.check_post" title="Permalink to this definition">¶</a></dt>
+<dd><p>A hook for pre-authorizing a POST request.  By default returns <tt class="xref docutils literal"><span class="pre">True</span></tt>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">Boolean indicating whether to allow the request to continue</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.check_put">
+<tt class="descname">check_put</tt><big>(</big><em>obj</em><big>)</big><a class="headerlink" href="#RestResource.check_put" title="Permalink to this definition">¶</a></dt>
+<dd><p>A hook for pre-authorizing a PUT request.  By default returns <tt class="xref docutils literal"><span class="pre">True</span></tt>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">Boolean indicating whether to allow the request to continue</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestResource.check_delete">
+<tt class="descname">check_delete</tt><big>(</big><em>obj</em><big>)</big><a class="headerlink" href="#RestResource.check_delete" title="Permalink to this definition">¶</a></dt>
+<dd><p>A hook for pre-authorizing a DELETE request.  By default returns <tt class="xref docutils literal"><span class="pre">True</span></tt>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">Boolean indicating whether to allow the request to continue</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="RestrictOwnerResource">
+<em class="property">class </em><tt class="descname">RestrictOwnerResource</tt><big>(</big><em>RestResource</em><big>)</big><a class="headerlink" href="#RestrictOwnerResource" title="Permalink to this definition">¶</a></dt>
+<dd><p>This subclass of <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a> allows only the &#8220;owner&#8221; of an object
+to make changes via the API.  It works by verifying that the authenticated user
+matches the &#8220;owner&#8221; of the model instance, which is specified by setting <tt class="xref py py-attr docutils literal"><span class="pre">owner_field</span></tt>.</p>
+<p>Additionally, it sets the &#8220;owner&#8221; to the authenticated user whenever saving
+or creating new instances.</p>
+<dl class="attribute">
+<dt>
+<tt class="descname">owner_field = 'user'</tt></dt>
+<dd><p>Field on the model to use to verify ownership of the given instance.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestrictOwnerResource.validate_owner">
+<tt class="descname">validate_owner</tt><big>(</big><em>user</em>, <em>obj</em><big>)</big><a class="headerlink" href="#RestrictOwnerResource.validate_owner" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>user</strong> &#8211; an authenticated <tt class="docutils literal"><span class="pre">User</span></tt> instance</li>
+<li><strong>obj</strong> &#8211; the <tt class="docutils literal"><span class="pre">Model</span></tt> instance being accessed via the API</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">Boolean indicating whether the user can modify the object</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="RestrictOwnerResource.set_owner">
+<tt class="descname">set_owner</tt><big>(</big><em>obj</em>, <em>user</em><big>)</big><a class="headerlink" href="#RestrictOwnerResource.set_owner" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mark the object as being owned by the provided user.  The default implementation
+simply calls <tt class="docutils literal"><span class="pre">setattr</span></tt>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>obj</strong> &#8211; the <tt class="docutils literal"><span class="pre">Model</span></tt> instance being accessed via the API</li>
+<li><strong>user</strong> &#8211; an authenticated <tt class="docutils literal"><span class="pre">User</span></tt> instance</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="authentication">
+<h3>Authentication<a class="headerlink" href="#authentication" title="Permalink to this headline">¶</a></h3>
+<p>The <a class="reference internal" href="#Authentication" title="Authentication"><tt class="xref py py-class docutils literal"><span class="pre">Authentication</span></tt></a> class controls access to <a class="reference internal" href="#RestResource" title="RestResource"><tt class="xref py py-class docutils literal"><span class="pre">RestResource</span></tt></a> instances.
+The default implementation, which is used if no other auth type is specified, simply
+blocks any HTTP request other than a GET:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">Authentication</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">protected_methods</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">protected_methods</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">protected_methods</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;POST&#39;</span><span class="p">,</span> <span class="s">&#39;PUT&#39;</span><span class="p">,</span> <span class="s">&#39;DELETE&#39;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">protected_methods</span> <span class="o">=</span> <span class="n">protected_methods</span>
+
+    <span class="k">def</span> <span class="nf">authorize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">protected_methods</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="k">return</span> <span class="bp">True</span>
+</pre></div>
+</div>
+<dl class="class">
+<dt id="Authentication">
+<em class="property">class </em><tt class="descname">Authentication</tt><a class="headerlink" href="#Authentication" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="Authentication.__init__">
+<tt class="descname">__init__</tt><big>(</big><span class="optional">[</span><em>protected_methods=None</em><span class="optional">]</span><big>)</big><a class="headerlink" href="#Authentication.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><strong>protected_methods</strong> &#8211; A list or tuple of HTTP verbs to require auth for</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="Authentication.authorize">
+<tt class="descname">authorize</tt><big>(</big><big>)</big><a class="headerlink" href="#Authentication.authorize" title="Permalink to this definition">¶</a></dt>
+<dd><p>This single method is called per-API-request.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">Boolean indicating whether to allow the given request through or not</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="UserAuthentication">
+<em class="property">class </em><tt class="descname">UserAuthentication</tt><big>(</big><em>Authentication</em><big>)</big><a class="headerlink" href="#UserAuthentication" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="UserAuthentication.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>auth</em><span class="optional">[</span>, <em>protected_methods=None</em><span class="optional">]</span><big>)</big><a class="headerlink" href="#UserAuthentication.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>auth</strong> &#8211; an <a class="reference internal" href="auth.html#authentication"><em>Authentication</em></a> instance</li>
+<li><strong>protected_methods</strong> &#8211; A list or tuple of HTTP verbs to require auth for</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="UserAuthentication.authorize">
+<tt class="descname">authorize</tt><big>(</big><big>)</big><a class="headerlink" href="#UserAuthentication.authorize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Verifies, using HTTP Basic auth, that the username and password match a
+valid <tt class="docutils literal"><span class="pre">auth.User</span></tt> model before allowing the request to continue.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">Boolean indicating whether to allow the given request through or not</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="AdminAuthentication">
+<em class="property">class </em><tt class="descname">AdminAuthentication</tt><big>(</big><em>UserAuthentication</em><big>)</big><a class="headerlink" href="#AdminAuthentication" title="Permalink to this definition">¶</a></dt>
+<dd><p>Subclass of the <a class="reference internal" href="#UserAuthentication" title="UserAuthentication"><tt class="xref py py-class docutils literal"><span class="pre">UserAuthentication</span></tt></a> that further restricts which
+users are allowed through.</p>
+<dl class="method">
+<dt id="AdminAuthentication.verify_user">
+<tt class="descname">verify_user</tt><big>(</big><em>user</em><big>)</big><a class="headerlink" href="#AdminAuthentication.verify_user" title="Permalink to this definition">¶</a></dt>
+<dd><p>Verifies whether the requesting user is an administrator</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><strong>user</strong> &#8211; the <tt class="docutils literal"><span class="pre">auth.User</span></tt> instance of the requesting user</td>
+</tr>
+<tr class="field"><th class="field-name">Return type:</th><td class="field-body">Boolean indicating whether the user is an administrator</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">REST Api</a><ul>
+<li><a class="reference internal" href="#getting-started-with-the-api">Getting started with the API</a><ul>
+<li><a class="reference internal" href="#project-models">Project models</a></li>
+<li><a class="reference internal" href="#creating-a-restapi">Creating a RestAPI</a></li>
+<li><a class="reference internal" href="#customizing-what-is-returned">Customizing what is returned</a></li>
+<li><a class="reference internal" href="#allowing-users-to-post-messages">Allowing users to post messages</a></li>
+<li><a class="reference internal" href="#restricting-api-access-on-a-per-model-basis">Restricting API access on a per-model basis</a></li>
+<li><a class="reference internal" href="#locking-down-a-resource">Locking down a resource</a></li>
+<li><a class="reference internal" href="#filtering-records-and-querying">Filtering records and querying</a></li>
+<li><a class="reference internal" href="#sorting-results">Sorting results</a></li>
+<li><a class="reference internal" href="#limiting-results-and-pagination">Limiting results and pagination</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#components-of-the-rest-module">Components of the rest module</a><ul>
+<li><a class="reference internal" href="#restapi">RestAPI</a></li>
+<li><a class="reference internal" href="#restresource-and-related-classes">RestResource and related classes</a></li>
+<li><a class="reference internal" href="#authentication">Authentication</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="auth.html"
+                        title="previous chapter">Authentication</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="example.html"
+                        title="next chapter">Example App</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/rest-api.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="example.html" title="Example App"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="auth.html" title="Authentication"
+             >previous</a> |</li>
+        <li><a href="index.html">flask-peewee v0.1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011, charles leifer.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
