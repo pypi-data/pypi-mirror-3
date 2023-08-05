@@ -1,0 +1,103 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      lang="en"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="rendezvous">
+<body>
+
+<div metal:fill-slot="main"
+     tal:define="member context/portal_membership/getAuthenticatedMember;
+                 portal_url context/@@plone_portal_state/portal_url">
+  <p class="rendezvous_help" i18n:translate="help_rendezvous_choice">
+    Click on a cell to mark the option is available for you, and click on it again to mark it as unavailable.
+    Then click on 'save'.
+  </p>
+  <div id="rendezvous-choose-date" tal:condition="view/canCreateEvent">
+    <img width="16" height="16" alt=""
+         tal:attributes="src string:$portal_url/event_icon.png" />
+        <span i18n:translate="">
+          Click here and select a date to create the event from this poll</span>
+  </div>
+  <form class="enableUnloadProtection"
+        method="post"
+        tal:attributes="action string:${context/absolute_url}/@@add-participation">
+  <table id="rendezvous">
+    <thead>
+      <tr class="rendezvousdates">
+        <th class="noborder">&nbsp;</th>
+        <tal:block tal:repeat="row python:view.getPropositionsItemsByOrderedDates()">
+          <tal:block define="date row/label;
+                             props row/props;">
+            <th tal:content="python:context.toLocalizedTime(date)"
+                tal:attributes="colspan python:len(props);
+                                class row/class"></th>
+          </tal:block>
+        </tal:block>
+      </tr>
+      <tr>
+        <th class="noborder">&nbsp;</th>
+        <tal:block tal:repeat="row view/getPropositionsItemsByOrderedDates">
+          <tal:block define="date row/label;
+                             props row/props;">
+            <tal:block tal:repeat="prop props">
+              <th tal:content="prop/label|string:-"
+                  tal:attributes="class prop/class" />
+            </tal:block>
+          </tal:block>
+        </tal:block>
+      </tr>
+    </thead>
+    <tbody>
+      <tr tal:repeat="participant python:[p for p in context.getParticipants() if p != member.id]">
+        <td tal:content="python:view.getFullname(participant)">name</td>
+        <tal:block repeat="row python:view.getPropositionsItemsByOrderedDates()">
+          <tal:block define="date row/label;
+                             props row/props;">
+            <tal:block repeat="prop props">
+              <td tal:define="klass python:view.getParticipationClass(participant, prop['participation'])"
+                  tal:attributes="class klass"
+                  tal:content="python:klass == view.AVAILABLE and 'OK' or (klass == view.UNKNOWN and '?' or '')"></td>
+            </tal:block>
+          </tal:block>
+        </tal:block>
+      </tr>
+      <tr tal:define="hasParticipated python:member.id in context.getParticipants()">
+        <td tal:content="python:member.getProperty('fullname', member.id)" />
+        <tal:block tal:repeat="row python:view.getPropositionsItemsByOrderedDates()">
+            <tal:block define="date row/label;
+                               props row/props;"
+                       repeat="prop props">
+                <td tal:define="klass python:view.getParticipationClass(member.id, prop['participation']);
+                                available python:klass == view.AVAILABLE;
+                                unknown python:klass == view.UNKNOWN"
+                    tal:attributes="class string:selectable ${klass}">
+                  <span tal:content="python:available and 'OK' or (unknown and '?') or ''" />
+                  <input type="hidden"
+                         name="propositions:list"
+                         tal:define="propid prop/participation"
+                         tal:attributes="id propid;
+                                         value python:hasParticipated and available and propid or ''"/>
+                  </td>
+          </tal:block>
+        </tal:block>
+      </tr>
+      <tr>
+        <td class="noborder"/>
+        <tal:block tal:repeat="row python:view.getPropositionsItemsByOrderedDates()">
+          <tal:block define="date row/label;
+                             props row/props;">
+            <tal:block tal:repeat="prop props">
+              <td class="noborder" tal:content="python:view.getNbParticipantsForProposition(prop['participation'])">&nbsp;</td>
+            </tal:block>
+          </tal:block>
+        </tal:block>
+      </tr>
+    </tbody>
+  </table>
+  <input type="submit" name="save" value="Save" i18n:attributes="value" />
+  </form>
+
+
+</div>
+
+</body>
+</html>
