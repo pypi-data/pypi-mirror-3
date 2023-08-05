@@ -1,0 +1,336 @@
+1.5.1 (2011-11-12)
+------------------
+
+- Packing: Lowered garbage collection object reference finding log level to
+  debug; this stage takes mere seconds, even in large sites, but could produce
+  10s of thousands of lines of log output.
+
+- RelStorage was opening a test database connection (and was leaving it
+  idle in a transaction with recent ZODB versions that support
+  IMVCCStorage.) RelStorage no longer opens that test connection.
+
+- zodbconvert: Avoid holding a list of all transactions in memory.
+
+- Just after installing the database schema, verify the schema was
+  created correctly. This affects MySQL in particular.
+
+1.5.0 (2011-06-30)
+------------------
+
+- PostgreSQL: Fixed another minor compatibility issue with PostgreSQL 9.0.
+  Packing raised an error when the client used old an version of libpq.
+
+- Delete empty transactions in batches of 1000 rows instead of all in one
+  go, to prevent holding the transaction lock for longer than absolutely
+  necessary.
+
+- Oracle: Fix object reference downloading performance for large RelStorage
+  databases during the garbage collection phase of a pack.
+
+- Oracle, PostgreSQL: Switch to storing ZODB blob in chunks up to 4GB
+  (the maximum supported by cx_Oracle) or 2GB (PostgreSQL maximum blob size)
+  to maximize blob reading and writing performance.
+  
+  The PostgreSQL blob_chunk schema changed to support this, see 
+  notes/migrate-to-1.5.txt to update existing databases.
+
+- zodbconvert: When copying a database containing blobs, ensure the source
+  blob file exists long enough to copy it.
+
+1.5.0b2 (2011-03-02)
+--------------------
+
+- Better packing based on experience with large databases.  Thanks
+  to Martijn Pieters!
+
+    - Added more feedback to the packing process. It'll now report
+      during batch commit how much of the total work has been
+      completed, but at most every .1% of the total number of
+      transactions or objects to process.
+
+    - Renamed the --dry-run option to --prepack and added a
+      --use-prepack-state to zodbpack. With these 2 options the
+      pre-pack and pack phases can be run separately, allowing re-use
+      of the pre-pack analysis data or even delegating the pre-pack
+      phase off to a separate server.
+
+    - Replaced the packing duty cycle with a nowait locking strategy.
+      The pack operation will now request the commit lock but pauses if
+      it is already taken. It releases the lock after every batch
+      (defaulting to 1 second processing). This makes the packing
+      process faster while at the same time yielding to regular ZODB
+      commits when busy.
+
+    - Do not hold the commit lock during pack cleanup while deleting
+      rows from the object reference tables; these tables are
+      pack-specific and regular ZODB commits never touch these.
+
+- Added an option to control schema creation / updating on startup.
+  Setting the ``create-schema`` option to false will let you use
+  RelStorage without a schema update.
+
+- Fixed compatibility with PostgreSQL 9.0, which is capable of
+  returning a new 'hex' type to the client. Some builds of psycopg2
+  return garbage or raise an error when they see the new type. The fix
+  was to encode more SQL query responses using base 64.
+
+- With the new shared-blob-dir option set to false, it was possible
+  for a thread to read a partially downloaded blob.  Fixed.  Thanks for
+  the report from Maurits van Rees.
+
+- Support for "shared-blob-dir false" now requires ZODB 3.9 or better.
+  The code in the ZODB 3.8 version of ZODB.blob is not compatible with
+  BlobCacheLayout, leading to blob filename collisions.
+
+1.5.0b1 (2011-02-05)
+--------------------
+
+- Added a state_size column to object_state, making it possible
+  to query the size of objects without loading the state.  The new
+  column is intended for gathering statistics.  A schema migration
+  is required.
+
+- Added more logging during zodbconvert to show that something is
+  happening and give an indication of how far along the process is.
+
+- Fixed a missing import in the blob cache cleanup code.
+
+- Added a --dry-run option to zodbpack.
+
+- Replaced the graph traversal portion of the pack code with
+  a more efficient implementation using Python sets (instead of SQL).
+  The new code is much faster for packing databases with deeply
+  nested objects.
+
+1.5.0a1 (2010-10-21)
+--------------------
+
+- Added an option to store ZODB blobs in the database.  The option is
+  called "shared-blob-dir" and it behaves very much like the ZEO
+  option of the same name.  Blobs stored in the database are broken
+  into chunks to reduce the impact on RAM.
+
+- Require setuptools or distribute.  Plain distutils is not sufficient.
+
+1.4.2 (2011-02-04)
+------------------
+
+- Fixed compatibility with ZODB 3.10.  As reported by Jürgen Herrmann,
+  there was a problem with conflict errors.  The RelStorage patch of the
+  sync() method now works with ZODB 3.10.
+
+- Fixed a bug in packing history-free databases.  If changes were
+  made to the database during the pack, the pack code could delete
+  too many objects.  Thanks to Chris Withers for writing test code
+  that revealed the bug.  A schema migration is required for history-free
+  databases; see notes/migration-to-1.4.txt.
+
+- Enabled logging to stderr in zodbpack.
+
+1.4.1 (2010-10-21)
+------------------
+
+- Oracle: always connect in threaded mode.  Without threaded mode,
+  clients of Oracle 11g sometimes segfault.
+
+1.4.0 (2010-09-30)
+------------------
+
+- Made compatible with ZODB 3.10.0b7.
+
+- Enabled ketama and compression in pylibmc_wrapper.  Both options
+  are better for clusters.  [Helge Tesdal]
+
+- Oracle: Use a more optimal query for POSKeyError logging.  [Helge Tesdal]
+
+- Fixed a NameError that occurred when getting the history of an
+  object where transaction extended info was set.  [Helge Tesdal]
+
+1.4.0c4 (2010-09-17)
+--------------------
+
+- Worked around an Oracle RAC bug: apparently, in a RAC environment,
+  the read-only transaction mode does not isolate transactions in the
+  manner specified by the documentation, so Oracle users now have to
+  use serializable isolation like everyone else. It's slower but more
+  reliable.
+
+- Use the client time instead of the database server time as a factor
+  in the transaction ID.  RelStorage was using the database server time
+  to reduce the need for synchronized clocks, but in practice, that
+  policy broke tests and did not really avoid the need to synchronize
+  clocks.  Also, the effect of unsynchronized clocks is predictable
+  and manageable: you'll get bunches of transactions with sequential
+  timestamps.
+
+- If the database returns an object from the future (which should never
+  happen), generate a ReadConflictError, hopefully giving the application
+  a chance to recover.  The most likely causes of this are a broken
+  database and threading bugs.
+
+1.4.0c3 (2010-07-31)
+--------------------
+
+- Always update the RelStorage cache when opening a database connection for
+  loading, even when no ZODB Connection is using the storage.  Otherwise,
+  code that used the storage interface directly could cause the cache
+  to fall out of sync; the effects would be seen in the next
+  ZODB.Connection.
+
+- Added a ZODB monkey patch that passes the "force" parameter to the
+  sync method.  This should help the poll-interval option do its job
+  better.
+
+1.4.0c2 (2010-07-28)
+--------------------
+
+- Fixed a subtle bug in the cache code that could lead to an
+  AssertionError indicating a cache inconsistency.  The inconsistency
+  was caused by after_poll(), which was ignoring the randomness of
+  the order of the list of recent changes, leading it to sometimes
+  put the wrong transfer ID in the "delta_after" dicts.  Also expanded
+  the AssertionError with debugging info, since cache inconsistency
+  can still be caused by database misconfiguration and mismatched
+  client versions.
+
+- Oracle: updated the migration notes.  The relstorage_util package
+  is not needed after all.
+
+1.4.0c1 (2010-06-19)
+--------------------
+
+- History-preserving storages now replace objects on restore instead of
+  just inserting them.  This should solve problems people were
+  having with the zodbconvert utility.
+
+- Oracle: call the DBMS_LOCK.REQUEST function directly instead of using
+  a small package named ``relstorage_util``. The ``relstorage_util``
+  package was designed as a secure way to access the DBMS_LOCK package,
+  but the package turned out to be confusing to DBAs and provided no
+  real security advantage.  People who have already deployed
+  RelStorage 1.4.x on Oracle need to do the following:
+
+      GRANT EXECUTE ON DBMS_LOCK TO <zodb_user>;
+
+  You can also drop the ``relstorage_util`` package.  Keep the
+  ``relstorage_op`` package.
+
+- Made compatible with ZODB 3.10.
+
+- MySQL: specify the transaction isolation mode for every connection,
+  since the default is apparently not necessarily "read committed"
+  anymore.
+
+1.4.0b3 (2010-02-02)
+--------------------
+
+- Auto-reconnect in new_oid().
+
+1.4.0b2 (2010-01-30)
+--------------------
+
+- Include all test subpackages in setup.py.
+
+- Raise an error if MySQL reverts to MyISAM rather than using the InnoDB
+  storage engine.
+
+1.4.0b1 (2009-11-17)
+--------------------
+
+- Added the keep-history option. Set it to false to keep no history.
+  (Packing is still required for garbage collection and blob deletion.)
+
+- Added the replica-conf and replica-timeout options.  Set replica-conf
+  to a filename containing the location of database replicas.  Changes
+  to the file take effect at transaction boundaries.
+
+- Expanded the option documentation in README.txt.
+
+- Revised the way RelStorage uses memcached.  Minimized the number of
+  trips to both the cache server and the database.
+
+- Added an in-process pickle cache that serves a function similar to the
+  ZEO cache.
+
+- Added a wrapper module for pylibmc.
+
+- Store operations now use multi-insert and multi-delete SQL
+  statements to reduce the effect of network latency.
+
+- Renamed relstorage.py to storage.py to overcome import issues.
+  Also moved the Options class to options.py.
+
+- Updated the patch for ZODB 3.7 and 3.8 to fix an issue with
+  blobs and subtransactions.
+
+- Divided the implementation of database adapters into many small
+  objects, making the adapter code more modular.  Added interfaces
+  that describe the duties of each part.
+
+- Oracle: Sped up restore operations by sending short blobs inline.
+
+- Oracle: Use a timeout on commit locks.  This requires installation
+  of a small PL/SQL package that can access DBMS_LOCK.  See README.txt.
+
+- Oracle: Used PL/SQL bulk insert operations to improve write
+  performance.
+
+- PostgreSQL: use the documented ALTER SEQUENCE RESTART WITH
+  statement instead of ALTER SEQUENCE START WITH.
+
+- Moved MD5 sum computation to the adapters so they can choose not
+  to use MD5.
+
+- Changed loadSerial to load from the store connection only if the
+  load connection can not provide the object requested.
+
+- Stopped wrapping database disconnect exceptions.  Now the code
+  catches and handles them directly.
+
+- Use the store connection rather than the load connection for OID
+  allocation.
+
+- Detect and handle backward time travel, which can happen after
+  failover to an out-of-date asynchronous slave database. For
+  simplicity, invalidate the whole ZODB cache when this happens.
+
+- Replaced the speed test script with a separately distributed package,
+  ``zodbshootout``.
+
+- Added the ``zodbpack`` script.
+
+1.3.0b1 (2009-09-04)
+--------------------
+
+- Added support for a blob directory. No BlobStorage wrapper is needed.
+  Cluster nodes will need to use a shared filesystem such as NFS or
+  SMB/CIFS.
+
+- Added the blob-dir parameter to the ZConfig schema and README.txt.
+
+
+1.2.0 (2009-09-04)
+------------------
+
+- In Oracle, trim transaction descriptions longer than 2000 bytes.
+
+- When opening the database for the first time, don't issue a warning
+  about the inevitable POSKeyError on the root OID.
+
+- If RelStorage tries to unpickle a corrupt object state during packing,
+  it will now report the oid and tid in the log.
+
+
+1.2.0b2 (2009-05-05)
+--------------------
+
+- RelStorage now implements IMVCCStorage, making it compatible with
+  ZODB 3.9.0b1 and above.
+
+- Removed two-phase commit support from the PostgreSQL adapter. The
+  feature turned out to be unnecessary.
+
+- Added MySQL 5.1.34 and above to the list of supportable databases.
+
+- Fixed minor test failures under Windows. Windows is now a supportable
+  platform.
