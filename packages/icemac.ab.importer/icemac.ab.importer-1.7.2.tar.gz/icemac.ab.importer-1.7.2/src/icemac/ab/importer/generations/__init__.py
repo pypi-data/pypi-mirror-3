@@ -1,0 +1,15 @@
+# Copyright (c) 2008-2011 Michael Howitz
+# See also LICENSE.txt
+# $Id: __init__.py 1230 2011-01-29 17:10:18Z icemac $
+"""Database initialisation and upgrading."""
+
+import zope.generations.generations
+
+
+GENERATION = 0
+
+
+manager = zope.generations.generations.SchemaManager(
+    minimum_generation=GENERATION,
+    generation=GENERATION,
+    package_name='icemac.ab.importer.generations')
