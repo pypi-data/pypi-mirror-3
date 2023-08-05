@@ -1,0 +1,158 @@
+# Copyright (C) 2011 Linaro Limited
+#
+# Author: Zygmunt Krynicki <zygmunt.krynicki@linaro.org>
+#
+# This file is part of django-debian.
+#
+# django-debian is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License version 3
+# as published by the Free Software Foundation
+#
+# django-debian is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with django-debian.  If not, see <http://www.gnu.org/licenses/>.
+
+
+# Source common django-debian stuff
+if [ -f /usr/share/django-debian/dpkg/common ]; then
+    . /usr/share/django-debian/dpkg/common
+fi
+
+
+_django_debian_configure_web_app() {
+    # Prepare space for settings
+    mkdir -p "/etc/$django_debian_package/"
+
+    # Create the initial empty secret_key.conf and make sure it has the
+    # right permissions
+    if [ ! -e "/etc/$django_debian_package/secret_key.conf" ]; then
+        _django_debian_debug "Setting up space for SECRET_KEY"
+        touch "/etc/$django_debian_package/secret_key.conf"
+        chown "$django_debian_conf_owner" "/etc/$django_debian_package/secret_key.conf"
+        chmod "$django_debian_conf_perms" "/etc/$django_debian_package/secret_key.conf"
+    fi
+
+    # Prepare space for media files
+    if [ ! -d "/var/lib/$django_debian_package/media" ]; then
+        _django_debian_debug "Setting up space for MEDIA files"
+        mkdir -p "/var/lib/$django_debian_package/media"
+        chown root:www-data "/var/lib/$django_debian_package/media"
+        # XXX: media files privacy is not defined, currently we _prevent_
+        # anyone from accessing media files directly but this might be too
+        # strict.
+        # TODO: Add configuration for this setting, I suspect most apps would
+        # want to have public files
+        chmod 0770 "/var/lib/$django_debian_package/media"
+    fi
+
+    # Prepare space for administrator templates
+    mkdir -p "/etc/$django_debian_package/templates"
+    chown root:www-data "/etc/$django_debian_package/templates"
+
+    # Sanity check to prevent scripts below from breaking
+    if [ ! -f "/etc/$django_debian_package/default_database.conf" ]; then
+        _django_debian_log "NOTE: Database settings for $django_debian_package are not yet available, postponing further configuration"
+        return 0
+    fi
+
+    # Refresh python-support cache so that we can call manage.py below
+    if [ "$django_debian_use_staticfiles" = "yes" ] || [ "$django_debian_synchronize_db" = "yes" ]; then
+        _django_debian_debug "Preparing to run python code necessary for further configuration"
+        update-python-modules --post-install
+    fi
+
+    # Rebuild the cache of static files if we are using django-staticfiles
+    if [ "$django_debian_use_staticfiles" = "yes" ]; then
+        _django_debian_debug "Rebuilding cache of static files"
+        # Purge the old templates, this is needed as django-staticfiles for
+        # Django 1.2 does not seem to do this automatically
+        rm -rf "/var/lib/$django_debian_package/static"
+        # Setup a place for our package's static files
+        mkdir -p "/var/lib/$django_debian_package/static"
+        # Make sure we can access it as root:www-data
+        # XXX: this ought to depend on some sensible variable like
+        # django_content_ownership and django_content_permission 
+        chown root:www-data "/var/lib/$django_debian_package/static"
+        chmod 0755 "/var/lib/$django_debian_package/static"
+        # Run the management script with build_static command
+        # XXX: This will change for Django 1.3
+        python "/usr/lib/$django_debian_package/manage.py" build_static --noinput --verbosity=1 --link 2>&1 | _django_debian_syslog
+    fi
+
+    # Synchronize the database if requested
+    if [ "$django_debian_synchronize_db" = "yes" ]; then
+        _django_debian_debug "Synchronizing database"
+        python "/usr/lib/$django_debian_package/manage.py" syncdb --noinput --verbosity=1 2>&1 | _django_debian_syslog
+        # Use south migrations if needed
+        if [ "$django_debian_use_south" = "yes" ]; then
+            django_debian_upgrade_to_south
+            _django_debian_debug "Migrating database with south"
+            python "/usr/lib/$django_debian_package/manage.py" migrate --verbosity=1 2>&1 | _django_debian_syslog
+        fi
+    fi
+}
+
+
+django_debian_south_run_fake_migration() {
+    local app_name="$1"
+    local migration_name="$2"
+    _django_debian_debug "Running fake south migration $app_name $migration_name"
+    python /usr/lib/$django_debian_package/manage.py migrate --verbosity=0 "$app_name" "$migration_name" --fake 2>&1 | _django_debian_syslog
+}
+
+
+django_debian_upgrade_to_south() {
+    # EMPTY FUNCTION - to be redefined by maintainer scripts
+    true
+}
+
+
+_django_debian_dbc_go() {
+    # Load dbconfig-common if it was requested
+    if [ "$django_debian_use_dbconfig_common" = "yes" ]; then
+        _django_debian_debug "Setting up dbconfig-common configuration file"
+        # Source dbconfig-common shell library and call the hook function
+        if [ -f /usr/share/dbconfig-common/dpkg/postinst ]; then
+            . /usr/share/dbconfig-common/dpkg/postinst 
+            mkdir -p "/etc/$django_debian_package/"
+            # Calculate configuration variables for dbconfig-common
+            dbc_dbfile_owner=root:www-data
+            dbc_dbfile_perms=0660
+            dbc_generate_include="sh:/etc/$django_debian_package/default_database.conf"
+            dbc_generate_include_owner=root:www-data
+            dbc_generate_include_perms=0640
+            dbc_pgsql_createdb_encoding=UTF8
+            # This one is very important, when manual database configuration
+            # is selected do NOT create dhe include file (default_database.conf)
+            # This prevents python parts from choking on empty values 
+            dbc_dgi_on_manual=false
+            # Call dbconfig-common hook
+            dbc_go $@
+        else
+            _django_debian_log "WARNING: dbconfig-common seems not to be installed yet!"
+        fi
+    fi
+}
+
+
+django_debian_go() {
+    _django_debian_debug "starting postinst script: $@"
+
+    # Setup configuration variables
+    _django_debian_config $@
+
+    # Run dbconfig-common integration
+    _django_debian_dbc_go $@
+
+    # Configure remainder of the application
+    case "$django_debian_command" in
+        configure|reconfigure)
+            _django_debian_configure_web_app
+            _django_debian_configure_web_server_postinst
+            ;;
+    esac
+}
