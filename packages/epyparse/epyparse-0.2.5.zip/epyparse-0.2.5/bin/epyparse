@@ -1,0 +1,83 @@
+#!/usr/bin/env python
+"""
+epyparse - python API info
+
+"""
+
+import os, sys
+
+def usage_command(help=False):
+    if help:
+        help_command()
+    else:
+        sys.stdout.write("epyparse <file> [options]\n")
+
+def help_command():
+    sys.stdout.write(__doc__)
+
+def print_command(path=None, nocolor=False, bg='dark'):
+    try:
+        if nocolor:
+            epyparse.pprint(path)
+            return
+        else:
+            from cStringIO import StringIO
+            out = StringIO()
+            epyparse.pprint(path, out=out)
+            text = out.getvalue()
+            sys.stdout.write('\n')
+            for line in colorize(text, bg=bg).splitlines():
+                sys.stdout.write(line+'\n')
+            sys.stdout.write('\n')
+    except Exception, e:
+        sys.exit("ERROR: %s" % e)
+
+def serialize_command(path=None, out=os.getcwd()):
+    import json
+    assert_strings(dict(path=path, out=out))
+    if not os.path.exists(out):
+        os.makedirs(out)
+    try:
+        for item in epyparse.flattened(path):
+            with open(out.rstrip('/') + '/' + item['fullname'], 'w+b') as fp:
+                json.dump(item, fp)
+    except Exception, e:
+        sys.exit("ERROR: %s" % e)
+
+cmd = '_command'
+functions = dict((k,v) for (k, v) in locals().items() if k.endswith(cmd))
+commands = set(k[:-len(cmd)] for k in functions)
+dispatch = type('__main__', (object,), functions)
+
+def assert_strings(d):
+    for k, v in d.items():
+        if not isinstance(v, basestring):
+            sys.exit("ERROR: missing value for option '%s'" % k)
+            return
+
+try:
+    from pygments import highlight
+    from pygments.lexers import PythonLexer
+    from pygments.formatters.terminal import TerminalFormatter
+
+    def colorize(text, bg):
+        try:
+            return highlight(text, PythonLexer(), TerminalFormatter(bg=bg))
+        except:
+            return text
+
+except ImportError:
+    
+    def colorize(text, bg):
+        return text
+
+if __name__ == '__main__':
+    from modargs import args
+
+    import epyparse
+
+    argv = sys.argv[1:]
+    if argv and argv[0] not in commands:
+        argv = ['print', '--path'] + argv
+    args.parse_and_run_command(argv, dispatch, default_command='usage')
+
