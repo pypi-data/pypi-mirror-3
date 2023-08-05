@@ -1,0 +1,46 @@
+Lite Plone Theme
+================
+
+Lite is a free diazo theme for Plone 4. 
+ 
+Features
+--------
+
+* Replaceable logo as in default Plone: customize portal_skins -> sunburst_images -> logo.png
+* Editable footer as in default Plone: customize portal_view_customizations -> plone.footer
+* Improved thumbnail display view (switch to Thumbnail view)
+
+Dependencies
+============
+
+* plone.app.theming
+
+Recommended
+===========
+
+Lite diazo theme was tested with:
+
+* Plone 4.1
+* plone.app.theming 1.0b9
+* Products.Carousel 2.1
+* Products.ContentWellPortlets 4.1.0
+
+Besides, special styles were added to the theme for correct theme display with the following products activated:
+
+* quintagroup.dropdownmenu 1.2.5
+* Products.LinguaPlone 4.1.1
+
+Home Directory
+==============
+
+http://skins.quintagroup.com/lite
+
+Authors
+=======
+ 
+* Taras Peretiatko
+* Yuriy Hvozdovych
+* Volodymyr Rudnytskyy
+
+Quintagroup: http://quintagroup.com, 2006-2011
+
