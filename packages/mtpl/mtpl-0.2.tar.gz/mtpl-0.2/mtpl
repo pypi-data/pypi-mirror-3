@@ -1,0 +1,121 @@
+#!/usr/bin/python
+# -*- coding:Utf-8 -*-
+
+# mtpl (as in MyTemplates) is a small script and texts templates manager that
+# use git
+
+# Copyright © 2011 Laurent Peuch <cortex@worlddomination.be>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import sys
+import re
+
+DIR = os.path.expanduser("~/.config/mytemplates/")
+GITURL = "git://github.com/Psycojoker/mytemplates.git"
+
+def init():
+    if os.system("which 'git' > /dev/null") != 0:
+        print >>sys.stderr, "Can't managed to find git, abort"
+        sys.exit(1)
+    if not os.path.exists(DIR):
+        if not os.path.exists(os.path.dirname(os.path.dirname(DIR))):
+            os.mkdir(os.path.dirname(os.path.dirname(DIR)))
+        print "Creating templates dir in %s" % DIR
+        os.mkdir(DIR)
+    if os.system("cd %s && git status > /dev/null 2>&1" % DIR) != 0:
+        print "Cloning templates in %s" % DIR
+        if os.system("git clone %s %s" % (GITURL, DIR)) != 0:
+            print sys.stderr, "Didn't managed to clone git repository in %s" % DIR
+            print sys.stderr, "Abort"
+
+def _exec(template):
+    os.system("python %s %s" % (DIR + template + ".py", " ".join(sys.argv[2:])))
+
+def _display(template):
+    sys.stdout.write(open(DIR + template, "r").read())
+
+def load_templates():
+    return map(lambda x: (_display, x) if not x.endswith(".py") else (_exec, x[:-3]), filter(lambda x: x[0] != "." and x != "README.md", os.listdir(DIR)))
+
+def list_templates_and_quit(templates, exit=0):
+    print "Templates available:"
+    templates.sort()
+    print "\n".join(map(lambda x: " * " + x[1], templates))
+    sys.exit(exit)
+
+def get_template(input, templates):
+    for i in templates:
+        if input[0] == i[1]:
+            return i
+
+    # match templates names intelligently.
+    # ie: "ptn" will match "python" because you can find "ptn" in python as "PyThoN"
+    good = filter(lambda x: re.match("^.*" + ".*".join(input[0]) + ".*$", x[1]), templates)
+
+    if len(good) == 1:
+        print >>sys.stderr, ">>> matching '%s' <<<\n" % good[0][1]
+        return good[0]
+
+    if good:
+        # ewwww
+        # put matchings letters in bold
+        new_good = []
+        for i in good:
+            altern = True
+            new_name = ""
+            for j in re.match("^(.*)(" + ")(.*)(".join(input[0]) + ")(.*)$", i).groups():
+                if altern:
+                    new_name += j
+                    altern = False
+                else:
+                    new_name += "\033[1m" + j + "\033[0;0m"
+                    altern = True
+            new_good.append(new_name)
+
+        list_templates_and_quit(new_good)
+
+    return None
+
+def manage_potential_command(input):
+    if input[0] == "update":
+        os.system("cd %s && git pull" % DIR)
+        sys.exit(0)
+
+    if input[0] in ('-h', '--help'):
+        print "Usage: mtpl                                  (list templates)"
+        print "       mtpl <command>                        (execute command)"
+        print "       mtpl <template name>                  (display template)"
+        print "       mtpl <part of template name>          (try to guess template)"
+        sys.exit(0)
+
+def manage_user_input(input, templates):
+    if not input:
+        list_templates_and_quit(templates)
+
+    manage_potential_command(input)
+
+    template = get_template(input, templates)
+
+    if template is None:
+        print "Error: '%s' not an available template\n" % input[0]
+        list_templates_and_quit(templates, exit=1)
+
+    # call corresponding function on matching template
+    template[0](template[1])
+
+if __name__ == "__main__":
+    init()
+    manage_user_input(sys.argv[1:], load_templates())
