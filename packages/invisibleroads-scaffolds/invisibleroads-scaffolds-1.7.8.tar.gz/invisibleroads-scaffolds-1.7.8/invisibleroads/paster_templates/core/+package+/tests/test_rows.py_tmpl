@@ -1,0 +1,89 @@
+'Tests for row-based interface demo'
+import transaction
+from unittest import TestCase
+
+from {{package}}.models import Row, db
+from {{package}}.tests import TestRoute, build_dict, delete_extraneous, WORD, WORD1, WORD2, WORD3, WORD4
+
+
+class TestIndex(TestRoute, TestCase):
+
+    routeName = 'row_index'
+    isPublic = True
+
+
+class TestUpdate(TestRoute, TestCase):
+
+    routeName = 'row_update'
+    requestMethod = 'POST'
+
+    def setUp(self):
+        super(TestUpdate, self).setUp()
+        self.row1 = build_dict(Row, col1=WORD1, col2=WORD1, user_id=self.member['id'])
+        self.row2 = build_dict(Row, col1=WORD2, col2=WORD2, user_id=self.spectator['id'])
+        delete_extraneous(Row, [self.row1, self.row2])
+        transaction.commit()
+        self.requestParams = dict(col1=WORD, col2=WORD, user_id=self.member['id'])
+        self.usersAllowed = [self.leader, self.member]
+
+    def test_invalid_params_fail(self):
+        self.login(self.member)
+        self.ajax_failed(id=0)
+        self.ajax_failed(id='xxx')
+        self.ajax_failed(user_id=0)
+        self.ajax_failed(user_id='xxx')
+
+    def test_members_can_add_or_modify_own_rows(self):
+        self.login(self.member)
+        self.ajax_failed(id=self.row2['id'])
+        self.ajax_succeeded(id=self.row1['id'], col1=WORD3, col2=WORD3)
+        self.ajax_succeeded()
+
+    def test_leaders_can_add_or_modify_any_rows(self):
+        self.login(self.leader)
+        self.ajax_succeeded(id=self.row2['id'], col1=WORD3, col2=WORD3)
+        self.ajax_succeeded(id=self.row1['id'], col1=WORD4, col2=WORD4)
+        self.ajax_succeeded()
+
+    def test_members_cannot_set_user_id(self):
+        self.login(self.member)
+        self.ajax_failed(user_id=self.leader['id'])
+
+    def test_leaders_cannot_omit_user_id(self):
+        self.login(self.member)
+        self.ajax_succeeded(id=self.row1['id'], col1=WORD3, col2=WORD3, user_id=None)
+        self.login(self.leader)
+        self.ajax_failed(id=self.row1['id'], col1=WORD4, col2=WORD4, user_id=None)
+
+    def test_col1_is_unique(self):
+        self.login(self.member)
+        self.assert_field_rejects_duplicates('col1', self.row1['col1'])
+
+    def test_col2_is_unique_for_user(self):
+        self.login(self.member)
+        self.assert_field_rejects_duplicates('col2', self.row1['col2'])
+        self.ajax_succeeded(col2=self.row2['col2'])
+
+
+class TestMove(TestRoute, TestCase):
+
+    routeName = 'row_move'
+    requestMethod = 'POST'
+
+    def setUp(self):
+        super(TestMove, self).setUp()
+        self.row1 = build_dict(Row, col1=WORD1, col2=WORD1, user_id=self.member['id'])
+        self.row2 = build_dict(Row, col1=WORD1, col2=WORD1, user_id=self.spectator['id'])
+        transaction.commit()
+        self.requestParams = dict(id=self.row1['id'], is_active=1)
+        self.usersAllowed = [self.leader]
+
+    def test_invalid_params_fail(self):
+        self.login(self.leader)
+        self.ajax_failed(id=0)
+        self.ajax_failed(id='xxx')
+
+    def test_leaders_can_modify_any_rows(self):
+        self.login(self.leader)
+        self.ajax_succeeded(id=self.row2['id'])
+        self.ajax_succeeded()

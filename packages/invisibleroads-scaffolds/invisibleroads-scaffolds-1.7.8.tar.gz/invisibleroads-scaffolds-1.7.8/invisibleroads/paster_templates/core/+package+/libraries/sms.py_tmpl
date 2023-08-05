@@ -1,0 +1,84 @@
+'Application-specific functions for processing SMS messages'
+import re
+import imapIO
+import collections
+import transaction
+from ConfigParser import NoSectionError, NoOptionError
+from email.utils import parseaddr
+from formencode import validators, Invalid
+from sqlalchemy.orm import joinedload
+
+from {{package}}.models import User, SMSAddress, ApplicationError, db
+
+
+pattern_registration = re.compile(r'(\d+)\W+(.*)')
+
+
+def process(settings):
+    'Process messages on IMAP server'
+    imapServer = connect(settings)
+    countByKey = collections.defaultdict(int)
+    # Walk messages in inbox sorted by arrival time,
+    for email in imapServer.walk('inbox', sortCriterion='ARRIVAL'):
+        # If the user is trying to register an SMS address,
+        if process_registration(email):
+            countByKey['Registrations'] += 1
+        # Mark email as deleted
+        email.deleted = True
+        countByKey['Messages'] += 1
+    # Finalize
+    transaction.commit()
+    imapServer.expunge()
+    # Return
+    return countByKey
+
+
+def connect(settings):
+    'Connect to IMAP server'
+    configParser = settings['configParser']
+    try:
+        imapParams = [
+            configParser.get('app:sms', 'imap.host'),
+            configParser.get('app:sms', 'imap.port'),
+            configParser.get('app:sms', 'imap.username'),
+            configParser.get('app:sms', 'imap.password'),
+        ]
+    except (NoSectionError, NoOptionError), error: # pragma: no cover
+        raise ApplicationError(error)
+    try:
+        imapServer = imapIO.connect(*imapParams)
+    except imapIO.IMAPError, error: # pragma: no cover
+        raise ApplicationError('Could not connect to IMAP server')
+    return imapServer
+
+
+def process_registration(email):
+    'Process an SMS address registration'
+    # Get userID and code
+    match = pattern_registration.match(email.subject)
+    if not match:
+        return False
+    userID, userCode = match.groups()
+    userID = int(userID)
+    fromWhom = parseaddr(email.fromWhom)[1].decode('utf-8')
+    # Make sure we have a proper email address
+    try:
+        fromWhom = validators.Email(not_empty=True).to_python(fromWhom)
+    except Invalid:
+        return False
+    # If userID is zero, then the sender wants to unregister his or her address
+    if userID == 0:
+        db.query(SMSAddress).filter_by(email=fromWhom).delete()
+        return True
+    # Load
+    user = db.query(User).filter_by(id=userID, code=userCode).options(joinedload(User.sms_addresses)).first()
+    # If the user doesn't exist,
+    if not user:
+        return False
+    # If we have registered the address already,
+    if fromWhom in (x.email for x in user.sms_addresses):
+        return False
+    # Add
+    db.add(SMSAddress(email=fromWhom, user_id=userID))
+    db.flush()
+    return True
