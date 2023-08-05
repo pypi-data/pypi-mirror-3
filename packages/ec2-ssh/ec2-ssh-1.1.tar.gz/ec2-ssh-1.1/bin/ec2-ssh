@@ -1,0 +1,35 @@
+#!/bin/sh
+#/ Usage: ec2-ssh <instance-name>
+#/ Open ssh connection to EC2 instance where tag:Name=<instance-name>
+#/ For list of instance, run ec2-host without any paramteres
+
+set -e
+
+test $# -eq 0 -o $(expr "$*" : ".*--help") \
+				-ne 0 -o $(expr "$*" : ".*-h") -ne 0 && {
+    grep ^#/ < $0 |
+    cut -c4-
+    exit
+}
+
+# support user@instance-name format
+IFS="@"; declare -a hostparts=($1) 
+
+inst="${hostparts[1]}"
+user="${hostparts[0]}"
+
+if test -z "$inst"; then
+	inst="$1"
+	user="ubuntu"
+fi
+
+# get host from ec2-host command
+host=$(ec2-host $inst)
+
+# pass all other parameters (${@:2}) to ssh allowing
+# things like: ec2-ssh nginx uptime
+cmd="echo \\\". ~/.bashrc && PS1='\[\e]0;$inst: \w\\\a\]\[\\\033[01;32m\]$inst\[\\\033[00m\]:\[\\\033[01;34m\]\w\[\\\033[00m\]\\\$ '\\\" > ~/.ec2sshrc; /bin/bash --rcfile .ec2sshrc -i"
+if test "${@:2}"; then
+    cmd="${@:2}"
+fi
+test -n "$host" && exec sh -c "ssh -t $user@$host \"$cmd\""
