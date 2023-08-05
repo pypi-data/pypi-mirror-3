@@ -1,0 +1,171 @@
+===================
+p4a.plonevideoembed
+===================
+
+This is a plone integration package that helps ensure p4a.videoembed works
+as cleanly as possible inside a Plone environment.
+
+First need to setup the required components.
+
+    >>> from p4a.plonevideoembed import interfaces, browser
+    >>> from p4a.videoembed import registry, interfaces as embedifaces
+    >>> from zope import interface, component
+    >>> from zope.publisher.browser import TestRequest
+    >>> from p4a import plonevideoembed as embed
+    >>> from p4a.video import interfaces as vidifaces
+    >>> from zope.publisher.interfaces.browser import IBrowserRequest
+
+    >>> component.provideAdapter(browser.ToggleEnhancementsView,
+    ...                          adapts=(interface.Interface,
+    ...                                  IBrowserRequest),
+    ...                          provides=interface.Interface,
+    ...                          name=u'video-link-config.html')
+    >>> component.provideUtility(registry.findURLType)
+
+And some mock data.  A simple link object merely provides ``ILinkProvider``
+and ``IAnyVideoLinkCapable``.  This ends up requiring only one method
+definition, ``getLink``.
+
+    >>> class MockLink(object):
+    ...     interface.implements(embedifaces.ILinkProvider,
+    ...                          interfaces.IAnyVideoLinkCapable,
+    ...                          vidifaces.IMediaActivator)
+    ...     def __init__(self, url): self.url = url
+    ...     def getLink(self): return self.url
+    ...     media_activated = False
+
+    >>> testlink = MockLink('testlink')
+    >>> testlink.REQUEST = TestRequest()
+
+Attempting the video link activation with a dummy url will make
+no changes.
+
+    >>> embed.attempt_videolink_activation(testlink)
+    False
+    >>> view = browser.ToggleEnhancementsView(testlink, None)
+    >>> view.media_activated
+    False
+
+Providing a ``IURLChecker`` utility will ensure that the link can be activated.
+
+    >>> def check_url(url):
+    ...     return True
+    >>> interface.alsoProvides(check_url, embedifaces.IURLChecker)
+    >>> component.provideUtility(check_url, name=u'mockchecker')
+
+And now attempting activation should work.
+
+    >>> embed.attempt_videolink_activation(testlink)
+    True
+    >>> view.media_activated
+    True
+
+Attempting audio activation again should have no effect.
+
+    >>> embed.attempt_videolink_activation(testlink)
+    False
+    >>> view.media_activated
+    True
+
+Browser Views
+-------------
+
+Various browser view components are provided.  The first view is a simple
+support view that knows if the ``p4a.plonevideoembed`` functionality was
+installed within the current site.
+
+    >>> from p4a.plonevideoembed import browser
+    >>> view = browser.Support(None, None)
+    >>> view.support_enabled
+    False
+
+Since support is currently unavailable, the private ``_basic_can`` property
+will also return ``False``.
+
+    >>> view._basic_can
+    False
+
+And since ``_basic_can`` is ``False``, the ``can_activate_video_link``
+property will also be ``False``.  Same with the deactivation property.
+
+    >>> view.can_activate_video_link
+    False
+    >>> view.can_deactivate_video_link
+    False
+
+The only way to get these properties to be ``True`` first ensure
+an adequate ``IVideoLinkSupport`` utility is available and additionally
+ensure it's ``support_enabled`` property is True.
+
+    >>> from zope import component
+    >>> class MockVideoLinkSupport(object):
+    ...     interface.implements(interfaces.IVideoLinkSupport)
+    ...     support_enabled = True
+    >>> component.provideUtility(MockVideoLinkSupport())
+
+Now we begin querying the view again.
+
+    >>> view.support_enabled
+    True
+
+Of course _basic_can will still be False since it also checks to see if
+the current context provides IAnyVideoLinkCapable.
+
+    >>> view._basic_can
+    False
+
+Changing context to be an object that does provide IAnyVideoLinkCapable
+should resolve this.
+
+    >>> class MockContext(object):
+    ...     interface.implements(interfaces.IAnyVideoLinkCapable,
+    ...                          vidifaces.IMediaActivator)
+    ...     media_activated = False
+    >>> view.context = MockContext()
+    >>> view._basic_can
+    True
+
+Now that _basic_can is True we should be able to test activation and
+deactivation properties.  But first we have to setup the request.
+
+    >>> view.request = TestRequest()
+
+    >>> view.can_activate_video_link
+    True
+    >>> view.can_deactivate_video_link
+    False
+
+And now activating the support should allow us to test the deactivation
+property as False.
+
+    >>> toggle = browser.ToggleEnhancementsView(view.context, view.request)
+    >>> toggle.media_activated = True
+
+    >>> view.can_activate_video_link
+    False
+    >>> view.can_deactivate_video_link
+    True
+
+And calling the view should try to do a redirect.  But first we have to
+setup code to catch the redirects.
+
+    >>> toggle.context = view.context
+    >>> toggle.context.absolute_url = lambda: 'nourl'
+    >>> toggle.request = view.request
+    >>> redirects = []
+    >>> def redirect(url):
+    ...     redirects.append(url)
+    >>> toggle.request.response.redirect = redirect
+
+Since the context we're dealing with is already activated, we'll get
+a redirect saying toggling to deactivate worked.
+
+    >>> toggle()
+    >>> redirects[-1]
+    'nourl/view?portal_status_message=Media+deactivated'
+
+When we do it again we'll see it gets reactivated.
+
+    >>> toggle()
+    >>> redirects[-1]
+    'nourl/view?portal_status_message=Media+activated'

@@ -1,0 +1,86 @@
+Site Setup
+==========
+
+The ``sitesetup`` module contains logic for configuring a Zope 3
+``ISite`` and Plone portal instance.
+
+Configuring an ISite
+--------------------
+
+    >>> from p4a.common.testing import MockSite
+    >>> from p4a.plonevideoembed import sitesetup, interfaces
+
+First we make sure a fresh site has no ``IVideoLinkSupport`` utility registered.
+
+    >>> site = MockSite()
+    >>> site.queryUtility(interfaces.IVideoLinkSupport) is None
+    True
+
+Once we've run the ``setup_site`` function call, the site now has the
+appropriate utilities registered.
+
+    >>> sitesetup.setup_site(site)
+    >>> site.queryUtility(interfaces.IVideoLinkSupport)
+    <VideoLinkSupport ...>
+
+Smart Folder Indexes
+--------------------
+
+Several of the new catalog indexes need to get registered with the ATCT
+tool so that they can be selected as Smart Folder criteria.
+
+    >>> class MockATCT:
+    ...     def __init__(self):
+    ...         self._indexes = {}
+    ...         self._metadata = {}
+    ...     def updateIndex(self, index, *args, **kwargs):
+    ...         self._indexes[index] = [args, kwargs]
+    ...     def updateMetadata(self, index, *args, **kwargs):
+    ...         self._metadata[index] = [args, kwargs]
+    >>> atct = site.portal_atct = MockATCT()
+
+    >>> atct._indexes.keys()
+    []
+    >>> atct._metadata.keys()
+    []
+    >>> sitesetup.setup_smart_folder_indexes(site)
+    >>> sorted(atct._indexes.keys())
+    ['object_provides']
+    >>> sorted(atct._metadata.keys())
+    ['object_provides']
+
+Putting It Altogether
+---------------------
+
+Now that all of the individual functions have been explored, the last
+step is to simply run the ``setup_portal`` function which runs all the
+previous functions plus uses the quick installer to install CMFonFive.
+
+    >>> class MockInstaller:
+    ...     products = []
+    ...     def installProducts(self, prods): self.products.extend(prods)
+    >>> installer = site.portal_quickinstaller = MockInstaller()
+    >>> installer.products
+    []
+    >>> sitesetup.setup_portal(site)
+    >>> installer.products
+    ['CMFonFive']
+
+And of course the _cleanup_utilities is a placeholder which doesn't do anything
+but raise an exception at this point.
+
+    >>> sitesetup._cleanup_utilities(site)
+    Traceback (most recent call last):
+      ...
+    NotImplementedError...
+
+Un-configuring A Portal
+-----------------------
+
+The main thing that happens during uninstallation is that all marker
+interfaces that have been applied to portal content must get removed.
+
+    >>> def search(*args, **kwargs):
+    ...     return []
+    >>> site.portal_catalog = search
+    >>> sitesetup.unsetup_portal(site)
