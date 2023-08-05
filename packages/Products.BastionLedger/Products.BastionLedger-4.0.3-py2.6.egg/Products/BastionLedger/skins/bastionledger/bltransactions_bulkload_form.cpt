@@ -1,0 +1,157 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="bastionledgerpro">
+
+    <div metal:fill-slot="main"
+         tal:define="errors options/state/getErrors;
+                     utool context/@@plone_portal_state/portal_url;
+                     accounts python: context.accountValues(sort_on='accno');
+                     do_accnos python: request.get('do_accnos', False);
+                     batch_size request/batch_size | python: 20;
+                     lockable python:hasattr(here, 'wl_isLocked');
+                     isLocked python:lockable and here.wl_isLocked();">
+
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;
+          <span tal:replace="here/title_or_id"/> Bulk Transactions</h1>
+
+      <div align="right">
+         <form action="" method="post">
+            <label>Batch Size</label>
+            <input type="text" name="batch_size:int" size="3" maxlength="3" value=""
+                   tal:attributes="value batch_size"/>
+
+            &nbsp;&nbsp;
+            <tal:accnos tal:condition="not: do_accnos">
+               <input type="checkbox" name="do_accnos:boolean:required" value="1"/>
+               <label>Fast Accs.</label>
+            </tal:accnos>
+            <tal:dropdowns tal:condition="do_accnos">
+               <input type="checkbox" name="dont_do_accnos:boolean:required" value="0"/>
+               <label>Acc. Dropdowns</label>
+            </tal:dropdowns>
+
+            &nbsp;&nbsp;
+            <input class="context"
+                   
+                   type="submit"
+                   name="form.button.Go"
+                   value="  Go  " />
+         </form>
+      </div>
+
+      <div class="formHelp">Quickly add transactions against the specified ledger account.  This 
+         form is focused upon keypad entry - particularly if you avoid dropdowns.  Dates are YYYYMMDD,
+         accounts by accno, and amounts just numbers (ie dollars and cents).</div>
+
+      <form name="load_form"  action="."  method="post" tal:attributes="action template/getId" >
+
+        <table>
+           <tr tal:define="error errors/accno | nothing;
+                           Accno request/accno | nothing">
+             <td class="field">
+                <label for="account" i18n:translate="label_account">Acc. No.</label>
+
+                <span class="fieldRequired" title="Required"
+                      i18n:attributes="title"
+                      i18n:translate="label_required">(Required)</span>
+             </td>
+             <td>
+                <select name="accno">
+                   <option tal:repeat="account accounts"
+                           tal:attributes="value account/accno; 
+                                           selected python: account.accno == Accno and 1 or 0"
+                           tal:content="account/prettyTitle"/>
+                </select>
+             </td>
+             <td tal:condition="error">
+                <div class="field error" tal:content="error"/>
+             </td>
+          </tr>
+          <tr tal:define="error errors/currency | nothing;
+                          Currency request/currency | context/defaultCurrency">
+             <td  class="field">
+                 <label for="currency" i18n:translate="label_currency">Currency</label>
+
+                 <span class="fieldRequired" title="Required"
+                       i18n:attributes="title"
+                       i18n:translate="label_required">(Required)</span>
+             </td>
+             <td>
+                 <input type="text" size="3" maxlength="3" name="currency" value=""
+                        tal:attributes="value Currency"/>
+             </td>
+             <td tal:condition="error">
+                <div class="field error" tal:content="error"/>
+             </td>
+           </tr>
+         </table>
+
+         <table>
+             <tr>
+                <td/>
+                <td><label>Date</label></td>
+                <td><label>Account</label></td>
+                <td><label>Description</label></td>
+                <td><label>Amount</label></td>
+             </tr>
+             <tr tal:repeat="x python:range(0, batch_size)"
+                 tal:attributes="class python: test(repeat['x'].odd(), 'odd', 'even')">
+                <td>
+                    <img src="" tal:attributes="src string:${utool}/bltransaction.gif"/>
+                </td>
+                <td>
+                    <input type="text" name="entries.effective:records" size="8" maxlength="8"/>
+                </td>
+                <td>
+                    <select name="entries.accno:records" tal:condition="not: do_accnos">
+                       <option tal:repeat="account accounts"
+                               tal:attributes="value account/accno"
+                               tal:content="account/prettyTitle"/>
+                    </select>
+                    <input type="text" name="entries.accno:records" tal:condition="do_accnos"
+                           size="8"/>
+                </td>
+                <td>
+                    <input type="text" name="entries.description:records" size="30"/>
+                </td>
+                <td>
+                    <input type="text" name="entries.amount:records" size="10"/>
+                </td>
+             </tr>
+         </table>
+
+          <div class="formControls"
+               tal:define="process_creation request/process_creation|nothing;">
+
+            <img src="" class="context"
+                   tal:define="portal context/portal_url/getPortalObject; locked portal/lock_icon.gif;"
+                   tal:condition="isLocked"
+                   tal:replace="structure python:locked.tag(title='This item is locked')"
+                   alt="Object locked"
+                   i18n:attributes="alt"/>
+
+            <input type="checkbox" name="post" value="1" 
+                   tal:attributes="checked python: request.get('post', True)"/>
+
+            <label>Auto-Post</label>
+
+            <input class="context"
+                   
+                   type="submit"
+                   name="form.button.Load"
+                   value=" Load "
+                   i18n:attributes="value"
+                   tal:attributes="disabled python:test(isLocked, 'disabled', None);" />
+
+          </div>
+
+          <input type="hidden" name="form.submitted" value="1" />
+
+      </form>
+
+    </div>
+ 
+</html>

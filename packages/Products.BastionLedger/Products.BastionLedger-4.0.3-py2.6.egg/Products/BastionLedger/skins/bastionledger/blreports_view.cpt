@@ -1,0 +1,131 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+
+<body>
+  <div metal:fill-slot="main" 
+       tal:define="ledgerLocalizedTime nocall: context/ledgerLocalizedTime;
+                   checkperm python: context.SecurityCheckPermission;
+                     utool context/@@plone_portal_state/portal_url;
+                   operator python: checkperm('BastionLedger: Manage') or checkperm('BastionLedger: Operate')">
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)"
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/></h1>
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Back to Ledger</a>
+
+      <form name="edit_form" action="" method="post" tal:attributes="action template/getId">
+        <metal:listingmacro define-macro="listing">
+          <tal:foldercontents define="b_start python: int(request.get('b_start',0));
+                                      b_size python: int(request.get('b_size', 20));
+                                      Batch python:modules['Products.CMFPlone'].Batch;
+                                      batch python:Batch(context.Reports.objectValues(), b_size, b_start, orphan=1);">
+
+            <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+            <table summary="" tal:condition="batch" cellpadding="2" cellspacing="0" width="100%">
+               <tr>
+                  <td tal:condition="operator"/>
+                  <td/>
+                  <td><span class="label">Name</span></td>
+                  <td align="right"><span class="label">Size</span></td>
+                  <td><span class="label">Creator</span></td>
+                  <td><span class="label">Effective</span></td>
+                  <td><span class="label">Created</span></td>
+               </tr>
+               <tr tal:repeat="obj batch"
+                   tal:attributes="class python: test(repeat['obj'].odd(), 'odd', 'even')">
+                    <td tal:condition="operator">
+                        <input type="checkbox" name="ids:list" value="" tal:attributes="value obj/getId"/>
+                    </td>
+                    <td tal:define="icon python: obj.getIcon(1)">
+                        <img src="" alt=""
+                             tal:attributes="src string:${utool}/${icon};alt obj/title_or_id" />
+                    </td>
+                    <td>
+                        <a href="#" tal:attributes="href obj/absolute_url" tal:content="obj/title_or_id"/>
+                    </td>
+                    <td align="right" tal:content="obj/get_size"/>
+                    <td tal:content="obj/Creator"/>
+                    <td>
+                       <span tal:replace="python: ledgerLocalizedTime(obj.effective_date, long_format=True)"
+                             tal:on-error="string:"/>
+                    </td>
+                    <td tal:content="python: ledgerLocalizedTime(obj.CreationDate(), long_format=True)"/>
+               </tr>
+               <tr tal:condition="operator">
+                    <td colspan="3"
+                        tal:define="contentFilter contentFilter|python:{'path':'/'};
+                                    query_path python:path('contentFilter/path|nothing') or request.get('path',None)">
+
+                         <input class="standalone"
+                              type="submit"
+                              name="form.button.Delete"
+                              value="delete"
+                              
+                              tal:condition="python:checkperm('Delete objects')"
+                              i18n:attributes="value" />
+
+                         <input class="context"
+                              type="submit"
+                              name="form.button.Copy"
+                              value="copy"
+                              
+                              i18n:attributes="value" />
+
+                         <input class="context"
+                              type="submit"
+                              name="form.button.Paste"
+                              value="paste"
+                              
+                              tal:condition="python:here.cb_dataValid and not query_path"
+                              i18n:attributes="value" />
+
+                      </td>
+                      <td colspan="4" align="right">
+                         <img src="" alt="mail" tal:attributes="src string:${utool}/mail_icon.gif"/>
+
+                         <input type="text" name="email" size="30" value="" 
+                                tal:attributes="value request/email | nothing"/>
+
+                         <input class="context"
+                                
+                                type="submit"
+                                name="form.button.Email"
+                                value="Email"
+                                i18n:attributes="value" />
+
+                    </td>
+               </tr>
+            </table>
+
+            <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+            <p class="discreet"
+                tal:condition="not: batch" i18n:translate="description_no_reports_produced">
+               There are currently no reports produced.
+            </p>
+
+          </tal:foldercontents>
+        </metal:listingmacro>
+
+        <input type="hidden" name="form.submitted" value="1"/>
+      </form>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

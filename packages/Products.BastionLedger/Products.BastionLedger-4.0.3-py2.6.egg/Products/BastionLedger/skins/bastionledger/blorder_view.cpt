@@ -1,0 +1,225 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+ 
+<body>
+  <div metal:fill-slot="main" 
+       tal:define="errors options/state/getErrors;
+                   discount context/discount;
+                     utool context/@@plone_portal_state/portal_url;
+                   freight context/blorder_freight;
+                   taxincluded context/taxincluded;">
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/></h1>
+
+        <a href=""
+           class="link-parent"
+           tal:define="ledger_url python:context.navigationParent(context, template.getId())"
+           tal:condition="ledger_url"
+           tal:attributes="href ledger_url"
+           i18n:translate="go_to_ledger_url">
+         Up one Level
+        </a>
+
+       <tal:byline tal:on-error="string:">
+         <div tal:replace="structure provider:plone.belowcontenttitle"/>
+       </tal:byline>
+
+       <metal:order metal:define-macro="order">
+       <table summary="" border="0" cellspacing="0" cellpadding="2" width="100%"
+              tal:define="items context/orderItemValues;
+                          account context/blAccount;
+                          newline_to_br python: modules['Products.PythonScripts.standard'].newline_to_br">
+           <tr>
+              <td colspan="3">
+                  <table summary="" border="0" cellspacing="0" cellpadding="2" width="100%">
+                      <tr><td class="field" align="center"><label>Tax Invoice</label></td></tr>
+                      <tr><td class="field" align="center">
+                              <label tal:content="python: context.getLedgerProperty('title')"/></td></tr>
+                      <tr tal:define="tax_no python: context.getLedgerProperty('tax_number')"
+                          tal:condition="tax_no">
+                         <td class="field" align="center">
+                              <label>Tax No. <span tal:replace="tax_no"/></label>
+                         </td>
+                      </tr>
+                      <tr><td class="field" align="center">
+                              <span style="font-size: 8pt;" 
+                                    tal:content="python: ','.join(context.getLedgerProperty('address', '').split('\n'))"/></td></tr>
+                      <tr><td>&nbsp;</td></tr>
+                      <tr><td class="field" align="center">
+                              <label>Order Ref</label>&nbsp;
+                              <a href="" tal:attributes="href context/absolute_url">
+                                 <strong tal:content="context/getId"/>
+                              </a>
+                          </td>
+                      </tr>
+                      <tr tal:define="txn python:order.blTransaction()"
+                          tal:condition="nocall: txn" tal:on-error="string:">
+                          <td class="field" align="center">
+                              <label>Transaction Ref</label>&nbsp;
+                              <a href="" tal:attributes="href txn/absolute_url">
+                                 <strong tal:content="txn/getId"/>
+                              </a>
+                          </td>
+                      </tr>
+                  </table>
+              </td>
+           </tr>
+           <tr>
+               <td>&nbsp;</td><td>&nbsp;</td>
+               <td width="50%">&nbsp;</td>
+           </tr>
+           <tr>
+               <td class="label">Account</td>
+               <td class="field" nowrap tal:content="account/prettyTitle"/>
+               <td width="50%" rowspan="8" align="right" valign="top">
+                   <div tal:repeat="attachment context/attachmentValues">
+                      <img alt="Attachment" src="trombone.gif">
+                      <a href="" target="_blank" 
+                         tal:attributes="href string:attachments/${attachment/getId}"
+                         tal:content="attachment/getId"/>
+                   </div>
+               </td>
+             </tr>
+           <tr>
+               <td class="label">Contact</td>
+               <td class="field" tal:content="context/contact | context/aq_parent/contact | nothing"/>
+           </tr>
+           <tr tal:define="address python: context.shiptoaddress or context.address"
+               tal:condition="address">
+               <td class="label">Address</td>
+               <td class="field" tal:content="structure python: newline_to_br(address)"/>
+           </tr>
+           <tr><td>&nbsp;</td></tr>
+           <tr tal:on-error="string:">
+               <td class="label" nowrap>Invoice Date</td>
+               <td class="field" tal:content="python: context.invoice_date().strftime('%Y/%m/%d')"/>
+           </tr>
+           <tr tal:on-error="string:">
+               <td class="label" nowrap>Order Date</td>
+               <td class="field" tal:content="python: context.orderdate.strftime('%Y/%m/%d')"/>
+           </tr>
+           <tr tal:on-error="string:">
+               <td class="label" nowrap>Required Date</td>
+               <td class="field" tal:content="python: context.reqdate.strftime('%Y/%m/%d')"/>
+           </tr>
+           <tr><td>&nbsp;</td></tr>
+           <tr tal:define="notes context/notes" tal:condition="notes">
+               <td class="label" valign="top">Notes</td>
+               <td class="field" colspan="3"
+                   tal:content="structure python: newline_to_br(notes)"/>
+           </tr>
+           <tr><td>&nbsp;</td></tr>
+           <tr>
+              <td colspan="3">
+                 <metal:orderlines define-macro="orderlines">
+                  <table summary="" border="0" cellpadding="2" cellspacing="0" 
+                         width="100%" tal:condition="items">
+                     <tr class="row">
+                        <td width="25" class="field"><label>Type</label></td>
+                        <td class="field"><label>Description</label></td>
+                        <td class="field" align="right"><label>Quantity</label></td>
+                        <td class="field" align="right"><label>Unit Price</label></td>
+                        <td class="field" align="right"><label>Amount</label></td>
+                        <td>&nbsp;</td>
+                     </tr>
+                     <tr tal:repeat="item items" class="row"
+                         tal:attributes="class python:test(repeat['item'].odd(), 'odd', 'even')">
+                       <td class="field" valign="top" tal:on-error="string:">
+                           <img border="0" src="" tal:define="icon python:item.getIcon(1)" 
+                                tal:attributes="src string:${utool}/${icon}"/>
+                       </td>
+                       <td class="field" valign="top" tal:define="part python: item.blPart()">
+                          <a href="" tal:attributes="href part/absolute_url" tal:content="item/title"/>
+			  <div style="font-size: 8pt" tal:condition="item/note | nothing" 
+                               tal:content="item/note"/>
+                       </td>
+                       <td class="field" valign="top" align="right" tal:content="item/quantity"/>
+                       <td class="field" valign="top" align="right" nowrap tal:content="item/unit" />
+                       <td class="field" valign="top" align="right" nowrap tal:content="item/calculateGrossPrice"/>
+                       <td>&nbsp;</td>
+                    </tr>
+                    <tr>
+                       <td colspan="4" align="right"><label>Total</label></td>
+                       <td class="field" align="right" nowrap>
+                            <label tal:content="context/getGross"/></td>
+                       <td class="field">&nbsp;</td>
+                    </tr>
+                    <tal:discount tal:condition="discount">
+                        <tr>
+                            <td colspan="4" class="field" align="right">less Discount</td>
+                            <td class="field" align="right" tal:content="context/getDiscount"/>
+                        </tr>
+                    </tal:discount>
+                    <tal:freight tal:condition="python: freight > 0">
+                       <tr>
+                          <td colspan="4" class="field" align="right">plus freight</td>
+                          <td class="field" align="right" tal:content="freight"/>
+                          <td/>
+                       </tr>
+                    </tal:freight>
+                    <tal:tax tal:condition="not: taxincluded">
+                       <tr tal:repeat="acct python: context.Ledger.accountsForTag('sales_tax')" 
+                           tal:on-error="string:" >
+                          <td colspan="4" class="field" align="right">plus <em tal:content="acct/title"/></td>
+                          <td class="field" align="right"
+                              tal:content="python: context.calculateTax(acct, context.orderdate)"/>
+                          <td/>
+                       </tr>
+                    </tal:tax>
+                    <tr tal:condition="python: freight > 0 or not context.taxincluded or discount">
+                        <td class="field" colspan="4" align="right"><label>Net</label></td>
+                        <td class="field" align="right"><label tal:content="context/getNet"/></td>
+                        <td class="field">&nbsp;</td>
+                    </tr>
+                 </table>
+                </metal:orderlines>
+              </td>
+           </tr>
+     </table>
+     </metal:order>
+     
+     <br/>
+     <br/>
+
+     <form name="order_actions"  action="."  method="post" class="visualNoPrint"
+           tal:define="errors options/state/getErrors;"
+           tal:attributes="action template/getId">
+
+        <div tal:define="error errors/email|nothing;
+                         Email request/email | python: getattr(context.aq_inner, 'email', context.aq_parent.email)"
+             tal:attributes="class python:test(error, 'field error', 'field')">
+
+           <div tal:content="error">Validation error output</div>
+
+           <img src="" alt="mail" tal:attributes="src string:${utool}/mail_icon.gif"/>
+
+           <input type="text" name="email" size="30" value=""
+                  tal:attributes="value Email"/>
+
+           <input class="context"
+                         
+                         type="submit"
+                         name="form.button.Email"
+                         value="Email"
+                         i18n:attributes="value" />
+
+        </div>
+
+        <input type="hidden" name="form.submitted" value="1" />
+     </form>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

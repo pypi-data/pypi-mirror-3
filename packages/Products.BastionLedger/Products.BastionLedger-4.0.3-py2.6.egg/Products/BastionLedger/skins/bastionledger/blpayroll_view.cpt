@@ -1,0 +1,211 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+
+  <metal:javascript fill-slot="javascript_slot">
+<script type="text/javascript">
+<!-- 
+
+isSelected = false;
+
+function toggleselect() {
+  if (isSelected == false) {
+    for (i = 0; i < document.objectItems.length; i++)
+      document.objectItems.elements[i].checked = true ;
+    isSelected = true;
+    document.objectItems.selectButton.value = "Deselect All";
+    return isSelected;
+  }
+  else {
+    for (i = 0; i < document.objectItems.length; i++)
+      document.objectItems.elements[i].checked = false ;
+    isSelected = false;
+    document.objectItems.selectButton.value = "Select All";
+    return isSelected;       
+  }
+}
+
+//-->
+</script>
+</metal:javascript>
+ 
+<body>
+  <div metal:fill-slot="main"
+       tal:define="DateTime python:modules['DateTime'].DateTime;
+                 payroll_daynumber context/payroll_daynumber;
+                 utool context/@@plone_portal_state/portal_url;
+                 current python: request.form.get('date', DateTime());
+                 payroll_date python: context.getPayrollDay(current);
+                 payroll python:context.getPayroll(payroll_date);
+                 employees python: context.Accounts(status='open');
+                 current_day current/day;
+                 yearmonth python: (request.get('year',current.year()), request.get('month', current.month()));
+                 nextYearMax python: current+365;
+                 prevYearMin python: current-365;
+                 year python:yearmonth[0];
+                 month python:yearmonth[1];
+                 prevMonthTime python:context.getPreviousMonth(month, year);
+                 nextMonthTime python:context.getNextMonth(month, year);
+                 weeks python:context.portal_calendar.getEventsForCalendar(month, year);
+                 anchor_url request/anchor_url | context/absolute_url;
+                 url_quote python:modules['Products.PythonScripts.standard'].url_quote;
+                 anchor_method request/anchor_method | template/getId;">
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;Payroll For Week Ending <span tal:replace="python:payroll_date.strftime('%A %B %d, %Y')"/></h1>
+
+        <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">
+         Up one Level
+        </a>
+
+      <table summary="" cellspacing="2" cellpadding="2">
+         <tr>
+            <td valign="top">
+
+<dl class="portlet portletCalendar">
+
+    <dt class="portletHeader">
+        <span class="portletTopLeft"></span>
+
+                    <a href="#" rel="nofollow" id="calendar-previous"
+                       title="Previous month"
+                       tal:attributes="href python:'%s/%s?month:int=%d&amp;year:int=%d' % (anchor_url, anchor_method, prevMonthTime.month(),prevMonthTime.year())"
+                       tal:condition="python: yearmonth > (prevYearMin.year(), prevYearMin.month())"
+                       i18n:attributes="title title_previous_month;">&laquo;</a>
+
+
+                    <span i18n:translate="" tal:omit-tag="">
+                        <span i18n:name="monthname"  i18n:translate=""
+                              tal:content="python: context.monthName(month)"
+                              tal:omit-tag="">monthname</span>
+                        <span i18n:name="year"  i18n:translate=""
+                              tal:content="year"
+                              tal:omit-tag="">year</span>
+                    </span>
+                    <a href="#" rel="nofollow" id="calendar-next"
+                       title="Next month"
+                       tal:attributes="href python:'%s/%s?month:int=%d&amp;year:int=%d' % (anchor_url, anchor_method, nextMonthTime.month(),nextMonthTime.year())"
+                       tal:condition="python: yearmonth &lt; (nextYearMax.year(), nextYearMax.month())"
+                       i18n:attributes="title title_next_month;">&raquo;</a>
+
+        <span class="portletTopRight"></span>
+    </dt>
+
+    <dd class="portletItem">
+ 
+        <table class="ploneCalendar"
+               summary="Calendar"
+               i18n:domain="plone"
+               i18n:attributes="summary summary_calendar;">
+            <thead>
+                <tr class="weekdays">
+                    <td tal:repeat="day context/getWeekdays" tal:content="day">Su</td>
+                </tr>
+            </thead>
+
+        <tbody>
+            <tr tal:repeat="week weeks"
+            ><tal:block repeat="day week"
+            ><tal:block define="int_daynumber python: int(day['day']);
+                                day_event python: int_daynumber and repeat['day'].index == payroll_daynumber;
+                                is_today python: current_day==int_daynumber and current.month()==month and current.year()==year">
+               <td class="event" tal:condition="day_event" 
+                      tal:attributes="class python:is_today and 'todayevent' or 'event'"
+                   ><tal:data tal:define="cur_date python:DateTime(year,month,int_daynumber);
+                                          begin python:cur_date.strftime('%Y/%m/%d');"
+                              tal:omit-tag=""
+                     ><a href=""
+                         tal:attributes="href string:${context/absolute_url}/${template/getId}?date:date=${begin};"
+                         tal:content="python:int_daynumber or default">
+                      31
+                      </a
+                   ></tal:data>
+                </td
+                ><tal:notdayevent tal:condition="not: day_event"
+               ><td tal:condition="is_today" tal:attributes="class string:'todaynoevent'"
+                    tal:content="python:int_daynumber or default"></td
+               ><td tal:condition="not: is_today"
+                    tal:content="python:int_daynumber or default"></td
+               ></tal:notdayevent
+            ></tal:block
+            ></tal:block>
+            </tr>
+        </tbody>
+     </table>
+
+        <span class="portletBottomLeft"></span>
+        <span class="portletBottomRight"></span>
+    </dd>
+</dl>
+
+            </td>
+            <td valign="top" align="right">
+
+               <form action="" name="objectItems"
+                     tal:condition="nocall: employees"
+                     tal:attributes="action request/URL1" method="post">
+                  <input type="hidden" name="date:date" value="" tal:attributes="value payroll_date">
+
+                  <table summary="" border="0" cellpadding="3" cellspacing="0" width="100%">
+                    <tr class="list-header">
+                      <td width="16">&nbsp;</td>
+                      <td width="40">&nbsp;</td>
+                      <td class="row"><span class="label">Employee</span></td>
+                      <td class="row"><span class="label">Status</span></td>
+                      <td class="row"><span class="label">Started</span></td>
+                      <td class="row"><span class="label">Timesheet</span></td>
+                      <td class="row"><span class="label">Payroll</span></td>
+                    </tr>
+                    <div tal:repeat="employee employees">
+                      <tr tal:define="timesheet_status python: employee.getTimesheetStatus(payroll_date)"
+                          tal:attributes="class python: test(repeat['employee'].odd(), 'odd', 'even')">
+                        <td class="row">
+                           <input type="checkbox" name="ids:list" value="" tal:attributes="value employee/getId">
+                        </td>
+                        <td class="row">
+                           <img src="" alt="" tal:define="icon python:employee.getIcon(1)" 
+                                tal:attributes="src string:${utool}/${icon}"/>
+                        </td>
+                        <td class="row" nowrap>
+                           <a href="" tal:attributes="href employee/getId" tal:content="employee/title"/>
+                        </td>
+                        <td class="row" tal:content="employee/status"/>
+                        <td class="row" tal:content="python: employee.start_day.strftime('%Y/%m/%d')"/>
+                        <td class="row" tal:content="timesheet_status"/>
+                        <td class="row" tal:content="python: test(payroll.has_key(employee.getId()), 'run', 'not run')"/>
+                      </tr>
+                    </div>
+                    <tr>
+                       <td colspan="7">
+                           <input type="submit" class="context" name="manage_payEmployees:method" value=" Pay "/>
+                           <input class="standalone" type="submit" name="selectButton" value="Select All"
+                                  onClick="toggleselect(); return false" />
+                       </td>
+                    </tr>
+                 </table>
+
+              </form>
+
+              <p tal:condition="nocall: not: employees">There are no active employees in this payroll.</p>
+            </td>
+         </tr>
+      </table>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

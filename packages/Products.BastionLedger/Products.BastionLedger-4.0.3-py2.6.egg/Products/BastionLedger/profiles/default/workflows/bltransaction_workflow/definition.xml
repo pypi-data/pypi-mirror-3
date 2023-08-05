@@ -1,0 +1,182 @@
+<?xml version="1.0"?>
+<dc-workflow xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+             workflow_id="bltransaction_workflow"
+             i18n:domain="bastionledger"
+             title="BLTransaction Workflow"
+             state_variable="review_state"
+             initial_state="incomplete">
+
+ <permission>BastionLedger: Manage</permission>
+ <permission>BastionLedger: Oversee</permission>
+ <permission>BastionLedger: Operate</permission>
+
+ <state state_id="incomplete" title="Incomplete">
+  <exit-transition transition_id="complete"/>
+  <exit-transition transition_id="cancel"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="complete" title="Complete">
+  <exit-transition transition_id="cancel"/>
+  <exit-transition transition_id="post"/>
+  <exit-transition transition_id="incomplete"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="posted" title="Posted">
+  <exit-transition transition_id="reverse"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="reversed" title="Reversed">
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="postedreversal" title="Posted Reversal">
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="cancelled" title="Cancelled">
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+<transition transition_id="reverse"
+             title="Reverse"
+             new_state="reversed" trigger="USER"
+             before_script="manage_reverse" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=reverse" category="workflow">Reverse</action>
+  <guard>
+   <guard-permission>BastionLedger: Manage</guard-permission>
+  </guard>
+ </transition>
+
+<transition transition_id="post"
+             title="Post"
+             new_state="posted" trigger="USER"
+             before_script="manage_post" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=post" category="workflow">Post</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+   <guard-expression>python: state_change.object.total() == 0</guard-expression>
+  </guard>
+ </transition>
+
+<transition transition_id="cancel"
+             title="Cancel"
+             new_state="cancelled" trigger="USER"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=cancel" category="workflow">Cancel</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<transition transition_id="complete"
+             title="Postable"
+             new_state="complete" trigger="AUTOMATIC"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=complete" category="workflow">Complete</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<transition transition_id="incomplete"
+             title="Incomplete"
+             new_state="incomplete" trigger="AUTOMATIC"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=incomplete" category="workflow">Incomplete</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<script script_id="manage_post" type="Script (Python)" 
+        filename="workflows/bltransaction_workflow/manage_post.py"/>
+<script script_id="manage_reverse" type="Script (Python)" 
+        filename="workflows/bltransaction_workflow/manage_reverse.py"/>
+<script script_id="manage_cancel" type="Script (Python)" 
+        filename="workflows/bltransaction_workflow/manage_cancel.py"/>
+
+<variable variable_id="action"         for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    Previous transition
+  </description>
+  <default>
+   <expression>transition/getId|nothing</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="actor"          for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    The ID of the user who performed the last transition
+  </description>
+  <default>
+   <expression>user/getId</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="comments"       for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    Comment about the last transition
+  </description>
+  <default>
+   <expression>python:state_change.kwargs.get('comment', '')</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="review_history" for_catalog="False"
+           for_status="False" update_always="False">
+  <description i18n:translate="">
+    Provides access to workflow history
+  </description>
+  <default>
+   <expression>state_change/getHistory</expression>
+  </default>
+  <guard>
+   <guard-permission>Request review</guard-permission>
+   <guard-permission>Review portal content</guard-permission>
+  </guard>
+ </variable>
+
+ <variable variable_id="time"           for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    When the previous transition was performed
+  </description>
+  <default>
+   <expression>state_change/getDateTime</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+
+</dc-workflow>

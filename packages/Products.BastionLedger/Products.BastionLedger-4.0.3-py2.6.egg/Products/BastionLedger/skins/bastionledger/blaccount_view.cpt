@@ -1,0 +1,258 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+ 
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+
+<body>
+  <div metal:fill-slot="main"
+       tal:define="now python: DateTime();
+                   date request/date | now;
+                   utool context/@@plone_portal_state/portal_url;
+                   toLocalizedTime nocall: context/toLocalizedTime;
+                   effective python: modules['Products.BastionLedger.utils'].ceiling_date(date);
+                   currency request/currency | context/base_currency;
+                   opening context/openingDate;
+                   debits python: request.has_key('form.button.Filter') and request.has_key('debit') or True;               
+                   credits python: request.has_key('form.button.Filter') and request.has_key('credit') or True;               
+                   query python: request.get('query', {});
+                   global balance python: context.balance(effective=effective,currency=currency);
+                   global debit_total python: context.zeroAmount(currency);
+                   global credit_total python: context.zeroAmount(currency);
+                   statuses request/statuses | python: ('posted', 'reversed','postedreversal');
+                   entries python: test(opening and (not request.has_key('date') or effective > opening), 
+                                        context.entryItems((opening, effective), statuses, query), 
+                                        context.entryItems(effective, statuses, query))">
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/prettyTitle"/></h1>
+
+
+      <form action="" name="date_form" id="date_form" method="post"
+            tal:attributes="action string:${template/getId}"
+            tal:define="inputvalue python: modules['Products.BastionLedger.utils'].floor_date(effective);
+                        formname string:date_form;
+                        show_hm python: False;
+                        inputname string:date;">
+
+             <a href=""
+                class="link-parent"
+                tal:define="ledger_url python:context.navigationParent(context, template.getId())"
+                tal:condition="ledger_url"
+                tal:attributes="href ledger_url"
+                i18n:translate="go_to_ledger_url">
+               Back to Ledger
+              </a>
+
+             <div id="blaccountHistoricals">
+               <ul>
+                 <li tal:condition="python: effective <= now + 1 and context.hasForwards(effective)">
+                    <a href="view?date:date=3000/01/01" title="Future dated transactions">
+                      forwards<span class="arrowUpAlternative">&#9650;</span>
+                    </a>
+                 </li>
+                 <tal:historicals tal:define="historicals context/historicalDates"
+                                  tal:condition="historicals">
+                     <li>
+                        <a name="#" title="Previous Periods">
+                           historicals<span class="arrowDownAlternative">&#9660;</span>
+                        </a>
+                    </li>
+                    <li class="period" tal:repeat="dt historicals">
+                         <tal:dt tal:define="dt_ok python: dt.strftime('%Y/%m/%d')">
+                            <a href="?date:date="
+                               tal:attributes="href string:view?date:date=${dt_ok}" tal:content="dt_ok"/>
+                         </tal:dt>
+                    </li>
+                  </tal:historicals>
+               </ul>
+             </div>
+
+      <br/>
+
+      <table width="100%">
+        <tr>
+          <td valign="top" class="visualNoPrint">
+             <div class="reviewHistory">
+                <dl id="viewing" class="collapsible inline collapsedOnLoad">
+                    <dt class="collapsibleHeader">Filter</dt>
+                    <dd class="collapsibleContent" tal:define="accno query/accno | python:[]">
+                         <div class="label">As At</div>
+                         <div metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                         <div>
+                            <span class="label">Entry is against Account</span><br/>
+                            <select name="query.accno:record:list:ignore_empty" multiple size="3">
+                                <option tal:repeat="account context/Ledger/accountValues"
+                                        tal:content="account/prettyTitle"
+                                        tal:attributes="value account/getId;
+                                                        selected python: test(account.getId() in accno, 1, 0)"/>
+                            </select>
+                         </div>
+                         <div class="label">Description contains</div>
+                         <div>
+                             <input type="text" name="query.desc:record:ignore_empty" value="" 
+                                    tal:attributes="value query/desc | nothing"/>
+                             <input type="checkbox" name="query.case_sensitive:record:boolean" value="1"
+                                    tal:attributes="checked query/case_sensitive | nothing"/> <i>Case Sensitive</i>
+                         </div>
+                         <div>
+                             <input type="checkbox" name="query.debit:record:boolean" value="1"
+                                    tal:attributes="checked debits | nothing"/> <span class="label">Debit</span>&nbsp;&nbsp;&nbsp;
+                             <input type="checkbox" name="query.credit:record:boolean" value="1"
+                                    tal:attributes="checked credits | nothing"/><span class="label">Credit</span>
+                         </div>
+                         <div tal:condition="context/isFCA">
+                            <span class="label">Currency</span><br/>
+                            <select name="currency">
+                                <option tal:repeat="cur python:(context.defaultCurrency(), context.base_currency)"
+                                        tal:content="cur" 
+                                        tal:attributes="selected python: test(currency==cur, 1, 0)"/>
+                            </select>
+                         </div>
+                         <div>
+                             <input class="context" type="submit" name="form.button.Filter" value=" Go "/>
+                         </div>
+                         <br/>
+                    </dd>
+                </dl>
+             </div>
+           </td>
+           <td valign="top" align="right">
+             <div align="left" tal:define="attachments context/attachmentValues" tal:condition="attachments">
+
+                <tal:block tal:repeat="attachment attachments">
+                   <img src="trombone.gif" alt="Attachment">
+                   <a href="" tal:attributes="href string:attachments/${attachment/getId}"
+                      tal:content="attachment/getId"/>
+                </tal:block>
+             </div>
+           </td>
+         </tr>
+      </table>
+
+
+      <metal:statement metal:define-macro="statement">
+
+           <div tal:define="d context/Description" tal:condition="d" tal:replace="d"/>
+            <br/>
+
+          <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%">
+             <tr class="row">
+                <td class="field">&nbsp;</td>
+                <td class="field"><strong>Entered</strong></td>
+                <td class="field"><strong>Date</strong></td>
+                <td class="field"><strong>Description</strong></td>
+                <td class="field" align="right"><strong>Debit</strong></td>
+                <td class="field" align="right"><strong>Credit</strong></td>
+                <td class="field" align="right"><strong>Balance</strong></td>
+             </tr>
+             <tal:entries tal:condition="entries">
+                <tr tal:repeat="item entries"
+                    tal:attributes="class python:test(repeat['item'].odd(), 'odd', 'even')">
+                    <tal:entry tal:define="id python: item[0];
+                                           entry python: item[1];
+                                           txn python: entry.blTransaction()">
+                       <td align="left" nowrap>
+                           <a href="" tal:attributes="href entry/absolute_url" tal:on-error="string:">
+                              <img src="" alt="Entry" tal:define="icon python:entry.getIcon(1)" 
+                                   tal:attributes="src string:${utool}/${icon}" border="0"/>
+                           </a>
+                           <img src="" tal:attributes="src string:${utool}/trombone.gif"
+                                tal:condition="python: txn and txn.hasAttachments()"/>
+                       </td>
+                       <td class="field" tal:content="entry/Creator"/>
+                       <td class="field" tal:define="e python: txn and entry.effective() or effective"
+                                         tal:content="python: e.strftime('%Y/%m/%d')"/>
+                       <td class="field" align="left">
+                           <a href="" tal:condition="python: txn" 
+                                      tal:attributes="href txn/absolute_url"
+                                      tal:content="entry/Title"/>
+                           <a href="" tal:condition="python: not txn and entry.isControlEntry()"
+                                      tal:attributes="href python: '%s/%s' % (context.aq_parent.absolute_url(), id)"
+                                      tal:content="python: entry.title_or_id()"/>
+                       </td>
+                       <tal:amounts tal:define="amount python: entry.amountAs(currency)">
+                          <tal:debit tal:condition="entry/isDebit">
+                              <td class="field" align="right" nowrap tal:content="amount"/>
+                              <td class="field">&nbsp;</td>
+                              <tal:compute tal:define="global debit_total python: debit_total + amount"/>
+                          </tal:debit>
+                          <tal:credit tal:condition="entry/isCredit">
+                              <td class="field">&nbsp;</td>
+                              <td class="field" align="right" nowrap tal:content="python: abs(amount)"/>
+                              <tal:compute tal:define="global credit_total python: credit_total - amount"/>
+                          </tal:credit>
+                          <td class="field" align="right" nowrap  tal:content="balance"/>
+                          <tal:compute tal:define="global balance python: balance - amount"/>
+                       </tal:amounts>
+                    </tal:entry>
+                </tr>
+                <tr>
+                   <td colspan="8"><hr/></td>
+                </tr>
+                <tr>
+                    <td class="field"/>
+                    <td class="field"/>
+                    <td class="field"/>
+                    <td class="field"/>
+                    <td class="field" align="right" nowrap>
+                       <i tal:content="debit_total"/>
+                    </td>
+                    <td class="field" align="right" nowrap>
+                       <i tal:content="python: abs(credit_total)"/>
+                    </td>
+                    <td class="field"/>
+                </tr>
+
+             </tal:entries>
+             <tr tal:condition="not: entries">
+                 <td class="field"/>
+                 <td class="field"/>
+                 <td class="field" tal:content="python: toLocalizedTime(context.openingDate(effective))"/>
+                 <td class="field">Opening Balance</td>
+                 <td class="field" colspan="3" align="right" nowrap
+                     tal:content="python: context.openingBalance(effective)"/>
+             </tr>
+          </table>
+         </metal:statement>
+        </form>
+
+        <br/>
+
+        <form action="" name="edit_form"  method="post" class="visualNoPrint"
+             tal:condition="python: context.SecurityCheckPermission('BastionLedger: Operate')"
+             tal:attributes="action string:${template/getId}"
+             tal:define="errors options/state/getErrors">
+
+            <div tal:define="error errors/email|nothing;
+                             Email request/email | python: getattr(context.aq_inner, 'email', '')"
+                 tal:attributes="class python:test(error, 'field error', 'field')">
+
+                <div tal:content="error">Validation error output</div>
+
+                <input type="text" name="email" size="50" value=""
+                       tal:attributes="value Email"/>
+
+                 <input class="context"
+                        
+                        type="submit"
+                        name="form.button.Email"
+                        value="Email"
+                        i18n:attributes="value" />
+
+            </div>
+
+            <input type="hidden" name="form.submitted" value="1" />
+
+        </form>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+   </div>
+ 
+</body>
+</html>

@@ -1,0 +1,35 @@
+##parameters=account=None,args=[],kw={}
+#
+# This script should return a list (possibly empty) of BLEntry objects
+#
+from Products.BastionLedger.BLEntry import BLEntry
+
+order = args[0]
+entries = []
+
+account = account or order.blAccount()
+receivable = account.isReceivable()
+
+if not receivable:
+    return entries
+
+if account:
+    description = account.prettyTitle()
+else:
+    description = script.getId()
+
+# pro-rate discount amongst sales accounts, but ensuring no rounding losses
+total = account.zeroAmount()
+
+for orderitem in order.orderItemValues():
+    sales_account = orderitem.blPart().income_account()
+    item_price = orderitem.calculateNetPrice()
+    entries.append(BLEntry(sales_account.getId(),
+                           description,
+                           'Ledger/%s' % sales_account.getId(),
+                           -item_price,
+                           script.getId()) )
+
+
+return entries
+

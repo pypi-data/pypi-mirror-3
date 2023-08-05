@@ -1,0 +1,129 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="bastionledger">
+ 
+<body>
+ 
+  <div metal:fill-slot="main" tal:define="entries here/orderItemValues;
+                     utool context/@@plone_portal_state/portal_url;
+                                          account here/account">
+
+      <h1><img src="blcart.gif" alt="Cart"
+               tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/></h1>
+
+      <p class="formHelp">Once you edit your shipping details, the <i>Pay</i> button will
+          appear.  You will be redirected to PayPal.  On returning, any required downloading
+          will begin once we've received payment confirmation.</p>
+ 
+      <form action="" method="post">
+
+        <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%">
+           <tr>
+               <td><span class="label">Name</span>&nbsp;
+                   <input type="text" name="contact" size="20"
+                          tal:attributes="value here/contact"/></td>
+               <td><span class="label">Email</span>&nbsp;
+                   <input type="text" name="email" 
+                          tal:attributes="value here/email" size="25"/></td>
+           </tr>
+           <tr>
+               <td colspan="2"><span class="label">Shipping Address</span>&nbsp;
+                       <textarea name="shiptoaddress:text" 
+                                 tal:content="here/shiptoaddress"/></td>
+           </tr>
+           <tr><td colspan="2" class="formControls"><input class="context" name="form.button.Edit" 
+                                                           type="submit" value=" Edit "/></td>
+        </table>
+
+        <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%" tal:condition="entries">
+            <tr class="row">
+                <td width="16" class="field">&nbsp;</td>
+                <td width="25" class="field"><label>Type</label></td>
+                <td class="field"><label>Description</label></td>
+                <td class="field" align="right"><label>Quantity</label></td>
+                <td class="field" align="right"><label>Unit Price</label></td>
+                <td class="field" align="right"><label>Amount</label></td>
+                <td>&nbsp;</td>
+             </tr>
+             <tr tal:repeat="item entries" class="row"
+                 tal:attributes="class python:test(repeat['item'].odd(), 'odd', 'even')">
+                 <td class="field" valign="top">
+                      <input type="hidden" name="parts.id:records" value=""
+                             tal:attributes="value item/getId"/>
+                      <input type="checkbox" name="ids:list" value=""
+                                   tal:attributes="value item/getId"/>
+                 </td>
+                 <td class="field" valign="top">
+                     <img alt="Part" border="0" src="" tal:define="icon python:item.getIcon(1)" 
+                              tal:attributes="src string:${utool}/${icon}"/>
+                 </td>
+                 <td class="field" valign="top">
+                      <div tal:content="item/title"/>
+                 </td>
+                 <td class="field" align="right" valign="top" 
+                     tal:content="item/quantity"/>
+                 <td class="field" align="right" nowrap valign="top" 
+                     tal:content="item/unit"/>
+                 <td class="field" align="right" valign="top" nowrap
+                     tal:content="item/calculateGrossPrice"/>
+                 <td valign="top">&nbsp;</td>
+             </tr>
+             <tr>
+                   <td colspan="4" class="formControls">
+                       <input class="context"  type="submit"
+                                name="form.button.Delete"
+                              value=" Delete " i18n:attributes="value" />
+                   </td>
+                   <td class="field" align="right"><label>Total</label></td>
+                   <td class="field" align="right" nowrap>
+                      <label tal:content="here/getGross"/></td>
+                   <td class="field">&nbsp;</td>
+                </tr>
+                <tal:block tal:condition="here/discount" tal:omit-tag="">
+                    <tr class="field">
+                        <td colspan="5" class="field" align="right">Discount</td>
+                        <td class="field" align="right"
+                            tal:content="python: here.getGross() * here.discount"/>
+                    </tr>
+                 </tal:block>
+                 <tal:block tal:condition="not: here/taxincluded">
+                    <tr class="field" 
+                        tal:repeat="acct python: here.Ledger.accountsForTag('sales_tax')" 
+                        tal:on-error="string:" >
+                       <td colspan="5" class="field" align="right">
+                          <em tal:content="acct/title"/>
+                       </td>
+                       <td class="field" align="right"
+                           tal:content="python: here.calculateTax(acct.getObject())"/>
+                       <td/>
+                    </tr>
+                    <tr>
+                       <td colspan="4"/>
+                       <td class="field" align="right"><label>Net</label></td>
+                       <td class="field" align="right"><label tal:content="here/getNet"/></td>
+                       <td class="field">&nbsp;</td>
+                    </tr>
+                 </tal:block>
+             </table>
+
+        <input type="hidden" name="form.submitted" value="1" />
+
+      </form>
+
+      <form action="content_status_modify" 
+            tal:condition="python: here.contact and here.email and here.shiptoaddress">
+          <input type="hidden" name="workflow_action" value="pay"/>
+          <input class="context"  type="submit"
+                   name="form.button.Pay"
+                 value=" Pay " i18n:attributes="value" />
+      </form>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+  </div>
+
+</body>
+</html>

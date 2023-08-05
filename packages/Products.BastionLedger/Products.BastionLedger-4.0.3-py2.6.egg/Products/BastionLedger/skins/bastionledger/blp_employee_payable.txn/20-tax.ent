@@ -1,0 +1,58 @@
+##title = Tax Payable
+##parameters=account,args=[],kw={}
+#
+# A BLEntry/BLSubsidiaryEntry is constituted from:
+#   id   - you should NEVER change this unless you REALLY know what you are doing!
+#   desc
+#   path to account
+#   amount
+#   a reference
+#
+# This script should return a list (possibly empty) of BLEntry objects
+#
+from Products.CMFCore.utils import getToolByName
+from Products.BastionBanking.ZCurrency import ZCurrency
+
+# the first entry processed is gross salary (alphabetically first) - retrieve it ...
+wages_exp = context.Ledger.accountsForTag('wages_exp')[0]
+
+# hmmm - salary/hourly rate not set ...
+try:
+    gross = context.entry(wages_exp.getId()).amount
+except KeyError:
+    gross = None
+
+if not gross:
+    # no tax to pay - bail out to avoid expensive cpu cycles ...
+    return []
+
+date = context.effective_date
+annual = gross * 52   # we are expecting to run a weekly payroll ...
+payg = ZCurrency('%s 0.00' % gross.currency())
+
+bltool = getToolByName(context, 'portal_bastionledger')
+tt = bltool.personal_tax
+tiers = tt.getTableRecords(date, sort_on='amount', sort_order='asc')
+
+for i in range(0, len(tiers)):
+    if i == len(tiers) - 1 or annual <= tiers[i+1].amount:
+	# first one is free ...
+        if i == 0:
+	    break
+        payg += abs(annual - tiers[i].amount) * tiers[i].rate
+        break
+    else:
+        if i == 0:
+            diff = tiers[i].amount
+        else:
+            diff = tiers[i].amount - tiers[i-1].amount
+        payg += diff * tiers[i].rate
+
+tax_account = context.Ledger.accountsForTag('wages_tax')[0]
+
+from Products.BastionLedger.BLEntry import BLEntry
+return [ BLEntry(script.getId(),
+                 'Auto - %s' % script.title,
+                 'Ledger/%s' % tax_account.getId(),
+                 -payg / 52,
+                 script.getId()) ]

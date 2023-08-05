@@ -1,0 +1,262 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+ 
+<body>
+  <div metal:fill-slot="main"
+       tal:define="now  python: DateTime();
+                   editmode python: context.SecurityCheckPermission(context.getId() == 'Ledger' and 'BastionLedger: Manage' or 'BastionLedger: Operate');
+                   currency_tool nocall: context/portal_bastionledger | nothing;
+                     utool context/@@plone_portal_state/portal_url;
+                   addCurrencies nocall:currency_tool/addCurrencies;
+                   ceiling_date python: modules['Products.BastionLedger.utils'].ceiling_date;
+                   date python: request.get('date', '') and DateTime(request['date']) or now;
+                   date2 python: request.get('date2', '') and ceiling_date(DateTime(request['date2'])) or None;
+                   effective python: ceiling_date(date);
+                   currency request/currency | context/defaultCurrency;
+                   global total python: modules['Products.BastionBanking.ZCurrency'].ZCurrency(currency,0);
+                   global total2 python: modules['Products.BastionBanking.ZCurrency'].ZCurrency(currency,0);
+                   mq python:modules['ZTUtils'].make_query;
+                   Batch python:modules['Products.CMFPlone'].Batch;
+                   b_size request/b_size | python:100;
+                   b_start request/b_start | python: 0;
+                   Accounts python: context.Accounts;
+		   sort_on request/sort_on | string:accno;
+                   entries python: Accounts(REQUEST=request, sort_on=sort_on);
+                   batch python: Batch(entries, int(b_size), int(b_start), orphan=1)">
+ 
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;
+          <span tal:replace="context/Title | context/getId"/> as at 
+          <span tal:replace="python: effective.strftime('%d %b %Y')"/></h1>
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Up one level</a>
+
+       <form action="" name="edit_form" method="post" tal:attributes="action template/getId"
+             metal:define-macro="filter"
+             class="visualNoPrint">
+
+          <div class="reviewHistory">
+             <dl id="searching" class="collapsible inline collapsedOnLoad">
+                 <dt class="collapsibleHeader">Statistics</dt>
+                 <dd class="collapsibleContent">
+                     <table>
+                        <tr>
+                           <th>Total Accounts</th>
+                           <td tal:content="python: len(Accounts)"/>
+                         </tr>
+                      </table>
+                  </dd>
+             </dl>
+          </div>
+
+          <br/>
+
+          <div class="reviewHistory">
+            <dl id="searching" class="collapsible inline collapsedOnLoad">
+              <dt class="collapsibleHeader">Filter</dt>
+              <dd class="collapsibleContent"
+                  tal:define="type request/type | nothing;
+                              subtype request/subtype | nothing">
+                <table summary="">
+                   <tr>
+                     <td colspan="3" nowrap valign="top">
+                        <table>
+                            <tr>
+                                <td class="label">As at</td>
+                                <td  tal:define="inputvalue effective;
+                                     formname string:edit_form;
+                                     show_hm python: False;
+                                     inputname string:date;">
+                                    <span metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td/>
+                                <td  tal:define="inputvalue date2;
+                                     formname string:edit_form;
+                                     show_hm python: False;
+                                     inputname string:date2;">
+                                    <span metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                                </td>
+                            </tr>
+                        </table>
+                     </td>
+                     <td nowrap valign="top">
+                         <span class="label">Batch Size</span>
+                         <input type="text" size="3" maxlength="3" name="b_size:int" value="" align="right"
+                                tal:attributes="value b_size"/>
+                     </td>
+                   </tr>
+                   <tr>
+                     <td valign="top">      
+                        <div class="label">Number</div>
+                        <input type="text" name="accno:tokens:ignore_empty" value="" size="8"
+                               tal:attributes="value python: ' '.join(request.get('accno', []))"/>
+                     </td>
+                     <td valign="top">
+                        <div class="label">Description</div>
+                        <input type="text" name="title:tokens:ignore_empty" value="" size="12"
+                               tal:attributes="value python: ' '.join(request.get('title',[]))"/>
+                     </td>
+                     <td valign="top"
+                         tal:define="types python: Accounts.uniqueValuesFor('type');
+                                     type request/type | nothing;"
+                         tal:condition="python: len(types) > 2">
+                        <div class="label">Type</div>
+                        <select name="type:tokens:ignore_empty" multiple size="3">
+                            <option tal:repeat="v types"
+                                    tal:content="v"
+                                    tal:attributes="selected python: test(type and type==v, 1, 0)"/>
+                        </select>
+                     </td>
+                     <td valign="top"
+                         tal:define="subtypes python: Accounts.uniqueValuesFor('subtype');
+                                     subtype request/subtype | nothing;"
+                         tal:condition="python: len(subtypes) > 2">
+                        <div class="label">SubType</div>
+                        <select name="subtype:tokens:ignore_empty" multiple size="3">
+                            <option tal:repeat="v subtypes"
+                                    tal:content="v"
+                                    tal:attributes="selected python: test(subtype and subtype==v, 1, 0)"/>
+                        </select>
+                     </td>
+                   </tr>
+                   <tr>
+                     <td colspan="4">
+                        <input class="context" type="submit" value=" Go "/>
+                     </td>
+                 </table>
+               </dd>
+             </dl>
+          </div>
+
+       </form>
+
+        <br/>
+
+        <!-- Navigation -->
+        <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+        <tal:chart metal:define-macro="chart">
+
+       <form action="" name="action_form" method="post" tal:attributes="action template/getId">
+
+        <table summary="" border="0" width="100%" cellpadding="2" cellspacing="0" 
+               tal:condition="batch">
+           <tr class="row">
+               <td class="field" width="16">&nbsp;</td>
+               <td class="field"></td>
+               <td class="field">
+                   <strong tal:condition="python: sort_on=='accno'">Number</strong>
+                   <a tal:condition="python: sort_on != 'accno'"
+                      tal:define="qs python: mq(request.form, sort_on='accno')"
+                      href="" tal:attributes="href string:view?${qs}"
+                      title="sort on Number"
+                      i18n:attributes="title sort_on_accno;"><strong>Number</strong></a>
+               </td>
+               <td width="40%" class="field">
+                   <strong tal:condition="python: sort_on=='title'">Description</strong>
+                   <a tal:condition="python: sort_on != 'title'"
+                      tal:define="qs python: mq(request.form, sort_on='title')"
+                      href="" tal:attributes="href string:view?${qs}"
+                      title="sort on Description"
+                      i18n:attributes="title sort_on_description;"><strong>Description</strong></a>
+               </td>
+               <td class="field">
+                   <strong tal:condition="python: sort_on=='type'">Type</strong>
+                   <a tal:condition="python: sort_on != 'type'"
+                      tal:define="qs python: mq(request.form, sort_on='type')"
+                      href="" tal:attributes="href string:view?${qs}"
+                      title="sort on Type"
+                      i18n:attributes="title sort_on_type;"><strong>Type</strong></a>
+               </td>
+               <td class="field"><strong>Sub-Type</strong></td>
+               <td class="field" align="right"><strong>Balance</strong></td>
+     	       <td class="field" align="right" tal:condition="date2">
+                   <i><strong tal:content="python: date2.strftime('%Y/%m/%d')"/></i>
+               </td>
+           </tr>
+           <tr tal:repeat="item batch" class=""
+               tal:attributes="class python: test(repeat['item'].odd(), 'odd', 'even')">
+               <td class="field">
+                  <input type="checkbox" name="ids:list" value="" 
+                         tal:attributes="value item/getId">
+               </td>
+               <td class="field">
+                   <img src=""  tal:define="icon python:item.getIcon(1)" 
+                        tal:attributes="src string:${utool}/${icon}"/>
+               </td>
+               <td class="field">
+                   <a href="" tal:attributes="href item/getId"  
+                              tal:content="item/accno"/>
+               </td>
+               <td class="field" nowrap>
+                   <a href="" tal:attributes="href item/getId"  
+                              tal:content="item/title"/>
+               </td>
+               <td class="field" tal:content="item/type"/>
+               <td class="field" nowrap tal:content="item/subtype"/>
+               <td class="field" align="right" nowrap 
+                   tal:define="global balance python: item.balance(effective=effective);
+                               global total python: total + item.balance(effective=effective, currency=currency)"
+                   tal:content="balance"/> 
+               <tal:diff tal:condition="date2">
+                  <td align="right" nowrap 
+                      tal:define="balance2 python: item.balance(effective=date2);
+                                  item_cur item/base_currency;
+                                  global total2 python: currency==item_cur and total2+balance2 or total2+balance2.amount() / currency_tool.crossMidRate(currency, item_cur)">
+                      <i><span style="" tal:attributes="style python: test(balance==balance2, '', 'color: red')"
+                               tal:content="balance2"/></i>
+                  </td>
+               </tal:diff>
+           </tr>
+           <tal:block tal:condition="nocall: entries">
+              <tr class="row">
+                 <td colspan="9"><hr/></td>
+              </tr>
+              <tr class="row">
+                 <td class="field" colspan="5">
+                    <div class="visualNoPrint" tal:condition="editmode">
+                        <input class="standalone"  type="submit" tal:condition="entries"
+                                 name="form.button.Delete"
+                               value=" Delete " i18n:attributes="value" />
+                    </div>
+                 </td>
+                 <td class="field"  align="right"><strong>Total</strong></td>
+                 <td class="field" align="right" nowrap tal:content="total"/>
+                 <td tal:condition="date2" class="field" align="right" nowrap>
+                    <i tal:content="total2"/>
+                 </td>
+              </tr>
+           </tal:block>
+          </table>
+
+             <input type="hidden" name="form.submitted" value="1"/>
+          </form>
+        </tal:chart>
+
+
+        <!-- Navigation -->
+        <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+        <div class="formHelp" tal:condition="not: batch">There are no accounts for this criteria</div>
+
+     <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

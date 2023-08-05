@@ -1,0 +1,133 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+ 
+<body>
+  <div metal:fill-slot="main"
+       tal:define="effective python: modules['Products.BastionLedger.utils'].ceiling_date(request.get('date', DateTime()));
+                     utool context/@@plone_portal_state/portal_url;
+                   allocations python: context.allocationValues(effective=effective)">
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/> 
+          Share Allocations as at <span tal:replace="python: effective.strftime('%Y/%m/%d')"/></h1>
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Back to Ledger</a>
+
+      <form action="" name="date_form" id="date_form" method="post" tal:attributes="action template/getId"
+            tal:define="inputvalue python: modules['Products.BastionLedger.utils'].floor_date(effective);
+                        formname string:date_form;
+                        show_hm python: False;
+                        inputname string:date;">
+
+             <div class="reviewHistory">
+                <dl id="viewing" class="collapsible inline collapsedOnLoad">
+                    <dt class="collapsibleHeader">Filter</dt>
+                    <dd class="collapsibleContent" tal:define="accno query/accno | python:[]">
+                         <div class="label">As At</div>
+                         <div metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                         <div>
+                             <input class="context" type="submit" name="form.button.Filter" value=" Go "/>
+                         </div>
+                         <br/>
+                    </dd>
+                </dl>
+             </div>
+         
+      <table summary="" width="100%" tal:condition="allocations">
+         <tr class="row">
+             <td class="field">&nbsp;</td>
+             <td class="field"></td>
+             <td class="field"><label>Share</label></td>
+             <td class="field"><label>Issued</label></td>
+             <td class="field" align="right"><label>Face</label></td>
+             <td class="field" align="right"><label>Quantity</label></td>
+             <td class="field" align="right"><label>Nominal Value</label></td>
+             <td class="field" align="right"><label>Outstanding</label></td>
+         </tr>
+         <tr class="row" tal:repeat="allocation allocations">
+             <tal:block tal:define="defn allocation/getDefinition">
+                <td class="field">
+                    <img src=""  alt="Allocation" tal:define="icon python:allocation.getIcon(1)" 
+                                 tal:attributes="src string:${utool}/${icon}">
+                </td>
+                <td class="field">
+                    <a href="" tal:attributes="href allocation/absolute_url"
+                               tal:content="allocation/Title"/>
+                </td>
+                <td class="field">
+                    <a href="" tal:attributes="href defn/absolute_url"
+                               tal:content="defn/title_or_id"/>
+                </td>
+                <td class="field" tal:content="python: allocation.issue_date.strftime('%Y/%m/%d')"/>
+                <td class="field" align="right" tal:content="defn/face"/>
+                <td class="field" align="right" tal:content="allocation/quantity"/>
+                <td class="field" align="right" tal:content="allocation/nominal"/>
+                <td class="field" align="right" tal:content="allocation/outstanding"/>
+             </tal:block>
+         </tr>
+         <tr>
+             <td colspan="8">
+                <div tal:define="error errors/email|nothing;
+                                 Email request/email | python: getattr(context.aq_inner, 'email', '')"
+                     tal:attributes="class python:test(error, 'field error', 'field')">
+
+                    <div tal:content="error">Validation error output</div>
+
+		    <select name="share">
+                        <option tal:repeat="def python: context.shareDefinitionValues(effective)"
+                                tal:content="def/Title"
+                                tal:attributes="value def/getId"/>
+                    </select>
+
+                    <input type="text" name="email" size="30" value=""
+                           tal:attributes="value Email"/>
+
+                    <input class="context"
+                           
+                           type="submit"
+                           name="form.button.EmailCert"
+                           value="Email Certificate"
+                           i18n:attributes="value" />
+
+                 </div>
+             </td>
+         </tr>
+      </table>
+      
+      <p tal:condition="not: allocations" class="formHelp">Shares are yet to be allocated to this
+              shareholder.</p>
+
+        <fieldset>
+           <legend>Voting Rights</legend>
+
+             <p class="formHelp">Shows which member(s) hold any voting rights associated with this stock</p>
+
+             <a tal:repeat="m context/getMemberIds" 
+                tal:attributes="href string:${utool}/authors/${m}" 
+                tal:content="m"/>
+  
+        </fieldset>
+
+        <input type="hidden" name="form.submitted" value="1" />
+
+     </form>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

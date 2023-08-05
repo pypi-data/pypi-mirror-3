@@ -1,0 +1,50 @@
+##parameters=account,args=[],kw={}
+#
+# A BLEntry/BLSubsidiaryEntry is constituted from:
+#   id   - you should NEVER change this unless you REALLY know what you are doing!
+#   desc
+#   path to account
+#   amount
+#   a reference
+#
+# This script should return a list (possibly empty) of BLEntry objects
+#
+from Products.CMFCore.utils import getToolByName
+from Products.BastionBanking.ZCurrency import ZCurrency
+
+# this is a bit naughty, but we're taking advantage of the fact that the gross entry 
+# is alphabetically first, to figure out how much we owe
+gross = context.entry(account.getId()).amount
+
+if not gross:
+    # no tax to pay - bail out to avoid expensive cpu cycles ...
+    return []
+
+date = context.effective_date
+annual = gross * 52
+payg = ZCurrency('%s 0.00' % gross.currency())
+
+tax_table = getToolByName(context, 'portal_bastionledger').personal_tax
+tiers = tax_table.getTableRecords(date, sort_on='amount', sort_order='asc')
+
+for i in range(0, len(tiers)):
+    if i == len(tiers) - 1 or annual <= tiers[i+1].amount:
+        if i == 0:
+           break
+        payg += abs(annual - tiers[i].amount) * tiers[i].rate
+        break
+    else:
+        if i == 0:
+            diff = tiers[i].amount
+        else:
+            diff = tiers[i].amount - tiers[i-1].amount
+        payg += diff * tiers[i].rate
+
+tax_account = context.Ledger.accountsForTag('wages_tax')[0]
+
+from Products.BastionLedger.BLEntry import BLEntry
+return [ BLEntry(script.getId(),
+                 'Auto - %s' % script.getId(),
+                 'Ledger/%s' % tax_account.getId(),
+                 -payg / 52,
+                 script.getId()) ]

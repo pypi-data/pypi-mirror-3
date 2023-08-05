@@ -1,0 +1,129 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+    <div metal:fill-slot="main"
+         tal:define="errors options/state/getErrors;
+                     lockable python:hasattr(here, 'wl_isLocked');
+                     utool context/@@plone_portal_state/portal_url;
+                     isLocked python:lockable and here.wl_isLocked();">
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/></h1>
+
+      <p class="formHelp">Post closing entries and set new opening balances.</p>
+
+      <div id="blaccountHistoricals" 
+           tal:define="pinfos context/periods/objectValues" tal:condition="pinfos">
+         <ul>
+              <li>
+                 <a name="#" title="Previous Periods">
+                    historicals<span class="arrowDownAlternative">&#9660;</span>
+                  </a>
+              </li>
+              <li class="period" tal:repeat="pinfo pinfos">
+                   <a href="periods/dt" 
+                      tal:attributes="href pinfo/absolute_url" 
+                      tal:content="pinfo/title_or_id"/>
+              </li>
+          </ul>
+      </div>
+  
+      <br/>
+      <br/>
+
+      <form name="edit_form"  action="."  method="post" tal:attributes="action template/getId" >
+
+         <table cellpadding="2" cellspacing="0" border="0" width="100%" summary="">
+            <tr class="list-header">
+               <td class="field"><Label>Config</label></td>
+               <td class="field" width="16"/>
+               <td class="field"><Label>Ledger</label></td>
+               <td class="field" align="center"><Label>Accounts</label></td>
+               <td class="field" align="center"><Label>Transactions</label></td>
+               <td class="field"><Label>Last Rollover</label></td>
+               <td class="field"><Label>First Active</label></td>
+               <td class="field"><Label>Last Active</label></td>
+            </tr>
+            <tal:block tal:repeat="ledger context/ledgerValues">
+              <tr tal:define="info python: context.periods.lastPeriodForLedger(ledger.getId())" class="" 
+                  tal:attributes="class python: test(repeat['ledger'].odd(), 'odd', 'even')">
+               <td class="field" align="right" valign="top">
+                 <div class="reviewHistory" 
+                      tal:define="ledgerid ledger/getId;
+                                  config_macro python: path('context/blperiod_end_macros/macros/%s|nothing' % ledger.meta_type);"
+                      tal:condition="nocall: config_macro">
+                   <dl id="config" class="collapsible inline collapsedOnLoad"
+                       tal:attributes="id string:config-${ledgerid}">
+                      <dt class="collapsibleHeader">&nbsp;</dt>
+                      <dd class="collapsibleContent">
+                         <metal:macro use-macro="config_macro"/>
+                      </dd>
+                   </dl>
+                 </div>
+               </td>
+               <td class="field"  valign="top">
+                  <img src="" tal:define="icon python: ledger.getIcon(1)"
+                       tal:attributes="src string:${utool}/${icon}"/>
+               </td>
+               <td class="field"  valign="top">
+                  <a href=""
+                     tal:attributes="href ledger/absolute_url" 
+                     tal:content="ledger/title_or_id"/>
+               </td>
+               <td class="field" align="center"  valign="top">
+                  <span tal:condition="nocall: info" tal:replace="info/num_accounts"/>
+               </td>
+               <td class="field" align="center"  valign="top">
+                  <span tal:condition="nocall: info" tal:replace="info/num_transactions"/>
+               </td>
+               <td class="field" valign="top" 
+                   tal:content="python: context.periods.lastClosingForLedger(ledger.getId()).strftime('%Y/%m/%d')"/>
+               <td class="field" valign="top">
+                  <span tal:define="txn python: ledger.firstTransaction()"
+                        tal:condition="nocall: txn" 
+                        tal:replace="python: txn.effective_date"/>
+               </td>
+               <td class="field" valign="top">
+                  <span tal:define="txn python: ledger.lastTransaction()"
+                        tal:condition="nocall: txn" 
+                        tal:replace="python: txn.effective_date"/>
+               </td>
+             </tr>
+            </tal:block>
+         </table>
+
+         <table summary="">
+            <tr>
+                <td class="field"><label>Period Ended</label></td>
+                <td class="field"
+                    tal:define="inputvalue python:request.get('effective', context.periods.nextPeriodEnd());
+                                formname string:edit_form;
+                                show_hm python: False;
+                                inputname string:effective;">
+                   <span metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                </td>
+                <td class="field">
+                    <input type="submit" class="context" name="form.button.Run" value=" Run "/>
+                    <input type="submit" class="context" name="form.button.Rerun" value=" Rerun "/>
+                    <input type="submit" class="context" name="form.button.Reports" value="Reports Only"/>
+                </td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td class="field" align="right">
+                    <tal:block tal:condition="python: context.SecurityCheckPermission('BastionLedger: Manage')">
+                        <input type="submit" class="standalone" name="form.button.Reset" value=" Reset "/>
+                    </tal:block>
+                </td>
+            </tr>
+         </table>
+
+         <input type="hidden" name="form.submitted" value="1" />
+
+      </form>
+
+    </div>
+ 
+</html>

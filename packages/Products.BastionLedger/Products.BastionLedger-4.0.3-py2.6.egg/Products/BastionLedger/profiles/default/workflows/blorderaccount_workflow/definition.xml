@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<dc-workflow xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+             workflow_id="blorderaccount_workflow"
+             title="BLOrderAccount Workflow"
+             i18n:domain="bastionledger"
+             state_variable="review_state"
+             initial_state="open">
+
+ <permission>BastionLedger: Manage</permission>
+ <permission>BastionLedger: Oversee</permission>
+ <permission>BastionLedger: Operate</permission>
+
+ <state state_id="open" title="Open">
+  <exit-transition transition_id="close"/>
+  <exit-transition transition_id="healthy"/>
+  <exit-transition transition_id="charge"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="closed" title="Closed">
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state> 
+ <state state_id="healthy" title="Healthy">
+  <exit-transition transition_id="charge"/>
+  <exit-transition transition_id="due"/>
+  <exit-transition transition_id="close"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="due" title="Due">
+  <exit-transition transition_id="recover"/>
+  <exit-transition transition_id="healthy"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="overdue" title="Overdue">
+  <exit-transition transition_id="remind"/>
+  <exit-transition transition_id="healthy"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+ <state state_id="collections" title="Collections">
+  <exit-transition transition_id="recover"/>
+  <exit-transition transition_id="close"/>
+  <exit-transition transition_id="healthy"/>
+  <permission-map name="BastionLedger: Manage" acquired="True">
+     <permission-role>Manager</permission-role>
+     <permission-role>Owner</permission-role>
+  </permission-map>
+ </state>
+
+<transition transition_id="close"
+             title="Close Account"
+             new_state="closed" trigger="USER"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=close" category="workflow">Close</action>
+  <guard>
+   <guard-permission>BastionLedger: Manage</guard-permission>
+  </guard>
+ </transition>
+
+<transition transition_id="recover"
+             title="Debt recovery"
+             new_state="collections" trigger="USER"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=recover" category="workflow">Recover</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<transition transition_id="charge"
+             title="Request payment"
+             new_state="due" trigger="USER"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=charge" category="workflow">Charge</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<transition transition_id="remind"
+             title="Payment reminder"
+             new_state="overdue" trigger="USER"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=remind" category="workflow">Remind</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<transition transition_id="healthy"
+             title="account ok"
+             new_state="healthy" trigger="USER"
+             before_script="" after_script="">
+  <action  url="%(content_url)s/content_status_modify?workflow_action=healthy" category="workflow">Healthy</action>
+  <guard>
+   <guard-permission>BastionLedger: Operate</guard-permission>
+  </guard>
+ </transition>
+
+<variable variable_id="action"         for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    Previous transition
+  </description>
+  <default>
+   <expression>transition/getId|nothing</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="actor"          for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    The ID of the user who performed the last transition
+  </description>
+  <default>
+   <expression>user/getId</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="comments"       for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    Comment about the last transition
+  </description>
+  <default>
+   <expression>python:state_change.kwargs.get('comment', '')</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+ <variable variable_id="review_history" for_catalog="False"
+           for_status="False" update_always="False">
+  <description i18n:translate="">
+    Provides access to workflow history
+  </description>
+  <default>
+   <expression>state_change/getHistory</expression>
+  </default>
+  <guard>
+   <guard-permission>Request review</guard-permission>
+   <guard-permission>Review portal content</guard-permission>
+  </guard>
+ </variable>
+
+ <variable variable_id="time"           for_catalog="False"
+           for_status="True" update_always="True">
+  <description i18n:translate="">
+    When the previous transition was performed
+  </description>
+  <default>
+   <expression>state_change/getDateTime</expression>
+  </default>
+  <guard>
+  </guard>
+ </variable>
+
+</dc-workflow>

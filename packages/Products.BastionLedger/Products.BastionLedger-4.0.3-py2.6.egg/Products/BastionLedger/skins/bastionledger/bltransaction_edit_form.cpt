@@ -1,0 +1,286 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+ 
+<metal:javascript fill-slot="javascript_head_slot">
+  <tal:js tal:replace="structure string:<script type=text/javascript language=javascript><!--"/>
+    <tal:entries tal:repeat="entry python: range(0,8)">
+    function clearDebit<div tal:replace="entry"/>()
+    {
+        dr = document.getElementById("debit<div tal:replace="entry"/>");
+        cr = document.getElementById("credit<div tal:replace="entry"/>");
+        value = document.getElementById("value<div tal:replace="entry"/>")
+	dr.checked = false;
+	cr.checked = true;
+        value.value = 1;
+    }
+
+    function clearCredit<div tal:replace="entry"/>()
+    {
+        dr = document.getElementById("debit<div tal:replace="entry"/>");
+        cr = document.getElementById("credit<div tal:replace="entry"/>");
+        value = document.getElementById("value<div tal:replace="entry"/>")
+	dr.checked = true;
+	cr.checked = false;
+        value.value = 0;
+    }
+    </tal:entries>
+  <tal:js tal:replace="structure string://--></script>"/>
+</metal:javascript>
+
+<body>
+ 
+    <div metal:fill-slot="main"
+         tal:define="errors options/state/getErrors;
+                     utool context/@@plone_portal_state/portal_url;
+                     entries context/entries;
+                     ledgerAccounts python: context.Ledger.accountValues(sort_on='accno');
+                     subsidiaryAccounts python: test(context.blLedger().meta_type != 'BLLedger', context.accountValues(sort_on='accno'), []);
+                     debittotal context/debitTotal;
+                     credittotal python: abs(context.creditTotal())">
+
+      <h1><img src="bltransaction.gif" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}"/>&nbsp;Edit Transaction</h1>
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Back to Ledger</a>
+
+
+      <form name="edit_form"  action="."  method="post" 
+            tal:attributes="action template/getId" >
+
+       <table summary="" width="100%">
+          <tr>
+             <td><strong>Description</strong></td>
+             <td><strong>Effective Date</strong>
+                 <span class="fieldRequired" title="Required"
+                       i18n:attributes="title"
+                       i18n:translate="label_required">(Required)</span>
+
+             </td>
+             <td/>
+          </tr>
+          <tr>
+             <td tal:define="error errors/title|nothing;
+                 Title request/title | context/Title"
+                 tal:attributes="class python:test(error, 'field error', 'field')">
+
+                 <div tal:content="error">Validation error output</div>
+
+                 <input type="text" id="title" name="title" value="" size="50"
+                         tal:attributes="value Title;"/>
+             </td>
+             <td tal:define="error errors/effective_date|nothing;
+                             Effective_Date request/effective | context/effective_date;
+                             inputvalue Effective_Date;
+                             formname string:edit_form;
+                             show_hm python: False;
+                             inputname string:effective;"
+                 tal:attributes="class python:test(error, 'field error', 'field')">
+
+                 <div tal:content="error">Validation error output</div>
+
+                 <div metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+             </td>
+          </tr>
+          <tr>
+             <td><strong>Reference</strong></td>
+          </tr>
+          <tr>
+             <td tal:define="error errors/reference|nothing;
+                             Reference request/reference | context/reference"
+                 tal:attributes="class python:test(error, 'field error', 'field')">
+
+                 <div tal:content="error">Validation error output</div>
+
+                 <input type="text" id="reference" name="reference" value="" size="50"
+                         tal:attributes="value Reference;"/>
+             </td>
+           </tr>
+           <tr>
+             <td>
+                 <input class="context"
+                        
+                        type="submit"
+                        name="form.button.Edit"
+                        value="Edit"
+                        i18n:attributes="value" />
+             </td>
+          </tr>
+       </table>
+  
+    <fieldset tal:condition="python: entries and context.modifiable()">
+      <legend>Entries</legend>
+       <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%">
+           <tr class="row">
+               <td width="25"  class="field">&nbsp;</td>
+               <td width="16"  class="field">&nbsp;</td>
+               <td class="field"><strong>Account</strong></td>
+               <td class="field"><strong>Description</strong></td>
+               <td width="10%" class="field" align="right"><strong>Debit</strong></td>
+               <td width="10%" class="field" align="right"><strong>Credit</strong></td>
+           </tr>      
+           <tr tal:repeat="item entries" class=""
+                   tal:attributes="class python: test(repeat['item'].odd(), 'odd', 'even')">
+               <td class="field">
+                 <input type="checkbox" name="ids:list" value="" 
+                        tal:attributes="value python: item[0]"/>
+               </td>
+               <td class="field">
+                  <a href="" tal:attributes="href python: item[0]">
+                      <img src="" border="0" tal:attributes="src python:item[1].icon"/>
+                  </a>
+               </td>
+               <td class="field">
+                   <a href="" tal:define="acct python: item[1].blAccount()"
+                              tal:attributes="href acct/absolute_url"
+                              tal:content="acct/prettyTitle"/>
+               </td>
+               <td class="field">
+                    <input type="text" name="editentries.title:records" value="" size="40"
+                           tal:attributes="value python: item[1].title"/>
+               </td>
+               <tal:drcr tal:define="debit python: item[1].isDebit();
+                                     amount python: item[1].absAmount()">
+                  <td class="field" tal:condition="debit">
+                      <input type="text" name="editentries.amount:records" value=""
+                             style="text-align:right;" size="15"
+                             tal:attributes="value amount"/>
+                  </td>
+                  <td class="field">&nbsp;
+                      <input type="hidden" name="editentries.account:records" value="" 
+                             tal:attributes="value python: item[1].account"/>
+                      <input type="hidden" name="editentries.credit:boolean:records" value="False"
+                             tal:condition="debit"/>
+                      <input type="hidden" name="editentries.credit:boolean:records" value="True"
+                             tal:condition="not: debit"/>
+                  </td>
+                  <td class="field" tal:condition="not: debit">
+                      <input type="text" name="editentries.amount:records" value="" 
+                             style="text-align:right;" size="15"
+                             tal:attributes="value amount"/>
+                  </td>
+               </tal:drcr>
+           </tr>
+           <tr class="list-header">
+               <td colspan="4">
+                  <input type="submit" class="standalone" name="form.button.Delete" value="Delete"/>
+                  &nbsp;&nbsp;&nbsp;
+                  <input type="submit" class="context" name="form.button.Toggle" value="Toggle Dr/Cr"/>
+                  <input type="submit" class="context" name="form.button.EditEntries" value="Edit"/>
+               </td>
+               <td width="10%" class="field" align="right" nowrap>
+                  <strong tal:content="debittotal"/></td>
+               <td width="10%" class="field" align="right" nowrap>
+                  <strong tal:content="credittotal"/></td>
+     	       <td width="5%"  class="field">&nbsp;</td>
+           </tr>
+           <tr tal:condition="python: debittotal and debittotal != credittotal">
+               <td  class="formHelp" align="right" nowrap colspan="5"
+                   tal:define="diff python: debittotal - credittotal"
+                   tal:attributes="colspan python: diff > 0 and 6 or 5"
+                   tal:content="diff"/>
+           </tr>
+
+          </table>
+      </fieldset>
+
+      <div tal:define="error errors/addentries|nothing"
+           tal:attributes="class python:test(error, 'field error', 'field')"
+           tal:content="error"/>
+
+      <table summary="" border="0" cellpadding="4" cellspacing="0" width="100%"
+             tal:condition="context/modifiable">
+         <tr class="list-header">
+            <td>&nbsp;</td>
+            <td align="center"><strong>DR/CR</strong></td>
+            <td><strong>Description</strong></td>
+            <td><strong>Account</strong></td>
+            <td><strong>Amount</strong></td>
+         </tr>
+         <tr tal:repeat="times python: range(0,4)">
+            <td>
+                <img src="" alt="" tal:attributes="src string:${portal_url}/blentry.gif"/>
+            </td>
+            <td nowrap>
+                <input type="checkbox" name="ignore" checked
+                       id="debitX" value="True" onclick="clearCreditX()"
+                       tal:attributes="id string:debit${times};onclick string:clearCredit${times}()"/>/
+                <input type="checkbox" name="ignore"
+                       id="creditX" value="True" onclick="clearDebitX()"
+                       tal:attributes="id string:credit${times};onclick string:clearDebit${times}()"/>
+                <input type="hidden" id="creditX" tal:attributes="id string:value${times}"
+                       name="addentries.credit:records:int" value="0"/>
+            </td>
+            <td>
+                <input type="text" name="addentries.title:records" size="20"/>
+                <input type="hidden" name="addentries.subsidiary:records:boolean" value="False"/>
+            </td>
+            <td>
+                <select name="addentries.account:records">
+                    <option tal:repeat="acct ledgerAccounts"
+                            value="" tal:attributes="value acct/getId"
+                            tal:content="acct/prettyTitle"/>
+                 </select>
+            </td>
+            <td>
+                 <input type="text" align="right"
+                        name="addentries.amount:records:currency:ignore_empty" size="15"/>
+            </td>
+         </tr>
+         <tr tal:condition="subsidiaryAccounts" tal:repeat="times python: range(4,8)">
+            <td>
+                <img src="/blentry.gif" tal:attributes="src string:${utool}/blentry.gif"/>
+            </td>
+            <td nowrap>
+                <input type="checkbox" name="ignore" checked
+                       id="debitX" value="True" onclick="clearCreditX()"
+                       tal:attributes="id string:debit${times};onclick string:clearCredit${times}()"/>/
+                <input type="checkbox" name="ignore"
+                       id="creditX" value="True" onclick="clearDebitX()"
+                       tal:attributes="id string:credit${times};onclick string:clearDebit${times}()"/>
+                <input type="hidden"  id="creditX" tal:attributes="id string:value${times}"
+                       name="addentries.credit:records:int" value="0"/>
+            </td>
+            <td>
+                <input type="text" name="addentries.title:records" size="20"/>
+                <input type="hidden" name="addentries.subsidiary:records:boolean" value="True"/>
+            </td>
+            <td>
+                <select name="addentries.account:records:ignore_empty">
+                    <option tal:repeat="acct subsidiaryAccounts"
+                            value="" tal:attributes="value acct/getId"
+                            tal:content="acct/prettyTitle"/>
+                 </select>
+            </td>
+            <td>
+                 <input type="text" align="right" 
+                        name="addentries.amount:records:currency:ignore_empty" size="15"/>
+            </td>
+         </tr>
+         <tr>
+            <td colspan="5">
+               <input class="context"
+                      
+                      type="submit"
+                      name="form.button.AddEntries"
+                      value="Add"
+                      i18n:attributes="value" />
+           </td>
+         </tr>
+      </table>
+
+
+        <input type="hidden" name="form.submitted" value="1" />
+
+      </form>
+
+    </div>
+ 
+</body>
+</html>

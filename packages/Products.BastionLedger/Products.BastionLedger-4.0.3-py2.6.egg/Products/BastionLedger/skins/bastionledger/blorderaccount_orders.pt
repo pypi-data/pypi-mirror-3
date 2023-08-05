@@ -1,0 +1,107 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+ 
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+
+<body>
+  <div metal:fill-slot="main" 
+       tal:define="addCurrencies nocall:context/portal_bastionledger/addCurrencies;
+                   now python: DateTime();
+                     utool context/@@plone_portal_state/portal_url;
+                   effective_dates python: (DateTime(request.get('from_date', now - 90)), DateTime(request.get('to_date',now)));
+                   from_date python: min(effective_dates);
+                   to_date python: max(effective_dates);
+		   entered_by request/entered_by | python: [];
+		   status request/status | python: [];
+                   orders python: context.orderValues(entered_by=entered_by,orderdate=effective_dates,status=status,sort_on='effective',sort_order='desc');
+                   b_size request/b_size | python: 50;
+                   b_start request/b_start | python: 0;
+                   Batch python:modules['Products.CMFPlone'].Batch;
+                   batch python:Batch(orders, int(b_size), int(b_start), orphan=2);
+                   global total context/zeroAmount">
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/prettyTitle"/></h1>
+
+        <a href=""
+           class="link-parent"
+           tal:define="ledger_url python:context.navigationParent(context.aq_parent, template.getId())"
+           tal:condition="ledger_url"
+           tal:attributes="href ledger_url"
+           i18n:translate="go_to_ledger_url">
+        Ledger
+        </a>
+
+        <div metal:use-macro="context/blorders_view/macros/search"/>
+
+        <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+        <form action="blorder_email_invoice" method="post" tal:condition="batch">
+          <table summary="" border="0" cellpadding="2" cellspacing="0"  width="100%">
+             <tr class="row">
+                <td class="field">&nbsp;</td>
+                <td class="field">&nbsp;</td>
+                <td class="field"><strong>Date</strong></td>
+                <td class="field"><strong>Number</strong></td>
+                <td class="field"><strong>Description</strong></td>
+                <td class="field"><strong>Status</strong></td>
+                <td class="field"><strong>Entered By</strong></td>
+                <td class="field" align="right"><strong>Amount</strong></td>
+             </tr>
+             <tr tal:repeat="item batch"
+                 tal:attributes="class python: test(repeat['item'].odd(), 'odd', 'even')">
+                 <td><input type="checkbox" name="ids:list" value=""
+                            tal:attributes="value item/getId"/>
+                 <td align="left">
+                     <img src=""  tal:define="icon python:item.getIcon(1)" 
+                          tal:attributes="src string:${utool}/${icon}"/>
+                     <img src=""  tal:condition="item/hasAttachments"
+                          tal:attributes="src string:${utool}/trombone.gif"/>
+                 </td>
+                 <td class="field" tal:content="python: item.orderdate.strftime('%Y/%m/%d')"/>
+                 <td class="field">
+                        <a href="" tal:attributes="href string:${item/getId}/view"  
+                                   tal:content="item/getId"/>
+                 </td>
+                 <td class="field" tal:content="item/Title"/>
+                 <td class="field" tal:content="item/status"/>
+                 <td class="list-item" tal:content="item/entered_by"/>
+                 <td class="field" align="right" nowrap 
+                     tal:define="net item/getNet; global total python: addCurrencies(((total,item.orderdate), (net,item.orderdate)), total.currency())" 
+                     tal:content="net"/>
+             </tr>
+             <tr>
+                 <td class="field" colspan="8"><hr/></td>
+             </tr>
+             <tr>
+                 <td class="field" colspan="7"/>
+                 <td class="field" align="right" nowrap tal:content="total"/>
+             </tr>
+             <tr>
+                 <td colspan="8" class="list-item">
+                    <div  class="visualNoPrint">
+                       <img src="" alt="mail" tal:attributes="src string:${utool}/mail_icon.gif"/>
+                       <input type="text" name="email" size="50" value=""
+                              tal:attributes="value request/email | context/email | nothing"/>
+                       <input type="submit" class="context" name="form.button.Email" value=" Email "/>
+                    </div>
+                 </td>
+             </tr>
+          </table>
+       </form>
+
+      <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+      <div class="formHelp" tal:condition="not: batch">There are no orders for this criteria.</div>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

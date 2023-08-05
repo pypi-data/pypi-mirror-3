@@ -1,0 +1,153 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="plone">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+ 
+<body>
+  <div metal:fill-slot="main"
+       tal:define="current python: request.form.get('date', DateTime());
+                   timesheet_daynumber context/timesheet_daynumber;
+                   timesheet_date python: context.aq_parent.getTimesheetDay(current);
+                   slots context/getTimesheetSlots;
+                 current_day current/day;
+                     utool context/@@plone_portal_state/portal_url;
+                 yearmonth python: (request.get('year',current.year()), request.get('month', current.month()));
+                 nextYearMax python: current+365;
+                 prevYearMin python: current-365;
+                 year python:yearmonth[0];
+                 month python:yearmonth[1];
+                 prevMonthTime python:context.getPreviousMonth(month, year);
+                 nextMonthTime python:context.getNextMonth(month, year);
+                 weeks python:context.portal_calendar.getEventsForCalendar(month, year);
+                 anchor_url request/anchor_url | context/absolute_url;
+                 url_quote python:modules['Products.PythonScripts.standard'].url_quote;
+                 anchor_method request/anchor_method | template/getId;
+                 toLocalizedTime nocall:context/@@plone/toLocalizedTime;">
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/> Timesheets</h1>
+
+        <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">
+         Up one Level
+        </a>
+
+
+      <table summary="" cellpadding="5" cellspacing="0">
+         <tr>
+            <td valign="top">
+    <table class="ploneCalendar" id="thePloneCalendar" summary="Calendar" i18n:attributes="summary summary_calendar;">
+        <thead>
+            <tr>
+                <th id="calendar-previous">
+                    <a href="#" rel="nofollow"
+                       title="Previous month"
+                       tal:attributes="href python:'%s/%s?month:int=%d&amp;year:int=%d' % (anchor_url, anchor_method, prevMonthTime.month(),prevMonthTime.year())"
+                       tal:condition="python: yearmonth > (prevYearMin.year(), prevYearMin.month())"
+                       i18n:attributes="title title_previous_month;">&laquo;</a>
+                </th>
+                <th colspan="5">
+                    <span i18n:translate="" tal:omit-tag="">
+                        <span i18n:name="monthname" i18n:translate=""
+                              tal:content="python: context.monthName(month)"
+                              tal:omit-tag="">monthname</span>
+                        <span i18n:name="year" i18n:translate=""
+                              tal:content="year"
+                              tal:omit-tag="">year</span>
+                    </span>
+                </th>
+                <th id="calendar-next">
+                    <a href="#" rel="nofollow"
+                       title="Next month"
+                       tal:attributes="href python:'%s/%s?month:int=%d&amp;year:int=%d' % (anchor_url, anchor_method, nextMonthTime.month(),nextMonthTime.year())"
+                       tal:condition="python: yearmonth &lt; (nextYearMax.year(), nextYearMax.month())"
+                       i18n:attributes="title title_next_month;">&raquo;</a>
+                </th>
+            </tr>
+            <tr class="weekdays">
+                <td tal:repeat="day context/getWeekdays" tal:content="day">Su</td>
+            </tr>
+        </thead>
+        <tal:comment replace="nothing"><!--
+        Sorry for the obtuse formatting below (the stray end-of-tag markers), but until
+        tal:block doesn't render an entire line of blank space when used, this is the only way.
+        --></tal:comment>
+        <tbody>
+            <tr tal:repeat="week weeks"
+            ><tal:block repeat="day week"
+            ><tal:block define="int_daynumber python: int(day['day']);
+                                day_event python: int_daynumber and repeat['day'].index == timesheet_daynumber - 1;
+                                is_today python: current_day==int_daynumber and current.month()==month and current.year()==year">
+               <td class="event" tal:condition="day_event"
+                      tal:attributes="class python:is_today and 'todayevent' or 'event'"
+                   ><tal:data tal:define="cur_date python:DateTime(year,month,int_daynumber);
+                                          begin python:cur_date.strftime('%Y/%m/%d');"
+                              tal:omit-tag=""
+                     ><a href=""
+                         tal:attributes="href string:${context/absolute_url}/${template/getId}?date:date=${begin};"
+                         tal:content="python:int_daynumber or default">
+                      31
+                      </a
+                   ></tal:data>
+                </td
+                ><tal:notdayevent tal:condition="not: day_event"
+               ><td tal:attributes="class python:is_today and 'todaynoevent' or None"
+                    tal:content="python:int_daynumber or default"></td
+               ></tal:notdayevent
+            ></tal:block
+            ></tal:block>
+            </tr>
+        </tbody>
+     </table>
+
+            </td>
+            <td valign="top">
+               <div class="label">
+                   Timesheet For Week Ending <span tal:content="python:timesheet_date.strftime('%A %B %d, %Y')"/>
+               </div>
+
+               <br/>
+               <form action="" name="objectItems" 
+                     tal:attributes="action template/getId" method="post">
+                  <input type="hidden" name="date:date" value="" tal:attributes="value timesheet_date"/>
+
+                  <table summary="" border="0" cellpadding="3" cellspacing="0" width="100%">
+                    <tr class="list-header">
+                      <td>&nbsp;</td>
+                      <td tal:repeat="slot slots"><label tal:content="slot/getId"/></td>
+                    </tr>
+                    <tr tal:repeat="day context/select_day_of_week">
+                       <input type="hidden" name="entries.day:records:date"
+                              value="" tal:attributes="value python:current - repeat['day'].index"/>
+                       <td class="label" tal:content="day"/>
+                       <td tal:repeat="slot slots">
+                         <input type="text" name="" size="5" maxlength="5" value=""
+                                tal:attributes="name python:'entries.%s:float:records' % slot.getId();
+                                                value python: slot.defaults[repeat['day'].index]"/>
+                       </td>
+                    </tr>
+                 </table>
+
+                 <input type="submit" class="context" name="form.button.Submit" value=" Submit "/>
+                 <input type="hidden" name="form.submitted" value="1"/>
+              </form>
+            </td>
+         </tr>
+      </table>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

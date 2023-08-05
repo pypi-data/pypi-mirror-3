@@ -1,0 +1,180 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+
+ 
+<body>
+  <div metal:fill-slot="main" 
+       tal:define="parts python: context.objectValues('BLPart');
+                   isAnon context/@@plone_portal_state/anonymous;
+                   wtool context/portal_workflow;
+                   utool context/@@plone_portal_state/portal_url;">
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)"
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/></h1>
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Back to Ledger</a>
+
+       <div tal:define="d context/Description" tal:condition="d" tal:replace="d"/>
+
+      <metal:listingmacro define-macro="listing">
+        <tal:foldercontents define="contentFilter contentFilter|request/contentFilter|nothing;
+                                    limit_display limit_display|request/limit_display|nothing;
+                                    more_url more_url|request/more_url|string:folder_contents;
+                                    contentsMethod python:test(context.portal_type=='Topic', context.queryCatalog, context.getFolderContents);
+                                    folderContents folderContents|python:contentsMethod(contentFilter);
+                                    use_view_action site_properties/typesUseViewActionInListings|python:();
+                                    over_limit python: limit_display and len(folderContents) > limit_display;
+                                    folderContents python: (over_limit and folderContents[:limit_display]) or folderContents;
+                                    show_about python:not isAnon or site_properties.allowAnonymousViewAbout">
+        <tal:listing condition="folderContents"
+                     define="toLocalizedTime nocall:context/toLocalizedTime;">
+
+            <dl>
+                <tal:entry tal:repeat="item python: filter(lambda x: x.meta_type != 'BLPart', folderContents)">
+                <tal:block tal:define="item_url item/getURL|item/absolute_url;
+                                       item_id item/getId|item/id;
+                                       item_title_or_id item/pretty_title_or_id;
+                                       item_description item/Description;
+                                       item_type item/portal_type;
+                                       item_type_title item/Type;
+                                       item_modified item/ModificationDate;
+                                       item_created item/CreationDate;
+                                       item_type_class python: 'contenttype-' + normalizeString(item_type);
+                                       item_wf_state        item/review_state|python: wtool.getInfoFor(item, 'review_state', '');
+                                       item_wf_state_class python:'state-' + normalizeString(item_wf_state);
+                                       item_creator item/Creator;
+                                       item_start item/start/ISO|item/StartDate|nothing;
+                                       item_end item/end/ISO|item/EndDate|nothing;
+                                   ">
+
+                    <dt metal:define-macro="listitem">
+
+                        <span tal:attributes="class item_type_class"
+                              tal:condition="python:item_type != 'Link'">
+                        <a href="#"
+                           tal:attributes="href python:test(item_type in use_view_action, item_url+'/view', item_url+'/');
+                                           class string:$item_wf_state_class visualIconPadding"
+                           tal:content="item_title_or_id">
+                            Item Title
+                        </a>
+                        </span>
+
+                        <tal:to_external condition="python:item_type == 'Link'">
+                            <span tal:attributes="class item_type_class">
+                            <a href="#"
+                               tal:content="item_title_or_id"
+                               tal:attributes="href item/getRemoteUrl;
+                                               class string:${item_wf_state_class} visualIconPadding">
+                                External Link
+                            </a>
+                            </span>
+                        </tal:to_external>
+
+                        <span class="documentByLine"
+                              tal:condition="show_about">
+
+                            <span tal:condition="python: item_type == 'Event'"
+                                  i18n:translate="label_event_byline">
+                                (<span tal:omit-tag="" tal:content="string:${item/location}" i18n:name="location">Oslo</span>, from
+                                 <span tal:omit-tag="" tal:content="python:toLocalizedTime(item_start,long_format=1)" i18n:name="start">from date</span> to
+                                 <span tal:omit-tag="" tal:content="python:toLocalizedTime(item_end,long_format=1)" i18n:name="end">to date</span>)
+                            &mdash;
+                            </span>
+
+                            <tal:name tal:condition="item_creator"
+                                tal:define="author python:mtool.getMemberInfo(item_creator)">
+                              <span i18n:translate="label_by_author">
+                                by
+                              <a href="#"
+                                 tal:attributes="href string:${portal_url}/author/${item_creator}"
+                                 tal:content="python:author and author['fullname'] or item_creator"
+                                 tal:omit-tag="not:author"
+                                 i18n:name="author">
+                                Bob Dobalina
+                              </a>
+                              </span>
+
+                            </tal:name>
+
+                            <tal:modified condition="python: item_type != 'Event'">
+                                &mdash;
+                                <tal:mod i18n:translate="box_last_modified">
+                                  last modified
+                                </tal:mod>
+                                <span tal:replace="python:toLocalizedTime(item_modified,long_format=1)">
+                                  August 16, 2001 at 23:35:59
+                                </span>
+                            </tal:modified>
+
+                            <metal:description define-slot="description_slot">
+                                <tal:comment replace="nothing">
+                                    Place custom listing info for custom types context
+                                </tal:comment>
+                            </metal:description>
+                        </span>
+
+                    </dt>
+
+                    <dd>
+                        <span tal:omit-tag="" tal:condition="not:item_description">
+                            &nbsp;
+                        </span>
+                        <span tal:omit-tag="" tal:content="item_description">
+                            description
+                        </span>
+                    </dd>
+                </tal:block>
+                </tal:entry>
+            </dl>
+          </tal:listing>
+         </tal:foldercontents>
+       </metal:listingmacro>
+
+       <table summary="" border="0" cellpadding="2" cellspacing="0" tal:condition="parts">
+          <tr class="row">
+             <td class="field">&nbsp;</td>
+             <td class="field"><strong>Title</strong></td>
+             <td class="field"><strong>Description</strong></td>
+             <td class="field"><strong>On Hand</strong></td>
+             <td class="field">&nbsp;</td>
+             <td class="field" align="right"><strong>Sell Price</strong></td>
+             <td class="field">&nbsp;</td>
+             <td class="field"><strong>Status</strong></td>
+          </tr>
+          <tr tal:repeat="part parts"
+              tal:attributes="class python: test(repeat['part'].odd(), 'odd', 'even')">
+             <td><img src="" alt="" tal:define="icon python:part.getIcon(1)" 
+                      tal:attributes="src string:${utool}/${icon}"/></td>
+             <td class="field">
+                  <a href="" tal:attributes="href string:${context/absolute_url}/${part/getId}"  
+                             tal:content="part/pretty_title_or_id"/>
+             </td>
+             <td class="field" tal:content="part/Description"/>
+             <td class="field" align="right" tal:content="part/onhand"/>
+             <td class="field">&nbsp;</td>
+             <td class="list-item" align="right" nowrap tal:content="part/sellprice"/>
+             <td class="field">&nbsp;</td>
+             <td class="field" tal:content="part/status"/>
+          </tr>
+      </table>
+
+      <div class="formHelp" tal:condition="not: parts">No stock has been entered into this inventory.</div>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</body>
+</html>

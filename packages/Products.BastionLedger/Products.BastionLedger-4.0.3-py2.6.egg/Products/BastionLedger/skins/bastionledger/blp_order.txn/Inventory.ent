@@ -1,0 +1,37 @@
+##parameters=account=None,args=[],kw={}
+#
+# This script should return a list (possibly empty) of BLEntry objects
+#
+from Products.BastionBanking.ZCurrency import ZCurrency
+from Products.BastionLedger.BLEntry import BLEntry
+
+order = args[0]
+entries = []
+
+receivable = context.aq_parent.isReceivable()
+
+if account:
+    description = account.prettyTitle()
+else:
+    description = script.getId()
+
+for orderitem in order.orderItemValues():
+    account = orderitem.blPart().inventory_account()
+    entries.append( BLEntry(account.getId(),
+                    description,
+                    'Ledger/%s' % account.getId(),
+                    test(receivable, -orderitem.calculateCost(), orderitem.calculateCost()),
+                    script.getId()) )
+
+discount = order.getDiscount()
+
+# we deduct discount received on our purchases from inventory value
+if discount > 0 and not receivable:
+    entries.append( BLEntry(account.getId(),
+                    description,
+                    'Ledger/%s' % account.getId(),
+		    -discount,
+                    script.getId()) )
+
+return entries
+

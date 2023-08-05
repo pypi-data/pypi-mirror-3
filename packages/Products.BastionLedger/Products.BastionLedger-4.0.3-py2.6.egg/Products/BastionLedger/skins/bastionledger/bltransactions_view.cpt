@@ -1,0 +1,358 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="bastionledger">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+ 
+  <div metal:fill-slot="main"
+       tal:define="journal request/journal | python: False;
+                     utool context/@@plone_portal_state/portal_url;
+                   addCurrencies nocall:context/portal_bastionledger/addCurrencies;
+		   status python: request.get('status',[]);
+                   entered_by python: request.get('entered_by',[]);
+                   title python:request.get('title','');
+                   case_sensitive python: request.has_key('case_sensitive');
+                   sort_on request/sort_on | python:'effective_date';
+                   sort_order request/sort_order | python:'descending';
+                   now python: DateTime();
+                   currency request/currency | context/defaultCurrency;
+                   effective_dates python: (request.get('from_date', None), request.get('to_date', None));
+                   from_date python: min(effective_dates);
+                   to_date python: max(effective_dates);
+                   entries python: journal and context.entryValues(REQUEST=request, sort_on=sort_on, sort_order=sort_order) or context.transactionValues(REQUEST=request, sort_on=sort_on, sort_order=sort_order);
+                   b_size request/b_size | python: 50;
+                   b_start request/b_start | python: 0;
+                   Batch python:modules['Products.CMFPlone'].Batch;
+                   mq python:modules['ZTUtils'].make_query;
+                   base_query python: '%s/transactions?%s' % (request['URL1'], mq(b_size=b_size,b_start=b_start,from_date=from_date,to_date=to_date,journal=journal,status=status, entered_by=entered_by,case_sensitive=case_sensitive,title=title));
+                   batch python:Batch(entries, int(b_size), int(b_start), orphan=2);
+                   manager python: context.SecurityCheckPermission('BastionLedger: Manage');
+                   operator python: context.SecurityCheckPermission('BastionLedger: Operate');
+                   overseer python: context.SecurityCheckPermission('BastionLedger: Oversee')">
+
+      <h1><img src="" alt="" tal:define="icon python:context.getIcon(1)" 
+               tal:attributes="src string:${utool}/${icon}">&nbsp;<span tal:replace="context/Title | context/getId"/> Transactions</h1>
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:context.navigationParent(context, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Up one level</a>
+
+
+        <table class="visualNoPrint" width="100%" cellpadding="0" cellspacing="0" summary="">
+           <tr>
+              <td valign="top">
+                  <div class="reviewHistory">
+                     <dl id="searching" class="collapsible inline collapsedOnLoad">
+                        <dt class="collapsibleHeader">Statistics</dt>
+                        <dd class="collapsibleContent">
+                            <table>
+                               <tr>
+                                  <th>Total Transactions</th>
+                                  <td tal:content="python: len(context.Transactions)" 
+                                      tal:on-error="string:"/>
+                               </tr>
+                               <tr>
+                                  <th>First Transaction</th>
+                                  <td tal:content="python: context.firstTransaction().effective_date.strftime('%Y/%m/%d')" 
+                                      tal:on-error="string:"/>
+                               </tr>
+                               <tr>
+                                  <th>Last Transaction</th>
+                                  <td tal:content="python: context.lastTransaction().effective_date.strftime('%Y/%m/%d')" 
+                                      tal:on-error="string:"/>
+                               </tr>
+                            </table>
+                        </dd>
+                     </dl>
+                  </div>
+              </td>
+              <td align="right" valign="top">
+                  <table summary="">
+                    <tr>
+                       <tal:journal tal:condition="python: batch and not journal">
+                          <td><img src="" tal:attributes="src string:${utool}/blentry.gif"/></td>
+                          <td valign="top">
+                              <a href="" tal:attributes="href string:${base_query}&journal=1">
+                                 <strong><small>As Journal</small></strong>
+                              </a>
+                          </td>
+                       </tal:journal>
+                       <td tal:condition="operator" valign="top">
+                           <a href="" valign="top" tal:attributes="href string:bltransactions_bulkload_form">
+                               <strong><small>Bulk Add</small></strong>
+                           </a>
+                       </td>
+                    </tr>
+                  </table>
+              </td>
+           </tr>
+           <tr>
+              <td colspan="2" valign="top">
+		<form action="" name="search" method="post" tal:attributes="action template/getId" 
+                      metal:define-macro="search">
+		  <div class="reviewHistory">
+		    <dl id="searching" class="collapsible inline collapsedOnLoad">
+		      <dt class="collapsibleHeader">Filter</dt>
+		      <dd class="collapsibleContent"
+			  tal:define="type request/type | nothing;
+				      subtype request/subtype | nothing">
+			<table summary="">
+			  <tr>
+			    <td valign="top"
+				tal:define="error errors/from_date|nothing;
+					    Effective_Date from_date;
+					    inputvalue Effective_Date;
+					    formname string:search;
+					    show_hm python: False;
+					    inputname string:from_date;">
+                              <div class="label">From</div>
+                              <div metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+			    </td>
+			    <td valign="top"
+				tal:define="error errors/to_date|nothing;
+					    Effective_Date to_date;
+					    inputvalue Effective_Date;
+					    formname string:search;
+					    show_hm python: False;
+					    inputname string:to_date;">
+                              <div class="label">To</div>
+                              <div metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+			    </td>
+			  </tr>
+			  <tr>
+			    <td valign="top">
+                              <div class="label">Entered By</div>
+                              <select name="entered_by:tokens:ignore_empty" size="2" multiple>
+				<option tal:repeat="by python: context.uniqueTransactionValues('entered_by')"
+					tal:content="by"
+					tal:attributes="selected python: test(by in entered_by, 1, 0)"/>
+                              </select>
+			    </td>
+			    <td valign="top">
+                              <div class="label">Status</div>
+                              <select name="status:tokens:ignore_empty" size="2" multiple>
+				<option tal:repeat="state python: context.uniqueTransactionValues('status')"
+					tal:content="state"
+					tal:attributes="selected python: test(state in status, 1, 0)"/>
+                              </select>
+			    </td>
+			  </tr>
+			  <tr>
+			    <td valign="top">
+                              <span class="label">Desc.</span>
+                              <input type="text" name="title" tal:attributes="value title"/>
+			    </td>
+			    <td valign="top">
+                              <input type="checkbox" name="case_sensitive" value="1"
+                                     tal:attributes="checked python: test(case_sensitive, 1, 0)"/>
+                              <i>Case Sensitive</i>
+			    </td>
+			  </tr>
+			  <tr>
+			    <td valign="top">
+                              <span class="label">Batch Size</span>
+                              <input type="text" name="b_size:int" align="right" size="4" maxlength="4" 
+                                     tal:attributes="value b_size"/>
+			    </td>
+			    <td valign="top" align="right">
+                              <span class="formControls">
+				<input class="context" type="submit" value=" Search "/>
+                              </span>
+			    </td>
+			  </tr>
+			</table>
+		      </dd>
+		    </dl>
+		  </div>
+		</form>
+              </td> 
+           </tr>
+        </table>
+
+        <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+        <form action="" method="post" tal:attributes="action template/getId" 
+              tal:condition="python: batch and not journal">
+          <table summary="" border="0" cellpadding="2" cellspacing="0"  width="100%">
+             <tr class="row">
+               <td class="field">&nbsp;</td>
+               <td class="field">&nbsp;</td>
+               <td class="field">
+                   <strong>Date</strong>
+                   <a tal:condition="python: sort_on != 'effective_date' or sort_order != 'descending'"
+                      href="" tal:attributes="href string:${base_query}&sort_on=effective_date&sort_order=descending"
+                      title="sort on Date (descending)"
+                      i18n:attributes="title sort_on_date;">
+                      <img border="0" src="" tal:attributes="src string:${utool}/arrowDown.gif"/>
+                    </a>
+                   <a tal:condition="python: sort_on != 'effective_date' or sort_order != 'ascending'"
+                      href="" tal:attributes="href string:${base_query}&sort_on=effective_date&sort_order=ascending"
+                      title="sort on Date (ascending)"
+                      i18n:attributes="title sort_on_date;">
+                      <img border="0" src="" tal:attributes="src string:${utool}/arrowUp.gif"/>
+                    </a>
+               </td>
+               <td class="field"><strong>Description</strong></td>
+               <td class="field">
+                   <strong tal:condition="python: sort_on=='status'">Status</strong>
+                   <a tal:condition="python: sort_on != 'status'"
+                      href="" tal:attributes="href string:${base_query}&sort_on=status"
+                      title="sort on Status"
+                      i18n:attributes="title sort_on_status;"><strong>Status</strong></a>
+               </td>
+               <td class="field">
+                   <strong tal:condition="python: sort_on=='entered_by'">Entered by</strong>
+                   <a tal:condition="python: sort_on != 'entered_by'"
+                      href="" tal:attributes="href string:${base_query}&sort_on=entered_by"
+                      title="sort on Operator"
+                      i18n:attributes="title sort_on_operator;"><strong>Entered by</strong></a>
+               </td>
+               <td class="field" align="right"><strong>Amount</strong></td>
+           </tr>
+           <tr class="" tal:repeat="txn batch"
+               tal:attributes="class python: test(repeat['txn'].odd(), 'odd', 'even')">
+               <td class="field">
+                  <input type="checkbox" name="ids:list" value="" tal:attributes="value txn/getId">
+               </td>
+               <td class="field" align="left" nowrap>
+                   <img src="" alt="" tal:define="icon python:txn.getIcon(1)" 
+                        tal:attributes="src string:${utool}/${icon}"/>
+                   <img src="" alt="" tal:condition="txn/hasAttachments"
+                        tal:attributes="src string:${utool}/trombone.gif"/>
+               </td>
+               <td class="field" 
+                   tal:content="python: txn.effective_date.strftime('%Y/%m/%d')"/>
+               <td class="field">
+                   <a href="" tal:attributes="href string:${txn/absolute_url}"  
+                              tal:content="string:${txn/getId} - ${txn/Title}"/>
+               </td>
+               <td class="field" tal:content="txn/status"/>
+               <td class="field" tal:content="txn/entered_by"/>
+               <td class="field" align="right" nowrap tal:content="txn/debitTotal"/>
+           </tr>
+           <tr>
+               <td  colspan="7" class="formControls">
+                   <input type="hidden" name="form.submitted" value="1"/>
+                   <input tal:condition="overseer"
+                          type="submit" class="context" value=" Reverse " name="form.button.Reverse"/>
+                   <input tal:condition="operator"
+                          type="submit" class="context" value="  Post   " name="form.button.Post"/>
+                   &nbsp;&nbsp;&nbsp;
+                   <input tal:condition="manager"
+                          type="submit" class="standalone" value=" Delete " name="form.button.Delete"/>
+               </td>
+           </tr>
+          </table>
+        </form>
+
+      <table summary="" border="0" cellpadding="2" cellspacing="0"  width="100%"
+             tal:condition="python: batch and journal">
+        <tal:table tal:define="debits context/zeroAmount;
+                               credits context/zeroAmount">
+          <tr class="row">
+               <td>&nbsp;</td>
+               <td class="field">
+                   <strong>Date</strong>
+                   <a tal:condition="python: sort_on != 'effective_date' or sort_order != 'descending'"
+                      tal:define="qs python: mq(request.form, sort_on='effective_date', sort_order='descending')"
+                      href="" tal:attributes="href string:${template/getId}?${qs}"
+                      title="sort on Date (descending)"
+                      i18n:attributes="title sort_on_date;">
+                      <img border="0" src="" tal:attributes="src string:${utool}/arrowDown.gif"/>
+                    </a>
+                   <a tal:condition="python: sort_on != 'effective_date' or sort_order != 'ascending'"
+                      tal:define="qs python: mq(request.form, sort_on='effective_date', sort_order='ascending')"
+                      href="" tal:attributes="href string:${template/getId}?${qs}"
+                      title="sort on Date (ascending)"
+                      i18n:attributes="title sort_on_date;">
+                      <img border="0" src="" tal:attributes="src string:${utool}/arrowUp.gif"/>
+                    </a>
+               </td>
+               <td class="field"><strong>Transaction</strong></td>
+               <td class="field"><strong>Account</strong></td>
+               <td class="field">
+                   <strong tal:condition="python: sort_on=='status'">Status</strong>
+                   <a tal:condition="python: sort_on != 'status'"
+                      tal:define="qs python: mq(request.form, sort_on='status')"
+                      href="" tal:attributes="href string:${template/getId}?${qs}"
+                      title="sort on Status"
+                      i18n:attributes="title sort_on_status;"><strong>Status</strong></a>
+               </td>
+               <td class="field">
+                   <strong tal:condition="python: sort_on=='entered_by'">Entered by</strong>
+                   <a tal:condition="python: sort_on != 'entered_by'"
+                      tal:define="qs python: mq(request.form, sort_on='entered_by')"
+                      href="" tal:attributes="href string:${template/getId}?${qs}"
+                      title="sort on Operator"
+                      i18n:attributes="title sort_on_operator;"><strong>Entered by</strong></a>
+               </td>
+               <td class="field" align="right"><strong>Debit</strong></td>
+               <td class="field" align="right"><strong>Credit</strong></td>
+           </tr>
+           <tal:entries tal:repeat="entry batch">
+             <tr class=""
+                 tal:define="account entry/blAccount;
+                             transaction entry/blTransaction;
+                             effective transaction/effective_date"
+                 tal:attributes="class python: test(repeat['entry'].odd(), 'odd', 'even')">
+               <td class="field">
+                   <a href="" border="0" tal:attributes="href string:${entry/absolute_url}/edit">
+                      <img src="" alt="" tal:define="icon python:entry.getIcon(1)" 
+                           tal:attributes="src string:${utool}/${icon}"/>
+                   </a>
+               </td>
+               <td class="field" tal:content="python: effective.strftime('%Y/%m/%d')"/>
+               <td class="field">
+                   <a href="" tal:attributes="href transaction/absolute_url; title entry/Title" 
+                              tal:content="transaction/getId"/>
+               </td>
+               <td class="field">
+                   <a href="" tal:attributes="href account/absolute_url" tal:content="account/prettyTitle"/>
+               </td>
+               <td class="field" tal:content="transaction/status"/>
+               <td class="field" tal:content="transaction/entered_by"/>
+               <tal:block tal:condition="python: entry.isDebit()">
+                  <td class="field"  valign="top" align="right" nowrap
+                      tal:define="global debits python: debits + transaction.debitTotal(currency)"
+                      tal:content="python: entry.absAmount()"/>
+                  <td>&nbsp;</td>
+               </tal:block>
+               <tal:block tal:condition="python: not entry.isDebit()">
+                  <td>&nbsp;</td>
+                  <td class="field" valign="top" align="right" nowrap
+                      tal:define="global credits python: credits + transaction.creditTotal(currency)"
+                      tal:content="python: entry.absAmount()"/>
+               </tal:block>
+              </tr>
+            </tal:entries>
+            <tr>
+               <td colspan="6"/>
+               <td class="field" align="right" nowrap>
+                    <strong tal:content="debits"/>
+               </td>
+               <td class="field" align="right" nowrap>
+                    <strong tal:content="python: -credits"/>
+               </td>
+            </tr>
+        </tal:table>
+      </table>
+
+        <div metal:use-macro="context/batch_macros/macros/navigation" />
+
+        <div class="formHelp" tal:condition="not: batch">
+            There are no <tal:nj tal:condition="not: journal">transactions</tal:nj>
+            <tal:j tal:condition="journal">entries</tal:j> for this criteria</div>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+  </div>
+ 
+</html>

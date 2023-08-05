@@ -1,0 +1,118 @@
+<html tal:replace="structure context/manage_page_header"
+      tal:define="global date request/date | python: DateTime();
+                  global effective_date python: modules['Products.BastionLedger.utils'].ceiling_date(date);
+                  global entries python: context.entries(effective_date)"/>
+
+    <span tal:replace="structure context/manage_tabs"/>
+
+    <br/>
+
+    <form action="" tal:attributes="action: request/URL1" method="get">
+       <table border="0" cellspacing="0" cellpadding="0" width="100%">
+          <tr>
+              <td align="left" valign="top" class="form-element"
+                  tal:define="actions context/actions" 
+                  tal:condition="actions">
+                      <span class="form-label">Status</span>&nbsp;
+                      <span class="form-element" tal:content="context/status"/>&nbsp;
+                      <select name="workflow_action">
+                          <option tal:repeat="action actions" 
+                                  tal:attributes="value action/transition/id"
+                                  tal:content="action/title"/>
+                      </select>
+                      <input type="submit" name="manage_statusModify:method" value=" Change "/>
+              </td>
+              <td align="right">
+                 <small tal:condition="not: request/date | nothing">
+                    <a href="?date:date=3000/01/01">show forwards</a>
+                 </small>
+              </td>
+           </tr>
+           <tr>
+              <td>
+                <span class="form-label">As At</span>
+                <input type="text" name="date:date" value="" size="10"
+                       tal:attributes="value python: effective_date.strftime('%Y/%m/%d')"/>
+                <input type="submit" name="manage_main:method" value=" Change "/>
+              </td>
+           </tr>
+       </table>
+    </form>
+
+       <table border="0" cellpadding="2" cellspacing="2" width="100%">
+           <tr><td class="form-label" align="left" tal:content="context/accno"/>
+               <td class="form-label" align="left" tal:content="context/title"/>
+               <td class="form-label" align="left" tal:content="context/type"/>
+               <td class="form-label" tal:content="context/base_currency"/>
+               <td class="form-label" align="right" tal:content="python: effective_date.strftime('%d %B %Y')"/>
+           </tr>
+       </table>
+       <table border="0" cellpadding="2" cellspacing="0" width="100%" tal:condition="entries">
+           <tr class="list-header"
+               tal:define="global balance python: context.balance(effective_date=date)">
+               <td class="list-item">&nbsp;</td>
+               <td class="list-item">Reference</td>
+               <td class="list-item">Entered</td>
+               <td class="list-item">Date</td>
+               <td class="list-item">Description</td>
+               <td class="list-item" align="right">Debit</td>
+               <td class="list-item" align="right">Credit</td>
+               <td class="list-item" align="right">Balance</td>
+     	       <td class="list-item">&nbsp</td>
+           </tr>
+           <tr tal:repeat="item entries"
+               tal:attributes="class python: test(repeat['item'].index % 2, 'row-hilite', 'row-normal')">
+             <div tal:omit-tag="" 
+                  tal:define="id python: item[0];
+                              entry python: item[1]; 
+                              txn python:  entry.getTransaction()">
+               <td class="list-item">
+                   <a href="" tal:attributes="href python:'%s/manage_workspace' % id">
+                      <img src="" tal:attributes="src python:entry.icon" border="0"/>
+                   </a>
+               </td>
+               <td class="list-item" 
+                   tal:define="ref python: entry.reference() or txn">
+                   <a href="" tal:condition="python: hasattr(ref, 'meta_type')"
+                              tal:attributes="href python: '/%s/manage_workspace' % ref.absolute_url(1)"  
+                              tal:content="python: ref.getId()"/>
+                   <span tal:condition="python: not hasattr(ref, 'meta_type')" tal:content="ref"/>
+               </td>
+               <td class="list-item" tal:content="entry/Creator"/>
+               <td class="list-item" tal:content="python:entry.effective().strftime('%d %b %Y')"
+                   tal:on-error="string:"/>
+               <td class="list-item" tal:content="entry/title"/>
+               <span tal:condition="entry/isDebit" tal:omit-tag="">
+                  <td class="list-item" align="right" nowrap tal:content="entry/absAmount"/>
+                  <td>&nbsp;</td>
+               </span>
+               <span tal:condition="not: entry/isDebit" tal:omit-tag="">
+                  <td>&nbsp;</td>
+                  <td class="list-item" align="right" nowrap
+                      tal:content="entry/absAmount"/>
+               </span>
+               <td class="list-item" align="right" nowrap tal:content="balance"/>
+               <td>&nbsp;</td>
+               <tal:compute tal:define="global balance python: balance - entry.amount"/>
+             </div>
+           </tr>
+           <tr>
+                 <td colspan="4" class="form-element">
+                    <form action="" tal:attributes="action request/URL1" method="post">
+                      <input type="text" name="email" size="25" value=""
+                             tal:attributes="value request/email | python: getattr(context.aq_inner, 'email')"/>
+                      <input type="submit" name="manage_emailStatement:method" value=" Email "/>
+                    </form>
+                  </td>
+                  <span tal:omit-tag="" 
+                        tal:condition="python: context.getBastionMerchantService()">
+                      <td align="right" colspan="4" 
+                          tal:attributes="colspan python: test(context.balance() >= 0, '1', '2')">
+                           <input type="text" name="amount" size="10">
+                           <input type="submit" value="  Pay  " name="manage_payAccount:method">
+                      </td>
+                  </span>
+           </tr>
+       </table>
+
+<html tal:replace="structure context/manage_page_footer"/>

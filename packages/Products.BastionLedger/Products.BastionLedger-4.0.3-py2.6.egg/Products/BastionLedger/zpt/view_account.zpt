@@ -1,0 +1,155 @@
+<html tal:replace="structure context/manage_page_header"/>
+
+  <body tal:define="now python: DateTime();
+                    date request/date | now;
+                    opening context/openingDate;
+                    effective python: modules['Products.BastionLedger.utils'].ceiling_date(date);
+                    currency request/currency | context/base_currency;
+                    statuses request/statuses | python: ('posted', 'reversed','postedreversal');
+                    global balance python: context.balance(effective=effective, currency=currency);
+                    entries python: test(opening and (not request.get('date', '') or effective > opening), 
+                                         context.entryItems((opening, effective), statuses), 
+                                         context.entryItems(effective, statuses))">
+
+    <span tal:replace="structure context/manage_tabs"/>
+
+    <br/>
+    <form action="" tal:attributes="action: request/URL1" method="get">
+       <table border="0" cellspacing="0" cellpadding="0" width="100%">
+          <tr>
+              <td align="left" valign="top" class="form-element"
+                  tal:define="actions context/actions" tal:condition="nocall: actions">
+                      <span class="form-label">Status</span>&nbsp;
+                      <span class="form-element" tal:content="context/status"/>&nbsp;
+                      <select name="workflow_action">
+                          <option tal:repeat="action actions" 
+                                  tal:content="action/title"/>
+                                  tal:attributes="value action/transition/id"
+                      </select>
+                      <input type="submit" name="manage_statusModify:method" value=" Change "/>
+              </td>
+              <td align="right">
+                 <small tal:condition="python: effective <= now + 1">
+                    <a href="?date:date=3000/01/01">show forwards</a><br/>
+                 </small>
+                 <small tal:define="historicals context/historicalDates"
+                        tal:condition="historicals">
+                     show historicals
+                    <a href="?date:date=1970/01/01" tal:repeat="h historicals"
+                       tal:attributes="href python:'?date:date=%s' %  h.strftime('%Y/%m/%d')"
+                       tal:content="python: h.strftime('%Y/%m')"/>
+                 </small>
+              </td>
+           </tr>
+           <tr>
+              <td>
+                <span class="form-label">As At</span>
+                <input type="text" name="date:date" value="" size="10"
+                       tal:attributes="value python: effective.strftime('%Y/%m/%d')"/>
+                <select name="currency" tal:condition="context/isFCA">
+                    <option tal:repeat="cur python:(context.defaultCurrency(), context.base_currency)"
+                            tal:content="cur" 
+                            tal:attributes="selected python: test(currency==cur, 1, 0)"/>
+                </select>
+                <input type="submit" name="" tal:attributes="name template/getId" value=" Show "/>
+              </td>
+           </tr>
+       </table>
+    </form>
+
+       <table border="0" cellpadding="2" cellspacing="0" width="100%">
+           <tr><td class="form-label" align="left" tal:content="context/accno"/>
+               <td class="form-label" align="left" tal:content="context/title"/>
+               <td class="form-label" align="left" tal:content="context/type"/>
+               <td class="form-label" align="left" tal:content="context/subtype"/>
+               <td class="form-label" tal:content="context/base_currency"/>
+               <td class="form-label" align="right" 
+                   tal:content="python: effective.strftime('%d %B %Y')"/>
+           </tr>
+       </table>
+
+       <table border="0" cellpadding="2" cellspacing="0" width="100%">
+           <tr class="list-header">
+               <td class="list-item">&nbsp;</td>
+               <td class="list-item">Transaction</td>
+               <td class="list-item">Entered</td>
+               <td class="list-item">Date</td>
+               <td class="list-item">Description 
+                   <a href="manage_setDescriptionFromEntryAccount"><small>[entrify]</small></a>
+               </td>
+               <td class="list-item" align="right">Debit</td>
+               <td class="list-item" align="right">Credit</td>
+               <td class="list-item" align="right">Balance</td>
+     	       <td class="list-item">&nbsp;</td>
+           </tr>
+           <tr tal:repeat="item entries"
+               tal:attributes="class python: test(repeat['item'].index % 2, 'row-hilite', 'row-normal')">
+             <tal:entry  tal:define="id python: item[0];
+                                     entry python: item[1]; 
+                                     txn entry/blTransaction | nothing">
+               <td class="list-item">
+                   <a href="" tal:attributes="href python: '%s/manage_propertiesForm' % id">
+                       <img src="" alt="Entry" border="0"
+                            tal:attributes="src entry/icon" tal:on-error="string:"/>
+                   </a>
+               </td>
+               <td class="list-item">
+                   <a href="" tal:condition="python: txn"
+                      tal:attributes="href python: '%s/manage_workspace' % txn.absolute_url()" 
+                      tal:content="id"/>
+               </td>
+               <td class="list-item" tal:content="entry/Creator | nothing"/>
+               <td class="list-item" 
+                   tal:content="python:entry.effective().strftime('%d %b %Y')"
+                   tal:on-error="string:"/>
+               <td class="list-item">
+                   <a href="" tal:condition="python: txn"
+                              tal:attributes="href python: '%s/manage_workspace' % id"
+                              tal:content="entry/title_or_id | nothing"/>
+                   <a href="" tal:condition="python: not txn and entry.isControlEntry()"
+                              tal:on-error="string:"
+                              tal:attributes="href python: '%s/%s/manage_workspace' % (context.ledger().aq_parent.absolute_url(), id)"
+                              tal:content="entry/title_or_id | nothing"/>
+               </td>
+               <tal:amount tal:define="amount python: entry.amountAs(currency)">
+                  <tal:debit tal:condition="entry/isDebit | nothing">
+                     <td class="list-item" align="right" tal:content="amount"/>
+                     <td>&nbsp;</td>
+                  </tal:debit>
+                  <tal:credit tal:condition="entry/isCredit | nothing">
+                     <td>&nbsp;</td>
+                     <td class="list-item" align="right" tal:content="python: abs(amount)"/>
+                  </tal:credit>
+                  <td class="list-item" align="right" nowrap tal:content="balance"/>
+                  <td class="list-item">&nbsp;</td>
+                  <tal:compute tal:define="global balance python: balance - amount" />
+               </tal:amount>
+              </tal:entry>
+           </tr>
+           <tr tal:condition="not: entries">
+               <td class="list-item"/>
+               <td class="list-item">Opening Balance</td>
+               <td class="list-item"/>
+               <td class="list-item" tal:content="python: context.openingDate(effective).strftime('%d %b %Y')"/>
+               <td class="list-item"/>
+               <td class="list-item"/>
+               <td class="list-item"/>
+               <td class="list-item" align="right" nowrap
+                   tal:content="python: context.openingBalance(effective)"/>
+           </tr>
+           <tr>
+             <form action="" tal:attributes="action request/URL1">
+               <td class="form-element" colspan="8">
+                  <span tal:replace="structure context/action_buttons"/>
+                  <input type="text" name="email" size="25" value=""
+                         tal:attributes="value request/email | python: getattr(context.aq_inner, 'email')"/>
+                  <input type="submit" name="manage_emailStatement:method" value=" Email "/>
+             </form>
+           </tr>
+       </table>
+  </body>
+
+<html tal:replace="structure context/manage_page_footer"/>
+
+
+

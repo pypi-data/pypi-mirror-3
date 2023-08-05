@@ -1,0 +1,700 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      i18n:domain="bastionledger">
+
+  <body>
+
+   <div metal:define-macro="commands">
+
+     <table class="visualNoPrint" width="100%"
+            tal:define="effective request/date | python: DateTime();">
+         <tr><td colspan="2"><hr/></td></tr>
+         <tr>
+            <td align="left"
+                tal:define="inputvalue effective;
+                            formname string:edit_form;
+                            show_hm python: False;
+                            inputname string:date;">
+                <form action="" method="post">
+                   <table>
+                      <tr>
+                         <td class="label">As at</td>
+                         <td>
+                              <span metal:use-macro="here/calendar_macros/macros/calendarDatePickerBox"/>
+                         </td>
+                         <td>
+                              <input class="context"
+                                     type="submit"
+                                     name="form.button.Date"
+                                     value=" Go "
+                                     i18n:attributes="value" />
+                         </td>
+                      </tr>
+                   </table>
+                </form>
+            </td>
+            <td align="right">
+                <form name="email"  action="."  method="post"
+                      tal:define="member python: context.portal_membership.getAuthenticatedMember()"
+                      tal:condition="member"
+                      tal:attributes="action template/getId">
+
+                    <div class="field">
+
+                        <input type="text" name="email" size="30" value=""
+                               tal:attributes="value request/email | nothing"/>
+
+                        <input type="hidden" name="sender" value=""
+                               tal:attributes="value python: member.getProperty('email', '')"/>
+
+                        <input type="hidden" name="date:date" value="" tal:attributes="value effective"/>
+
+                        <input class="context"
+                               type="submit"
+                               name="form.button.BalanceSheet"
+                               value="Email"
+                               i18n:attributes="value" />
+
+                    </div>
+
+                    <input type="hidden" name="form.submitted" value="1" />
+                </form>
+             </td>
+          </tr>
+      </table>
+   </div>
+
+   <div metal:define-macro="revenue-statement"
+       tal:define="bastionledger context/bastionLedger;
+                   ledger nocall: bastionledger/Ledger;
+                   accounts nocall: ledger/Accounts;
+                   date request/date | python: options.get('date', DateTime());
+                   effective_date python: modules['Products.BastionLedger.utils'].ceiling_date(date);
+                   gross_profit python: bastionledger.gross_profit(effective_date); 
+                   losses python: bastionledger.losses_attributable(effective_date, gross_profit);
+                   tax python: bastionledger.corporation_tax(effective_date, gross_profit, losses);
+                   net_profit python: bastionledger.net_profit(effective_date, gross_profit, losses, tax);">
+
+      <h2 align="center">Revenue Statement for <span tal:replace="bastionledger/title"/><br/>
+                        as at <span tal:replace="python: effective_date.strftime('%d %B %Y')"/></h2>
+
+     <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%">
+       <tr>
+           <td colspan="4"><h3>Income</h3></td>
+       </tr>
+       <tr tal:repeat="account python: accounts(type='Income')"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td nowrap>
+              <a href="" tal:attributes="href account/absolute_url" tal:content="account/title"/>
+           </td>
+           <td align="right" nowrap
+               tal:content="python: -account.balance(effective=effective_date)"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+              <span class="label" 
+                    tal:content="python: -ledger.sum(type='Income',effective=effective_date)"/>
+           </td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3><i>Less</i> Expenses</h3></td>
+       </tr>
+        <tr tal:repeat="account python: accounts(type='Expense')"
+            tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td nowrap>
+              <a href="" tal:attributes="href account/absolute_url" tal:content="account/title"/>
+           </td>
+           <td align="right"  nowrap
+               tal:content="python: account.balance(effective=effective_date)"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+              <span class="label"
+                    tal:content="python: ledger.sum(type='Expense', effective=effective_date)"/>
+           </td>
+       </tr>
+       <tr>
+           <td colspan="3">
+              <h3>Gross Profit <tal:block tal:condition="python: gross_profit < 0">(Loss)</tal:block></h3>
+           </td>
+           <td align="right" nowrap>
+              <span class="label" tal:content="gross_profit"/>
+           </td>
+       </tr>
+       <tal:block tal:condition="python: losses > 0">
+          <tr>
+              <td>
+              <td><i>less</i> losses carried forward</td>
+              <td align="right"  nowrap tal:content="losses"/>
+          </tr>
+          <tr>
+              <td colspan="3"/>
+              <td align="right"  nowrap
+                  tal:content="python: gross_profit - losses"/>
+          </tr>
+        </tal:block>
+
+        <tal:block tal:condition="python: tax != 0">
+          <tr>
+               <td/>
+               <td nowrap>
+                    <i>less</i> Corporation Tax <i>
+               </td>
+               <td align="right" nowrap tal:content="tax"/>
+          </tr>
+        </tal:block>
+
+        <tr><td/></tr>
+
+        <tr>
+               <td colspan="3">
+                   <h3>Net Profit <tal:block tal:condition="python: gross_profit < 0">(Loss)</tal:block></h3>
+               </td>
+               <td align="right" nowrap>
+                   <span class="label" tal:content="net_profit"/>
+               </td>
+        </tr>
+   
+     </table>
+
+   </div>
+
+   <div metal:define-macro="revenue-statement-multi"
+       tal:define="bastionledger context/bastionLedger;
+                   periods_to_report  periods_to_report | context/portal_bastionledger/periodend_tool/periods_to_report;
+                   revenues python: bastionledger.periods.infoForType('Income', periods_to_report);
+                   expenses python: bastionledger.periods.infoForType('Expense', periods_to_report);">
+
+     <h2 align="center">Revenue Statement for <span tal:replace="bastionledger/title"/><br/></h2>
+
+     <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%">
+       <tr>
+          <td colspan="3"></td>
+          <td colspan="2" align="center" tal:repeat="date revenues/dates">
+              <h4 tal:content="python: date.strftime('%B %Y')"/>
+          </td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Income</h3></td>
+       </tr>
+       <tr tal:repeat="account revenues/accounts"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td tal:content="python: account[0]"/>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="balance python: account[1:]">
+                <td align="right" nowrap tal:content="python: -balance"/>
+                <td/>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="total revenues/totals">
+                <td/>
+                <td align="right" nowrap>
+                   <span class="label" tal:content="python: -total"/>
+                </td>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td colspan="4"><br/><h3><i>Less</i> Expenses</h3><br/></td>
+       </tr>
+       <tr tal:repeat="account expenses/accounts"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td tal:content="python: account[0]"/>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="balance python: account[1:]">
+                <td align="right" nowrap tal:content="balance"/>
+                <td/>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="total expenses/totals">
+                <td/>
+                <td align="right" nowrap>
+                   <span class="label" tal:content="total"/>
+                </td>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td>&nbsp;</td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td><label>Gross Profit (Loss)</label></td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="stat revenues/stats">
+                <td/>
+                <td align="right" nowrap>
+                    <span class="label" tal:content="stat/gross_profit"/>
+                </td>
+           </tal:periods>
+        </tr>
+       <tal:losses tal:condition="python: filter(lambda x: x['losses_forward'] != 0, revenues['stats'])">
+         <tr>
+           <td width="20">&nbsp;</td>
+           <td><label><i>less</i> Losses Carried Forward</label></td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="stat revenues/stats">
+                <td align="right" nowrap>
+                   <span class="label" tal:content="stat/losses_forward"/>
+                </td>
+                <td/>
+           </tal:periods>
+          </tr>
+         <tr>
+           <td width="20">&nbsp;</td>
+           <td></td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="stat revenues/stats">
+                <td/>
+                <td align="right" nowrap>
+                   <span class="label" 
+                         tal:content="python: stat['gross_profit'] - stat['losses_forward']"/>
+                </td>
+           </tal:periods>
+          </tr>
+       </tal:losses>
+       <tal:tax tal:condition="python: filter(lambda x: x['company_tax'] != 0, revenues['stats'])">
+         <tr tal:condition="python: filter(lambda x: x['company_tax'] != 0, revenues['stats'])">
+           <td width="20">&nbsp;</td>
+           <td><label><i>less</i> Corporation Tax</label></td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="stat revenues/stats">
+                <td align="right" nowrap>
+                  <span class="label" tal:content="stat/company_tax"/>
+                </td>
+                <td/>
+           </tal:periods>
+          </tr>
+       </tal:tax>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td><label>Net Profit (Loss)</label></td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="stat revenues/stats">
+                <td/>
+                <td align="right" nowrap>
+                   <span class="label" tal:content="stat/net_profit"/>
+                </td>
+           </tal:periods>
+        </tr>
+
+     </table>
+
+   </div>
+
+
+   <div metal:define-macro="balance-sheet"
+       tal:define="bastionledger context/bastionLedger;
+		   ledger nocall: bastionledger/Ledger;
+                   accounts nocall: ledger/Accounts;
+                   date request/date | python: options.get('date', DateTime());
+                   effective_date python: modules['Products.BastionLedger.utils'].ceiling_date(date);
+                   gross_profit python: bastionledger.gross_profit(effective_date); 
+                   losses python: bastionledger.losses_attributable(effective_date, gross_profit);
+                   tax python: bastionledger.corporation_tax(effective_date, gross_profit, losses);
+                   net_profit python: bastionledger.net_profit(effective_date, gross_profit, losses, tax);
+                   p_and_l_acc bastionledger/profit_loss_acc;
+                   accrued_income_tax_acc bastionledger/accrued_income_tax_acc">
+
+     <h2 align="center">Balance Sheet for <span tal:replace="bastionledger/title"/><br/>
+                        as at <span tal:replace="python: effective_date.strftime('%d %B %Y')"/></h2>
+
+     <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%">
+       <tr>
+           <td colspan="4"><h3>Assets</h3></td>
+       </tr>
+       <tr tal:repeat="account python: accounts(type='Asset')"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td>
+              <a href="" tal:attributes="href account/absolute_url" tal:content="account/title"/>
+           </td>
+           <td align="right" nowrap
+               tal:content="python: account.balance(effective=effective_date)"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+              <span class="label"
+                    tal:content="python: ledger.sum(type='Asset', effective=effective_date)"/>
+           </td>
+       </tr>
+       <tr>
+           <td colspan="4"><br/><h3>Represented By</h3><br/></td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Liabilities</h3></td>
+       </tr>
+        <tr tal:repeat="account python: accounts(type='Liability')"
+            tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td>
+              <a href="" tal:attributes="href account/absolute_url" tal:content="account/title"/>
+           </td>
+           <td align="right" nowrap
+               tal:define="balance python:  -account.balance(effective=effective_date)"
+               tal:content="python: test(account == accrued_income_tax_acc, balance + tax, balance)"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+              <span class="label"
+                    tal:content="python: -ledger.sum(type='Liability', 
+                                                     effective=effective_date) + tax"/>
+           </td>
+       </tr>
+      <tr>
+           <td colspan="4"><h3>Proprietorship</h3></td>
+       </tr>
+       <tr tal:repeat="account python: accounts(type='Proprietorship')"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td>
+              <a href="" tal:attributes="href account/absolute_url" tal:content="account/title"/>
+           </td>
+           <td align="right" nowrap
+               tal:define="balance python: -account.balance(effective=effective_date)"
+               tal:content="python: test(losses > 0 and account == p_and_l_acc,
+                                         balance,
+                                         balance)"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td><label>Operating Profit (loss)</label></td>
+           <td align="right" tal:content="python: net_profit"/>
+        </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+               <span class="label" 
+                     tal:content="python: -accounts.sum(type='Proprietorship', 
+                                                        effective=effective_date) + losses + net_profit"/>
+           </td>
+       </tr>
+     </table>
+
+   </div>
+
+
+   <div metal:define-macro="balance-sheet-multi"
+       tal:define="bastionledger context/bastionLedger;
+                   periods_to_report periods_to_report | context/portal_bastionledger/periodend_tool/periods_to_report;
+                   assets python: bastionledger.periods.infoForType('Asset', periods_to_report);
+                   liabilities python: bastionledger.periods.infoForType('Liability', periods_to_report);
+                   proprietorship python: bastionledger.periods.infoForType('Proprietorship', periods_to_report);">
+
+     <h2 align="center">Balance Sheet for <span tal:replace="bastionledger/title"/><br/></h2>
+
+     <table summary="" border="0" cellpadding="2" cellspacing="0" width="100%">
+       <tr>
+          <td colspan="3"></td>
+          <td colspan="2" align="center" tal:repeat="date assets/dates">
+              <h4 tal:content="python: date.strftime('%B %Y')"/>
+          </td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Assets</h3></td>
+       </tr>
+       <tr tal:repeat="account assets/accounts"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td tal:content="python: account[0]" nowrap/>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="balance python: account[1:]">
+                <td align="right" nowrap tal:content="balance"/>
+                <td/>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="total assets/totals">
+                <td/>
+                <td align="right" nowrap>
+                   <span class="label" tal:content="total"/>
+                </td>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td colspan="4"><br/><h3>Represented By</h3><br/></td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Liabilities</h3></td>
+       </tr>
+       <tr tal:repeat="account liabilities/accounts"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td tal:content="python: account[0]" nowrap/>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="balance python: account[1:]">
+                <td align="right" nowrap tal:content="python: -balance"/>
+                <td/>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="total liabilities/totals">
+                <td/>
+                <td align="right" nowrap>
+                    <span class="label" tal:content="python: -total"/>
+                </td>
+           </tal:periods>
+       </tr>
+      <tr>
+           <td colspan="4"><h3>Proprietorship</h3></td>
+       </tr>
+       <tr tal:repeat="account proprietorship/accounts"
+           tal:attributes="class python: test(repeat['account'].odd(), 'odd', 'even')">
+           <td width="20">&nbsp;</td>
+           <td tal:content="python: account[0]" nowrap/>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="balance python: account[1:]">
+                <td align="right" nowrap tal:content="python: -balance"/>
+                <td/>
+           </tal:periods>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td><label>Operating Profit (loss)</label></td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="stat proprietorship/stats">
+                <td align="right" nowrap>
+                   <span tal:content="python: stat['net_profit'] + stat['losses_forward'] + stat['company_tax']"/>
+                </td>
+                <td/>
+           </tal:periods>
+        </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <tal:periods tal:repeat="total proprietorship/totals">
+                <td/>
+                <td align="right" nowrap>
+                   <span class="label"
+                         tal:define="stats python: proprietorship['stats'][repeat['total'].index]"
+                         tal:content="python: -total + stats['net_profit'] + stats['losses_forward'] + stats['company_tax']"/>
+                </td>
+           </tal:periods>
+       </tr>
+     </table>
+
+   </div>
+
+
+
+   <div metal:define-macro="cashflow-statement"
+       tal:define="bastionledger context/bastionLedger;
+                   ledger nocall: bastionledger/Ledger;
+                   accounts nocall: ledger/Accounts;
+                   date request/date | python: options.get('date', DateTime());
+                   effective_date python: modules['Products.BastionLedger.utils'].ceiling_date(date)">
+
+     <h2 align="center">Cash Flow Statement for <span tal:replace="bastionledger/title"/><br/>
+                        as at <span tal:replace="python: effective_date.strftime('%d %B %Y')"/></h2>
+
+     <table summary="" border="0" cellpadding="0" cellspacing="2" width="100%"
+            tal:define="cust_rcpts python: accounts(tags='receivables')[0].balance(effective=effective_date);
+                        supp_pmts python: accounts(tags='payables')[0].balance(effective=effective_date);
+                        wages python: accounts(tags='wages')[0].creditTotal(effective=effective_date);
+                        int_inc python: ledger.sum(tags='int_inc', effective=effective_date);
+                        int_exp python: ledger.sum(tags='int_exp', effective=effective_date);
+                        div_inc python: ledger.sum(tags='div_inc', effective=effective_date);
+                        div_exp python: ledger.sum(tags='div_exp', effective=effective_date);
+                        tax_exp python: ledger.sum(tags='inc_tax', effective=effective_date);
+                        fixed_rcpt python: ledger.creditTotal(subtype='Capital Assets', effective=effective_date);
+                        fixed_pmt python: ledger.debitTotal(subtype='Capital Assets', effective=effective_date);   
+                        shares python: ledger.debitTotal(tags='shareholders', effective=effective_date);
+                        redemptions python: ledger.creditTotal(tags='shareholders', effective=effective_date);
+                        loans_recv python: ledger.creditTotal(tags='loans', effective=effective_date);
+                        loans_paid python: ledger.debitTotal(tags='loans', effective=effective_date);">
+       <tr>
+           <td colspan="4"><h3>Net cash flow from operating activities</h3></td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Cash Receipts from customers</td>
+           <td align="right" nowrap tal:content="cust_rcpts"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Cash Payments to suppliers</td>
+           <td align="right" nowrap tal:content="supp_pmts"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Cash Payments to and on behalf of employees</td>
+           <td align="right" nowrap tal:content="wages"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+              <span class="label" tal:content="python: cust_rcpts + supp_pmts + wages"/>
+           </td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Returns on investment and servicing of finance</h3></td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Interest Received</td>
+           <td align="right" nowrap tal:content="int_inc"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Interest Paid</td>
+           <td align="right" nowrap tal:content="int_exp"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Dividends Received</td>
+           <td align="right" nowrap tal:content="div_inc"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Dividends Paid</td>
+           <td align="right" nowrap tal:content="div_exp"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+               <span class="label" tal:content="python: int_inc + int_exp + div_inc + div_exp"/>
+           </td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Taxation</h3></td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Company Tax</td>
+           <td align="right" nowrap tal:content="tax_exp"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right">
+               <span class="label" tal:content="tax_exp"/>
+           </td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Investing Activities</h3></td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Fixed asset acquisition</td>
+           <td align="right" tal:content="fixed_pmt"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Fixed asset disposals</td>
+           <td align="right" nowrap tal:content="fixed_rcpt"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+              <span class="label" tal:content="python: fixed_rcpt + fixed_pmt"/>
+           </td>
+       </tr>
+       <tr>
+          <td colspan="4">&nbsp;</td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td colspan="2" valign="bottom">
+              <h3><i>Net cash inflow (outflow) before financing</i></h3>
+           </td>
+           <td align="right" valign="bottom" nowrap>
+             <span class="label">
+                <i tal:content="python: cust_rcpts + supp_pmts + wages + int_inc + int_exp + div_inc + div_exp + tax_exp + fixed_rcpt + fixed_pmt" />
+             </span>
+           </td>
+       </tr>
+       <tr>
+           <td colspan="4"><h3>Financing Activities</h3></td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Issue of shares</td>
+           <td align="right" nowrap tal:content="shares"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Redemption of shares</td>
+           <td align="right" nowrap tal:content="redemptions"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Receipts of borrowings</td>
+           <td align="right" nowrap tal:content="loans_recv"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>Payments of borrowings</td>
+           <td align="right" nowrap tal:content="loans_paid"/>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td>&nbsp;</td>
+           <td>&nbsp;</td>
+           <td align="right" nowrap>
+              <span class="label"
+                    tal:content="python: shares + redemptions + loans_recv + loans_paid"/>
+           </td>
+       </tr>
+       <tr>
+          <td colspan="4">&nbsp;</td>
+       </tr>
+       <tr>
+           <td width="20">&nbsp;</td>
+           <td colspan="2" valign="bottom">
+               <h3><i>Change in cash and cash equivalents</i></h3>
+           </td>
+           <td align="right" valign="bottom" nowrap>
+               <span class="label">
+                   <i tal:content="python: cust_rcpts + supp_pmts + wages + int_inc + int_exp + div_inc + div_exp + tax_exp + fixed_rcpt + fixed_pmt + tax_exp + shares + redemptions + loans_recv + loans_paid"/>
+               </span>
+           </td>
+       </tr>
+     </table>
+   </div>
+
+   <div metal:define-macro="cashflow-statement-multi">
+       <span metal:use-macro="context/blreporting_macros/macros/cashflow-statement"/>
+   </div>
+
+
+  </body>
+
+</html>
