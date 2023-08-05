@@ -1,0 +1,1 @@
+This DjangoCMS plugin allows the display of multiple FAQs (that's all folks).
