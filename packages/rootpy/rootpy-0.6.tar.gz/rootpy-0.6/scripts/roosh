@@ -1,0 +1,360 @@
+#!/usr/bin/env python
+
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument('-l', action='store_true', dest='nointro', default=False)
+parser.add_argument('file')
+args = parser.parse_args()
+
+
+import readline
+import cmd
+from rootpy.io import open as ropen, utils
+from rootpy.io.file import _DirectoryBase, DoesNotExist
+import subprocess
+import os
+import sys
+import re
+from rootpy.tree import Tree
+from rootpy.types import *
+from fnmatch import fnmatch
+
+
+EXEC_CMD = re.compile('(?P<name>\w+)\.(?P<call>\S+)')
+ASSIGN_CMD = re.compile('\w+\s*((\+=)|(-=)|(=))\s*\w+')
+LOAD_CMD = re.compile('^(?P<name>\S+)(:?\s+as\s+(?P<alias>\S+))?$')
+
+def prompt(vars, message):
+    
+    prompt_message = message
+    try:
+        from IPython.Shell import IPShellEmbed
+        ipshell = IPShellEmbed(argv=[''], banner=prompt_message, exit_msg="Goodbye")
+        return  ipshell
+    except ImportError:
+        ## this doesn't quite work right, in that it doesn't go to the right env
+        ## so we just fail.
+        import code
+        import rlcompleter
+        import readline
+        readline.parse_and_bind("tab: complete")
+        # calling this with globals ensures we can see the environment
+        if prompt_message:
+            print prompt_message
+        shell = code.InteractiveConsole(vars)
+        return shell.interact
+
+
+def ioctl_GWINSZ(fd):
+    
+    try:
+        import fcntl, termios, struct, os
+        cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234'))
+    except:
+        return None
+    return cr
+
+
+def get_terminal_size():
+
+    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
+    if not cr:
+        try:
+            fd = os.open(os.ctermid(), os.O_RDONLY)
+            cr = ioctl_GWINSZ(fd)
+            os.close(fd)
+        except:
+            pass
+    if not cr:
+        try:
+            cr = (env['LINES'], env['COLUMNS'])
+        except:
+            cr = (25, 80)
+    return int(cr[1]), int(cr[0])
+
+
+class shell_cmd(cmd.Cmd, object):
+
+    def do_shell(self, s):
+
+        subprocess.call(s, shell=True)
+
+    def help_shell(self):
+
+        print "execute commands in your $SHELL (i.e. bash)"
+
+
+class empty_cmd(cmd.Cmd, object):
+    
+    def emptyline(self):
+
+        pass
+
+
+class exit_cmd(cmd.Cmd, object):
+
+    def can_exit(self):
+
+        return True
+
+    def onecmd(self, line):
+
+        r = super(exit_cmd, self).onecmd(line)
+        if r and (self.can_exit() or
+           raw_input('exit anyway ? (yes/no):')=='yes'):
+             return True
+        return False
+
+    def do_exit(self, s):
+
+        return True
+
+    def help_exit(self):
+
+        print "Exit the interpreter."
+        print "You can also use the Ctrl-D shortcut."
+
+    def do_EOF(self, s):
+
+        print
+        return True
+    
+    help_EOF= help_exit
+
+
+def glob(directory, pattern):
+
+    matches = []
+    for dirpath, dirnames, filenames in \
+            utils.walk(directory, maxdepth=pattern.count(os.path.sep)):
+        for dirname in dirnames:
+            dirname = os.path.join(dirpath, dirname)
+            if fnmatch(dirname, pattern):
+                matches.append(dirname)
+        for filename in filenames:
+            filename = os.path.join(dirpath, filename)
+            if fnmatch(filename, pattern):
+                matches.append(filename)
+    return matches
+
+
+class roosh(exit_cmd, shell_cmd, empty_cmd):
+
+    ls_parser = ArgumentParser()
+    ls_parser.add_argument('-l', action='store_true', dest='showtype', default=False)
+    ls_parser.add_argument('files', nargs='*')
+
+    def __init__(self, filename, stdin=sys.stdin, stdout=sys.stdout):
+        
+        super(roosh, self).__init__(stdin=stdin, stdout=stdout)
+        self.file = ropen(filename)
+        self.pwd = self.file
+        self.prev_pwd = self.pwd
+        self.namespace = {}
+        self.__update_namespace()
+        self.__update_prompt()
+    
+    def __update_prompt(self):
+
+        dirname = os.path.basename(self.pwd._path)
+        dirname = (dirname[:15] + '..' + dirname[-15:]) if len(dirname) > 30 else dirname
+        self.prompt = '%s > ' % dirname
+     
+    def __update_namespace(self):
+
+        for key in self.pwd.GetListOfKeys():
+            name = key.GetName()
+            if not key.GetClassName().startswith('TDirectory') and \
+               not key.GetClassName().startswith('TTree'):
+                self.namespace[name] = self.pwd.Get(name)
+
+    def do_env(self, s):
+
+        for name, value in self.namespace.items():
+            if name == '__builtins__':
+                continue
+            print name, value
+
+    def help_env(self):
+
+        print "print all variable names and values in current environment"
+        print "object (excluding directories) contained within the"
+        print "current directory are automatically included by name"
+   
+    def do_load(self, name):
+
+        try:
+            match = re.match(LOAD_CMD, name)
+            if match:
+                name = match.group('name')
+                alias = match.group('alias')
+                if alias is None:
+                    alias = os.path.basename(name)
+                self.namespace[alias] = self.pwd.Get(name)
+            else:
+                self.default(name)
+        except DoesNotExist, e:
+            print e
+    
+    def complete_load(self, text, line, begidx, endidx):
+
+        return self.completion_helper(text, line, begidx, endidx, 'TTree')
+         
+    def help_load(self):
+
+        print "load the specified object into the current namespace"
+        print "TTrees are not loaded automatically when cd'ing into a directory"
+        print "Use this command to load TTrees or other objects not in current directory"
+        print "Use 'load foo as bar' to alias the object named foo as bar"
+
+    def do_cd(self, path):
+        
+        prev_pwd = self.pwd
+        if path == '.':
+            return
+            self.prev_pwd = self.pwd
+        try:
+            if not path:
+                self.pwd = self.file
+            elif path == '-':
+                self.pwd = self.prev_pwd
+                self.do_pwd()
+            else:
+                self.pwd = self.pwd.GetDirectory(path)
+            self.pwd.cd()
+            self.__update_namespace()
+            self.__update_prompt()
+            self.prev_pwd = prev_pwd
+        except DoesNotExist, e:
+            print e
+    
+    def complete_cd(self, text, line, begidx, endidx):
+
+        return self.completion_helper(text, line, begidx, endidx, 'TDirectoryFile')
+
+    def help_cd(self):
+
+        print "change the current directory"
+        print "'cd -' will change to the previous directory"
+        print "'cd' (with no path) will change to the root directory"
+        print "All non-TTree objects are loaded"
+        print "into the current namespace automatically"
+
+    def do_ls(self, args=None):
+        
+        if args is None:
+            args = '' 
+        args = roosh.ls_parser.parse_args(args.split())
+        if not args.files:
+            args.files = ['']
+        for i, path in enumerate(args.files):
+            if '*' in path:
+                paths = glob(self.pwd, path)
+                if not paths:
+                    paths = [path]
+            else:
+                paths = [path]
+            for path in paths:
+                _dir = self.pwd
+                if path:
+                    try:
+                        _dir = self.pwd.Get(path)
+                    except DoesNotExist, e:
+                        print e
+                        continue
+                if isinstance(_dir, _DirectoryBase):
+                    if len(args.files) > 1:
+                        if i > 0:
+                            print
+                        print '%s:' % _dir.GetName() 
+                    things = [key.GetName() for key in _dir.GetListOfKeys()]
+                    if things:
+                        self.columnize(things)
+                else:
+                    print path
+
+    def complete_ls(self, text, line, begidx, endidx):
+
+        return self.completion_helper(text, line, begidx, endidx) 
+    
+    def completion_helper(self, text, line, begidx, endidx, typename=None):    
+        
+        things = []
+        dir = self.pwd
+        head = ''
+        if begidx != endidx:
+            prefix = line[begidx: endidx]
+            head, prefix = os.path.split(prefix)
+            if head:
+                try:
+                    dir = dir.GetDirectory(head)
+                except DoesNotExist:
+                    return []
+        else:
+            prefix = ''
+        for key in dir.GetListOfKeys():
+            if typename is not None:
+                if key.GetClassName() != typename:
+                    continue
+            name = key.GetName()
+            if prefix and not name.startswith(prefix):
+                continue
+            if key.GetClassName() == 'TDirectoryFile':
+                things.append(os.path.join(head, '%s/' %  name))
+            else:
+                things.append(os.path.join(head, name))
+        return things
+
+    def help_ls(self):
+
+        print "list items contained in a directory"
+    
+    def do_pwd(self, s=None):
+        
+        print self.pwd._path
+    
+    def help_pwd(self):
+
+        print "print the current directory"
+     
+    def help_help(self):
+
+        print "'help CMD' will print help for a command"
+        print "'help' will print all available commands"
+    
+    def do_python(self, s=None):
+    
+        prompt(self.namespace,'')()
+    
+    def help_python(self):
+
+        print "drop into an interactive Python shell"
+        print "anything loaded into your current namespace"
+        print "will be handed over to Python"
+            
+    def default(self, line):
+        
+        try:
+            if not re.match(ASSIGN_CMD, line):
+                line = line.strip()
+                if not line.startswith('print') and \
+                   not line.startswith('from ') and \
+                   not line.startswith('import '):
+                    line = 'print ' + line
+            exec line in self.namespace
+            return
+        except Exception, e:
+            print e
+            return
+        return super(roosh, self).default(line)
+
+
+try:
+    terminal = roosh(args.file)
+    if args.nointro:
+        terminal.cmdloop()
+    else:
+        terminal.cmdloop("Welcome to the ROOSH terminal\ntype help for help")
+except Exception, e:
+    sys.exit(e)

@@ -1,0 +1,43 @@
+#!/usr/bin/env python
+
+# This script converts all TTrees in a ROOT file into HDF5 format.
+
+import sys
+import os
+import traceback
+from tables import openFile
+from rootpy.io import open as ropen
+from rootpy.root2tables import convert 
+
+def main():
+
+    if len(sys.argv) != 2:
+        sys.exit("You must specify exactly one argument (the filename)")
+    inputName = sys.argv[1]
+    if not inputName.endswith(".root"):
+        sys.exit("Input file does not have a .root extension")
+    outputName = inputName.replace(".root",".h5")
+    try:
+        rootFile = ropen(inputName)
+    except:
+        sys.exit("Could not open %s" % inputName)
+    try:
+        hd5File = openFile(filename=outputName, mode="w", title="Data")
+    except IOError:
+        sys.exit("Could not create %s" % outputName)
+    try:
+        convert(rootFile, hd5File)
+    except KeyboardInterrupt:
+        print
+        print "Caught Ctrl-c ... cleaning up"
+        hd5File.close()
+        os.unlink(outputName)
+    except:
+        print
+        print "Unexpected error:", sys.exc_info()[0]
+        traceback.print_tb(sys.exc_info()[2])
+        hd5File.close()
+        os.unlink(outputName)
+    hd5File.close()
+
+if __name__=="__main__": main()
