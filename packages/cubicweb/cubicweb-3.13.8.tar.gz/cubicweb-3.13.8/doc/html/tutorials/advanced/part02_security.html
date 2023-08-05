@@ -1,0 +1,515 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.1.2. Security, testing and migration &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../../index.html" />
+    <link rel="up" title="2. Building a photo gallery with CubicWeb" href="index.html" />
+    <link rel="next" title="2.1.3. Storing images on the file-system" href="part03_bfss.html" />
+    <link rel="prev" title="2.1.1. Cube creation and schema definition" href="part01_create-cube.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="part03_bfss.html" title="2.1.3. Storing images on the file-system"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="part01_create-cube.html" title="2.1.1. Cube creation and schema definition"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Tutorials</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">2. Building a photo gallery with <em>CubicWeb</em></a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">2.1.2. Security, testing and migration</a><ul>
+<li><a class="reference external" href="#step-1-configuring-security-into-the-schema">2.1.2.1. Step 1: configuring security into the schema</a></li>
+<li><a class="reference external" href="#step-2-security-propagation-in-hooks">2.1.2.2. Step 2: security propagation in hooks</a></li>
+<li><a class="reference external" href="#step-3-testing-our-security">2.1.2.3. Step 3: testing our security</a></li>
+<li><a class="reference external" href="#step-4-writing-the-migration-script-and-migrating-the-instance">2.1.2.4. Step 4: writing the migration script and migrating the instance</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="part01_create-cube.html"
+                                  title="previous chapter">2.1.1. Cube creation and schema definition</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="part03_bfss.html"
+                                  title="next chapter">2.1.3. Storing images on the file-system</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../../_sources/tutorials/advanced/part02_security.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="security-testing-and-migration">
+<span id="tutosphotowebsitesecurity"></span><h1>2.1.2. Security, testing and migration<a class="headerlink" href="#security-testing-and-migration" title="Permalink to this headline">¶</a></h1>
+<p>This part will cover various topics:</p>
+<ul class="simple">
+<li>configuring security</li>
+<li>migrating existing instance</li>
+<li>writing some unit tests</li>
+</ul>
+<p>Here is the <tt class="docutils literal"><span class="pre">read</span></tt> security model I want:</p>
+<ul class="simple">
+<li>folders, files, images and comments should have one of the following visibility:<ul>
+<li><tt class="docutils literal"><span class="pre">public</span></tt>, everyone can see it</li>
+<li><tt class="docutils literal"><span class="pre">authenticated</span></tt>, only authenticated users can see it</li>
+<li><tt class="docutils literal"><span class="pre">restricted</span></tt>, only a subset of authenticated users can see it</li>
+</ul>
+</li>
+<li>managers (e.g. me) can see everything</li>
+<li>only authenticated users can see people</li>
+<li>everyone can see classifier entities, such as tag and zone</li>
+</ul>
+<p>Also, unless explicitly specified, the visibility of an image should be the same as
+its parent folder, as well as visibility of a comment should be the same as the
+commented entity. If there is no parent entity, the default visibility is
+<tt class="docutils literal"><span class="pre">authenticated</span></tt>.</p>
+<p>Regarding write security, that&#8217;s much easier:
+* anonymous can&#8217;t write anything
+* authenticated users can only add comment
+* managers will add the remaining stuff</p>
+<p>Now, let&#8217;s implement that!</p>
+<p>Proper security in CubicWeb is done at the schema level, so you don&#8217;t have to
+bother with it in views: users will only see what they can see automatically.</p>
+<div class="section" id="step-1-configuring-security-into-the-schema">
+<span id="adv-tuto-security"></span><h2>2.1.2.1. Step 1: configuring security into the schema<a class="headerlink" href="#step-1-configuring-security-into-the-schema" title="Permalink to this headline">¶</a></h2>
+<p>In schema, you can grant access according to groups, or to some RQL expressions:
+users get access if the expression returns some results. To implement the read
+security defined earlier, groups are not enough, we&#8217;ll need some RQL expression. Here
+is the idea:</p>
+<ul class="simple">
+<li>add a <cite>visibility</cite> attribute on Folder, File and Comment, which may be one of
+the value explained above</li>
+<li>add a <cite>may_be_read_by</cite> relation from Folder, File and Comment to users,
+which will define who can see the entity</li>
+<li>security propagation will be done in hook.</li>
+</ul>
+<p>So the first thing to do is to modify my cube&#8217;s schema.py to define those
+relations:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">yams.constraints</span> <span class="kn">import</span> <span class="n">StaticVocabularyConstraint</span>
+
+<span class="k">class</span> <span class="nc">visibility</span><span class="p">(</span><span class="n">RelationDefinition</span><span class="p">):</span>
+    <span class="n">subject</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;Folder&#39;</span><span class="p">,</span> <span class="s">&#39;File&#39;</span><span class="p">,</span> <span class="s">&#39;Comment&#39;</span><span class="p">)</span>
+    <span class="nb">object</span> <span class="o">=</span> <span class="s">&#39;String&#39;</span>
+    <span class="n">constraints</span> <span class="o">=</span> <span class="p">[</span><span class="n">StaticVocabularyConstraint</span><span class="p">((</span><span class="s">&#39;public&#39;</span><span class="p">,</span> <span class="s">&#39;authenticated&#39;</span><span class="p">,</span>
+                                               <span class="s">&#39;restricted&#39;</span><span class="p">,</span> <span class="s">&#39;parent&#39;</span><span class="p">))]</span>
+    <span class="n">default</span> <span class="o">=</span> <span class="s">&#39;parent&#39;</span>
+    <span class="n">cardinality</span> <span class="o">=</span> <span class="s">&#39;11&#39;</span> <span class="c"># required</span>
+
+<span class="k">class</span> <span class="nc">may_be_read_by</span><span class="p">(</span><span class="n">RelationDefinition</span><span class="p">):</span>
+    <span class="n">__permissions__</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s">&#39;read&#39;</span><span class="p">:</span>   <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;users&#39;</span><span class="p">),</span>
+        <span class="s">&#39;add&#39;</span><span class="p">:</span>    <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,),</span>
+        <span class="s">&#39;delete&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,),</span>
+        <span class="p">}</span>
+
+    <span class="n">subject</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;Folder&#39;</span><span class="p">,</span> <span class="s">&#39;File&#39;</span><span class="p">,</span> <span class="s">&#39;Comment&#39;</span><span class="p">,)</span>
+    <span class="nb">object</span> <span class="o">=</span> <span class="s">&#39;CWUser&#39;</span>
+</pre></div>
+</div>
+<p>We can note the following points:</p>
+<ul class="simple">
+<li>we&#8217;ve added a new <cite>visibility</cite> attribute to folder, file, image and comment
+using a <cite>RelationDefinition</cite></li>
+<li><cite>cardinality = &#8216;11&#8217;</cite> means this attribute is required. This is usually hidden
+under the <cite>required</cite> argument given to the <cite>String</cite> constructor, but we can
+rely on this here (same thing for StaticVocabularyConstraint, which is usually
+hidden by the <cite>vocabulary</cite> argument)</li>
+<li>the <cite>parent</cite> possible value will be used for visibility propagation</li>
+<li>think to secure the <cite>may_be_read_by</cite> permissions, else any user can add/delete it
+by default, which somewhat breaks our security model...</li>
+</ul>
+<p>Now, we should be able to define security rules in the schema, based on these new
+attribute and relation. Here is the code to add to <em>schema.py</em>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.schema</span> <span class="kn">import</span> <span class="n">ERQLExpression</span>
+
+<span class="n">VISIBILITY_PERMISSIONS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&#39;read&#39;</span><span class="p">:</span>   <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span>
+               <span class="n">ERQLExpression</span><span class="p">(</span><span class="s">&#39;X visibility &quot;public&quot;&#39;</span><span class="p">),</span>
+               <span class="n">ERQLExpression</span><span class="p">(</span><span class="s">&#39;X may_be_read_by U&#39;</span><span class="p">)),</span>
+    <span class="s">&#39;add&#39;</span><span class="p">:</span>    <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,),</span>
+    <span class="s">&#39;update&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;owners&#39;</span><span class="p">,),</span>
+    <span class="s">&#39;delete&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;owners&#39;</span><span class="p">),</span>
+    <span class="p">}</span>
+<span class="n">AUTH_ONLY_PERMISSIONS</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s">&#39;read&#39;</span><span class="p">:</span>   <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;users&#39;</span><span class="p">),</span>
+        <span class="s">&#39;add&#39;</span><span class="p">:</span>    <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,),</span>
+        <span class="s">&#39;update&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;owners&#39;</span><span class="p">,),</span>
+        <span class="s">&#39;delete&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;owners&#39;</span><span class="p">),</span>
+        <span class="p">}</span>
+<span class="n">CLASSIFIERS_PERMISSIONS</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s">&#39;read&#39;</span><span class="p">:</span>   <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;users&#39;</span><span class="p">,</span> <span class="s">&#39;guests&#39;</span><span class="p">),</span>
+        <span class="s">&#39;add&#39;</span><span class="p">:</span>    <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,),</span>
+        <span class="s">&#39;update&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;owners&#39;</span><span class="p">,),</span>
+        <span class="s">&#39;delete&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;owners&#39;</span><span class="p">),</span>
+        <span class="p">}</span>
+
+<span class="kn">from</span> <span class="nn">cubes.folder.schema</span> <span class="kn">import</span> <span class="n">Folder</span>
+<span class="kn">from</span> <span class="nn">cubes.file.schema</span> <span class="kn">import</span> <span class="n">File</span>
+<span class="kn">from</span> <span class="nn">cubes.comment.schema</span> <span class="kn">import</span> <span class="n">Comment</span>
+<span class="kn">from</span> <span class="nn">cubes.person.schema</span> <span class="kn">import</span> <span class="n">Person</span>
+<span class="kn">from</span> <span class="nn">cubes.zone.schema</span> <span class="kn">import</span> <span class="n">Zone</span>
+<span class="kn">from</span> <span class="nn">cubes.tag.schema</span> <span class="kn">import</span> <span class="n">Tag</span>
+
+<span class="n">Folder</span><span class="o">.</span><span class="n">__permissions__</span> <span class="o">=</span> <span class="n">VISIBILITY_PERMISSIONS</span>
+<span class="n">File</span><span class="o">.</span><span class="n">__permissions__</span> <span class="o">=</span> <span class="n">VISIBILITY_PERMISSIONS</span>
+<span class="n">Comment</span><span class="o">.</span><span class="n">__permissions__</span> <span class="o">=</span> <span class="n">VISIBILITY_PERMISSIONS</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">Comment</span><span class="o">.</span><span class="n">__permissions__</span><span class="p">[</span><span class="s">&#39;add&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;managers&#39;</span><span class="p">,</span> <span class="s">&#39;users&#39;</span><span class="p">,)</span>
+<span class="n">Person</span><span class="o">.</span><span class="n">__permissions__</span> <span class="o">=</span> <span class="n">AUTH_ONLY_PERMISSIONS</span>
+<span class="n">Zone</span><span class="o">.</span><span class="n">__permissions__</span> <span class="o">=</span> <span class="n">CLASSIFIERS_PERMISSIONS</span>
+<span class="n">Tag</span><span class="o">.</span><span class="n">__permissions__</span> <span class="o">=</span> <span class="n">CLASSIFIERS_PERMISSIONS</span>
+</pre></div>
+</div>
+<p>What&#8217;s important in there:</p>
+<ul class="simple">
+<li><cite>VISIBILITY_PERMISSIONS</cite> provides read access to managers group, if
+<cite>visibility</cite> attribute&#8217;s value is &#8216;public&#8217;, or if user (designed by the &#8216;U&#8217;
+variable in the expression) is linked to the entity (the &#8216;X&#8217; variable) through
+the <cite>may_read</cite> permission</li>
+<li>we modify permissions of the entity types we use by importing them and
+modifying their <cite>__permissions__</cite> attribute</li>
+<li>notice the <cite>.copy()</cite>: we only want to modify &#8216;add&#8217; permission for <cite>Comment</cite>,
+not for all entity types using <cite>VISIBILITY_PERMISSIONS</cite>!</li>
+<li>the remaining part of the security model is done using regular groups:<ul>
+<li><cite>users</cite> is the group to which all authenticated users will belong</li>
+<li><cite>guests</cite> is the group of anonymous users</li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="step-2-security-propagation-in-hooks">
+<span id="adv-tuto-security-propagation"></span><h2>2.1.2.2. Step 2: security propagation in hooks<a class="headerlink" href="#step-2-security-propagation-in-hooks" title="Permalink to this headline">¶</a></h2>
+<p>To fullfill the requirements, we have to implement:</p>
+<div class="highlight-python"><pre>Also, unless explicity specified, visibility of an image should be the same as
+its parent folder, as well as visibility of a comment should be the same as the
+commented entity.</pre>
+</div>
+<p>This kind of <cite>active</cite> rule will be done using CubicWeb&#8217;s hook
+system. Hooks are triggered on database event such as addition of new
+entity or relation.</p>
+<p>The tricky part of the requirement is in <em>unless explicitly specified</em>, notably
+because when the entity is added, we don&#8217;t know yet its &#8216;parent&#8217;
+entity (e.g. Folder of an File, File commented by a Comment). To handle such things,
+CubicWeb provides <cite>Operation</cite>, which allow to schedule things to do at commit time.</p>
+<p>In our case we will:</p>
+<ul class="simple">
+<li>on entity creation, schedule an operation that will set default visibility</li>
+<li>when a &#8220;parent&#8221; relation is added, propagate parent&#8217;s visibility unless the
+child already has a visibility set</li>
+</ul>
+<p>Here is the code in cube&#8217;s <em>hooks.py</em>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.selectors</span> <span class="kn">import</span> <span class="n">is_instance</span>
+<span class="kn">from</span> <span class="nn">cubicweb.server</span> <span class="kn">import</span> <span class="n">hook</span>
+
+<span class="k">class</span> <span class="nc">SetVisibilityOp</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">DataOperationMixIn</span><span class="p">,</span> <span class="n">hook</span><span class="o">.</span><span class="n">Operation</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">precommit_event</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">eid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_data</span><span class="p">():</span>
+            <span class="n">entity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">entity_from_eid</span><span class="p">(</span><span class="n">eid</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">entity</span><span class="o">.</span><span class="n">visibility</span> <span class="o">==</span> <span class="s">&#39;parent&#39;</span><span class="p">:</span>
+                <span class="n">entity</span><span class="o">.</span><span class="n">set_attributes</span><span class="p">(</span><span class="n">visibility</span><span class="o">=</span><span class="s">u&#39;authenticated&#39;</span><span class="p">)</span>
+
+<span class="k">class</span> <span class="nc">SetVisibilityHook</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">Hook</span><span class="p">):</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;sytweb.setvisibility&#39;</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="n">hook</span><span class="o">.</span><span class="n">Hook</span><span class="o">.</span><span class="n">__select__</span> <span class="o">&amp;</span> <span class="n">is_instance</span><span class="p">(</span><span class="s">&#39;Folder&#39;</span><span class="p">,</span> <span class="s">&#39;File&#39;</span><span class="p">,</span> <span class="s">&#39;Comment&#39;</span><span class="p">)</span>
+    <span class="n">events</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;after_add_entity&#39;</span><span class="p">,)</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">SetVisibilityOp</span><span class="o">.</span><span class="n">get_instance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cw</span><span class="p">)</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity</span><span class="o">.</span><span class="n">eid</span><span class="p">)</span>
+
+<span class="k">class</span> <span class="nc">SetParentVisibilityHook</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">Hook</span><span class="p">):</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;sytweb.setparentvisibility&#39;</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="n">hook</span><span class="o">.</span><span class="n">Hook</span><span class="o">.</span><span class="n">__select__</span> <span class="o">&amp;</span> <span class="n">hook</span><span class="o">.</span><span class="n">match_rtype</span><span class="p">(</span><span class="s">&#39;filed_under&#39;</span><span class="p">,</span> <span class="s">&#39;comments&#39;</span><span class="p">)</span>
+    <span class="n">events</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;after_add_relation&#39;</span><span class="p">,)</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cw</span><span class="o">.</span><span class="n">entity_from_eid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">eidto</span><span class="p">)</span>
+        <span class="n">child</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cw</span><span class="o">.</span><span class="n">entity_from_eid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">eidfrom</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">visibility</span> <span class="o">==</span> <span class="s">&#39;parent&#39;</span><span class="p">:</span>
+            <span class="n">child</span><span class="o">.</span><span class="n">set_attributes</span><span class="p">(</span><span class="n">visibility</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">visibility</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Notice:</p>
+<ul class="simple">
+<li>hooks are application objects, hence have selectors that should match entity or
+relation types to which the hook applies. To match a relation type, we use the
+hook specific <cite>match_rtype</cite> selector.</li>
+<li>usage of <cite>set_operation</cite>: instead of adding an operation for each added entity,
+set_operation allows to create a single one and to store entity&#8217;s eids to be
+processed in session&#8217;s transaction data. This is a good pratice to avoid heavy
+operations manipulation cost when creating a lot of entities in the same
+transaction.</li>
+<li>the <cite>precommit_event</cite> method of the operation will be called at transaction&#8217;s
+commit time.</li>
+<li>in a hook, <cite>self._cw</cite> is the repository session, not a web request as usually
+in views</li>
+<li>according to hook&#8217;s event, you have access to different attributes on the hook
+instance. Here:<ul>
+<li><cite>self.entity</cite> is the newly added entity on &#8216;after_add_entity&#8217; events</li>
+<li><cite>self.eidfrom</cite> / <cite>self.eidto</cite> are the eid of the subject / object entity on
+&#8216;after_add_relation&#8217; events (you may also get the relation type using
+<cite>self.rtype</cite>)</li>
+</ul>
+</li>
+</ul>
+<p>The <cite>parent</cite> visibility value is used to tell &#8220;propagate using parent security&#8221;
+because we want that attribute to be required, so we can&#8217;t use None value else
+we&#8217;ll get an error before we get any chance to propagate...</p>
+<p>Now, we also want to propagate the <cite>may_be_read_by</cite> relation. Fortunately,
+CubicWeb provides some base hook classes for such things, so we only have to add
+the following code to <em>hooks.py</em>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># relations where the &quot;parent&quot; entity is the subject</span>
+<span class="n">S_RELS</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="c"># relations where the &quot;parent&quot; entity is the object</span>
+<span class="n">O_RELS</span> <span class="o">=</span> <span class="nb">set</span><span class="p">((</span><span class="s">&#39;filed_under&#39;</span><span class="p">,</span> <span class="s">&#39;comments&#39;</span><span class="p">,))</span>
+
+<span class="k">class</span> <span class="nc">AddEntitySecurityPropagationHook</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">PropagateSubjectRelationHook</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;propagate permissions when new entity are added&quot;&quot;&quot;</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;sytweb.addentity_security_propagation&#39;</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">PropagateSubjectRelationHook</span><span class="o">.</span><span class="n">__select__</span>
+                  <span class="o">&amp;</span> <span class="n">hook</span><span class="o">.</span><span class="n">match_rtype_sets</span><span class="p">(</span><span class="n">S_RELS</span><span class="p">,</span> <span class="n">O_RELS</span><span class="p">))</span>
+    <span class="n">main_rtype</span> <span class="o">=</span> <span class="s">&#39;may_be_read_by&#39;</span>
+    <span class="n">subject_relations</span> <span class="o">=</span> <span class="n">S_RELS</span>
+    <span class="n">object_relations</span> <span class="o">=</span> <span class="n">O_RELS</span>
+
+<span class="k">class</span> <span class="nc">AddPermissionSecurityPropagationHook</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">PropagateSubjectRelationAddHook</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;propagate permissions when new entity are added&quot;&quot;&quot;</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;sytweb.addperm_security_propagation&#39;</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">PropagateSubjectRelationAddHook</span><span class="o">.</span><span class="n">__select__</span>
+                  <span class="o">&amp;</span> <span class="n">hook</span><span class="o">.</span><span class="n">match_rtype</span><span class="p">(</span><span class="s">&#39;may_be_read_by&#39;</span><span class="p">,))</span>
+    <span class="n">subject_relations</span> <span class="o">=</span> <span class="n">S_RELS</span>
+    <span class="n">object_relations</span> <span class="o">=</span> <span class="n">O_RELS</span>
+
+<span class="k">class</span> <span class="nc">DelPermissionSecurityPropagationHook</span><span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">PropagateSubjectRelationDelHook</span><span class="p">):</span>
+    <span class="n">__regid__</span> <span class="o">=</span> <span class="s">&#39;sytweb.delperm_security_propagation&#39;</span>
+    <span class="n">__select__</span> <span class="o">=</span> <span class="p">(</span><span class="n">hook</span><span class="o">.</span><span class="n">PropagateSubjectRelationDelHook</span><span class="o">.</span><span class="n">__select__</span>
+                  <span class="o">&amp;</span> <span class="n">hook</span><span class="o">.</span><span class="n">match_rtype</span><span class="p">(</span><span class="s">&#39;may_be_read_by&#39;</span><span class="p">,))</span>
+    <span class="n">subject_relations</span> <span class="o">=</span> <span class="n">S_RELS</span>
+    <span class="n">object_relations</span> <span class="o">=</span> <span class="n">O_RELS</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li>the <cite>AddEntitySecurityPropagationHook</cite> will propagate the relation
+when <cite>filed_under</cite> or <cite>comments</cite> relations are added<ul>
+<li>the <cite>S_RELS</cite> and <cite>O_RELS</cite> set as well as the <cite>match_rtype_sets</cite> selector are
+used here so that if my cube is used by another one, it&#8217;ll be able to
+configure security propagation by simply adding relation to one of the two
+sets.</li>
+</ul>
+</li>
+<li>the two others will propagate permissions changes on parent entities to
+children entities</li>
+</ul>
+</div>
+<div class="section" id="step-3-testing-our-security">
+<span id="adv-tuto-tesing-security"></span><h2>2.1.2.3. Step 3: testing our security<a class="headerlink" href="#step-3-testing-our-security" title="Permalink to this headline">¶</a></h2>
+<p>Security is tricky. Writing some tests for it is a very good idea. You should
+even write them first, as Test Driven Development recommends!</p>
+<p>Here is a small test case that will check the basis of our security
+model, in <em>test/unittest_sytweb.py</em>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cubicweb.devtools.testlib</span> <span class="kn">import</span> <span class="n">CubicWebTC</span>
+<span class="kn">from</span> <span class="nn">cubicweb</span> <span class="kn">import</span> <span class="n">Binary</span>
+
+<span class="k">class</span> <span class="nc">SecurityTC</span><span class="p">(</span><span class="n">CubicWebTC</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">test_visibility_propagation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># create a user for later security checks</span>
+        <span class="n">toto</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span><span class="s">&#39;toto&#39;</span><span class="p">)</span>
+        <span class="c"># init some data using the default manager connection</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
+        <span class="n">folder</span> <span class="o">=</span> <span class="n">req</span><span class="o">.</span><span class="n">create_entity</span><span class="p">(</span><span class="s">&#39;Folder&#39;</span><span class="p">,</span>
+                                   <span class="n">name</span><span class="o">=</span><span class="s">u&#39;restricted&#39;</span><span class="p">,</span>
+                                   <span class="n">visibility</span><span class="o">=</span><span class="s">u&#39;restricted&#39;</span><span class="p">)</span>
+        <span class="n">photo1</span> <span class="o">=</span> <span class="n">req</span><span class="o">.</span><span class="n">create_entity</span><span class="p">(</span><span class="s">&#39;File&#39;</span><span class="p">,</span>
+                                   <span class="n">data_name</span><span class="o">=</span><span class="s">u&#39;photo1.jpg&#39;</span><span class="p">,</span>
+                                   <span class="n">data</span><span class="o">=</span><span class="n">Binary</span><span class="p">(</span><span class="s">&#39;xxx&#39;</span><span class="p">),</span>
+                                   <span class="n">filed_under</span><span class="o">=</span><span class="n">folder</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="n">photo1</span><span class="o">.</span><span class="n">clear_all_caches</span><span class="p">()</span> <span class="c"># good practice, avoid request cache effects</span>
+        <span class="c"># visibility propagation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="n">photo1</span><span class="o">.</span><span class="n">visibility</span><span class="p">,</span> <span class="s">&#39;restricted&#39;</span><span class="p">)</span>
+        <span class="c"># unless explicitly specified</span>
+        <span class="n">photo2</span> <span class="o">=</span> <span class="n">req</span><span class="o">.</span><span class="n">create_entity</span><span class="p">(</span><span class="s">&#39;File&#39;</span><span class="p">,</span>
+                                   <span class="n">data_name</span><span class="o">=</span><span class="s">u&#39;photo2.jpg&#39;</span><span class="p">,</span>
+                                   <span class="n">data</span><span class="o">=</span><span class="n">Binary</span><span class="p">(</span><span class="s">&#39;xxx&#39;</span><span class="p">),</span>
+                                   <span class="n">visibility</span><span class="o">=</span><span class="s">u&#39;public&#39;</span><span class="p">,</span>
+                                   <span class="n">filed_under</span><span class="o">=</span><span class="n">folder</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="n">photo2</span><span class="o">.</span><span class="n">visibility</span><span class="p">,</span> <span class="s">&#39;public&#39;</span><span class="p">)</span>
+        <span class="c"># test security</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="s">&#39;toto&#39;</span><span class="p">)</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s">&#39;File X&#39;</span><span class="p">)),</span> <span class="mi">1</span><span class="p">)</span> <span class="c"># only the public one</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s">&#39;Folder X&#39;</span><span class="p">)),</span> <span class="mi">0</span><span class="p">)</span> <span class="c"># restricted...</span>
+        <span class="c"># may_be_read_by propagation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">restore_connection</span><span class="p">()</span>
+        <span class="n">folder</span><span class="o">.</span><span class="n">set_relations</span><span class="p">(</span><span class="n">may_be_read_by</span><span class="o">=</span><span class="n">toto</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="n">photo1</span><span class="o">.</span><span class="n">clear_all_caches</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">failUnless</span><span class="p">(</span><span class="n">photo1</span><span class="o">.</span><span class="n">may_be_read_by</span><span class="p">)</span>
+        <span class="c"># test security with permissions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="s">&#39;toto&#39;</span><span class="p">)</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s">&#39;File X&#39;</span><span class="p">)),</span> <span class="mi">2</span><span class="p">)</span> <span class="c"># now toto has access to photo2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEquals</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s">&#39;Folder X&#39;</span><span class="p">)),</span> <span class="mi">1</span><span class="p">)</span> <span class="c"># and to restricted folder</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">logilab.common.testlib</span> <span class="kn">import</span> <span class="n">unittest_main</span>
+    <span class="n">unittest_main</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>It&#8217;s not complete, but show most things you&#8217;ll want to do in tests: adding some
+content, creating users and connecting as them in the test, etc...</p>
+<p>To run it type:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>pytest unittest_sytweb.py
+<span class="o">========================</span>  unittest_sytweb.py  <span class="o">========================</span>
+-&gt; creating tables <span class="o">[</span>....................<span class="o">]</span>
+-&gt; inserting default user and default groups.
+-&gt; storing the schema in the database <span class="o">[</span>....................<span class="o">]</span>
+-&gt; database <span class="k">for </span>instance data initialized.
+.
+----------------------------------------------------------------------
+Ran 1 <span class="nb">test </span>in 22.547s
+
+OK
+</pre></div>
+</div>
+<p>The first execution is taking time, since it creates a sqlite database for the
+test instance. The second one will be much quicker:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>pytest unittest_sytweb.py
+<span class="o">========================</span>  unittest_sytweb.py  <span class="o">========================</span>
+.
+----------------------------------------------------------------------
+Ran 1 <span class="nb">test </span>in 2.662s
+
+OK
+</pre></div>
+</div>
+<p>If you do some changes in your schema, you&#8217;ll have to force regeneration of that
+database. You do that by removing the tmpdb files before running the test:</p>
+<div class="highlight-python"><pre>$ rm data/tmpdb*</pre>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">pytest is a very convenient utility used to control test execution. It is available from the <a class="reference external" href="http://www.logilab.org/project/logilab-common">logilab-common</a> package.</p>
+</div>
+</div>
+<div class="section" id="step-4-writing-the-migration-script-and-migrating-the-instance">
+<span id="adv-tuto-migration-script"></span><h2>2.1.2.4. Step 4: writing the migration script and migrating the instance<a class="headerlink" href="#step-4-writing-the-migration-script-and-migrating-the-instance" title="Permalink to this headline">¶</a></h2>
+<p>Prior to those changes, I  created an instance, feeded it with some data, so I
+don&#8217;t want to create a new one, but to migrate the existing one. Let&#8217;s see how to
+do that.</p>
+<p>Migration commands should be put in the cube&#8217;s <em>migration</em> directory, in a
+file named file:<cite>&lt;X.Y.Z&gt;_Any.py</cite> (&#8216;Any&#8217; being there mostly for historical reason).</p>
+<p>Here I&#8217;ll create a <em>migration/0.2.0_Any.py</em> file containing the following
+instructions:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">add_relation_type</span><span class="p">(</span><span class="s">&#39;may_be_read_by&#39;</span><span class="p">)</span>
+<span class="n">add_relation_type</span><span class="p">(</span><span class="s">&#39;visibility&#39;</span><span class="p">)</span>
+<span class="n">sync_schema_props_perms</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Then I update the version number in cube&#8217;s <em>__pkginfo__.py</em> to 0.2.0. And
+that&#8217;s it! Those instructions will:</p>
+<ul class="simple">
+<li>update the instance&#8217;s schema by adding our two new relations and update the
+underlying database tables accordingly (the two first instructions)</li>
+<li>update schema&#8217;s permissions definition (the last instruction)</li>
+</ul>
+<p>To migrate my instance I simply type:</p>
+<div class="highlight-python"><pre>cubicweb-ctl upgrade sytweb</pre>
+</div>
+<p>You&#8217;ll then be asked some questions to do the migration step by step. You should say
+YES when it asks if a backup of your database should be done, so you can get back
+to initial state if anything goes wrong...</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="part03_bfss.html" title="2.1.3. Storing images on the file-system"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="part01_create-cube.html" title="2.1.1. Cube creation and schema definition"
+             >previous</a> |</li>
+        <li><a href="../../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="../index.html" >Tutorials</a> &raquo;</li>
+          <li><a href="index.html" >2. Building a photo gallery with <em>CubicWeb</em></a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>

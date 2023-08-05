@@ -1,0 +1,335 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>8. Migration &mdash; CubicWeb 3.13.5</title>
+    <link rel="stylesheet" href="../_static/lglb-sphinx-doc.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '3.13.5',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="CubicWeb 3.13.5" href="../index.html" />
+    <link rel="up" title="Repository development" href="index.html" />
+    <link rel="next" title="9. Profiling and performance" href="profiling.html" />
+    <link rel="prev" title="7. Tests" href="testing.html" /> 
+  </head>
+  <body>
+<div class="header">
+ <a href="http://www.cubicweb.org">
+  <img alt="cubicweb logo" src="../_static/cubicweb.png"/>
+ </a>
+</div>
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="profiling.html" title="9. Profiling and performance"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="testing.html" title="7. Tests"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Repository development</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="../index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="#">8. Migration</a><ul>
+<li><a class="reference external" href="#migration-scripts-management">8.1. Migration scripts management</a></li>
+<li><a class="reference external" href="#base-context">8.2. Base context</a></li>
+<li><a class="reference external" href="#new-cube-dependencies">8.3. New cube dependencies</a></li>
+<li><a class="reference external" href="#schema-migration">8.4. Schema migration</a></li>
+<li><a class="reference external" href="#data-migration">8.5. Data migration</a></li>
+<li><a class="reference external" href="#workflow-creation">8.6. Workflow creation</a></li>
+<li><a class="reference external" href="#configuration-migration">8.7. Configuration migration</a></li>
+<li><a class="reference external" href="#others-migration-functions">8.8. Others migration functions</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="testing.html"
+                                  title="previous chapter">7. Tests</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="profiling.html"
+                                  title="next chapter">9. Profiling and performance</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../_sources/devrepo/migration.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="migration">
+<span id="id1"></span><h1>8. Migration<a class="headerlink" href="#migration" title="Permalink to this headline">¶</a></h1>
+<p>One of the main design goals of <em>CubicWeb</em> was to support iterative and agile
+development. For this purpose, multiple actions are provided to facilitate the
+improvement of an instance, and in particular to handle the changes to be
+applied to the data model, without loosing existing data.</p>
+<p>The current version of a cube (and of cubicweb itself) is provided in the file
+<cite>__pkginfo__.py</cite> as a tuple of 3 integers.</p>
+<div class="section" id="migration-scripts-management">
+<h2>8.1. Migration scripts management<a class="headerlink" href="#migration-scripts-management" title="Permalink to this headline">¶</a></h2>
+<p>Migration scripts has to be located in the directory <cite>migration</cite> of your
+cube and named accordingly:</p>
+<div class="highlight-python"><pre>&lt;version n° X.Y.Z&gt;[_&lt;description&gt;]_&lt;mode&gt;.py</pre>
+</div>
+<p>in which :</p>
+<ul class="simple">
+<li>X.Y.Z is the model version number to which the script enables to migrate.</li>
+<li><em>mode</em> (between the last &#8220;_&#8221; and the extension &#8220;.py&#8221;) is used for
+distributed installation. It indicates to which part
+of the application (RQL server, web server) the script applies.
+Its value could be :<ul>
+<li><cite>common</cite>, applies to the RQL server as well as the web server and updates
+files on the hard drive (configuration files migration for example).</li>
+<li><cite>web</cite>, applies only to the web server and updates files on the hard drive.</li>
+<li><cite>repository</cite>, applies only to the RQL server and updates files on the
+hard drive.</li>
+<li><cite>Any</cite>, applies only to the RQL server and updates data in the database
+(schema and data migration for example).</li>
+</ul>
+</li>
+</ul>
+<p>Again in the directory <cite>migration</cite>, the file <cite>depends.map</cite> allows to indicate
+that for the migration to a particular model version, you always have to first
+migrate to a particular <em>CubicWeb</em> version. This file can contain comments (lines
+starting by <cite>#</cite>) and a dependancy is listed as follows:</p>
+<div class="highlight-python"><pre>&lt;model version n° X.Y.Z&gt; : &lt;cubicweb version n° X.Y.Z&gt;</pre>
+</div>
+<p>For example:</p>
+<div class="highlight-python"><pre>0.12.0: 2.26.0
+0.13.0: 2.27.0
+# 0.14 works with 2.27 &lt;= cubicweb &lt;= 2.28 at least
+0.15.0: 2.28.0</pre>
+</div>
+</div>
+<div class="section" id="base-context">
+<h2>8.2. Base context<a class="headerlink" href="#base-context" title="Permalink to this headline">¶</a></h2>
+<p>The following identifiers are pre-defined in migration scripts:</p>
+<ul class="simple">
+<li><cite>config</cite>, instance configuration</li>
+<li><cite>interactive_mode</cite>, boolean indicating that the script is executed in
+an interactive mode or not</li>
+<li><cite>versions_map</cite>, dictionary of migrated versions  (key are cubes
+names, including &#8216;cubicweb&#8217;, values are (from version, to version)</li>
+<li><cite>confirm(question)</cite>, function asking the user and returning true
+if the user answers yes, false otherwise (always returns true in
+non-interactive mode)</li>
+<li><cite>_()</cite> is equivalent to <cite>unicode</cite> allowing to flag the strings to
+internationalize in the migration scripts.</li>
+</ul>
+<p>In the <cite>repository</cite> scripts, the following identifiers are also defined:</p>
+<ul class="simple">
+<li><cite>commit(ask_confirm=True)</cite>, request confirming and executing a &#8220;commit&#8221;</li>
+<li><cite>schema</cite>, instance schema (readen from the database)</li>
+<li><cite>fsschema</cite>, installed schema on the file system (e.g. schema of
+the updated model and cubicweb)</li>
+<li><cite>repo</cite>, repository object</li>
+<li><cite>session</cite>, repository session object</li>
+</ul>
+</div>
+<div class="section" id="new-cube-dependencies">
+<h2>8.3. New cube dependencies<a class="headerlink" href="#new-cube-dependencies" title="Permalink to this headline">¶</a></h2>
+<p>If your code depends on some new cubes, you have to add them in a migration
+script by using:</p>
+<ul class="simple">
+<li><cite>add_cube(cube, update_database=True)</cite>, add a cube.</li>
+<li><cite>add_cubes(cubes, update_database=True)</cite>, add a list of cubes.</li>
+</ul>
+<p>The <cite>update_database</cite> parameter is telling if the database schema
+should be updated or if only the relevant persistent property should be
+inserted (for the case where a new cube has been extracted from an
+existing one, so the new cube schema is actually already in there).</p>
+<p>If some of the added cubes are already used by an instance, they&#8217;ll simply be
+silently skipped.</p>
+</div>
+<div class="section" id="schema-migration">
+<h2>8.4. Schema migration<a class="headerlink" href="#schema-migration" title="Permalink to this headline">¶</a></h2>
+<p>The following functions for schema migration are available in <cite>repository</cite>
+scripts:</p>
+<ul class="simple">
+<li><cite>add_attribute(etype, attrname, attrtype=None, commit=True)</cite>, adds a new
+attribute to an existing entity type. If the attribute type is not specified,
+then it is extracted from the updated schema.</li>
+<li><cite>drop_attribute(etype, attrname, commit=True)</cite>, removes an attribute from an
+existing entity type.</li>
+<li><cite>rename_attribute(etype, oldname, newname, commit=True)</cite>, renames an attribute</li>
+<li><cite>add_entity_type(etype, auto=True, commit=True)</cite>, adds a new entity type.
+If <cite>auto</cite> is True, all the relations using this entity type and having a known
+entity type on the other hand will automatically be added.</li>
+<li><cite>drop_entity_type(etype, commit=True)</cite>, removes an entity type and all the
+relations using it.</li>
+<li><cite>rename_entity_type(oldname, newname, commit=True)</cite>, renames an entity type</li>
+<li><cite>add_relation_type(rtype, addrdef=True, commit=True)</cite>, adds a new relation
+type. If <cite>addrdef</cite> is True, all the relations definitions of this type will
+be added.</li>
+<li><cite>drop_relation_type(rtype, commit=True)</cite>, removes a relation type and all the
+definitions of this type.</li>
+<li><cite>rename_relation(oldname, newname, commit=True)</cite>, renames a relation.</li>
+<li><cite>add_relation_definition(subjtype, rtype, objtype, commit=True)</cite>, adds a new
+relation definition.</li>
+<li><cite>drop_relation_definition(subjtype, rtype, objtype, commit=True)</cite>, removes
+a relation definition.</li>
+<li><cite>sync_schema_props_perms(ertype=None, syncperms=True, syncprops=True, syncrdefs=True, commit=True)</cite>,
+synchronizes properties and/or permissions on:
+- the whole schema if ertype is None
+- an entity or relation type schema if ertype is a string
+- a relation definition  if ertype is a 3-uple (subject, relation, object)</li>
+<li><cite>change_relation_props(subjtype, rtype, objtype, commit=True, **kwargs)</cite>, changes
+properties of a relation definition by using the named parameters of the properties
+to change.</li>
+<li><cite>set_widget(etype, rtype, widget, commit=True)</cite>, changes the widget used for the
+relation &lt;rtype&gt; of entity type &lt;etype&gt;.</li>
+<li><cite>set_size_constraint(etype, rtype, size, commit=True)</cite>, changes the size constraints
+for the relation &lt;rtype&gt; of entity type &lt;etype&gt;.</li>
+</ul>
+</div>
+<div class="section" id="data-migration">
+<h2>8.5. Data migration<a class="headerlink" href="#data-migration" title="Permalink to this headline">¶</a></h2>
+<p>The following functions for data migration are available in <cite>repository</cite> scripts:</p>
+<ul class="simple">
+<li><cite>rql(rql, kwargs=None, cachekey=None, ask_confirm=True)</cite>, executes an arbitrary RQL
+query, either to interrogate or update. A result set object is returned.</li>
+<li><cite>add_entity(etype, *args, **kwargs)</cite>, adds a nes entity type of the given
+type. The attribute and relation values are specified using the named and
+positionned parameters.</li>
+</ul>
+</div>
+<div class="section" id="workflow-creation">
+<h2>8.6. Workflow creation<a class="headerlink" href="#workflow-creation" title="Permalink to this headline">¶</a></h2>
+<p>The following functions for workflow creation are available in <cite>repository</cite>
+scripts:</p>
+<ul class="simple">
+<li><cite>add_workflow(label, workflowof, initial=False, commit=False, **kwargs)</cite>, adds a new workflow
+for a given type(s)</li>
+</ul>
+<p>You can find more details about workflows in the chapter <a class="reference external" href="datamodel/define-workflows.html#workflow"><em>Defining a Workflow</em></a> .</p>
+</div>
+<div class="section" id="configuration-migration">
+<h2>8.7. Configuration migration<a class="headerlink" href="#configuration-migration" title="Permalink to this headline">¶</a></h2>
+<p>The following functions for configuration migration are available in all
+scripts:</p>
+<ul class="simple">
+<li><cite>option_renamed(oldname, newname)</cite>, indicates that an option has been renamed</li>
+<li><cite>option_group_change(option, oldgroup, newgroup)</cite>, indicates that an option does not
+belong anymore to the same group.</li>
+<li><cite>option_added(oldname, newname)</cite>, indicates that an option has been added.</li>
+<li><cite>option_removed(oldname, newname)</cite>, indicates that an option has been deleted.</li>
+</ul>
+<p>The <cite>config</cite> variable is an object which can be used to access the
+configuration values, for reading and updating, with a dictionary-like
+syntax.</p>
+<p>Example 1: migration script changing the variable &#8216;sender-addr&#8217; in
+all-in-one.conf. The script also checks that in that the instance is
+configured with a known value for that variable, and only updates the
+value in that case.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">wrong_addr</span> <span class="o">=</span> <span class="s">&#39;cubicweb@loiglab.fr&#39;</span> <span class="c"># known wrong address</span>
+<span class="n">fixed_addr</span> <span class="o">=</span> <span class="s">&#39;cubicweb@logilab.fr&#39;</span>
+<span class="n">configured_addr</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;sender-addr&#39;</span><span class="p">)</span>
+<span class="c"># check that the address has not been hand fixed by a sysadmin</span>
+<span class="k">if</span> <span class="n">configured_addr</span> <span class="o">==</span> <span class="n">wrong_addr</span><span class="p">:</span>
+    <span class="n">config</span><span class="p">[</span><span class="s">&#39;sender-addr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fixed</span><span class="o">-</span><span class="n">addr</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Example 2: checking the value of the database backend driver, which
+can be useful in case you need to issue backend-dependent raw SQL
+queries in a migration script.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">dbdriver</span>  <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">sources</span><span class="p">()[</span><span class="s">&#39;system&#39;</span><span class="p">][</span><span class="s">&#39;db-driver&#39;</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">dbdriver</span> <span class="o">==</span> <span class="s">&quot;sqlserver2005&quot;</span><span class="p">:</span>
+    <span class="c"># this is now correctly handled by CW :-)</span>
+    <span class="n">sql</span><span class="p">(</span><span class="s">&#39;ALTER TABLE cw_Xxxx ALTER COLUMN cw_name varchar(64) NOT NULL;&#39;</span><span class="p">)</span>
+    <span class="n">commit</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span> <span class="c"># postgresql</span>
+    <span class="n">sync_schema_props_perms</span><span class="p">(</span><span class="n">ertype</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;Xxxx&#39;</span><span class="p">,</span> <span class="s">&#39;name&#39;</span><span class="p">,</span> <span class="s">&#39;String&#39;</span><span class="p">),</span>
+    <span class="n">syncperms</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="others-migration-functions">
+<h2>8.8. Others migration functions<a class="headerlink" href="#others-migration-functions" title="Permalink to this headline">¶</a></h2>
+<p>Those functions are only used for low level operations that could not be
+accomplished otherwise or to repair damaged databases during interactive
+session. They are available in <cite>repository</cite> scripts:</p>
+<ul class="simple">
+<li><cite>sql(sql, args=None, ask_confirm=True)</cite>, executes an arbitrary SQL query on the system source</li>
+<li><cite>add_entity_type_table(etype, commit=True)</cite></li>
+<li><cite>add_relation_type_table(rtype, commit=True)</cite></li>
+<li><cite>uninline_relation(rtype, commit=True)</cite></li>
+</ul>
+<p>[FIXME] Add explanation on how to use cubicweb-ctl shell</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="profiling.html" title="9. Profiling and performance"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="testing.html" title="7. Tests"
+             >previous</a> |</li>
+        <li><a href="../index.html">CubicWeb 3.13.5</a> &raquo;</li>
+          <li><a href="index.html" >Repository development</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2001-2010, Logilab.
+      Last updated on Sep 08, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.6.
+    </div>
+  </body>
+</html>
