@@ -1,0 +1,151 @@
+#!/usr/bin/env python
+#
+# Copyright John Reid 2012
+#
+
+"""
+Analyses the spacing between motif occurrences.
+"""
+
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+from optparse import OptionParser
+from collections import defaultdict
+from cookbook.pylab_utils import pylab_context_ioff
+import os, pyicl, numpy, pylab, cPickle
+from stempy.spacing import parse_occurrences, footprint, plot_spacings, \
+    calc_llr_statistic, can_be_primary, yield_pairs, \
+    handle_pairs, spacing_idx, load_occurrences
+
+
+def handle_primary(max_distance, primary, secondary, distance, upstream, same_strand):
+    """Update the spacings array.
+    """
+    idx = spacing_idx(max_distance, distance, upstream, same_strand)
+    spacings[(primary, secondary)][idx] += 1
+
+
+def handle_pair(seq_length, occ1, footprint1, occ2, footprint2, distance):
+    same_strand = bool(occ1.strand == occ2.strand) # are they on the same strand?
+    
+    # handle occ1 as the primary occurrence
+    # check whether occ1 is too close to start or end to be a primary motif
+    if can_be_primary(options.max_distance, footprint1, footprint2.size, seq_length):
+        handle_primary(options.max_distance, occ1.motif, occ2.motif, distance, occ1.strand == '+', same_strand)
+        
+    # handle occ2 as the primary occurrence
+    # check whether occ2 is too close to start or end to be a primary motif
+    if can_be_primary(options.max_distance, footprint2, footprint1.size, seq_length):
+        handle_primary(options.max_distance, occ2.motif, occ1.motif, distance, occ2.strand == '-', same_strand)
+        
+
+
+
+parser = OptionParser()
+parser.add_option(
+    "-r",
+    "--results-dir",
+    default='.',
+    help="Look for results from PWM scan in directory: DIR",
+    metavar="DIR"
+)
+parser.add_option(
+    "-d",
+    "--max-distance",
+    type=int,
+    default=30,
+    help="Only look for occurrences of motifs up to MAX_DISTANCE base pairs apart",
+    metavar="MAX_DISTANCE"
+)
+parser.add_option(
+    "-t",
+    "--log-evidence-plot-threshold",
+    type=float,
+    default=1.,
+    help="Plot those spacings for which the log evidence in favour of a non-uniform distribution is at least THRESHOLD",
+    metavar="THRESHOLD"
+)
+options, args = parser.parse_args()
+occurrences_filename = os.path.join(options.results_dir, 'steme-pwm-scan.out')
+seq_lengths_filename = os.path.join(options.results_dir, 'steme-pwm-scan.lengths')
+
+
+#
+# Now we know where we will write output to, start a log file
+#
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+log_file_handler = logging.FileHandler(os.path.join(options.results_dir, 'steme-spacing-max=%d.log' % options.max_distance), mode='w')
+log_file_handler.setFormatter(formatter)
+log_file_handler.setLevel(logging.INFO)
+logging.getLogger('').addHandler(log_file_handler)
+
+
+
+#
+# Load the occurrences and associated sequence lengths
+#
+occurrences, seq_infos, motifs = load_occurrences(options)
+
+
+
+
+
+#
+# Now we have the motifs in order, we can sort the occurrences by position
+#
+logging.info('Sorting %d occurrences', len(occurrences))
+occurrences.sort(key=lambda x: (x.seq, x.pos))
+
+
+#
+# Iterate through the occurrences finding spacings
+#
+logging.info(
+    'Examining spacings of up to %d b.p. between %d occurrences of %d motifs in %d sequences',
+     options.max_distance, len(occurrences), len(motifs), len(seq_infos)
+)
+spacings = defaultdict(lambda: numpy.zeros(4 * (options.max_distance+1), dtype=numpy.uint))
+handle_pairs(occurrences, seq_infos, handle_pair, options)
+
+
+
+
+
+
+
+spacings_pickle_filename = os.path.join(options.results_dir, 'spacings-max=%d.pickle' % options.max_distance)
+logging.info('Pickling spacings to: %s', spacings_pickle_filename)
+cPickle.dump(dict(spacings), open(spacings_pickle_filename, 'w'))
+
+
+#
+# Examine log evidence against uniform distribution of counts
+#
+log_evidences = [
+    (float(calc_llr_statistic(spacing_counts, numpy.ones_like(spacing_counts))), (motif1, motif2))
+    for (motif1, motif2), spacing_counts in spacings.iteritems()
+    if spacing_counts.sum() > 0
+]
+log_evidences.sort(reverse=True)
+with pylab_context_ioff():
+    for rank, (log_evidence, (motif1, motif2)) in enumerate(log_evidences):
+        spacing_counts = spacings[(motif1, motif2)]
+        filename = ''
+        if log_evidence >= options.log_evidence_plot_threshold:
+            tag = 'max=%d-rank=%03d-%s-%s' % (options.max_distance, rank, motif1, motif2)
+            plot_spacings(options.max_distance, spacing_counts)
+            pylab.figtext(.25, .97, 'primary: ' + motif1, ha='center')
+            pylab.figtext(.25, .92, 'secondary: ' + motif2, ha='center')
+            pylab.figtext(.75, .97, 'ln evidence=%.1f' % log_evidence, ha='center')
+            pylab.figtext(.75, .92, 'total=%d' % spacing_counts.sum(), ha='center')
+            filename = os.path.join(options.results_dir, 'spacings-%s' % tag)
+            pylab.savefig(filename +  '.png')
+            pylab.savefig(filename +  '.eps')
+            pylab.close()        
+        logging.info(
+            'LLR:%8.1f; total:%6d; %30s - %-30s; bar chart: %s', 
+            log_evidence, spacing_counts.sum(), motif1, motif2, filename
+        )
+    
+
+

@@ -1,0 +1,411 @@
+#
+# Copyright John Reid 2012
+#
+
+
+"""
+Code to analyse distances (spacings) between pairs of occurrences of TFs.
+"""
+
+from cookbook.named_tuple import namedtuple
+from scipy.special import gammaln, digamma
+import pyicl, numpy, pylab, logging, os
+from collections import defaultdict
+
+
+
+
+SeqInfo = namedtuple('SeqInfo', 'name length')
+Occurrence = namedtuple('Occurrence', 'motif wmer seq pos strand Z score pvalue')
+PairOccurrence = namedtuple('PairOccurrence', 'spacing seq pos strand')
+Spacing = namedtuple('Spacing', 'primary secondary same_strand upstream distance')
+
+
+def footprint(occ):
+    """Return the footprint (interval) of the occurrence.
+    """
+    return pyicl.IntInterval(occ.pos, occ.pos + len(occ.wmer))
+ 
+
+def parse_occurrence(line):
+    """Parse one occurrence in the format outputted by steme-pwm-scan.
+    """
+    fields = line.strip().split(',')
+    if 8 != len(fields):
+        raise RuntimeError('Wrong number of fields in line: %s' % line)
+    return Occurrence(
+        motif=fields[0],
+        wmer=fields[1],
+        seq=int(fields[2]),
+        pos=int(fields[3]),
+        strand=fields[4],
+        Z=float(fields[5]),
+        score=float(fields[6]),
+        pvalue=float(fields[7]),
+    )
+    
+def parse_occurrences(f):
+    """Parse lines of occurrences in the format outputted by steme-pwm-scan.
+    """
+    return map(parse_occurrence, f)
+
+def parse_seq_info(line):
+    """Parse one sequence info in the format outputted by steme-pwm-scan.
+    """
+    fields = line.strip().split(',')
+    if 2 != len(fields):
+        raise RuntimeError('Wrong number of fields in line: %s' % line)
+    return SeqInfo(
+        name=fields[1],
+        length=int(fields[0])
+    )
+    
+def parse_seq_infos(f):
+    """Parse lines of sequence infos in the format outputted by steme-pwm-scan.
+    """
+    return map(parse_seq_info, f)
+
+
+def spacing_idx(max_distance, distance, upstream, same_strand):
+    """Calculates an index into a spacing array.
+    
+    Args:
+        max_distance: The maximum distance represented in the spacing array.
+        distance: The distance to calculate the index for (should be in [0, max_distance].
+        upstream: True if the secondary occurrence upstream of the primary occurrence.
+        same_strand: True if the secondary occurrence on the same strand as the primary occurrence.
+    
+    Returns:
+        An index in [0, 4*(max_distance+1)].
+    """
+    offset = max_distance+1
+    if distance not in pyicl.IntInterval(0, offset):
+        raise ValueError('Bad distance')
+    assert offset in pyicl.IntInterval(0, 2 * offset)
+    idx = distance + int(upstream) * offset + int(same_strand) * 2 * offset
+    assert idx in pyicl.IntInterval(0, 4 * offset)
+    return idx
+
+
+
+def spacing_from_idx(max_distance, idx):
+    """Return the spacing for this index.
+    """
+    offset = max_distance+1
+    if idx not in pyicl.IntInterval(0, 4 * offset):
+        raise ValueError('Bad index')
+    same_strand = idx >= (2 * offset)
+    idx %= 2 * offset
+    upstream = idx >= offset
+    idx %= offset
+    assert idx in pyicl.IntInterval(0, offset)
+    return idx, upstream, same_strand
+
+
+def _test_idx_fns(max_distance):
+    for distance, upstream, same_strand in (
+        (0, False, False),
+        (0, True , False),
+        (0, False, True ),
+        (0, True , True ),
+        (1, False, False),
+        (1, True , False),
+        (1, False, True ),
+        (1, True , True ),
+        (max_distance-1, False, False),
+        (max_distance-1, True , False),
+        (max_distance-1, False, True ),
+        (max_distance-1, True , True ),
+        (max_distance  , False, False),
+        (max_distance  , True , False),
+        (max_distance  , False, True ),
+        (max_distance  , True , True ),
+    ):
+        assert (distance, upstream, same_strand) == spacing_from_idx(max_distance, spacing_idx(max_distance, distance, upstream, same_strand))
+
+
+# Uncomment to test index functions
+# _test_idx_fns(9)
+
+
+def can_be_primary(max_distance, primary_footprint, secondary_len, seq_length):
+    """Is the primary motif too close to the boundaries of the sequence to be considered?
+    """
+    if max_distance + secondary_len > primary_footprint.first:
+        return False
+    if seq_length - max_distance - secondary_len <= primary_footprint.last:
+        return False
+    return True
+
+
+def ln_factorial(n):
+    return gammaln(n+1)
+
+
+def calc_ln_n_choose(obs):
+    """Calculates the log of n choose the observed counts.
+    """
+    return ln_factorial(obs.sum()) - ln_factorial(obs).sum();
+
+
+
+def calc_multinomial_ln_likelihood_uniform_dist(obs):
+    """Calculates the log likelihood of the observed counts under a uniform multinomial distribution.
+    """
+    n = obs.sum()
+    if 0 == n:
+        return .0
+    return calc_ln_n_choose(obs) - n * numpy.log(len(obs));
+
+
+def calc_ln_gamma_factor(obs, alpha):
+    """Calculates a factor involved in the likelihood of a multinomial distribution with a Dirichlet prior.
+    """
+    return (
+        gammaln(alpha.sum())
+        - gammaln(alpha).sum()
+        + gammaln(alpha + obs).sum()
+        - gammaln(alpha.sum() + obs.sum())
+    )
+
+
+def calc_multinomial_ln_likelihood_dirichlet_prior(obs, alpha):
+    """Calculates the log likelihood of the observed counts under a Dirichlet prior.
+    """
+    return calc_ln_gamma_factor(obs, alpha) + calc_ln_n_choose(obs)
+
+
+#def calc_llr_statistic(obs, alpha):
+#    """Calculates the ratio of evidence in favour of a Dirichlet prior
+#    defined by the alphas over a uniform distribution. 
+#    """
+#    return (obs * (digamma(alpha) + numpy.log(4 * len(alpha)))).sum() - obs.sum() * digamma(alpha.sum()) 
+
+
+def calc_llr_statistic(obs, alpha):
+    """Calculates the ratio of evidence in favour of a Dirichlet prior
+    defined by the alphas over a uniform distribution. 
+    """
+    N = obs.sum()
+    alpha0 = alpha.sum()
+    D = len(obs)
+    return gammaln(alpha0) - gammaln(alpha0+N) + (gammaln(alpha+obs) + gammaln(alpha)).sum() + N*numpy.log(D)
+
+
+
+def ticks_restrict_to_integer(axis):
+    """Restrict the ticks on the given axis to be at least integer,
+    that is no half ticks at 1.5 for example.
+    """
+    from matplotlib.ticker import MultipleLocator
+    major_tick_locs = axis.get_majorticklocs()
+    if len(major_tick_locs) < 2 or major_tick_locs[1] - major_tick_locs[0] < 1:
+        axis.set_major_locator(MultipleLocator(1))
+    
+
+def _test_restrict_to_integer():
+    pylab.figure()
+    ax = pylab.subplot(1, 2, 1)
+    pylab.bar(range(1,4), range(1,4), align='center')
+    ticks_restrict_to_integer(ax.xaxis)
+    ticks_restrict_to_integer(ax.yaxis)
+    
+    ax = pylab.subplot(1, 2, 2)
+    pylab.bar(range(1,4), range(100,400,100), align='center')
+    ticks_restrict_to_integer(ax.xaxis)
+    ticks_restrict_to_integer(ax.yaxis)
+
+#_test_restrict_to_integer()
+#pylab.show()
+
+    
+def plot_spacings(max_distance, spacing_counts):
+    """Plot the spacing counts in four subplots.
+    """
+    pylab.figure()
+    i = 1
+    ymax = spacing_counts.max()
+    for same_strand in (True, False):
+        for upstream in (False, True):
+            ax = pylab.subplot(2, 2, i)
+            if not same_strand:
+                pylab.xlabel(upstream and 'upstream' or 'downstream')
+            if upstream:
+                x = numpy.arange(0, max_distance+1)
+            else:
+                pylab.ylabel(same_strand and 'Same strand' or 'Opposite orientation')
+                x = numpy.arange(-max_distance, 1)
+            y = [spacing_counts[spacing_idx(max_distance, int(abs(distance)), upstream, same_strand)] for distance in x]
+            pylab.bar(x, y, align='center', width=.5, color='grey')
+            pylab.ylim(0, ymax)
+            pylab.xlim(x[0]-1, x[-1]+1)
+            ticks_restrict_to_integer(ax.xaxis)
+            ticks_restrict_to_integer(ax.yaxis)
+            i = i + 1
+
+
+def yield_pairs(occurrences, seq_infos, options):
+    """Yield pairs of occurrences under a given maximum distance.
+    """
+    for i1, occ1 in enumerate(occurrences): # first occurrence
+        footprint1 = footprint(occ1)
+        seq_length = seq_infos[occ1.seq].length
+        
+        for i2 in xrange(i1, len(occurrences)):
+            occ2 = occurrences[i2]
+    
+            if occ2.seq != occ1.seq: # only interested in occurrences on same sequence
+                break
+            
+            footprint2 = footprint(occ2)
+            if not footprint1.disjoint(footprint2):
+                continue # not interested in overlapping occurrences
+        
+            distance = footprint2.distance(footprint1)
+            if distance > options.max_distance:
+                break # only interested in pairs up to some distance apart
+            assert distance in pyicl.IntInterval(0, options.max_distance + 1)
+            
+            yield seq_length, occ1, footprint1, occ2, footprint2, distance
+
+
+
+def handle_pairs(occurrences, seq_infos, handler, options):
+    """Handle pairs of occurrences under a given maximum distance.
+    """
+    for i1, occ1 in enumerate(occurrences): # first occurrence
+        footprint1 = footprint(occ1)
+        seq_length = seq_infos[occ1.seq].length
+        
+        for i2 in xrange(i1, len(occurrences)):
+            occ2 = occurrences[i2]
+    
+            if occ2.seq != occ1.seq: # only interested in occurrences on same sequence
+                break
+            
+            footprint2 = footprint(occ2)
+            if not footprint1.disjoint(footprint2):
+                continue # not interested in overlapping occurrences
+        
+            distance = footprint2.distance(footprint1)
+            if distance > options.max_distance:
+                break # only interested in pairs up to some distance apart
+            assert distance in pyicl.IntInterval(0, options.max_distance + 1)
+
+            handler(seq_length, occ1, footprint1, occ2, footprint2, distance)
+
+
+
+def parse_spacings(f):
+    """Parse a list of spacings. Returns a map from motif pairs to sets of spacings
+    """
+    result = defaultdict(list)
+    for line in f:
+        if line.startswith('#'):
+            continue # ignore comments
+        primary, secondary, same_strand, upstream, distance = line.strip().split()
+        distance = int(distance)
+        if 'S' != same_strand and 'C' != same_strand:
+            raise ValueError('Expecting "S" or "C" for same strand field')
+        same_strand = 'S' == same_strand
+        if 'U' != upstream and 'D' != upstream:
+            raise ValueError('Expecting "U" or "D" for upstream field')
+        upstream = 'U' == upstream
+        result[primary, secondary].append(
+            Spacing(primary=primary, secondary=secondary, same_strand=same_strand, upstream=upstream, distance=distance)
+        )
+    return result
+
+
+spacing_header = '%30s %-25s %s %2s %4s' % ('Primary', 'Secondary', 'Strand', 'Up', 'Dist')
+
+def spacing_str(spacing):
+    return '%30s %-30s %s %2s %4d' % (
+        spacing.primary, spacing.secondary, spacing.same_strand and "S" or "C", spacing.upstream and "U" or "D", spacing.distance
+    )
+
+
+def check_spacings(motif_pairs, motifs):
+    for primary, secondary in motif_pairs:
+        if primary not in motifs:
+            raise ValueError('Motif "%s" is not in the occurrences' % primary)
+        if secondary not in motifs:
+            raise ValueError('Motif "%s" is not in the occurrences' % secondary)
+
+def log_spacings(spacings):
+    """Log the spacings
+    """
+    logging.info('Using following spacings:')
+    logging.info(spacing_header)
+    logging.info('*' * len(spacing_header))
+    for pair_spacings in spacings:
+        for spacing in pair_spacings:
+            logging.info(spacing_str(spacing))
+
+
+def add_options(parser):
+    """Add options for spacing functionality to the parser.
+    """
+    parser.add_option(
+        "-r",
+        "--results-dir",
+        default='.',
+        help="Look for results from PWM scan in directory: DIR",
+        metavar="DIR"
+    )
+    parser.add_option(
+        "-d",
+        "--max-distance",
+        type=int,
+        default=30,
+        help="Only look for occurrences of motifs up to MAX_DISTANCE base pairs apart",
+        metavar="MAX_DISTANCE"
+    )
+    
+    
+def load_occurrences(options):
+    """Load the occurrences and associated sequence lengths.
+    """
+    occurrences_filename = os.path.join(options.results_dir, 'steme-pwm-scan.out')
+    seqs_filename = os.path.join(options.results_dir, 'steme-pwm-scan.seqs')
+    
+    #
+    # Read in the occurrences
+    #
+    logging.info('Reading occurrences from: %s', occurrences_filename)
+    occurrences = parse_occurrences(open(occurrences_filename))
+    
+    
+    #
+    # Read in the sequence lengths
+    #
+    logging.info('Reading sequence information from: %s', seqs_filename)
+    seq_infos = parse_seq_infos(open(seqs_filename))
+    
+    
+    #
+    # Gather all the motifs
+    #
+    motifs = set(occ.motif for occ in occurrences)
+    
+    
+    #
+    # Sort the occurrences by position
+    #
+    logging.info('Sorting %d occurrences', len(occurrences))
+    occurrences.sort(key=lambda x: (x.seq, x.pos))
+    
+    return occurrences, seq_infos, motifs
+
+
+def load_spacings(spacings_filename, motifs, options):
+    """Load spacings from filename. Check they are consistent with motif list.
+    """
+    filename = os.path.join(options.results_dir, spacings_filename)
+    logging.info('Reading spacings to find from: %s', filename)
+    spacings = parse_spacings(open(filename))
+    check_spacings(spacings.keys(), motifs)
+    log_spacings(spacings.values())
+    return spacings
+
+
