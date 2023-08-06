@@ -1,0 +1,5 @@
+rename_entity_type('Blog', u'BlogEntry')
+add_entity_type('Blog')
+rql('INSERT Blog B: B title "main blog"')
+rql('SET BE entry_of B WHERE BE is BlogEntry, B is Blog')
+checkpoint()
