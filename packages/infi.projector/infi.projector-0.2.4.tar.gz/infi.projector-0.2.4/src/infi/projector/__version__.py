@@ -1,0 +1,10 @@
+__version__ = "0.2.4"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = '(Not currently on any branch)'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = '39b66c9ce35f51725cce0837a3df64460e01bf3e'
+__git_head_subject__ = 'Finished release v0.2.4.'
+__git_head_message__ = '* release/v0.2.4:\n  TRIVIAL clone on Windows\n  TRIVIAL fixing first_run/with_environment_python.py again\n  TRIVIAL fixing first_run/with_environment_python.py\n  empty commit after version v0.2.3'
+__git_dirty_diff__ = ''
