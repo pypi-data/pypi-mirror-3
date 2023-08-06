@@ -1,0 +1,61 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+# vi:si:et:sw=4:sts=4:ts=4
+# GPL 2008-2012
+
+import os
+import sys
+from glob import glob
+from optparse import OptionParser
+
+import Image
+
+root = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..')
+if os.path.exists(os.path.join(root, 'oxtimelines')):
+    sys.path.insert(0, root)
+
+import ox
+import oxtimelines
+
+# fixme: -w option should be 'keyframeswide' mode
+
+if __name__ == '__main__':
+    usage = '''
+%prog takes one or more video files as input and outputs timeline images.
+If a cuts path is given, it also outputs a json file containing cuts. If in and
+out points are given, only that part of the video(s) will be rendered.
+
+The timeline modes can be any combination of 'antialias' (average color),
+'slitscan' (center pixel), 'keyframes' (one or more frames per cut), 'audio'
+(waveform), 'cuts' (antialias with cut detection overlay, for debugging) and
+'data' (each frame resized to 8x8 px).
+
+One or two timeline heights can be specified, larger height first. The timeline
+widths will be 1 px per frame for the first one, and 1 px per second for the
+second (smaller) one. If the wide option is set, large 'keyframeswide' tiles
+will be rendered. They can be used at a later point to render small 'keyframes'
+tiles without having to decode the video again.
+
+usage: %prog [options] video1 [video2]'''
+
+    parser = OptionParser(usage=usage)
+    parser.add_option('-o', '--output', dest='tiles', help='path for combined timeline tiles')
+    parser.add_option('-c', '--cuts', dest='cuts', help='path for combined cuts json file')
+    parser.add_option('-p', '--points', dest='points', help='inpoint,outpoint (optional)')
+    parser.add_option('-m', '--modes', dest='modes', help='timeline mode(s) (antialias, slitscan, keyframes, audio, cuts, data)')
+    parser.add_option('-s', '--sizes', dest='sizes', help='timeline size(s) (64 or 64,16)')
+    parser.add_option('-w', '--wide', dest='wide', default=False, action='store_true', help='keep wide frames tiles')
+    parser.add_option('-l', '--log', dest='log', default=False, action='store_true', help='log performance')
+    (opts, args) = parser.parse_args()
+
+    if None in (opts.modes, opts.sizes, opts.tiles) or not args:
+        parser.print_help()
+        sys.exit()
+
+    opts.videos = map(os.path.abspath, args)
+    if opts.points:
+        opts.points = map(float, opts.points.split(','))
+    opts.modes = [m.strip() for m in opts.modes.split(',')]
+    opts.sizes = map(int, opts.sizes.split(','))
+
+    oxtimelines.Timelines(opts.videos, opts.tiles, opts.cuts, opts.points, opts.modes, opts.sizes, opts.wide, opts.log).render()
