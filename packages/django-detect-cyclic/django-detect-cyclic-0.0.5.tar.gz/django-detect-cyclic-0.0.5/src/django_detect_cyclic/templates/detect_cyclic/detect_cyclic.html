@@ -1,0 +1,92 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n inplace_edit %}
+
+{% block extrahead %}
+    {{ block.super }}
+    {{ media }}
+    {% url 'admin:jsi18n' as jsi18nurl %}
+    <script type="text/javascript" src="{{ jsi18nurl|default:"../../jsi18n/" }}"></script>
+    <script type="text/javascript" src="{{ STATIC_URL }}admin/js/calendar.js"></script>
+
+    {% if gr %}
+        <script type="text/javascript" src="{{ STATIC_URL }}js/dracula/raphael-min.js"></script>
+        <script type="text/javascript" src="{{ STATIC_URL }}js/dracula/dracula_graffle.js"></script>
+        <script type="text/javascript" src="{{ STATIC_URL }}js/dracula/dracula_graph.js"></script>
+        <script type="text/javascript" src="{{ STATIC_URL }}js/dracula/jquery-1.4.2.min.js"></script>
+        <script type="text/javascript">
+        (function($) {
+            $(document).ready(function () {
+                var render = function(r, n) {
+                    var width_node = n.label.length * 6;
+                    if (width_node < 100) {
+                        width_node = 100;
+                    }
+                    var set = r.set().push(
+                        /* custom objects go here */
+                        r.rect(n.point[0] - width_node/2, n.point[1]-40, width_node, 100).attr({"fill": n.color, r : "12px", "stroke-width" : n.distance == 0 ? "3px" : "1px" })).push(
+                        r.text(n.point[0], n.point[1] + 10, (n.label || n.id)));
+                    return set;
+                };
+                var container = "canvas";
+                var height = 500;
+                var width = $("#"+container).width();
+                var g = new Graph();
+                {% for node, attrs in gr.nodes.items %}
+                    var attrs = {{ attrs|safe }};
+                    attrs["render"] = render;
+                    g.addNode("{{ node }}", attrs);
+                {% endfor %}
+                {% for edge, attrs in gr.edges.items %}
+                    g.addEdge("{{ edge.0 }}", "{{ edge.1 }}", {{ attrs|safe }});
+                {% endfor %}
+                var layouter = new Graph.Layout.Spring(g);
+                var renderer = new Graph.Renderer.Raphael(container, g, width, height);
+                renderer.draw();
+            });
+        })(jQuery);
+        </script>
+    {% endif %}
+
+    {{ form.media }}
+{% endblock %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}admin/css/forms.css" />
+{% endblock %}
+
+{% block coltype %}
+    {% if ordered_objects %}colMS{% else %}colM{% endif %}
+{% endblock %}
+
+{% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <a href="../">{% trans "Home" %}</a> &rsaquo;
+        {{ title }}
+    </div>
+{% endblock %}
+
+{% block content %}
+    <div id="content-main">
+        {% if message %}
+            <h2> {{ message }} </h2>
+        {% endif %}
+        {% if img_src %}
+            <img src="{{ img_src }}"/>
+            <p>
+                <a href="{{ img_src }}" target="_blank">{% trans "Download" %}</a>
+            </p>
+        {% endif %}
+        {% if gr %}
+            <div id="canvas"></div>
+        {% endif %}
+        <form action="." method="POST">
+            {% csrf_token %}
+            {{ form }}
+            <div class="submit-row">
+                <input type="submit" name="submit" value="{% trans "Create Graph" %}"/>
+            </div>
+        </form>
+    </div>
+{% endblock %}
