@@ -1,0 +1,256 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>gyroid.group &mdash; gyroid 0.3 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.3',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="gyroid 0.3 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body>
+  
+  
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">gyroid 0.3 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for gyroid.group</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">gyroid.group</span>
+<span class="sd">============</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy.linalg</span> <span class="kn">import</span> <span class="n">inv</span>
+
+<span class="c">#from .symmetry import find_symmetry_for_group</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">HM_ITA_TABLE1</span><span class="p">,</span><span class="n">HM_ITA_TABLE2</span><span class="p">,</span><span class="n">HM_ITA_TABLE3</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">GROUP_ORDER_TABLE1</span><span class="p">,</span><span class="n">GROUP_ORDER_TABLE2</span><span class="p">,</span><span class="n">GROUP_ORDER_TABLE3</span>
+<span class="kn">from</span> <span class="nn">.space_group</span> <span class="kn">import</span> <span class="n">symmetry_generator1</span><span class="p">,</span><span class="n">symmetry_generator2</span><span class="p">,</span><span class="n">symmetry_generator3</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;Group&quot;</span><span class="p">,</span><span class="s">&quot;CayleyTable&quot;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="Group"><a class="viewcode-back" href="../../gyroid.html#gyroid.group.Group">[docs]</a><span class="k">class</span> <span class="nc">Group</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; A :class:`Group` object is a representaion of a space group.</span>
+
+<span class="sd">    All symmetries in a space group must have the same basis type, i.e. they</span>
+<span class="sd">    must all be either the BRAVAIS or the CARTESIAN bases.</span>
+
+<span class="sd">    The space group is constructed either by providing a Hermann-Mauguin Symbol (HM_symbol) or a sequential number as given in the International Tables for Crystallography, Vol. A (ITA_number)</span>
+
+<span class="sd">    :members: dim, type, shape, symm</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">dim</span><span class="p">,</span><span class="n">basis_type</span><span class="p">,</span><span class="n">shape_matrix</span><span class="p">,</span>
+                 <span class="n">HM_symbol</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">ITA_number</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        If both HM symbol and ITA number are provided, use HM symbol only. And the consistency of HM symbol and ITA number is checked.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="n">dim</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">dim</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Only 1D, 2D, and 3D space allowed.&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">basis_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape_matrix</span>
+        <span class="k">if</span> <span class="n">HM_symbol</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__create_group_by_symbol</span><span class="p">(</span><span class="n">HM_symbol</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">ITA_number</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__create_group_by_number</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__find_ITA_number</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">HM_symbol</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">HM_symbol</span> <span class="ow">in</span> <span class="n">HM_ITA_TABLE1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">HM_ITA_TABLE1</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">HM_symbol</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">HM_symbol</span> <span class="ow">in</span> <span class="n">HM_ITA_TABLE2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">HM_ITA_TABLE2</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">HM_symbol</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">HM_symbol</span> <span class="ow">in</span> <span class="n">HM_ITA_TABLE3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">HM_ITA_TABLE3</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">HM_symbol</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">__is_valid_ITA_number</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ITA_number</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">ITA_number</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">ITA_number</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">ITA_number</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">ITA_number</span> <span class="o">&lt;</span> <span class="mi">18</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">ITA_number</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">ITA_number</span> <span class="o">&lt;</span> <span class="mi">231</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">__find_HM_symbol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ITA_number</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">HM_ITA_TABLE1</span><span class="p">[</span><span class="n">ITA_number</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">HM_ITA_TABLE2</span><span class="p">[</span><span class="n">ITA_number</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">HM_ITA_TABLE3</span><span class="p">[</span><span class="n">ITA_number</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__find_group_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ITA_number</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">GROUP_ORDER_TABLE1</span><span class="p">[</span><span class="n">ITA_number</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">GROUP_ORDER_TABLE2</span><span class="p">[</span><span class="n">ITA_number</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">GROUP_ORDER_TABLE3</span><span class="p">[</span><span class="n">ITA_number</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__find_symmetry_for_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ITA_number</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">symmetry_generator1</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">type</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">symm</span> <span class="o">=</span> <span class="n">symmetry_generator2</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">type</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">symm</span> <span class="o">=</span> <span class="n">symmetry_generator3</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">type</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="c"># generating group symmetries using generators</span>
+        <span class="n">cayley</span> <span class="o">=</span> <span class="n">CayleyTable</span><span class="p">(</span><span class="n">symm</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">iterate</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">20</span><span class="p">):</span>
+            <span class="n">is_group</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="c"># Add missing inverses of existing elements to group</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">symm</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+                <span class="n">isymm</span> <span class="o">=</span> <span class="n">symm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">inverse</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">isymm</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">symm</span><span class="p">:</span>
+                    <span class="n">symm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">isymm</span><span class="p">)</span>
+                    <span class="n">is_group</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="c"># Add products of existing elements to group</span>
+            <span class="n">cayley</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">symm</span><span class="p">)</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">symm</span><span class="p">)</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">)</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndindex</span><span class="p">(</span><span class="n">k</span><span class="p">,</span><span class="n">k</span><span class="p">):</span>
+                <span class="c">#if (cayley.index[i,j] == -1) and (cayley.table[i][j] not in symm):</span>
+                <span class="k">if</span> <span class="n">cayley</span><span class="o">.</span><span class="n">table</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">symm</span><span class="p">:</span>
+                    <span class="n">symm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cayley</span><span class="o">.</span><span class="n">table</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">])</span>
+                    <span class="n">is_group</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="c"># No more symmetry element is added before end of iteration.</span>
+            <span class="k">if</span> <span class="n">is_group</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">symm</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Failed to create a group.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__create_group_by_symbol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">HM_symbol</span><span class="p">):</span>
+        <span class="n">number</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__find_ITA_number</span><span class="p">(</span><span class="n">HM_symbol</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__create_group_by_number</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__create_group_by_number</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ITA_number</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__is_valid_ITA_number</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Incorrect HM symbol or ITA number.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">number</span> <span class="o">=</span> <span class="n">ITA_number</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">HM_symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__find_HM_symbol</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">symm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__find_symmetry_for_group</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symm</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__find_group_order</span><span class="p">(</span><span class="n">ITA_number</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Incorrect order for group&quot;</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="CayleyTable"><a class="viewcode-back" href="../../gyroid.html#gyroid.group.CayleyTable">[docs]</a><span class="k">class</span> <span class="nc">CayleyTable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Make a full Cayley table from a list of :class:`Symmetry` objects.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">symm</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="c"># create a self.order x self.order table</span>
+        <span class="c"># NOTE: table is not an numpy ndarray!</span>
+        <span class="k">if</span> <span class="n">symm</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="p">[[]]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">symm</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="p">[[</span><span class="n">symm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">symm</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">)]</span>
+                                           <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">)]</span>
+
+<div class="viewcode-block" id="CayleyTable.update"><a class="viewcode-back" href="../../gyroid.html#gyroid.group.CayleyTable.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">symm</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Update the :class:`CayleyTable` object.</span>
+
+<span class="sd">        Currently, `len(symm)` must be larger than `self.order`.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">l0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">order</span>
+        <span class="n">l1</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">symm</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">l1</span> <span class="o">&lt;=</span> <span class="n">l0</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c"># Extend original rows</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">l0</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">symm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">symm</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span><span class="n">l1</span><span class="p">)])</span>
+        <span class="c"># Add additional rows</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">extend</span><span class="p">([[</span><span class="n">symm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">symm</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">l1</span><span class="p">)]</span>
+                                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span><span class="n">l1</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">l1</span>
+</pre></div></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012, Yi-Xin Liu.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>

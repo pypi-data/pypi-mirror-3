@@ -1,0 +1,641 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>gyroid.basis &mdash; gyroid 0.3 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.3',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="gyroid 0.3 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body>
+  
+  
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">gyroid 0.3 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for gyroid.basis</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">gyroid.basis</span>
+<span class="sd">============</span>
+
+<span class="sd">This module is the main module of the package, wherein :class:`Basis` class abstractsa whole SABF set.</span>
+
+<span class="sd">This module defines three classes: :class:`Basis`, :class:`StarSet`, :class:`StarAtom`.</span>
+
+<span class="sd">This module provides one function: :func:`index_waves`.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy.linalg</span> <span class="kn">import</span> <span class="n">inv</span>
+
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">BRAVAIS</span><span class="p">,</span><span class="n">CARTESIAN</span><span class="p">,</span><span class="n">EPS</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;Basis&quot;</span><span class="p">,</span><span class="s">&quot;StarSet&quot;</span><span class="p">,</span><span class="s">&quot;StarAtom&quot;</span><span class="p">,</span><span class="s">&quot;index_waves&quot;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="Basis"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.Basis">[docs]</a><span class="k">class</span> <span class="nc">Basis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Representation of a whole SABF set.</span>
+
+<span class="sd">    The SABF set mainly depends on the type of unit cell (crystal system), the point group symmetries, and how the unit cell is discretized.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">group</span><span class="p">,</span><span class="n">grid</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stars</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">starmap</span> <span class="o">=</span> <span class="p">{}</span> <span class="c"># key: G (within BZ), value: index of a star</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c"># this is for coefficients, N = #(closed star) +</span>
+                    <span class="c"># 2 * #(open star pair)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>   <span class="c"># record the number of StarAtom</span>
+        <span class="n">ic</span> <span class="o">=</span> <span class="mi">0</span>   <span class="c"># record the index of coefficent</span>
+        <span class="n">G2_pre</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">Gsq</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c"># Previous G2</span>
+        <span class="k">for</span> <span class="n">G2</span> <span class="ow">in</span> <span class="n">grid</span><span class="o">.</span><span class="n">Gsq</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">G2</span><span class="o">-</span><span class="n">G2_pre</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">EPS</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">StarSet</span><span class="p">(</span><span class="n">group</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">G2_pre</span><span class="p">)</span>
+                <span class="c"># s.stars is an Python list.</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">stars</span><span class="p">)</span>
+                <span class="c"># map G to the index of star</span>
+                <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">star</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">stars</span><span class="p">:</span>
+                    <span class="n">iw</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">for</span> <span class="n">G</span> <span class="ow">in</span> <span class="n">star</span><span class="o">.</span><span class="n">waves</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+                        <span class="n">key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">starmap</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="n">i</span><span class="p">,</span> <span class="n">iw</span><span class="p">,</span> <span class="n">ic</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                        <span class="n">iw</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">ic</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">star</span><span class="o">.</span><span class="n">iwaves</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="n">iw</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="k">for</span> <span class="n">Gi</span> <span class="ow">in</span> <span class="n">star</span><span class="o">.</span><span class="n">iwaves</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+                            <span class="n">key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Gi</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">starmap</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="n">i</span><span class="p">,</span> <span class="n">iw</span><span class="p">,</span> <span class="n">ic</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                            <span class="n">iw</span> <span class="o">+=</span> <span class="mi">1</span>
+                        <span class="n">ic</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="n">i</span>  <span class="c"># i stars has been counted in last cycle</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">+=</span> <span class="n">s</span><span class="o">.</span><span class="n">N</span>
+                <span class="n">G2_pre</span> <span class="o">=</span> <span class="n">G2</span>
+
+<div class="viewcode-block" id="Basis.generate_structure"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.Basis.generate_structure">[docs]</a>    <span class="k">def</span> <span class="nf">generate_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">real_grid</span><span class="p">,</span><span class="n">c</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Generate structure without projecting SABF to FFT.</span>
+
+<span class="sd">        :param real_grid: number of grids along each unit vectors of the unit cell in real space</span>
+<span class="sd">        :type real_grid: tuple with integers</span>
+<span class="sd">        :param c: coefficients for SABF</span>
+<span class="sd">        :type c: 1D `double numpy.array`</span>
+<span class="sd">        :return: real space structure constructed via SABF</span>
+<span class="sd">        :rtype: `double numpy.array` object</span>
+
+<span class="sd">        **Note**</span>
+<span class="sd">        This method is much slower than :func:`generate_structure_by_fft`. Use it for debug only.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">real_grid</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Dimension of input grid and dimension&#39;</span>
+                             <span class="s">&#39;of the Group not match &#39;</span>
+                             <span class="s">&#39;when generating structure.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+           <span class="n">cc</span> <span class="o">=</span> <span class="n">c</span>
+           <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+           <span class="n">c</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">cc</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Number of Bases and number of coefficients &#39;</span>
+                             <span class="s">&#39;not match when generating structure.&#39;</span><span class="p">)</span>
+
+        <span class="n">struct</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">real_grid</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ind</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndenumerate</span><span class="p">(</span><span class="n">struct</span><span class="p">):</span>
+            <span class="c">#: `numpy.array` can divide tuple</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span> <span class="o">/</span> <span class="n">real_grid</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">iwaves</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">f1</span><span class="p">,</span><span class="n">f2</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span><span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">f1</span><span class="p">,</span><span class="n">f2</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span><span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">struct</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">+=</span> <span class="n">f1</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">f2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">struct</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">+=</span> <span class="n">f2</span>
+                    <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">vol</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">struct</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span><span class="n">struct</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">struct</span><span class="o">/</span><span class="n">vol</span>
+</div>
+<div class="viewcode-block" id="Basis.generate_structure_by_fft"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.Basis.generate_structure_by_fft">[docs]</a>    <span class="k">def</span> <span class="nf">generate_structure_by_fft</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">real_grid</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">grid</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Generate structure by projecting SABF to FFT, and then perform an inverse FFT.</span>
+
+<span class="sd">        :param real_grid: number of grids along each unit vectors of the unit cell in real space</span>
+<span class="sd">        :type real_grid: tuple with integers</span>
+<span class="sd">        :param c: coefficients for SABF</span>
+<span class="sd">        :type c: 1D `double numpy.array`</span>
+<span class="sd">        :param grid: a :class:`Grid` object</span>
+<span class="sd">        :return: real space structure constructed via SABF</span>
+<span class="sd">        :rtype: `double numpy.array` object</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">real_grid</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Dimension of input grid and dimension &#39;</span>
+                             <span class="s">&#39;of Group not match&#39;</span>
+                             <span class="s">&#39;when generating structure.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+           <span class="n">cc</span> <span class="o">=</span> <span class="n">c</span>
+           <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+           <span class="n">c</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">cc</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Number of Bases and number of coefficients&#39;</span>
+                             <span class="s">&#39;not match when generating structure.&#39;</span><span class="p">)</span>
+
+        <span class="n">c_fft</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sabf2fft</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="n">real_grid</span><span class="p">,</span><span class="n">grid</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">ifftn</span><span class="p">(</span><span class="n">c_fft</span><span class="p">)</span><span class="o">.</span><span class="n">real</span>
+</div>
+<div class="viewcode-block" id="Basis.sabf2fft"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.Basis.sabf2fft">[docs]</a>    <span class="k">def</span> <span class="nf">sabf2fft</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">fft_grid</span><span class="p">,</span><span class="n">grid</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Project a set of SABF coefficients onto a set of FFT coefficients.</span>
+
+<span class="sd">        :param real_grid: number of grids along each unit vectors of the unit cell in real space</span>
+<span class="sd">        :type real_grid: tuple with integers</span>
+<span class="sd">        :param c: coefficients for SABF</span>
+<span class="sd">        :type c: 1D `double numpy.array`</span>
+<span class="sd">        :param grid: a :class:`Grid` object</span>
+<span class="sd">        :return: a set of FFT coefficients on the discretized unit cell</span>
+<span class="sd">        :rtype: `double numpy.array`</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Number of input coefficients &#39;</span>
+                             <span class="s">&#39;and Number of stars not match &#39;</span>
+                             <span class="s">&#39;when performing SABF -&gt; FFT projection.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">fft_grid</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Dimension not match &#39;</span>
+                             <span class="s">&#39;when performing SABF -&gt; FFT projection.&#39;</span><span class="p">)</span>
+
+        <span class="n">sqr2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+        <span class="n">c_fft</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">fft_grid</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">complex</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndindex</span><span class="p">(</span><span class="n">fft_grid</span><span class="p">):</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span>
+            <span class="n">G</span><span class="p">,</span><span class="n">G2</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">to_BZ</span><span class="p">(</span><span class="n">G</span><span class="p">)</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">starmap</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                <span class="c">#index_stars(G,self.stars)</span>
+                <span class="n">i</span><span class="p">,</span> <span class="n">iw</span><span class="p">,</span> <span class="n">ic</span><span class="p">,</span> <span class="n">flag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">starmap</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">i</span><span class="p">,</span> <span class="n">iw</span><span class="p">,</span> <span class="n">ic</span><span class="p">,</span> <span class="n">flag</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">None</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">flag</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">iwaves</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="n">c_fft</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="n">iw</span><span class="p">]</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">c_fft</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="n">iw</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">complex</span><span class="p">(</span>
+                                                <span class="n">c</span><span class="p">[</span><span class="n">ic</span><span class="p">],</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="n">ic</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="o">/</span> <span class="n">sqr2</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">c_fft</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ic</span><span class="p">[</span><span class="n">iw</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">complex</span><span class="p">(</span>
+                                                <span class="n">c</span><span class="p">[</span><span class="n">ic</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span><span class="n">c</span><span class="p">[</span><span class="n">ic</span><span class="p">])</span> <span class="o">/</span> <span class="n">sqr2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c_fft</span>
+</div>
+<div class="viewcode-block" id="Basis.fft2sabf"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.Basis.fft2sabf">[docs]</a>    <span class="k">def</span> <span class="nf">fft2sabf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">c_fft</span><span class="p">,</span><span class="n">grid</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Project a set of FFT coefficients onto a set of SABF coefficients.</span>
+
+<span class="sd">        :param c_fft: a set of FFT coefficients on a discretized unit cell</span>
+<span class="sd">        :type c_fft: `double numpy.array`</span>
+<span class="sd">        :param grid: a :class:`Grid` object</span>
+<span class="sd">        :return: a set of coefficients for SABF.</span>
+<span class="sd">        :rtype: a 1D `double numpy.array`</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">c_fft</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Dimension not match in sabf2fft.&quot;</span><span class="p">)</span>
+
+        <span class="n">fft_grid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">c_fft</span><span class="p">)</span>
+        <span class="n">sqr2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">:</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">waves</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">G</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">fft_grid</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="mi">2</span><span class="p">:</span>
+                <span class="n">G</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">G</span><span class="p">)</span> <span class="o">%</span> <span class="n">fft_grid</span>
+                <span class="n">ind</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">c_fft</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span><span class="o">.</span><span class="n">conjugate</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ind</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">c_fft</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">iwaves</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">z</span><span class="o">/</span><span class="n">s</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">real</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">sqr2</span> <span class="o">*</span> <span class="p">(</span><span class="n">z</span><span class="o">/</span><span class="n">s</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">real</span>
+                <span class="n">Gi</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">iwaves</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">N</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">Gi</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">fft_grid</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="mi">2</span><span class="p">:</span>
+                    <span class="n">Gi</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">Gi</span><span class="p">)</span> <span class="o">%</span> <span class="n">fft_grid</span>
+                    <span class="n">ind</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Gi</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+                    <span class="n">z</span> <span class="o">=</span> <span class="n">c_fft</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span><span class="o">.</span><span class="n">conjugate</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ind</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Gi</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
+                    <span class="n">z</span> <span class="o">=</span> <span class="n">c_fft</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span>
+                <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">sqr2</span> <span class="o">*</span> <span class="p">(</span><span class="n">z</span><span class="o">/</span><span class="n">s</span><span class="o">.</span><span class="n">ic</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">N</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">imag</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="n">c</span>
+
+</div></div>
+<div class="viewcode-block" id="StarSet"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.StarSet">[docs]</a><span class="k">class</span> <span class="nc">StarSet</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; A :class:`StarSet` object is a collection of stars containing waves with same magnitude.</span>
+
+<span class="sd">    Wave vectors with same magnitudes may form more than one closed stars open star pair. For example, for P6mm in a 32 x 32 grid HEXAGONAL unit cell, a collection of waves with same magnitudes is::</span>
+
+<span class="sd">       [[ 8  8 7  7 5  5 3  3 0  0 -3 -3 -5 -5 -7 -7 -8 -8],</span>
+<span class="sd">        [-3 -5 0 -7 3 -8 5 -8 7 -7  8 -5  8 -3  7  0  5  3]]</span>
+
+<span class="sd">    It has two *closed* stars::</span>
+
+<span class="sd">       [[ 8  8 5  5 3  3 -3 -3 -5 -5 -8 -8],</span>
+<span class="sd">        [-3 -5 3 -8 5 -8  8 -5  8 -3  5  3]]</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">       [[7  7 0  0 -7 -7],</span>
+<span class="sd">        [0 -7 7 -7  7  0]]</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">group</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">Gsq</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__check_cancel</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Check cancel failed when creating a Star.&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Gsq</span> <span class="o">=</span> <span class="n">Gsq</span>
+        <span class="n">waves</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__select_waves</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="n">Gsq</span><span class="p">)</span>
+        <span class="n">sorted_waves</span><span class="p">,</span><span class="n">phases</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__sort_waves</span><span class="p">(</span><span class="n">waves</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__find_stars</span><span class="p">(</span><span class="n">group</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">sorted_waves</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__select_waves</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">G2</span><span class="p">):</span>
+        <span class="p">(</span><span class="n">ind</span><span class="p">,)</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">Gsq</span><span class="o">-</span><span class="n">G2</span><span class="p">)</span><span class="o">&lt;</span><span class="n">EPS</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">ind</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Waves in Grid not sorted according to G^2.&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">grid</span><span class="o">.</span><span class="n">waves</span><span class="p">[:,</span><span class="n">ind</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__check_cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Not implemented yet. We have excluded the cancel waves in creating Grid.waves.</span>
+<span class="sd">        Currently, we do not support canceled stars.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">__sort_waves</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">waves</span><span class="p">,</span><span class="n">phases</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">phases</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">waves</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">waves</span><span class="p">,</span><span class="bp">None</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">waves</span><span class="p">)),</span><span class="bp">None</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">phases</span><span class="p">,</span><span class="n">waves</span><span class="p">])</span>
+                <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">(</span><span class="n">pw</span><span class="p">)</span>
+                <span class="n">pw_sorted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">pw</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">ind</span><span class="p">,</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">pw_sorted</span><span class="p">[</span><span class="mi">1</span><span class="p">]]),</span><span class="n">pw_sorted</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">phases</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">rw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">waves</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">waves</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">(</span><span class="n">rw</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">waves</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">ind</span><span class="p">,</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)),</span><span class="bp">None</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">prw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">phases</span><span class="p">,</span><span class="n">waves</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">waves</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">(</span><span class="n">prw</span><span class="p">)</span>
+                <span class="n">prw_sorted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">prw</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">ind</span><span class="p">,</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">prw_sorted</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">prw_sorted</span><span class="p">[</span><span class="mi">1</span><span class="p">]]),</span>
+                        <span class="n">prw_sorted</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">phases</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">rw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">waves</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">waves</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">waves</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">(</span><span class="n">rw</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">waves</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">ind</span><span class="p">,</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)),</span><span class="bp">None</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">prw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">phases</span><span class="p">,</span><span class="n">waves</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">waves</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">waves</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">(</span><span class="n">prw</span><span class="p">)</span>
+                <span class="n">prw_sorted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">prw</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">ind</span><span class="p">,</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span>
+                    <span class="n">prw_sorted</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span><span class="n">prw_sorted</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">prw_sorted</span><span class="p">[</span><span class="mi">1</span><span class="p">]]),</span>
+                    <span class="n">prw_sorted</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="c"># Following code is a trick but hard to read</span>
+        <span class="c"># ind = np.lexsort(waves.T)</span>
+        <span class="c"># return np.fliplr(np.fliplr(waves.T.take(ind,axis=-1)).T)</span>
+
+    <span class="k">def</span> <span class="nf">__calc_phase</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">G</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">basis_type</span><span class="p">):</span>
+        <span class="n">twopi</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="k">if</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="n">BRAVAIS</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">twopi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">t</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">t</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__calc_wave</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">G</span><span class="p">,</span><span class="n">R</span><span class="p">,</span><span class="n">basis_type</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="n">BRAVAIS</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">R</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">R</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__form_star</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">G</span><span class="p">,</span><span class="n">group</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">waves</span><span class="p">):</span>
+        <span class="n">star_waves</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">phases</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">group</span><span class="o">.</span><span class="n">order</span><span class="p">):</span>
+            <span class="n">Gn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__calc_wave</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">group</span><span class="o">.</span><span class="n">symm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">R</span><span class="p">,</span><span class="n">group</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+            <span class="c"># Pseudo-Spectral method</span>
+            <span class="n">Gn</span><span class="p">,</span><span class="n">Gn2</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">to_BZ</span><span class="p">(</span><span class="n">Gn</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">Gn</span><span class="p">,</span><span class="n">waves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">star_waves</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">star_waves</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">Gn</span><span class="p">])</span>
+                    <span class="n">ph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__calc_phase</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">group</span><span class="o">.</span><span class="n">symm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">t</span><span class="p">,</span><span class="n">group</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+                    <span class="n">phases</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">ph</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">Gn</span><span class="p">,</span><span class="n">star_waves</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="n">star_waves</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">star_waves</span><span class="p">,[</span><span class="n">Gn</span><span class="p">],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                        <span class="n">ph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__calc_phase</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">group</span><span class="o">.</span><span class="n">symm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">t</span><span class="p">,</span><span class="n">group</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+                        <span class="n">phases</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">phases</span><span class="p">,[</span><span class="n">ph</span><span class="p">],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Waves does not contain entire star.&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">star_waves</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="n">phases</span>
+
+    <span class="k">def</span> <span class="nf">__find_stars</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">g</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">waves</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        For waves with a same G^2, they may form a closed star, two open</span>
+<span class="sd">        stars, or several closed stars.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">stars</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">rw</span> <span class="o">=</span> <span class="n">waves</span>
+        <span class="k">while</span> <span class="n">rw</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">G1</span> <span class="o">=</span> <span class="n">rw</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">star_waves</span><span class="p">,</span> <span class="n">phases</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__form_star</span><span class="p">(</span><span class="n">G1</span><span class="p">,</span><span class="n">g</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">rw</span><span class="p">)</span>
+            <span class="n">star_waves</span><span class="p">,</span> <span class="n">phases</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__sort_waves</span><span class="p">(</span><span class="n">star_waves</span><span class="p">,</span><span class="n">phases</span><span class="p">)</span>
+            <span class="n">Gi</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span> <span class="o">*</span> <span class="n">G1</span>
+            <span class="n">Gi</span><span class="p">,</span><span class="n">Gi2</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">to_BZ</span><span class="p">(</span><span class="n">Gi</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">Gi</span><span class="p">,</span><span class="n">star_waves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="c"># a closed star</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">StarAtom</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">Gsq</span><span class="p">,</span><span class="n">star_waves</span><span class="p">,</span><span class="n">phases</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">rw</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">star_waves</span><span class="p">,</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="k">return</span>
+                <span class="n">tw</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">rw</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">w</span><span class="p">,</span><span class="n">star_waves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">tw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="n">tw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">w</span><span class="p">])</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">tw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tw</span><span class="p">,[</span><span class="n">w</span><span class="p">],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">rw</span> <span class="o">=</span> <span class="n">tw</span><span class="o">.</span><span class="n">T</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># an open star pair</span>
+                <span class="n">invert_waves</span><span class="p">,</span> <span class="n">invert_phases</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__form_star</span><span class="p">(</span>
+                                                    <span class="n">Gi</span><span class="p">,</span><span class="n">g</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">rw</span><span class="p">)</span>
+                <span class="n">invert_waves</span><span class="p">,</span> <span class="n">invert_phases</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__sort_waves</span><span class="p">(</span>
+                                            <span class="n">invert_waves</span><span class="p">,</span><span class="n">invert_phases</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">StarAtom</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">Gsq</span><span class="p">,</span>
+                    <span class="n">star_waves</span><span class="p">,</span><span class="n">phases</span><span class="p">,</span><span class="n">invert_waves</span><span class="p">,</span><span class="n">invert_phases</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">+=</span> <span class="mi">2</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">rw</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">star_waves</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span>
+                                                        <span class="n">invert_waves</span><span class="p">,</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="k">return</span>
+                <span class="n">tw</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">rw</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">w</span><span class="p">,</span><span class="n">star_waves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">w</span><span class="p">,</span><span class="n">invert_waves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">tw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="n">tw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">w</span><span class="p">])</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">tw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tw</span><span class="p">,[</span><span class="n">w</span><span class="p">],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">rw</span> <span class="o">=</span> <span class="n">tw</span><span class="o">.</span><span class="n">T</span>
+
+</div>
+<div class="viewcode-block" id="StarAtom"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.StarAtom">[docs]</a><span class="k">class</span> <span class="nc">StarAtom</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; A :class:`StarAtom` object represents a closed star or an open star pair.</span>
+
+<span class="sd">    For a closed star, when a wave vector **G** is in it, -**G** is also in it.</span>
+
+<span class="sd">    For an open star pair, if a wave vector **G** is in the first star, the</span>
+<span class="sd">    inverse vector -**G** must be found in the accompanying invert star.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">grid</span><span class="p">,</span><span class="n">Gsq</span><span class="p">,</span><span class="n">waves</span><span class="p">,</span><span class="n">phases</span><span class="p">,</span><span class="n">iwaves</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">iphases</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">waves</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Gsq</span> <span class="o">=</span> <span class="n">Gsq</span>
+        <span class="k">if</span> <span class="n">iwaves</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">iphases</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Coefficients expected for inverted star.&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">iwaves</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Nunmber of waves in the first star &#39;</span>
+                                 <span class="s">&#39;and the invert star not match.&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">iphases</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Waves expected for inverted &#39;</span>
+                                 <span class="s">&#39;coefficients.&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">waves</span> <span class="o">=</span> <span class="n">waves</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">iwaves</span> <span class="o">=</span> <span class="n">iwaves</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__find_coeff</span><span class="p">(</span><span class="n">phases</span><span class="p">,</span><span class="n">iphases</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">iwaves</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__set_coeff_for_closed_star</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StarAtom.f"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.StarAtom.f">[docs]</a>    <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">shape</span><span class="p">,</span><span class="n">c1</span><span class="p">,</span><span class="n">c2</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Calculate the value of the SABF f(**r**) at position **r**.</span>
+
+<span class="sd">        :param x: a `BRAVAIS` type real space vector</span>
+<span class="sd">        :type x: string</span>
+<span class="sd">        :param shape: a :class:`Shape` object</span>
+<span class="sd">        :param c1: the coefficient for SABF</span>
+<span class="sd">        :type c1: double</span>
+<span class="sd">        :param c2: the coefficient for invert SABF. If the star is not an open star pair, it is ignored</span>
+<span class="sd">        :returns: the value of an SABF or two SABF if the star is an open star pair</span>
+<span class="sd">        :rtype: tuple with two doubles</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">iwaves</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">f1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__f</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">waves</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">shape</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">c1</span><span class="o">*</span><span class="n">f1</span><span class="o">.</span><span class="n">real</span><span class="p">,</span><span class="bp">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">v1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__f</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">waves</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">v2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__f</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iwaves</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">ic</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">f1</span> <span class="o">=</span> <span class="p">(</span><span class="n">v1</span> <span class="o">+</span> <span class="n">v2</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+            <span class="n">f2</span> <span class="o">=</span> <span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">v1</span> <span class="o">-</span> <span class="n">v2</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">c1</span><span class="o">*</span><span class="n">f1</span><span class="o">.</span><span class="n">real</span><span class="p">,</span><span class="n">c2</span><span class="o">*</span><span class="n">f2</span><span class="o">.</span><span class="n">real</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">__f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">waves</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">shape</span><span class="p">):</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">G</span> <span class="ow">in</span> <span class="n">waves</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+            <span class="n">gr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">shape</span><span class="o">.</span><span class="n">g</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">shape</span><span class="o">.</span><span class="n">h</span><span class="p">))</span>
+            <span class="n">f</span> <span class="o">+=</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="n">gr</span><span class="p">)</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">f</span>
+
+    <span class="k">def</span> <span class="nf">__find_coeff</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">phases</span><span class="p">,</span><span class="n">iphases</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">iphases</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># c_norm = exp(i*phi)</span>
+            <span class="n">c_norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="n">phases</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="n">phases</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span><span class="o">/</span><span class="n">c_norm</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)],</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">c_norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="n">phases</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">ic_norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="n">phases</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="n">phases</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span><span class="o">/</span><span class="n">c_norm</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)],</span>
+                    <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="n">iphases</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span><span class="o">/</span><span class="n">ic_norm</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)]</span>
+                   <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__set_coeff_for_closed_star</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">grid</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        For an ordered closed star, if we denote the first wave in the star **G1**, then its inversion -**G1** must be the last wave in the star.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">G</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waves</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">Gi</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span> <span class="o">*</span> <span class="n">G</span>
+        <span class="n">Gi</span><span class="p">,</span><span class="n">Gi2</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">to_BZ</span><span class="p">(</span><span class="n">Gi</span><span class="p">)</span>
+        <span class="c"># find index of Gi in the star</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">Gi</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">waves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+        <span class="n">c</span><span class="p">,</span> <span class="n">ci</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">EPS</span><span class="p">:</span>
+            <span class="n">c1</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">real</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;First coefficient in closed star has &#39;</span>
+                             <span class="s">&#39;imaginary part.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">ci</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">EPS</span><span class="p">:</span>
+            <span class="n">c2</span> <span class="o">=</span> <span class="n">ci</span><span class="o">.</span><span class="n">real</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Last coefficient in closed star has &#39;</span>
+                             <span class="s">&#39;imaginary part.&#39;</span><span class="p">)</span>
+
+        <span class="c"># for inversion star pairs, the first star&#39;s sign is +1,</span>
+        <span class="c"># the next is -1.</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">c1</span> <span class="o">-</span> <span class="n">c2</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">EPS</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">c1</span> <span class="o">+</span> <span class="n">c2</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">EPS</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">*</span> <span class="nb">complex</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="o">-</span><span class="mf">1.0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Closed star is neither cosine-like nor &#39;</span>
+                             <span class="s">&#39;sine-like.&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="index_waves"><a class="viewcode-back" href="../../gyroid.html#gyroid.basis.index_waves">[docs]</a><span class="k">def</span> <span class="nf">index_waves</span><span class="p">(</span><span class="n">w</span><span class="p">,</span><span class="n">waves</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Find the index of wave in a list of waves.</span>
+
+<span class="sd">    :param w: wave vector to be searched</span>
+<span class="sd">    :type w: `numpy.array` row vector</span>
+<span class="sd">    :param waves:  a collection of wave vectors, each row vector is a wave</span>
+<span class="sd">    :type waves: `numpy.array`</span>
+<span class="sd">    :return: index for a wave in the collection of waves</span>
+<span class="sd">    :rtype: integer</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">waves</span><span class="p">,</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">waves</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">ww</span> <span class="ow">in</span> <span class="n">waves</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">ww</span><span class="o">-</span><span class="n">w</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">EPS</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">i</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="bp">None</span>
+</div>
+<span class="k">def</span> <span class="nf">index_stars</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">stars</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Find the index of a star within a list of stars which contains wave</span>
+<span class="sd">    vector **G**.</span>
+
+<span class="sd">    This function is very slow. Use it for debug only.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">G</span><span class="p">)</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">stars</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">waves</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="bp">None</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">None</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">stars</span><span class="p">:</span>
+        <span class="n">iw</span> <span class="o">=</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">s</span><span class="o">.</span><span class="n">waves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">iw</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">i</span><span class="p">,</span><span class="n">iw</span><span class="p">,</span><span class="mi">0</span>
+        <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">iwaves</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">iw</span> <span class="o">=</span> <span class="n">index_waves</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">s</span><span class="o">.</span><span class="n">iwaves</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">iw</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">i</span><span class="p">,</span><span class="n">iw</span><span class="p">,</span><span class="mi">1</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="bp">None</span><span class="p">,</span><span class="bp">None</span><span class="p">,</span><span class="bp">None</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012, Yi-Xin Liu.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>
