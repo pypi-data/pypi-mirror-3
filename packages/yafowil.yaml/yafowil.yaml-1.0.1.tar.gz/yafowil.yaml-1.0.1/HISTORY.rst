@@ -1,0 +1,40 @@
+
+History
+=======
+
+1.0.1
+-----
+
+- Adopt test for ``select`` blueprint change.
+  [rnix, 2011-12-18]
+
+- Fix automatic name setting for recursive compounds.
+  [rnix, 2011-09-30]
+
+1.0
+---
+
+- Adopt to yafowil 1.1.
+  [rnix, 2011-07-07]
+
+- Extend ``parse_from_YAML`` resolving package path instead of excepting.
+  absolute or relative file path
+  [rnix, 2011-07-07]
+
+0.9.1
+-----
+
+- Add i18n support.
+  [rnix, 2011-06-04]
+
+- Fix bug where expression evaluation was not reached.
+  [rnix, 2011-06-04]
+
+- Adopt tests for form novalidate property.
+  [rnix, 2011-05-23]
+
+0.9
+---
+
+- Make it work.
+  [aatis, rnix]
