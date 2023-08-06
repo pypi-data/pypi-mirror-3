@@ -1,0 +1,41 @@
+#!/usr/bin/env python
+import eventlet
+import argparse
+import logging
+import signal
+import sys
+
+import bamboo
+
+log = logging.getLogger('%s.main' % bamboo.log.name)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('configfile', type=file)
+    parser.add_argument('--debug', action='store_true', dest='debug')
+    parser.add_argument('--quiet', action='store_true', dest='quiet')
+    args = parser.parse_args()
+
+    if args.debug:
+        bamboo.log.setLevel(logging.DEBUG)
+    if args.quiet:
+        bamboo.log.setLevel(logging.ERROR)
+
+    c = bamboo.Controller()
+    config = c.load_config(args.configfile)
+    if config is None:
+        return
+
+    signal.signal(signal.SIGHUP, c.reload)
+    signal.signal(signal.SIGINT, c.stop)
+    signal.signal(signal.SIGTERM, c.stop)
+
+    handlers = c.start()
+    log.info('All handlers configured and running')
+    while c.running:
+        eventlet.sleep(1)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
