@@ -1,0 +1,180 @@
+Metadata-Version: 1.0
+Name: django-contentmanager
+Version: 2012.5.9
+Summary: A simple, pluggable content-manager for django.
+Home-page: http://bitbucket.org/pterk/django-contentmanager/
+Author: Peter van Kampen
+Author-email: pterk@datatailors.com
+License: BSD
+Description: =====================
+        django-contentmanager
+        =====================
+        
+        django-contentmanager is a so-called 'reusable app' to, wait for it,
+        manage content. It does so using plugins that can be scattered over
+        any number of apps, each providing specific types of content. A plugin
+        could list the ten most popular news-stories, highest rated vegetarian
+        dishes or show a selected gallery from a photo-collection app. Of
+        course it could also be a block of (marked up) text.
+        
+        .. contents:: Table of Contents
+        
+        Quick start
+        -----------
+        
+        To try it out clone the repository_ and go to the demoproject-dir.
+        
+        Assuming you have django on your PYTHONPATH you should be up and
+        running with these commands::
+        
+          $./manage.py syncdb --noinput
+          ...
+          $./manage.py runserver
+        
+        Then open your browser and go to http://localhost:8000/. 
+        
+        This will bring up a rather plain page (with this README) as an
+        example of a 'paragraph'. If you follow the 'login' link you will go
+        to the admin where you can login with test/test. In your normal
+        project you would have to provide a nicer mechanism for your users to
+        log in (and out) but this is just a quick demo so I'll leave that as
+        an exercise for the reader.
+        
+        Back at http://localhost:8000/ you will now see a link 'Editmode
+        On'. This will turn on 'editmode' and allow you to add, edit and
+        delete plugins in an, in my opion, intuitive way. Right there on the
+        page: No need to swich back and forth between admin and 'frontend' but
+        instant feedback.
+        
+        Using the contentmanager
+        ------------------------
+        
+        To use the contentmanager in your project or application you'll need
+        to add the contentmanager to your INSTALLED_APPS in settings.py::
+        
+            INSTALLED_APPS = (
+                         ...
+                         'contentmanager',
+                         ...
+                         )
+        
+        make sure your project uses the request-context-processsor::
+        
+            TEMPLATE_CONTEXT_PROCESSORS = (
+                "django.core.context_processors.auth",
+                "django.core.context_processors.debug",
+                "django.core.context_processors.i18n",
+                "django.core.context_processors.media",
+                "django.core.context_processors.request"
+                )
+        
+        and finally include contentmanager.urls in your urls.py and run
+        autodiscover::
+        
+        
+            urlpatterns = patterns(
+                    '',
+                    ...
+                    (r'^contentmanager/', include('contentmanager.urls')),
+                    ...
+                    )
+        
+            from contentmanager import autodiscover
+            autodisvover()
+        
+             
+        
+        and hook up the the contentmanager in your template(s)::
+        
+            {% load contentmanagertags %}
+            {% block content %}
+            {% get_area request 'content' %}
+            {% end block %}
+        
+            {% block sidebar %}
+            {% get_area request 'sidebar' %}
+            {% end block %}
+        
+        Writing plugins
+        ---------------
+        
+        Included with the demoapp are a few simple plugin examples (in
+        basicblocks/reveplugins.py) to give you the basic idea.
+        
+        To write your own plugins you have to add a reveplugins module to you
+        application and subclass from contentmanager.plugins.BasePlugin (or
+        BaseModelPlugin). The most basic plugins just need to define their own
+        render method. The render method is passed the request object and
+        should return a (unicode) string::
+        
+            class HelloWorld(BasePlugin):
+                def render(self, request):
+                    return "Hello world"
+        
+        To make the plugin available to the contentmanager and ultimately your
+        users you need to register it::
+        
+            from contentmanager import registry
+            registry.register(HelloWorld)
+        
+        Finally, to populate the registry you should include the following in
+        your projects urls.py::
+        
+            from contentmanager import autodiscover
+            autodiscover()
+        
+        This will find all reveplugins modules in all your INSTALLED_APPS and
+        load any registered plugins.
+        
+          .. note:: 
+             The name reveplugins was chosen over simply 'plugins' to
+             prevent naming conflicts. Since the contentmanager is distilled
+             from reveCMS_ it seemed an appropriate enough name. ReveCMS
+             itself is named afer Karel van het Reve_, a dutch writer, not to
+             be confused with his brother Gerard_ although he is also a fine
+             writer.
+        
+        Permissions
+        -----------
+        
+        Plugins roughly follow the same permission system as
+        django-models. When a plugin is registered the contentmanager
+        automatically creates add, change and delete permissions. Since these
+        permissions could collide with model permissions all plugin
+        permissions are kept in the contentmanager 'namespace' (linked to the
+        content_type PluginType if you really want to know) and are appended
+        with '_plugin'. 
+        
+        For example, a HTML-plugin would have the permissions
+        'contentmanager.add_html_plugin', 'contentmanager.delete_html_plugin',
+        'contentmanager.delete_html_plugin'.
+        
+        Plugins have convenient `has_add_permission`, `has_change_permission`,
+        `has_delete_permission` methods but if you use the proper codename as
+        explained above you can use the standard django permissions system in
+        both python- and templatecode.
+        
+        Plugins can also add additional permissions in the same manner as
+        `django models`_ do except that they are all 'bound' to PluginType. 
+        
+        TODO
+        ----
+        
+        * More complex plugin example
+        * BaseModelPlugin example
+        * Plugin API overview 
+        
+        .. _reveCMS: http://www.co-capacity.org/ 
+        .. _Reve: http://en.wikipedia.org/wiki/Karel_van_het_Reve
+        .. _Gerard: http://en.wikipedia.org/wiki/Gerard_Reve
+        .. _repository: http://bitbucket.org/pterk/django-contentmanager/
+        .. _django models: http://docs.djangoproject.com/en/dev/ref/models/options/#permissions
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Framework :: Django
