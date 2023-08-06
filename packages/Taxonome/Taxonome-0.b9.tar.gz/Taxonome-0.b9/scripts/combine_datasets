@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""Combine multiple datasets.
+
+Command line parameters:
+- Paths for the input datasets
+- "--"
+- Names for the input datasets; must have the same number as the number of paths
+- Number of datasets which are 'background': taxa from background datasets are
+  not automatically included in the output, but are used if they match taxa from
+  another dataset. Background datasets should be placed last in the above groups.
+- Name of the dataset with distribution data, or 'all' to combine it from all
+  datasets.
+- Destination file
+"""
+
+import sys
+
+from taxonome.taxa.file_jsonlines import load_taxa, iter_taxa, save_taxa
+from taxonome.taxa import combine_datasets
+
+if __name__ == "__main__":
+    # Parsing command line arguments:
+
+    DESTINATION = sys.argv[-1]
+    N_BACKGROUND = int(sys.argv[-3])
+    distrib_ds_name = sys.argv[-2]
+
+    delim_ix = sys.argv.index('--')
+    ds_paths = sys.argv[1:delim_ix]
+    ds_names = sys.argv[delim_ix+1:-3]
+    all_ds = list(zip(ds_names, ds_paths))
+    print("Loading %d background datasets..." % N_BACKGROUND)
+    bg_ds = [(n, load_taxa(open(p))) for n,p in all_ds[-N_BACKGROUND:]]
+    target_ds = [(n, iter_taxa(open(p))) for n,p in all_ds[:-N_BACKGROUND]]
+    assert len(target_ds) > 0, "Need at least one target dataset."
+    
+    print("Joining %d target datasets..." % len(target_ds))
+    output = combine_datasets(target_ds, bg_ds, distrib_ds_name)
+    save_taxa(open(DESTINATION, "w"), output)
