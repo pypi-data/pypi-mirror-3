@@ -1,0 +1,251 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="base">
+<head>
+  <title></title>
+  <script metal:fill-slot="js"
+          src="/Static/Js/tsk_index.js" type="text/javascript"></script>
+</head>
+<body>
+<div id="mainPanel" metal:fill-slot="main">
+  <!-- ............................... Buttons ............................ -->
+  <div id="buttons">
+    <div>
+      ${request.breadcrumbs.back_button()}
+    </div>
+    <hr class="hidden"/>
+  </div>
+  <div id="main">
+    ${form.begin(request.current_route_path(_anchor='currentPack'), multipart=True)}
+    <h2 id="subtitle" class="task" title="${_('Tasks')}">${project['label']}</h2>
+    <!-- ............................... Filter ........................... -->
+    <div  class="filter" tal:condition="project['perm'] == 'leader'">
+      <h3><span>${_('Task filter')}</span></h3>
+      <div class="col11">
+        <div>
+          ${form.grid_select('f_operator', _('Operator:'), operators, autosubmit=True)}
+        </div>
+        <div class="submit">${form.submit('filter', _('Apply filter'), class_='button')}</div>
+      </div>
+    </div>
+    <h3>${_('Tasks to complete: ${t}', {'t': len(tasks)})}</h3>
+    <!-- ............................. Flash .............................. -->
+    <div tal:define="flash load: flash.macro.pt" metal:use-macro="flash"></div>
+    <!-- .............................. Tasks ............................. -->
+    <ul tal:condition="tasks" class="taskList">
+      <li tal:repeat="task tasks">
+        <div class="taskBar">
+          <span tal:switch="task[0] == current_task['task_id']">
+            <a tal:case="False" id="t${task[0]}" class="collapse" title="${_('Open')}"
+               href="${route('task_index_task', project_id=project['project_id'],
+                     task_id=task[0], _anchor='t%d' % task[0])}">
+              <img src="/Static/Images/collapse_closed.png" alt="closed"/> ${task[1]}
+            </a>
+            <a tal:case="True" id="t${task[0]}" class="collapse" title="${_('Close')}"
+               href="${route('task_index', project_id=project['project_id'],
+                     _query={'close_task': 1})}">
+              <img src="/Static/Images/collapse_open.png" alt="open"/> ${task[1]}
+            </a>
+            (${task[3] > 1 and _('${p} packs', {'p': task[3]}) or _('1 pack')})
+          </span>
+          <em>${task[2] and _('Deadline: ')+task[2].strftime(_('%m/%d/%Y')) or u' '}</em>
+        </div>
+        <div tal:condition="task[0] == current_task['task_id']" class="taskCurrent"
+             id="${current_task['new_task'] and 'new' or 'old'}Task">
+          <!-- ......................... One task ......................... -->
+          <div tal:condition="current_task['description']" class="description">
+            ${current_task['description']}
+          </div>
+          <div class="listActions"
+               tal:attributes="id action in ('tak?#', 'nxt?#') and 'current'">
+            <div class="first">
+              ${packs.pager_top('pack22', _('Packs'))}
+              ${form.text('f_label', class_='packFilter')}
+              ${form.submit_image('filter_pack', _('Filter packs'), '/Static/Images/action_filter.png')}
+            </div>
+            <div class="last">
+              <div tal:condition="action == 'nxt?#'" tal:omit-tag="">
+                ${form.hidden('target', current_task['target'])}
+                ${form.submit('nxt!#.x', _('Confirm transfer to "${t}"',
+                  {'t': project['task_labels'][int(current_task['target'][4:])]}), class_='button')}
+                ${form.submit_cancel(_('Cancel'))}
+              </div>
+              <div tal:condition="action == 'tak?#'" tal:omit-tag="">
+                ${form.submit('tak!#.x', _('Confirm acceptance'), class_='button')}
+                ${form.submit_cancel(_('Cancel'))}
+              </div>
+              <div tal:condition="action not in ('nxt?#', 'tak?#')" tal:omit-tag="">
+                <span class="processing" tal:condition="current_task['processing_ids']" tal:omit-tag="">
+                  ${form.select('processing_id', None,
+                    [k for k in project['processing_labels'] if k[0] in current_task['processing_ids']])}
+                  ${form.submit_image('bld!#', _('Execute processing on selected packs'),
+                    '/Static/Images/action_build.png', class_="slow")}
+                  <span tal:condition="current_task['targets'] or current_task['operator_roles']"
+                        tal:omit-tag="" class="processing">
+                    ${packs.pipe()}
+                  </span>
+                </span>
+                <span class="processing" tal:condition="current_task['targets']" tal:omit-tag="">
+                  ${form.select('target', None,
+                    [(k, project['task_labels'][int(k[4:])]) for k in current_task['targets']])}
+                  ${form.submit_image('nxt?#', _('Transfer selected packs'),
+                    '/Static/Images/action_next.png')}
+                  <span tal:condition="current_task['operator_roles']" tal:omit-tag="" class="processing">
+                    ${packs.pipe()}
+                  </span>
+                </span>
+                <span tal:condition="current_task['operator_roles']" tal:omit-tag=""  class="processing">
+                  ${form.submit_image('tak?#', _('Accept selected packs'),
+                    '/Static/Images/action_take.png')}
+                </span>
+              </div>
+            </div>
+          </div>
+          <table tal:condition="packs" class="list">
+            <caption>${_('Pack')}</caption>
+            <thead>
+              <tr>
+                <th class="checkbox">${form.checkbox('check_all')}</th>
+                <th>${packs.sortable_column(_('Pack'), 'label')}</th>
+                <th>${packs.sortable_column(_('Update'), 'updated')}</th>
+                <th class="last">${_('Actions')}</th>
+              </tr>
+            </thead>
+            <tbody tal:repeat="pack packs">
+              <tr tal:attributes="id (str(pack.pack_id) == action[4:] or
+                                  (pack.pack_id == current_task['pack_id']) and not action[4:])
+                                  and 'currentPack'">
+                <td class="checkbox">
+                  ${form.checkbox('#%s' % pack.pack_id, id=None, class_='listCheck')}
+                </td>
+                <td>
+                  <span tal:switch="pack.pack_id == current_task['pack_id']">
+                    <a tal:case="False" id="p${pack.pack_id}" class="collapse" title="${_('Open')}"
+                       href="${route('task_index_task_pack', project_id=project['project_id'],
+                             task_id=task[0], pack_id=pack.pack_id, _anchor='p%d' % pack.pack_id)}">
+                      <img src="/Static/Images/collapse_closed.png" alt="closed"/>
+                    </a>
+                    <a tal:case="True" id="p${pack.pack_id}" class="collapse" title="${_('Close')}"
+                       href="${route('task_index_task', project_id=project['project_id'],
+                             task_id=task[0], _anchor='t%d' % task[0], _query={'close_pack': 1})}">
+                      <img src="/Static/Images/collapse_open.png" alt="open"/>
+                    </a>
+                  </span>
+                  <a href="${route('pack_view', project_id=project['project_id'], pack_id=pack.pack_id)}"
+                     class="${pack.pack_id == current_task['pack_id'] and 'currentPack'}"
+                     title="${pack.description}">
+                    ${pack.label}
+                  </a>
+                </td>
+                <td class="info" title="${pack.updated.isoformat(' ').partition('.')[0]}">
+                  ${age(pack.updated)}
+                </td>
+                <td class="last actions">
+                  <div tal:condition="action == 'nxt?%d' % pack.pack_id" tal:omit-tag="">
+                    ${form.submit('nxt!%s.x' %  pack.pack_id, _('Confirm transfer to "${t}"',
+                      {'t': project['task_labels'][int(current_task['target'][4:])]}), class_='button')}
+                    ${form.submit_cancel(_('Cancel'))}
+                  </div>
+                  <div tal:condition="action == 'tak?%d' % pack.pack_id" tal:omit-tag="">
+                    ${form.submit('tak!%d.x' % pack.pack_id, _('Confirm acceptance'), class_='button')}
+                    ${form.submit_cancel(_('Cancel'))}
+                  </div>
+                  <div tal:condition="action[4:] != str(pack.pack_id)" tal:omit-tag="">
+                    <span tal:condition="pack.pack_id == current_task['pack_id']
+                                         and pack.operator_type == 'user' and not pack.note"
+                          tal:omit-tag="">
+                      ${form.submit_image('not?%d' % pack.pack_id, _('Add note'),
+                        '/Static/Images/action_note_one.png')}
+                    </span>
+                    <span tal:condition="pack.operator_type == 'user' and current_task['processing_ids']"
+                          tal:omit-tag="">
+                        ${form.submit_image('bld!%d' % pack.pack_id, _('Execute processing'),
+                          '/Static/Images/action_build_one.png', class_='slow')}
+                    </span>
+                    <span tal:condition="pack.operator_type == 'user' and current_task['targets']"
+                          tal:omit-tag="">
+                      ${form.submit_image('nxt?%d' % pack.pack_id, _('Transfer pack'),
+                        '/Static/Images/action_next_one.png')}
+                    </span>
+                    <span tal:condition="pack.operator_type == 'role'" tal:omit-tag="">
+                      ${form.submit_image('tak?%d' % pack.pack_id, _('Accept this pack'),
+                        '/Static/Images/action_take_one.png')}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+              <tr tal:condition="pack.pack_id in builds" class="buildMsg">
+                <!-- ................... Build message .................... -->
+                <td> </td>
+                <td colspan="3">
+                  <a href="${route('build_view', build_id=builds[pack.pack_id][0])}">
+                    ${builds[pack.pack_id][1]}
+                  </a>
+                </td>
+              </tr>
+              <tr tal:condition="pack.pack_id == current_task['pack_id']
+                                 and (pack.note or action == 'not?%d' % pack.pack_id)"
+                  class="note">
+                <!-- .................... One pack, note .................. -->
+                <td> </td>
+                <td colspan="2" tal:switch="action == 'not?%d' % pack.pack_id">
+                  <div tal:case="False" tal:omit-tag="">${rst2xhtml(pack.note)}</div>
+                  <div tal:case="True" tal:omit-tag="">
+                    ${form.textarea('note', pack.note, rows=4, cols=79)}
+                  </div>
+                </td>
+                <td class="last actions" tal:switch="action == 'not?%d' % pack.pack_id">
+                  <div tal:case="False" tal:omit-tag="">
+                    ${form.submit_image('not?%d' % pack.pack_id, _('Modify note'),
+                      '/Static/Images/action_note_one.png')}
+                  </div>
+                  <div tal:case="True" tal:omit-tag="">
+                    ${form.submit_image('not!%d' % pack.pack_id, _('Save note'),
+                      '/Static/Images/action_save.png')}
+                    ${form.submit_cancel(_('Cancel'))}
+                   </div>
+                 </td>
+              </tr>
+              <tr tal:condition="pack.pack_id == current_task['pack_id']" class="files"
+                  tal:repeat="item current_task['files']">
+                <!-- ................... One pack, files .................. -->
+                <td> </td>
+                <td colspan="2">
+                  <img src="/Static/Images/MimeTypes/${item[0] if item[0] in MIME_TYPES else 'unknown'}.png" alt="${item[0]}" title="${item[0]}"/>
+                  <a href="${route('file_download', storage_id=item[1], path=item[2])}">${'%s/%s' % (item[1], item[2])}</a>
+                  <div tal:condition="action == 'upl?%s/%s' % (item[1], item[2])" id="actionParams">
+                    ${form.grid_upload('upload_file', _('File:'))}
+                    <div tal:condition="'none' not in storage['vcs_engine']">${form.grid_text('message', _('Message:'))}</div>
+                    ${form.submit('upl!%s/%s.x' % (item[1], item[2]), _('Replace file'), class_='button')}
+                    ${form.submit_cancel(_('Cancel'))}
+                  </div>
+                </td>
+                <td class="last actions">
+                  <span tal:condition="pack.operator_type == 'user' and item[0] != 'folder'">
+                    ${form.submit_image('upl?%s/%s' % (item[1], item[2]), _('Replace file'),
+                      '/Static/Images/action_upload_one.png')}
+                  </span>
+                  ${form.button(route('file_info', storage_id=item[1], path=item[2]),
+                    src='/Static/Images/action_info_one.png', title=_('File information'), class_="slow")}
+                  ${form.button(route('storage_browse', storage_id=item[1], path=item[2]),
+                    src='/Static/Images/action_browse.png', title=_('View in storage'), class_="slow")}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="listPager">
+            <div class="first">${packs.pager_bottom('pack', _('Packs'))}</div>
+            <div class="last">
+              ${_('Lines per page:')} ${form.select('page_size', '', packs.page_sizes, True)}
+            </div>
+          </div>
+        </div>
+      </li>
+    </ul>
+    <div id="flash" tal:condition="not tasks">${_('No task.')}</div>
+    ${form.end()}
+  </div>
+</div>
+</body>
+</html>
