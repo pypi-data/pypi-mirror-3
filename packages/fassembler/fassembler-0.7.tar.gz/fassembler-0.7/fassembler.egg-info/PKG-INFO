@@ -1,0 +1,210 @@
+Metadata-Version: 1.0
+Name: fassembler
+Version: 0.7
+Summary: Builder for OpenCore
+Home-page: http://www.coactivate.org/projects/fassembler
+Author: Ian Bicking, Paul Winkler, Josh Bronson, Ethan Jucovy
+Author-email: opencore-dev@lists.coactivate.org
+License: GPL
+Description: 
+        This is fassembler, the build system for OpenCore
+        Home page: http://www.coactivate.org/projects/fassembler/project-home
+        
+        
+        Overview
+        ========
+        
+        This could be general-purpose build software a la GNU Make, Buildit,
+        et al.  But it's developed specifically for the build and deployment
+        needs of the software that runs CoActivate.org.
+        
+        
+        How to Use Fassembler
+        =====================
+        
+        See http://www.coactivate.org/projects/fassembler/howto
+        
+        Requirements
+        ============
+        
+        Python >= 2.4
+        
+        ... and?
+        
+        
+        License
+        ========
+        
+        See doc/license.txt
+        
+        
+        Hacking Fassembler
+        ===================
+        
+        
+        To add a project
+        ----------------
+        
+        * Create a subclass of fassembler.project:Project
+        
+        * Add an entry point to setup() in setup.py
+        
+        * Update doc/ports.txt and fassembler.topp:CheckBasePorts.port_range
+        if needed.
+        
+        
+        
+        Changes
+        =======
+        
+        0.7
+        ===
+        
+        Fassembler changes
+        ------------------
+        
+        * Added a new `tasks.InstallSpecIfPresent` which checks if the path
+        to the requirements spec is present on the filesystem, and does
+        nothing if the file does not exist.
+        
+        * `tasks.VirtualEnv(never_create_virtualenv=True)` no longer runs
+        any subtasks.
+        
+        * Added a new Task `fassembler.apache.CheckApache` which will check
+        the presence a list of required Apache modules.  It must be called
+        from a Project that subclasses `fassembler.apache.ApacheMixin`.
+        
+        Project changes
+        ---------------
+        
+        * fassembler:topp now installs requirements/fassembler-req.txt into
+        the fassembler virtualenv if that file is present.  This file can
+        specify add-on packages that provide additional fassembler projects
+        to be used in the rest of the build.
+        
+        This action was previously done by the `rebuild-opencore-site` script
+        in `opencore-fassembler_boot` and is being moved here for better
+        encapsulation of builds.  (A build *should* be able to be run entirely
+        from fassembler; opencore-fassembler_boot should just be a convenience
+        package that wraps fassembler's more arcane knowledge.)
+        
+        * Various configuration changes in fassembler:buildmaster and buildslave.
+        
+        * fassembler:wordpress now checks for the presence of its required Apache
+        modules, including the Apache PHP module.
+        
+        * Bake in pinned requirements for opencore's i18ndude sub-project.
+        
+        0.6
+        ===
+        
+        Fassembler changes
+        ------------------
+        
+        * Fassembler has hardcoded expectations that the user's $LANG is
+        English -- Maker._get_repo_url parses an error message from
+        Subversion with the assumption that it is in English. This manifests
+        when running fassembler:topp while it runs `svn info` on the etc
+        directory in a new build, which will exist as an unversioned
+        directory.
+        
+        It now works if the user's $LANG is Spanish, as well.  But no other
+        languages!
+        
+        Of course, this is extremely silly, and should be fixed more
+        properly immediately.
+        
+        * When installing a virtualenv, install setuptools 0.6c11 into the new
+        virtualenv, always.  This prevents problems on systems whose
+        virtualenv version installs the broken setuptools 0.6c8 by
+        default. Symptoms: errors like "unrecognized format" and "global
+        name 'log' is not defined".
+        
+        * Fix sporadic bug in projects where ``use_pip=True``: "The expected
+        executable ['pip', '-E', ...] was not found."  When
+        ``use_pip=True``, Fassembler will now ``easy_install pip`` during
+        virtualenv creation, and will add the ``virtualenv_bin_path`` to $PATH
+        before trying to run ``pip``. This should guarantee that the
+        executable ``pip`` can be found.
+        
+        Project changes
+        ---------------
+        
+        * Add a boolean ``use_pip`` setting to fassembler:cabochon project.
+        Default fassembler:cabochon to use pip instead of easy_install,
+        because it seems to work better here.
+        
+        * Modify zeo skel's configuration to use {{env.var}}/zeo/zdsock (a
+        unix socket) instead of a port for connections.  Modify zope skels'
+        configuration to connect to zeo on {{env.var}}/zeo/zdsock as
+        well. See
+        http://www.coactivate.org/projects/opencore/lists/opencore-dev/archive/2010/07/1278617074321/forum_view
+        
+        * The RunZopeScriptsWithZeo task now looks for a
+        config.skip_zopectl_scripts setting.  If it is set to a True value,
+        the task does nothing.  This can be used to prevent the build from
+        hanging on this task if another ZEO instance is already running and
+        the user knows that the zopectl initialization scripts don't need to
+        be run, i.e. when building a code upgrade in parallel to a running
+        site.
+        
+        * The fassembler:maildrop and fassembler:zeo projects now include this
+        skip_zopectl_scripts setting, with default 0.
+        
+        * Add a setting ``supervisor_var`` to the supervisor project, which
+        defaults to ``{{env.var}}/supervisor``.  This is used to build the
+        paths to the Unix socket file and pidfile used by supervisor.  It
+        can be useful to set this to a value other than
+        ``{{env.var}}/supervisor`` if building an upgrade in parallel to a
+        running site, so that both the old and the new supervisor processes
+        can run simultaneously without interference.
+        
+        * The extrazope project now runs ``python setup.py zinstall`` in the
+        zcmlloader source directory to copy zcmlloader's zcml entrypoint
+        into each additional Zope's package-includes.  (At some point soon
+        opencore will stop using zcmlloader in favor of z3c.autoinclude, at
+        which point these zinstalls won't be needed anymore.)
+        
+        * The extrazope project now creates a separate var directory for each
+        instance and points to that directory in zope.conf for the
+        instance's pidfile, lock file, etc.
+        
+        0.5
+        ===
+        
+        * Add ``num_extra_zopes`` property to the environ object, which looks
+        for a ``num_extra_zopes`` setting in the [general] section of
+        build.ini and returns it as an integer or 0 if no such setting
+        exists.
+        
+        * This setting will then be used to fill in the value of
+        ``opencore_remote_uri`` in the Frontend configuration, allowing the
+        frontend to proxy to a load-balanced set of Zope instances.
+        
+        * A ``num_extra_zopes`` setting has also been added to the
+        fassembler:topp project, where it is saved to build.ini.
+        
+        0.4
+        ===
+        
+        This is the first tag made for fassembler.  A lot happened before now
+        but releases were never cut.
+        
+        In this release:
+        
+        * Added fassembler:extrazope project, which will build an additional
+        Zope instance connected to the same ZEO server.
+        
+        * In fassembler:opencore, made the ``debug`` setting actually work, to
+        control whether zope starts in debug mode when running
+        ``./opencore/bin/zopectl fg`` (where it previously always ran with
+        ``debug-mode=on``) or ``./bin/start-opencore`` (where it previously
+        always ran with ``debug-mode=off``)
+        
+        * Added a setting ``never_create_virtualenv`` for
+        fassembler.tasks.VirtualEnv, which, if set, makes that task act as
+        an assertion of the given virtualenv's existence, so that a build
+        can fail if the virtualenv hasn't already been created.
+        
+        
+Platform: UNKNOWN
