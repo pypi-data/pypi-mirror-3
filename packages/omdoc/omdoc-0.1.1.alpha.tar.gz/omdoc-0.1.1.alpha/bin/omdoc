@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+import os
+import shutil
+import glob
+from jinja2 import Environment, FileSystemLoader
+from omdoc import settings
+
+# set working directory
+cwd = os.getcwd()
+
+# set up jinja environment
+env = Environment(loader=FileSystemLoader('.'))
+
+# load up the config
+
+
+
+# make the build directory if it doesn't exist
+if not os.path.exists('%s/_build' % cwd):
+    os.mkdir('%s/_build' % cwd)
+
+
+# copy all directories into the build folder
+for dirname, dirnames, filenames in os.walk('.'):
+    # exclude
+    for dir in dirnames:
+        if dir not in settings.EXCLUDED_DIRNAMES:
+            # remove from the build folder
+            try:
+                shutil.rmtree('./_build/%s' % dir)
+            except OSError:
+                pass
+            try:
+                shutil.copytree('./%s' % dir, './_build/%s' % dir)
+            except OSError:
+                pass
+
+
+# get a list of all files except layout.html
+docs = glob.glob('*.html')
+docs.remove('layout.html')
+
+# render each out saving them in _build
+for doc in docs:
+    template = env.get_template(doc)
+    out = template.render()
+
+    # apply the filters
+    for filter in settings.FILTERS:
+        f = getattr(settings, filter)
+        out = f(out)
+
+    # save it
+    fh = open('%s/_build/%s' % (cwd, doc), 'w')
+    fh.write(out)
+    fh.close()
+    
