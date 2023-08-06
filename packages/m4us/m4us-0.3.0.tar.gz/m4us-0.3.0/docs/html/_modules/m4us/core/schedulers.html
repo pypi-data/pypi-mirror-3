@@ -1,0 +1,421 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>m4us.core.schedulers &mdash; Message For You Sir! 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="Message For You Sir! 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Message For You Sir! 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for m4us.core.schedulers</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="c">#---Header---------------------------------------------------------------------</span>
+
+<span class="c"># This file is part of Message For You Sir (m4us).</span>
+<span class="c"># Copyright © 2009-2012 Krys Lawrence</span>
+<span class="c">#</span>
+<span class="c"># Message For You Sir is free software: you can redistribute it and/or modify</span>
+<span class="c"># it under the terms of the GNU Affero General Public License as published by</span>
+<span class="c"># the Free Software Foundation, either version 3 of the License, or (at your</span>
+<span class="c"># option) any later version.</span>
+<span class="c">#</span>
+<span class="c"># Message For You Sir is distributed in the hope that it will be useful, but</span>
+<span class="c"># WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or</span>
+<span class="c"># FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License</span>
+<span class="c"># for more details.</span>
+<span class="c">#</span>
+<span class="c"># You should have received a copy of the GNU Affero General Public License</span>
+<span class="c"># along with Message For You Sir.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+
+<span class="sd">&quot;&quot;&quot;Provides a variety of `scheduler` classes to coordinate `coroutines`.</span>
+
+<span class="sd">`Schedulers` are responsible for the main program loop, cycling through each</span>
+<span class="sd">registered `coroutine` in turn.  They also send `post office` `messages` into</span>
+<span class="sd">the registered `coroutines` and post emitted `messages` back to the `post</span>
+<span class="sd">office`.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="c">#---Imports--------------------------------------------------------------------</span>
+
+<span class="c">#---  Standard library imports</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">unicode_literals</span>
+<span class="c">## pylint: disable=W0622, W0611</span>
+<span class="kn">from</span> <span class="nn">future_builtins</span> <span class="kn">import</span> <span class="n">ascii</span><span class="p">,</span> <span class="nb">filter</span><span class="p">,</span> <span class="nb">hex</span><span class="p">,</span> <span class="nb">map</span><span class="p">,</span> <span class="nb">oct</span><span class="p">,</span> <span class="nb">zip</span>  <span class="c">## NOQA</span>
+<span class="c">## pylint: enable=W0622, W0611</span>
+
+<span class="kn">import</span> <span class="nn">collections</span>
+
+<span class="c">#---  Third-party imports</span>
+<span class="c">## pylint: disable=F0401</span>
+<span class="kn">from</span> <span class="nn">zope</span> <span class="kn">import</span> <span class="n">interface</span>
+<span class="c">## pylint: enable=F0401</span>
+
+<span class="c">#---  Project imports</span>
+<span class="kn">from</span>  <span class="nn">.</span> <span class="kn">import</span> <span class="n">messages</span><span class="p">,</span> <span class="n">utils</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">,</span> <span class="n">interfaces</span>
+
+
+<span class="c">#---Globals--------------------------------------------------------------------</span>
+
+
+<span class="c">#---Functions------------------------------------------------------------------</span>
+
+
+<span class="c">#---Classes--------------------------------------------------------------------</span>
+
+<span class="nd">@interface.implementer</span><span class="p">(</span><span class="n">interfaces</span><span class="o">.</span><span class="n">IScheduler</span><span class="p">)</span>
+<span class="nd">@interface.provider</span><span class="p">(</span><span class="n">interfaces</span><span class="o">.</span><span class="n">ISchedulerFactory</span><span class="p">)</span>
+<div class="viewcode-block" id="Scheduler"><a class="viewcode-back" href="../../../api/core/m4us.core.schedulers.html#m4us.core.schedulers.Scheduler">[docs]</a><span class="k">class</span> <span class="nc">Scheduler</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;The standard `scheduler` class to run `coroutines`.</span>
+
+<span class="sd">    This is a simple and reasonably efficient implementation of</span>
+<span class="sd">    :class:`~m4us.core.interfaces.IScheduler`.  Unless you have a special need,</span>
+<span class="sd">    this is this probably `scheduler` you want to use.</span>
+
+<span class="sd">    :param m4us.core.interfaces.IPostOffice post_office: The `post office`</span>
+<span class="sd">      object to use for `message` routing.</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given `post office` does not provide</span>
+<span class="sd">      or cannot be adapted to :class:`~m4us.core.interfaces.IPostOffice`.</span>
+
+<span class="sd">    :implements: :class:`m4us.core.interfaces.IScheduler`</span>
+<span class="sd">    :provides: :class:`m4us.core.interfaces.ISchedulerFactory`</span>
+
+<span class="sd">    .. seealso::</span>
+
+<span class="sd">      The :class:`~m4us.core.interfaces.IPostOffice` `interface` for details on</span>
+<span class="sd">      `post offices`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">post_office</span><span class="p">,</span> <span class="n">add_ignores_duplicates</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+      <span class="n">remove_ignores_missing</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;See class docstring for this method&#39;s documentation.&quot;&quot;&quot;</span>
+        <span class="c"># Raises TypeError if not adaptable to IPostOffice.</span>
+        <span class="n">interfaces</span><span class="o">.</span><span class="n">IPostOffice</span><span class="p">(</span><span class="n">post_office</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_post_office</span> <span class="o">=</span> <span class="n">post_office</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ignore_duplicates</span> <span class="o">=</span> <span class="n">add_ignores_duplicates</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ignore_missing</span> <span class="o">=</span> <span class="n">remove_ignores_missing</span>
+        <span class="c"># We use a deque for it&#39;s rotate() and popleft() (and remove() by</span>
+        <span class="c"># extension) which are more efficient than a regular list.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">deque</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shutting_downs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Scheduler.register"><a class="viewcode-back" href="../../../api/core/m4us.core.schedulers.html#m4us.core.schedulers.Scheduler.register">[docs]</a>    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">first_coroutine</span><span class="p">,</span> <span class="o">*</span><span class="n">other_coroutines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Register one or more `coroutines` with the `scheduler`.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :class:`~m4us.core.interfaces.IScheduler` `interface` for details</span>
+<span class="sd">          about this method.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">coroutine</span> <span class="ow">in</span> <span class="p">(</span><span class="n">first_coroutine</span><span class="p">,)</span> <span class="o">+</span> <span class="n">other_coroutines</span><span class="p">:</span>
+            <span class="c"># Raise TypeError of not adaptable to ICoroutine</span>
+            <span class="n">interfaces</span><span class="o">.</span><span class="n">ICoroutine</span><span class="p">(</span><span class="n">coroutine</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">coroutine</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ignore_duplicates</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="c">## pylint: disable=E1101</span>
+                <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">DuplicateError</span><span class="p">(</span><span class="n">coroutine</span><span class="o">=</span><span class="n">coroutine</span><span class="p">)</span>
+                <span class="c">## pylint: enable=E1101</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coroutine</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Scheduler.unregister"><a class="viewcode-back" href="../../../api/core/m4us.core.schedulers.html#m4us.core.schedulers.Scheduler.unregister">[docs]</a>    <span class="k">def</span> <span class="nf">unregister</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">first_coroutine</span><span class="p">,</span> <span class="o">*</span><span class="n">other_coroutines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Unregister one or more `coroutines` from the `scheduler`.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :class:`~m4us.core.interfaces.IScheduler` `interface` for details</span>
+<span class="sd">          about this method.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">coroutine</span> <span class="ow">in</span> <span class="p">(</span><span class="n">first_coroutine</span><span class="p">,)</span> <span class="o">+</span> <span class="n">other_coroutines</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">coroutine</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ignore_missing</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="c">## pylint: disable=E1101</span>
+                <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">NotAddedError</span><span class="p">(</span><span class="n">coroutine</span><span class="o">=</span><span class="n">coroutine</span><span class="p">)</span>
+                <span class="c">## pylint: enable=E1101</span>
+            <span class="n">coroutine</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="Scheduler.step"><a class="viewcode-back" href="../../../api/core/m4us.core.schedulers.html#m4us.core.schedulers.Scheduler.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run one `coroutine`.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">          `Coroutines` are run in a `round-robin`_ style, in the order that</span>
+<span class="sd">          they have been added.  `Coroutines` should not, however, rely on this</span>
+<span class="sd">          implementation detail.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :class:`~m4us.core.interfaces.IScheduler` `interface` for details</span>
+<span class="sd">          about this method.</span>
+
+<span class="sd">        .. _round-robin: http://en.wikipedia.org/wiki/Round-robin_scheduling</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># Note: It is assumed that either the original coroutine can store it&#39;s</span>
+        <span class="c"># state or that the same coroutine adapter is returned with every call</span>
+        <span class="c"># to ICoroutine.  It is the responsibility of the adapter and/or the</span>
+        <span class="c"># adapter registry to ensure the same adapted coroutine is returned.</span>
+        <span class="n">original_coroutine</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">coroutine</span> <span class="o">=</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">ICoroutine</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">)</span>
+        <span class="n">post_office</span> <span class="o">=</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">IPostOffice</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_post_office</span><span class="p">)</span>
+        <span class="n">inbox_messages</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_inbox_messages</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">inbox_message</span> <span class="ow">in</span> <span class="n">inbox_messages</span><span class="p">:</span>
+                <span class="c">## pylint: disable=E1121</span>
+                <span class="n">outbox_message</span> <span class="o">=</span> <span class="n">coroutine</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">inbox_message</span><span class="p">)</span>
+                <span class="c">## pylint: enable=E1121</span>
+                <span class="k">if</span> <span class="n">outbox_message</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">outbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="n">outbox_message</span>
+                <span class="c"># If the message is an IShutdown, the corutine should now be in</span>
+                <span class="c"># the &quot;shutting down&quot; state.</span>
+                <span class="k">if</span> <span class="n">utils</span><span class="o">.</span><span class="n">is_shutdown</span><span class="p">(</span><span class="n">outbox</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="s">&#39;signal&#39;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_shutting_downs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c">## pylint: disable=E1121</span>
+                    <span class="n">post_office</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">,</span> <span class="n">outbox</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+                    <span class="c">## pylint: enable=E1121</span>
+                <span class="c">## pylint: disable=E1101</span>
+                <span class="k">except</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">NoLinkError</span><span class="p">:</span>
+                    <span class="c">## pylint: enable=E1101</span>
+                    <span class="c"># If we get a NoLinkError and the message is an IShutdown,</span>
+                    <span class="c"># then we assume it is sent from a consumer and we drop it.</span>
+                    <span class="c"># If it is not an IShutdown, however, it is an error.</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">IShutdown</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                        <span class="k">raise</span>
+        <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">unregister</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">original_coroutine</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shutting_downs</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_shutting_downs</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span><span class="o">.</span><span class="n">rotate</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_inbox_messages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_coroutine</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an iterable of `inbox` `messages` waiting to be delivered.</span>
+
+<span class="sd">        if the `coroutine` is shutting down, then only a single</span>
+<span class="sd">        :class:`~m4us.core.interfaces.IShutdown` ``control`` `message` will be</span>
+<span class="sd">        in the returned iterable.</span>
+
+<span class="sd">        Otherwise, if there are any waiting `messages` in the `post office`,</span>
+<span class="sd">        they will be returned.</span>
+
+<span class="sd">        If there are no `post office` `messages` for the `coroutine`, and the</span>
+<span class="sd">        `coroutine` is not `lazy`, then only a :obj:`None` ``control``</span>
+<span class="sd">        `message` will be in the returned interable.</span>
+
+<span class="sd">        :param m4us.core.interfaces.ICoroutine original_coroutine: The</span>
+<span class="sd">          (unadapted) `coroutine` for which to check for `messages`.  This</span>
+<span class="sd">          should be the `coroutine` object as it was registered with the `post</span>
+<span class="sd">          office`, not an adapter or anything.</span>
+
+<span class="sd">        :returns: An iterable of `inbox` messages to be delivered to the given</span>
+<span class="sd">          `coroutine`.</span>
+<span class="sd">        :rtype: :class:`collections.Iterable`</span>
+
+<span class="sd">        :raises m4us.core.exceptions.NeverRunError: If the `post office` raises</span>
+<span class="sd">          :exc:`m4us.core.exceptions.NotASinkError` and the `coroutine` is</span>
+<span class="sd">          `lazy`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">post_office</span> <span class="o">=</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">IPostOffice</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_post_office</span><span class="p">)</span>
+        <span class="n">is_lazy</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">INotLazy</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">original_coroutine</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shutting_downs</span><span class="p">:</span>
+            <span class="n">inbox_messages</span> <span class="o">=</span> <span class="p">((</span><span class="s">&#39;control&#39;</span><span class="p">,</span> <span class="n">messages</span><span class="o">.</span><span class="n">Shutdown</span><span class="p">()),)</span>
+            <span class="k">return</span> <span class="n">inbox_messages</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c">## pylint: disable=E1121</span>
+            <span class="n">inbox_messages</span> <span class="o">=</span> <span class="n">post_office</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">original_coroutine</span><span class="p">)</span>
+            <span class="c">## pylint: enable=E1121</span>
+        <span class="c">## pylint: disable=E1101</span>
+        <span class="k">except</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">NotASinkError</span><span class="p">:</span>
+            <span class="c">## pylint: enable=E1101</span>
+            <span class="c"># If we get a NotASinkError from PostOffice.retrieve, and the</span>
+            <span class="c"># coroutine is lazy, then it will never be run.</span>
+            <span class="k">if</span> <span class="n">is_lazy</span><span class="p">:</span>
+                <span class="c">## pylint: disable=E1101</span>
+                <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">NeverRunError</span><span class="p">(</span>
+                  <span class="n">coroutine</span><span class="o">=</span><span class="n">original_coroutine</span><span class="p">)</span>
+                <span class="c">## pylint: enable=E1101</span>
+            <span class="c"># Otherwise, if it is not lazy, then we assume that it is a</span>
+            <span class="c"># producer and will be handled like any other non-lazy</span>
+            <span class="c"># coroutine.</span>
+            <span class="n">inbox_messages</span> <span class="o">=</span> <span class="p">()</span>
+        <span class="c"># If a coroutine is not lazy and there are no messages, then we</span>
+        <span class="c"># send None to control instead.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inbox_messages</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_lazy</span><span class="p">:</span>
+            <span class="n">inbox_messages</span> <span class="o">=</span> <span class="p">((</span><span class="s">&#39;control&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">),)</span>
+        <span class="k">return</span> <span class="n">inbox_messages</span>
+
+<div class="viewcode-block" id="Scheduler.cycle"><a class="viewcode-back" href="../../../api/core/m4us.core.schedulers.html#m4us.core.schedulers.Scheduler.cycle">[docs]</a>    <span class="k">def</span> <span class="nf">cycle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cycle once through the main loop, running all eligible `coroutines`.</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">          The current implementation of this method can handle a shrinking run</span>
+<span class="sd">          queue due to `coroutines` shutting down, but it has not yet been</span>
+<span class="sd">          designed to handle the dynamic adding or removing of `coroutines`</span>
+<span class="sd">          within a the cycle execution.  It&#39;s behaviour in those situations is</span>
+<span class="sd">          currently undefined.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :class:`~m4us.core.interfaces.IScheduler` `interface` for details</span>
+<span class="sd">          about this method.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :meth:`step` method for details how the `coroutines` are run.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># TODO: Handle changes in _run_queue length?</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="Scheduler.run"><a class="viewcode-back" href="../../../api/core/m4us.core.schedulers.html#m4us.core.schedulers.Scheduler.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cycles</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Start the `scheduler`, running all registered `coroutines`.</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">          If *cycles* is not specified and any of the `coroutines` do not</span>
+<span class="sd">          cascade :class:`~m4us.core.interfaces.IShutdown` `messages` or</span>
+<span class="sd">          shutdown properly, then this method will likely loop forever.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :class:`~m4us.core.interfaces.IScheduler` `interface` for details</span>
+<span class="sd">          about this method.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :meth:`cycle` method for details how the `coroutines` are run.</span>
+
+<span class="sd">        .. seealso::</span>
+
+<span class="sd">          The :class:`~m4us.core.interfaces.IShutdown` `interface` for details</span>
+<span class="sd">          on shutdown messages.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cycles</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">cycles</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cycle</span><span class="p">()</span>
+            <span class="k">return</span>
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_queue</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cycle</span><span class="p">()</span>
+
+
+<span class="c">#---Module initialization------------------------------------------------------</span>
+
+
+<span class="c">#---Late Imports---------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Globals---------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Functions-------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Classes---------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Module initialization-------------------------------------------------</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Message For You Sir! 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2009-2012, Krys Lawrence.
+      Last updated on 2012-02-22.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

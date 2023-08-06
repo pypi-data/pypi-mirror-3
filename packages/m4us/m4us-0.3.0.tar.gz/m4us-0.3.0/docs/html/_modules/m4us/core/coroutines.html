@@ -1,0 +1,682 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>m4us.core.coroutines &mdash; Message For You Sir! 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="Message For You Sir! 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Message For You Sir! 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for m4us.core.coroutines</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="c">#---Header---------------------------------------------------------------------</span>
+
+<span class="c"># This file is part of Message For You Sir (m4us).</span>
+<span class="c"># Copyright © 2009-2012 Krys Lawrence</span>
+<span class="c">#</span>
+<span class="c"># Message For You Sir is free software: you can redistribute it and/or modify</span>
+<span class="c"># it under the terms of the GNU Affero General Public License as published by</span>
+<span class="c"># the Free Software Foundation, either version 3 of the License, or (at your</span>
+<span class="c"># option) any later version.</span>
+<span class="c">#</span>
+<span class="c"># Message For You Sir is distributed in the hope that it will be useful, but</span>
+<span class="c"># WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or</span>
+<span class="c"># FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License</span>
+<span class="c"># for more details.</span>
+<span class="c">#</span>
+<span class="c"># You should have received a copy of the GNU Affero General Public License</span>
+<span class="c"># along with Message For You Sir.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+
+
+<span class="sd">&quot;&quot;&quot;Provides support for using regular Python_ `coroutines`.</span>
+
+<span class="sd">.. _Python: http://python.org</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="c">#---Imports--------------------------------------------------------------------</span>
+
+<span class="c">#---  Standard library imports</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">unicode_literals</span>
+<span class="c">## pylint: disable=W0622, W0611</span>
+<span class="kn">from</span> <span class="nn">future_builtins</span> <span class="kn">import</span> <span class="n">ascii</span><span class="p">,</span> <span class="nb">filter</span><span class="p">,</span> <span class="nb">hex</span><span class="p">,</span> <span class="nb">map</span><span class="p">,</span> <span class="nb">oct</span><span class="p">,</span> <span class="nb">zip</span>  <span class="c">## NOQA</span>
+<span class="c">## pylint: enable=W0622, W0611</span>
+
+<span class="kn">import</span> <span class="nn">types</span>
+
+<span class="c">#---  Third-party imports</span>
+<span class="c">## pylint: disable=F0401</span>
+<span class="kn">from</span> <span class="nn">zope</span> <span class="kn">import</span> <span class="n">interface</span>
+<span class="c">## pylint: enable=F0401</span>
+<span class="kn">import</span> <span class="nn">decorator</span>
+
+<span class="c">#---  Project imports</span>
+<span class="kn">from</span> <span class="nn">m4us.core</span> <span class="kn">import</span> <span class="n">utils</span><span class="p">,</span> <span class="n">interfaces</span><span class="p">,</span> <span class="n">messages</span>
+<span class="c"># This is imported directly for the sample coroutine</span>
+<span class="kn">from</span> <span class="nn">m4us.core.utils</span> <span class="kn">import</span> <span class="n">is_shutdown</span>
+
+
+<span class="c">#---Globals--------------------------------------------------------------------</span>
+
+<span class="c">## pylint: disable=C0103</span>
+<span class="n">_coroutine_stand_in_registry</span> <span class="o">=</span> <span class="bp">None</span>
+<span class="c">## pylint: enable=C0103</span>
+
+<span class="n">_COROUTINE_FACTORY_TEMPLATE</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span><span class="se">\</span>
+<span class="s">def </span><span class="si">%(name)s</span><span class="s">(</span><span class="si">%(signature)s</span><span class="s">):</span>
+<span class="s">    from {module_path} import {factory_name} as factory</span>
+<span class="s">    return factory(_func_, </span><span class="si">%(signature)s</span><span class="s">)</span>
+<span class="s">&quot;&quot;&quot;</span>
+
+
+<span class="c">#---Functions------------------------------------------------------------------</span>
+
+<span class="k">def</span> <span class="nf">_interface_adapter_hook</span><span class="p">(</span><span class="n">interface_</span><span class="p">,</span> <span class="n">coroutine_</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;`Adapter` to adapt Python_ `coroutines` to their provided `interfaces`.</span>
+
+<span class="sd">    `Components`, classes and regular functions can (and are expected to) just</span>
+<span class="sd">    declare provided interfaces directly.  They do not need this adapter.</span>
+
+<span class="sd">    Python_ `coroutines`, on the other hand, are really instances of</span>
+<span class="sd">    :data:`types.GeneratorType`.  They cannot be made to directly declare</span>
+<span class="sd">    proivided interfaces because one cannot add additional attributes to the</span>
+<span class="sd">    `generator` object.  That is where this `adapter` comes in.</span>
+
+<span class="sd">    This `adapter` just checks to see if the `coroutine` has a registered</span>
+<span class="sd">    stand-in object in the registry and that the stand-in provides the given</span>
+<span class="sd">    `interface`.  If it does, the `coroutine` is returned unchanged.</span>
+<span class="sd">    Otherwise, :obj:`None` is returned, which signals that adaptation was not</span>
+<span class="sd">    possible.</span>
+
+<span class="sd">    Since the :func:`coroutine` decorator automatically registers interfaces</span>
+<span class="sd">    implemented by the `coroutine`&#39;s `factory` function as those provided by</span>
+<span class="sd">    the `coroutine` itself, adaptation to the given `interface` happens</span>
+<span class="sd">    transparently.</span>
+
+<span class="sd">    :param zope.interface.Interface interface_: The `interface` that must be</span>
+<span class="sd">      provided.</span>
+<span class="sd">    :param m4us.core.interfaces.ICoroutine coroutine_: The `coroutine` to</span>
+<span class="sd">      verify.</span>
+
+<span class="sd">    :returns: The given `coroutine` if it provides the `interface` or</span>
+<span class="sd">      :obj:`None` otherwise.</span>
+<span class="sd">    :rtype: :class:`m4us.core.interfaces.ICoroutine` or :obj:`None`</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">registry</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">registry</span> <span class="o">=</span> <span class="n">_coroutine_stand_in_registry</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">stand_in</span> <span class="o">=</span> <span class="n">registry</span><span class="p">[</span><span class="n">coroutine_</span><span class="p">]</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">interface_</span><span class="o">.</span><span class="n">providedBy</span><span class="p">(</span><span class="n">stand_in</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">coroutine_</span>
+
+
+<span class="k">def</span> <span class="nf">_curried_coroutine_factory</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">coroutine_factory_path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a `coroutine` factory that calls the factory with function.</span>
+
+<span class="sd">    This function is a bit difficult to explain.  It basically curries the</span>
+<span class="sd">    given function into the `coroutine` factory function given by it&#39;s import</span>
+<span class="sd">    path.  It also fully preserves the function&#39;s signature, exept for the</span>
+<span class="sd">    first parameter, which is stripped.  It is meant to be used in decorators</span>
+<span class="sd">    like :func:`filter_`.</span>
+
+<span class="sd">    It uses a template to construct the curried factory, which is why</span>
+<span class="sd">    *coroutine_factory_path* is given as an import path string.  E.g.</span>
+<span class="sd">    ``&#39;m4us.core.coroutines.filter_from_callable&#39;``.  The use of the template</span>
+<span class="sd">    is required to preserve the function&#39;s signature on the curried factory.</span>
+
+<span class="sd">    The idea is that *coroutine_factory_path* would point to a `coroutine`</span>
+<span class="sd">    factory like :func:`filter_from_callable` which takes a function whose</span>
+<span class="sd">    first parameter is the message object.  The resulting factory function</span>
+<span class="sd">    accepts all additional arguments except the first one in case the function</span>
+<span class="sd">    requires additional arguments.</span>
+
+<span class="sd">    :param types.FunctionType function: The function to wrap.  It must accept</span>
+<span class="sd">      at least one argument.</span>
+<span class="sd">    :param str coroutine_factory_path: The import path to the coroutine factory</span>
+<span class="sd">      function to call.</span>
+
+<span class="sd">    :returns: A coroutine factory with the function curried into it.</span>
+<span class="sd">    :rtype: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given function is not a function.</span>
+<span class="sd">    :raises exceptions.ValueError: If the given function does not accept at</span>
+<span class="sd">      least one positional argument.</span>
+
+<span class="sd">    :seealso: :func:`~m4us.core.utils._function_wrapper_from_template` for</span>
+<span class="sd">      additional details.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">module_path</span><span class="p">,</span> <span class="n">factory_name</span> <span class="o">=</span> <span class="n">coroutine_factory_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">template</span> <span class="o">=</span> <span class="n">_COROUTINE_FACTORY_TEMPLATE</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">module_path</span><span class="o">=</span><span class="n">module_path</span><span class="p">,</span>
+      <span class="n">factory_name</span><span class="o">=</span><span class="n">factory_name</span><span class="p">)</span>
+    <span class="c">## pylint: disable=W0212</span>
+    <span class="n">factory</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">_function_wrapper_from_template</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span>
+      <span class="n">strip_first_parameter</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c">## pylint: enable=W0212</span>
+    <span class="n">interface</span><span class="o">.</span><span class="n">alsoProvides</span><span class="p">(</span><span class="n">factory</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">ICoroutineFactory</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">factory</span>
+
+
+<div class="viewcode-block" id="init"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.init">[docs]</a><span class="k">def</span> <span class="nf">init</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Initialize `coroutine` `interface` support.</span>
+
+<span class="sd">    This function must be called before any other part of m4us is used.  It</span>
+<span class="sd">    sets up global interface and adapter registrations neccessary for the</span>
+<span class="sd">    proper functioning of m4us.  It has been made an explicit function in order</span>
+<span class="sd">    to avoid import-time side-effects, which is considered bad practice.</span>
+
+<span class="sd">    It is recommended that this function be called either at import time or as</span>
+<span class="sd">    the first call in a program&#39;s main function.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c">## pylint: disable=W0603</span>
+    <span class="k">global</span> <span class="n">_coroutine_stand_in_registry</span>
+    <span class="c">## pylint: enable=W0603</span>
+    <span class="k">if</span> <span class="n">_coroutine_stand_in_registry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="c"># All Python coroutines provide ICoroutine.</span>
+    <span class="n">interface</span><span class="o">.</span><span class="n">classImplements</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">GeneratorType</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">ICoroutine</span><span class="p">)</span>
+    <span class="c"># Python coroutines cannot have extra attributes (like __provided__ used by</span>
+    <span class="c"># zope.interface, so an attribute stand-in can be used by getting it from</span>
+    <span class="c"># this registry.</span>
+    <span class="c">## pylint: disable=W0212</span>
+    <span class="n">_coroutine_stand_in_registry</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">_ObjectStandInRegistry</span><span class="p">()</span>
+    <span class="c">## pylint: enable=W0212</span>
+    <span class="n">interface</span><span class="o">.</span><span class="n">interface</span><span class="o">.</span><span class="n">adapter_hooks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_interface_adapter_hook</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="coroutine"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.coroutine">[docs]</a><span class="k">def</span> <span class="nf">coroutine</span><span class="p">(</span><span class="n">lazy</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator factory to automatically activate Python_ `coroutines`.</span>
+
+<span class="sd">    Before a Python_ `coroutine` can be used, it needs to be activated by</span>
+<span class="sd">    sending :obj:`None` as it&#39;s first `message`.  This decorator does this</span>
+<span class="sd">    automatically.</span>
+
+<span class="sd">    `Coroutines` are presumptively `lazy`.  This decorator can flag the</span>
+<span class="sd">    given `coroutine` as not `lazy` by making it adaptable to the</span>
+<span class="sd">    :class:`~m4us.core.interfaces.INotLazy` marker `interface`.</span>
+
+<span class="sd">    This decorator also registers the function as providing</span>
+<span class="sd">    :class:`~m4us.core.interfaces.ICoroutineFactory` and registers all</span>
+<span class="sd">    `interfaces` implemented by the function as being provided by the</span>
+<span class="sd">    `coroutine` that the function returns.</span>
+
+<span class="sd">    :param bool lazy: Specifies whether or not the `coroutine` is `lazy`.</span>
+
+<span class="sd">    :returns: A wrapper function that will activate and return the `coroutine`</span>
+<span class="sd">      when called.</span>
+<span class="sd">    :rtype: :data:`types.FunctionType`</span>
+
+<span class="sd">    .. warning::</span>
+
+<span class="sd">      When using this decorator with the zope.interface.implementer_ and/or</span>
+<span class="sd">      zope.interface.provider_ decorators, make sure this decorator is the</span>
+<span class="sd">      outer-most one.  Otherwise interface declarations will get lost.</span>
+
+<span class="sd">    .. _zope.interface.implementer:</span>
+<span class="sd">      http://docs.zope.org/zope.interface/README.html</span>
+<span class="sd">      #declaring-implemented-interfaces</span>
+<span class="sd">    .. _zope.interface.provider:</span>
+<span class="sd">      http://docs.zope.org/zope.interface/README.html</span>
+<span class="sd">      #declaring-provided-interfaces</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_coroutine_factory</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an activated coroutine, with/without `lazy` registration.&quot;&quot;&quot;</span>
+        <span class="n">coroutine_</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">coroutine_</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="bp">None</span><span class="p">)</span>
+        <span class="n">interfaces_to_provide</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">interface</span><span class="o">.</span><span class="n">implementedBy</span><span class="p">(</span><span class="n">function</span><span class="p">))</span>
+        <span class="c"># non-lazy Python coroutines need to be adapted to INotLazy.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lazy</span><span class="p">:</span>
+            <span class="n">interfaces_to_provide</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">interfaces</span><span class="o">.</span><span class="n">INotLazy</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">interfaces_to_provide</span><span class="p">:</span>
+            <span class="n">stand_in</span> <span class="o">=</span> <span class="n">_coroutine_stand_in_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">coroutine_</span><span class="p">)</span>
+            <span class="c">## pylint: disable=W0142</span>
+            <span class="n">interface</span><span class="o">.</span><span class="n">directlyProvides</span><span class="p">(</span><span class="n">stand_in</span><span class="p">,</span> <span class="o">*</span><span class="n">interfaces_to_provide</span><span class="p">)</span>
+            <span class="c">## pylint: enable=W0142</span>
+        <span class="k">return</span> <span class="n">coroutine_</span>
+
+    <span class="k">def</span> <span class="nf">_coroutine_decorator</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Decorator for creating `coroutine` factories.&quot;&quot;&quot;</span>
+        <span class="n">coroutine_factory</span> <span class="o">=</span> <span class="n">decorator</span><span class="o">.</span><span class="n">decorator</span><span class="p">(</span><span class="n">_coroutine_factory</span><span class="p">,</span> <span class="n">function</span><span class="p">)</span>
+        <span class="n">interface</span><span class="o">.</span><span class="n">alsoProvides</span><span class="p">(</span><span class="n">coroutine_factory</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">ICoroutineFactory</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">coroutine_factory</span>
+    <span class="k">return</span> <span class="n">_coroutine_decorator</span>
+
+
+<span class="c"># [[start sample_coroutine]]</span></div>
+<span class="nd">@coroutine</span><span class="p">()</span>
+<div class="viewcode-block" id="sample_coroutine"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.sample_coroutine">[docs]</a><span class="k">def</span> <span class="nf">sample_coroutine</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Pass all messages through.&quot;&quot;&quot;</span>
+    <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span><span class="p">)</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_shutdown</span><span class="p">(</span><span class="n">inbox</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="s">&#39;signal&#39;</span><span class="p">,</span> <span class="n">message</span>
+            <span class="k">break</span>
+        <span class="c">## Your code goes here.</span>
+        <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span> <span class="s">&#39;outbox&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+<span class="c"># [[end sample_coroutine]]</span>
+
+<span class="c"># The docstring for sample_coroutine is set like this so that it can include</span>
+<span class="c"># it&#39;s own source code in the docs.  The literalinclude directive won&#39;t work</span>
+<span class="c"># completely correctly if the docstring is inline.</span>
+<span class="c">## pylint: disable=W0622</span></div>
+<span class="n">sample_coroutine</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;Pass all `messages` through.</span>
+
+<span class="s">    This `coroutine` is meant to provide a canonical example of what a</span>
+<span class="s">    `coroutine` used with this project looks like.</span>
+
+<span class="s">    Any `messages` sent to it on any `inbox` will be sent back out on it&#39;s</span>
+<span class="s">    ``outbox`` `outbox`.  It is also well behaved in that it will shutdown on</span>
+<span class="s">    any :class:`~m4us.core.interfaces.IShutdown` `message`, forwarding it on</span>
+<span class="s">    before quitting.</span>
+
+<span class="s">    The full code for this `coroutine` is:</span>
+
+<span class="s">    .. literalinclude:: ../../../../m4us/core/coroutines.py</span>
+<span class="s">        :linenos:</span>
+<span class="s">        :start-after: # [[start sample_coroutine]]</span>
+<span class="s">        :end-before: # [[end sample_coroutine]]</span>
+
+<span class="s">    :returns: A pass-through `coroutine`</span>
+<span class="s">    :rtype: :data:`types.GeneratorType`</span>
+
+<span class="s">    :implements: :class:`m4us.core.interfaces.ICoroutine`</span>
+<span class="s">    :provides: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="s">    .. note::</span>
+
+<span class="s">      `Producers` and `filters` need a minimum of 2 :keyword:`yield` statements</span>
+<span class="s">      as the output of the first one is always thrown away.  The output of the</span>
+<span class="s">      second one is the first `message` delivered.  On the other hand, the</span>
+<span class="s">      first :keyword:`yield` will be the one that gets the first incoming</span>
+<span class="s">      `message`.</span>
+
+<span class="s">    &quot;&quot;&quot;</span>
+<span class="c">## pylint: enable=W0622</span>
+
+
+<span class="nd">@coroutine</span><span class="p">()</span>
+<div class="viewcode-block" id="null_sink"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.null_sink">[docs]</a><span class="k">def</span> <span class="nf">null_sink</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Swallow all messages except :class:`~m4us.core.interfaces.IShutdown`.</span>
+
+<span class="sd">    This `coroutine` can serve as an end point in a series of connected</span>
+<span class="sd">    `coroutines`.  All `messages` sent to it, except</span>
+<span class="sd">    :class:`~m4us.core.interfaces.IShutdown` `messages` are ignored and not</span>
+<span class="sd">    re-emitted.</span>
+
+<span class="sd">    The `coroutine` will shutdown on any</span>
+<span class="sd">    :class:`~m4us.core.interfaces.IShutdown` `message`, forwarding it on before</span>
+<span class="sd">    quitting.</span>
+
+<span class="sd">    :returns: A null sink `coroutine`</span>
+<span class="sd">    :rtype: :data:`types.GeneratorType`</span>
+
+<span class="sd">    :implements: :class:`m4us.core.interfaces.ICoroutine`</span>
+<span class="sd">    :provides: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">utils</span><span class="o">.</span><span class="n">is_shutdown</span><span class="p">(</span><span class="n">inbox</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="s">&#39;signal&#39;</span><span class="p">,</span> <span class="n">message</span>
+            <span class="k">break</span>
+
+</div>
+<span class="nd">@coroutine</span><span class="p">()</span>
+<div class="viewcode-block" id="filter_from_callable"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.filter_from_callable">[docs]</a><span class="k">def</span> <span class="nf">filter_from_callable</span><span class="p">(</span><span class="n">callable_</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Turn an ordinary callable (function, etc.) into a proper `coroutine`.</span>
+
+<span class="sd">    This is a convenience `coroutine` that turns ordinary callables (functions,</span>
+<span class="sd">    etc.) into proper `coroutines`.  The callable is passed ``inbox``</span>
+<span class="sd">    `messages` and it&#39;s return value is emited on ``outbox``.</span>
+
+<span class="sd">    The given callable must accept at least a single positional argument, the</span>
+<span class="sd">    incomming ``inbox`` `message`, and return whatever should be the ``outbox``</span>
+<span class="sd">    `message` to emit.  Any additional arguments passed to this function will</span>
+<span class="sd">    be passed to the callable each time it is called.</span>
+
+<span class="sd">    Any ``control`` or non-``inbox`` `messages` sent in will be ignored and not</span>
+<span class="sd">    passed to the callable.  Additionally, by default, if the callable returns</span>
+<span class="sd">    :obj:`None`, the :obj:`None` will be emitted on ``outbox`` as the</span>
+<span class="sd">    `message`.  This behaviour can be changed by passing ``suppress_none=True``</span>
+<span class="sd">    as a keyword argument.  When *suppress_none* is True, if the callable</span>
+<span class="sd">    returns :obj:`None`, only a plain :obj:`None` will be yielded.  This means</span>
+<span class="sd">    that no `message` will  be passed on to any other `coroutine`.</span>
+<span class="sd">    Non-:obj:`None` `messages` will still be emitted on the ``outbox``</span>
+<span class="sd">    `outbox`, however.</span>
+
+<span class="sd">    :param collections.Callable callable\_: The callable to which to pass</span>
+<span class="sd">      messages.</span>
+<span class="sd">    :param bool suppress_none: Indicate whether or not :obj:`None` should be</span>
+<span class="sd">      emitted on the ``outbox`` `outbox`.  (Default: :obj:`True`)</span>
+<span class="sd">    :param collections.Sequence args: Any additional positional arguments to</span>
+<span class="sd">      pass to the callable.</span>
+<span class="sd">    :param collections.Mapping kwargs: Any additional keyword arguments to pass</span>
+<span class="sd">      to the callable.</span>
+
+<span class="sd">    :returns: A filter `coroutine`</span>
+<span class="sd">    :rtype: :data:`types.GeneratorType`</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given callable is not actually a</span>
+<span class="sd">      callable.</span>
+
+<span class="sd">    :implements: :class:`m4us.core.interfaces.ICoroutine`</span>
+<span class="sd">    :provides: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">callable_</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Argument must be a callable.&#39;</span><span class="p">)</span>
+    <span class="n">suppress_none</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;suppress_none&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+    <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span><span class="p">)</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_shutdown</span><span class="p">(</span><span class="n">inbox</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="s">&#39;signal&#39;</span><span class="p">,</span> <span class="n">message</span>
+            <span class="k">break</span>
+        <span class="k">if</span> <span class="n">inbox</span> <span class="o">!=</span> <span class="s">&#39;inbox&#39;</span><span class="p">:</span>
+            <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="n">callable_</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">IShutdown</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="s">&#39;signal&#39;</span><span class="p">,</span> <span class="n">message</span>
+            <span class="k">break</span>
+        <span class="k">if</span> <span class="n">message</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">suppress_none</span><span class="p">:</span>
+            <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span> <span class="s">&#39;outbox&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="filter_"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.filter_">[docs]</a><span class="k">def</span> <span class="nf">filter_</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator to turn an ordinary function into a proper `coroutine`.</span>
+
+<span class="sd">    This decorator returns a factory function that when called, just calls</span>
+<span class="sd">    :func:`filter_from_callable` and returns the result.</span>
+
+<span class="sd">    Any additional arguments passed the to factory function are passed on to</span>
+<span class="sd">    :func:`filter_from_callable`.</span>
+
+<span class="sd">    The factory function is also registered as providing</span>
+<span class="sd">    :class:`~m4us.core.interfaces.ICoroutineFactory`.</span>
+
+<span class="sd">    :param types.FunctionType function: The function to turn into a</span>
+<span class="sd">      `coroutine`.  It must accept at least one argument.</span>
+
+<span class="sd">    :returns: A filter coroutine factory function.</span>
+<span class="sd">    :rtype: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given function is not a function.</span>
+<span class="sd">    :raises exceptions.ValueError: If the given function does not accept at</span>
+<span class="sd">      least one positional argument.</span>
+
+<span class="sd">    :seealso: :func:`filter_from_callable` for the specifics.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_curried_coroutine_factory</span><span class="p">(</span><span class="n">function</span><span class="p">,</span>
+      <span class="s">&#39;m4us.core.coroutines.filter_from_callable&#39;</span><span class="p">)</span>
+
+</div>
+<span class="nd">@coroutine</span><span class="p">(</span><span class="n">lazy</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<div class="viewcode-block" id="producer_from_iterable"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.producer_from_iterable">[docs]</a><span class="k">def</span> <span class="nf">producer_from_iterable</span><span class="p">(</span><span class="n">iterable</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a `producer` `coroutine` that iterates over an iterable.</span>
+
+<span class="sd">    This is a convenience `coroutine` that emits ``outbox`` messages that are</span>
+<span class="sd">    the results of iterating over an iterable.  When all the iterable results</span>
+<span class="sd">    have been emitted, an :class:`~m4us.core.interfaces.IProducerFinished`</span>
+<span class="sd">    messages is emitted.  Then the `producer` terminates.</span>
+
+<span class="sd">    :param collections.Iterable iterable: The iterable object over which to</span>
+<span class="sd">      iterate.</span>
+
+<span class="sd">    :returns: A non-lazy producer `coroutine`</span>
+<span class="sd">    :rtype: :data:`types.GeneratorType`</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given object is not an iterable or it</span>
+<span class="sd">      does not produce a valid iterator.</span>
+
+<span class="sd">    :implements: :class:`m4us.core.interfaces.ICoroutine`</span>
+<span class="sd">    :provides: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">iterator</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">iterable</span><span class="p">)</span>
+    <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">iterator</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_shutdown</span><span class="p">(</span><span class="n">inbox</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="s">&#39;signal&#39;</span><span class="p">,</span> <span class="n">message</span>
+            <span class="k">return</span>
+        <span class="n">inbox</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="k">yield</span> <span class="s">&#39;outbox&#39;</span><span class="p">,</span> <span class="n">element</span><span class="p">)</span>
+    <span class="k">yield</span> <span class="s">&#39;signal&#39;</span><span class="p">,</span> <span class="n">messages</span><span class="o">.</span><span class="n">ProducerFinished</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="producer"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.producer">[docs]</a><span class="k">def</span> <span class="nf">producer</span><span class="p">(</span><span class="n">generator_factory</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator that turns a generator function into a `producer` `coroutine`.</span>
+
+<span class="sd">    This decorator returns a factory function that when called, just calls the</span>
+<span class="sd">    generator function and passes the result to :func:`producer_from_iterable`,</span>
+<span class="sd">    returning the result.</span>
+
+<span class="sd">    Any additional arguments passed the to factory function are passed on to</span>
+<span class="sd">    to the generator factory.</span>
+
+<span class="sd">    The factory function is also registered as providing</span>
+<span class="sd">    :class:`~m4us.core.interfaces.ICoroutineFactory`.</span>
+
+<span class="sd">    :param types.FunctionType generator_factory: The generator function to turn</span>
+<span class="sd">      into a `producer`.</span>
+
+<span class="sd">    :returns: A `producer` `coroutine` factory function.</span>
+<span class="sd">    :rtype: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given generator factory is not a</span>
+<span class="sd">      callable.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">      Technically this decorator will work with any function that returns an</span>
+<span class="sd">      iterable.  A generator function is not strictly required, though that is</span>
+<span class="sd">      the expected typical use case.</span>
+
+<span class="sd">    :seealso:</span>
+
+<span class="sd">      :func:`producer_from_iterable` for the specifics.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_producer_factory</span><span class="p">(</span><span class="n">generator_factory</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a `producer` `coroutine` from the iterable factory.&quot;&quot;&quot;</span>
+        <span class="n">generator</span> <span class="o">=</span> <span class="n">generator_factory</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">producer_from_iterable</span><span class="p">(</span><span class="n">generator</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">generator_factory</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Argument must be a callable that returns an iterable&#39;</span><span class="p">)</span>
+    <span class="n">producer_factory</span> <span class="o">=</span> <span class="n">decorator</span><span class="o">.</span><span class="n">decorator</span><span class="p">(</span><span class="n">_producer_factory</span><span class="p">,</span>
+      <span class="n">generator_factory</span><span class="p">)</span>
+    <span class="n">interface</span><span class="o">.</span><span class="n">alsoProvides</span><span class="p">(</span><span class="n">producer_factory</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">ICoroutineFactory</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">producer_factory</span>
+
+</div>
+<span class="nd">@interface.provider</span><span class="p">(</span><span class="n">interfaces</span><span class="o">.</span><span class="n">ICoroutineFactory</span><span class="p">)</span>
+<div class="viewcode-block" id="sink_from_callable"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.sink_from_callable">[docs]</a><span class="k">def</span> <span class="nf">sink_from_callable</span><span class="p">(</span><span class="n">callable_</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Turn an ordinary callable (function, etc.) into a `sink` `coroutine`.</span>
+
+<span class="sd">    This is a convenience function that turns ordinary callables (functions,</span>
+<span class="sd">    etc.) into `sink` `coroutines`.  The callable is passed ``inbox``</span>
+<span class="sd">    `messages` and it&#39;s return value suppressed, unless it is an</span>
+<span class="sd">    :class:`~m4us.core.interfaces.IShutdown` message.</span>
+
+<span class="sd">    The given callable must accept at least a single positional argument, the</span>
+<span class="sd">    incomming ``inbox`` `message`, and return nothing.  It may return an</span>
+<span class="sd">    :class:`~m4us.core.interfaces.IShutdown` message, however, if appropriate,</span>
+<span class="sd">    but it should not normally be necessary.  Any additional arguments passed</span>
+<span class="sd">    to this function will be passed to the callable each time it is called.</span>
+
+<span class="sd">    Any ``control`` or non-``inbox`` `messages` sent in will be ignored and not</span>
+<span class="sd">    passed to the callable.</span>
+
+<span class="sd">    :param collections.Callable callable\_: The callable to which to pass</span>
+<span class="sd">      messages.</span>
+<span class="sd">    :param collections.Sequence args: Any additional positional arguments to</span>
+<span class="sd">      pass to the callable.</span>
+<span class="sd">    :param collections.Mapping kwargs: Any additional keyword arguments to pass</span>
+<span class="sd">      to the callable.</span>
+
+<span class="sd">    :returns: A `sink` `coroutine`</span>
+<span class="sd">    :rtype: :data:`types.GeneratorType`</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given callable is not actually a</span>
+<span class="sd">      callable.</span>
+
+<span class="sd">    :implements: :class:`m4us.core.interfaces.ICoroutine`</span>
+<span class="sd">    :provides: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_sink_from_callable</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a `sink` `coroutine` from that calls the callable.&quot;&quot;&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">callable_</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">IShutdown</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">result</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">callable_</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Argument must be a callable.&#39;</span><span class="p">)</span>
+    <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;suppress_none&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">filter_from_callable</span><span class="p">(</span><span class="n">_sink_from_callable</span><span class="p">,</span> <span class="n">suppress_none</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+      <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="sink"><a class="viewcode-back" href="../../../api/core/m4us.core.coroutines.html#m4us.core.coroutines.sink">[docs]</a><span class="k">def</span> <span class="nf">sink</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator to turn an ordinary function into a `sink` `coroutine`.</span>
+
+<span class="sd">    This decorator returns a factory function that when called, just calls</span>
+<span class="sd">    :func:`sink_from_callable` and returns the result.</span>
+
+<span class="sd">    Any additional arguments passed the to factory function are passed on to</span>
+<span class="sd">    :func:`sink_from_callable`.</span>
+
+<span class="sd">    The factory function is also registered as providing</span>
+<span class="sd">    :class:`~m4us.core.interfaces.ICoroutineFactory`.</span>
+
+<span class="sd">    :param types.FunctionType function: The function to turn into a `sink`</span>
+<span class="sd">      `coroutine`.  It must accept at least one argument.</span>
+
+<span class="sd">    :returns: A `sink` `coroutine` factory function.</span>
+<span class="sd">    :rtype: :class:`m4us.core.interfaces.ICoroutineFactory`</span>
+
+<span class="sd">    :raises exceptions.TypeError: If the given function is not a function.</span>
+<span class="sd">    :raises exceptions.ValueError: If the given function does not accept at</span>
+<span class="sd">      least one positional argument.</span>
+
+<span class="sd">    .. seealso:: :func:`sink_from_callable` for the specifics.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_curried_coroutine_factory</span><span class="p">(</span><span class="n">function</span><span class="p">,</span>
+      <span class="s">&#39;m4us.core.coroutines.sink_from_callable&#39;</span><span class="p">)</span>
+
+
+<span class="c">#---Classes--------------------------------------------------------------------</span>
+
+
+<span class="c">#---Module initialization------------------------------------------------------</span>
+
+
+<span class="c">#---Late Imports---------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Globals---------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Functions-------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Classes---------------------------------------------------------------</span>
+
+
+<span class="c">#---Late Module initialization-------------------------------------------------</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Message For You Sir! 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2009-2012, Krys Lawrence.
+      Last updated on 2012-02-22.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>
