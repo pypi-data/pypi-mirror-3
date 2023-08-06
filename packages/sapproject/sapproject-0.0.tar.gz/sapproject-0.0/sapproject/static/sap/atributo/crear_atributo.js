@@ -1,0 +1,133 @@
+ Ext.define('sap.crearAtributoPanel', {
+    extend: 'Ext.form.Panel',
+    alias : 'sap.crearAtributoPanel',
+
+    title :   'Crear Atributo',
+    id:       'panel_crear_atributo',
+    name:     'panel_crear_atributo',
+    layout:   'fit',
+    frame:    true,
+    closable: true,
+    border:   false,
+  
+    initComponent: function() {
+        var px=510;
+        var py=-120;
+        this.items = [{
+            xtype:      'form',
+            title:      'Datos del Atributo',
+            autoScroll: true,
+            fieldDefaults: {
+                blankText:     'Este campo no puede ser nulo',
+                msgTarget:     'side',
+                autoFitErrors: false
+            },
+            items: [{
+                xtype:      'textfield',
+                margin:     '50 20 20 20',
+                name :      'nombre',
+                width: 480,
+                labelWidth:  150,
+                fieldLabel: '<b>Nombre del Atributo</b>',
+                allowBlank: false
+            }, {
+                xtype:      'combo',
+                margin:     '5 20 20 20',
+                hiddenName: 'tipodato',
+                name :      'tipodato',
+                editable:     false,
+                mode:        'local',
+                labelWidth:  150,
+                width: 480,                
+                fieldLabel: '<b>Tipo de Dato</b>',
+                allowBlank: false,
+                displayField: 'opcion',
+                valueField:   'opcion',
+                emptyText :   'Seleccione un tipo',
+                store: new Ext.data.SimpleStore({  
+                    id      : 0 ,  
+                    fields  : ['id', 'opcion'],  
+                    data    : [
+                        [1, 'numérico'],
+                        [2, 'texto'],
+                        [3, 'lógico'],
+                        [4, 'fecha'],
+                        [5, 'archivo']
+                    ]
+                }),   
+            }, {
+                xtype:      'textfield',
+                margin:     '5 20 20 20',
+                name :      'valordef',
+                width: 480,
+                labelWidth:  150,
+                fieldLabel: '<b>Valor por defecto</b>',
+                allowBlank: false
+            }]
+        }];
+        
+        this.buttons =[{
+            text:     'Guardar',
+            iconCls:  'save-icon',
+            handler:  this.form_submit_handler
+        }, {
+            text:    'Cancelar',
+            iconCls: 'cancel-icon',            
+            handler: this.form_cancel_handler
+        }, {
+            text:    'Limpiar',
+            iconCls: 'clear-icon',
+            handler: this.form_reset_handler
+        }];
+        
+        this.listeners = {
+            close : function(){
+                // actualizamos el store
+                var store = Ext.data.StoreManager.lookup('atributoStore');
+                store.load();
+                // volvemos al panel de administracion
+                Ext.getCmp('area-central').agregar_pestanha('panel_administrar_atributo', null);
+            }
+        };
+        
+        this.callParent(arguments);
+    },
+    
+    form_submit_handler: function(){
+        var self = this;
+        var form = self.up('form').getForm();
+        if(form.isValid()){
+            form.submit({
+                method:    'POST',
+                url:       '/crear_atributo',
+                waitTitle: 'Conectando', 
+                waitMsg:   'Enviando datos...',
+                success: function(form,action){
+                    Ext.Msg.alert('INFO','Registro almacenado con exito!', function(btn, text){
+                        if (btn == 'ok'){
+                            self.up('panel').close();
+                        }
+                    });
+                },
+                failure: function(form, action){
+                    Ext.Msg.alert('ERROR','Ocurrio un problema al guardar el registro!');
+                }
+            });
+        }
+    },
+    
+    form_reset_handler: function() {
+        var form = this.up('form').getForm();
+        form.reset();
+        form.findField("nombre").focus(true,100);
+    },
+    
+    form_cancel_handler: function() {
+        this.up('panel').close();
+    }
+});
+
+
+
+
+
