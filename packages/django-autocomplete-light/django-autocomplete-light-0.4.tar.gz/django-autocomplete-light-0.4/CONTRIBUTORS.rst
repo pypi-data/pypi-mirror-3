@@ -1,0 +1,2 @@
+- Riccardo Magliocchetti
+- @simonemarcarino
