@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.4: http://docutils.sourceforge.net/" />
+<title>Geolocation and path cross</title>
+<link rel="stylesheet" href="docutils.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="geolocation-and-path-cross">
+<h1 class="title">Geolocation and path cross</h1>
+<p>Spurred on by <a class="reference" href="http://kulleen.org/seemant/blog/2007/apr/16/building-my-django-weblog-part3/">Seemant's voyage</a> in to <a class="reference" href="http://www.maxmind.com/geoip/api/c.shtml">geoip</a> for deciding on the
+location of users writing comments on his website I decided to have
+a look in to MaxMind's library with the intent of using it in
+a semi-private <a class="reference" href="http://esw.w3.org/topic/PathCross">pathcross</a>-type application.  Unfortunately, it turns out
+it isn't all that simple but there is some fun to be had along the way.</p>
+<p>If, like Seemant, you're looking to simply infer the country a specific
+IP address originates from then the accuracy of the results from the
+geoip library are generally quite good.  Out of the fifty requests
+I tried the MaxMind database managed to return the correct results for
+all but three, and each of those incorrect results are because of
+interesting proxying games being played by their service providers.  The
+accuracy would likely be much higher than 94% using a more random
+selection of IPs, but I went out of my way to find ones I expected to
+return incorrect data(large multinational ISPs, mobile providers and
+backbone infrastructure owners).  That being said, the accuracy of the
+results drops considerably as you zoom in from country-wide geolocation.</p>
+<p>My initial idea had been to use the <a class="reference" href="http://www.maxmind.com/app/city">city</a> data to populate an
+automatically updating database that could be queried to find people in
+the local area <a class="footnote-reference" href="#id4" id="id1" name="id1">[1]</a>.  Much like some of those oh-so-cool Web 2.0
+buzzword laden sites do but without the manual updating, javascript,
+lack of privacy and continual spam.  Me and a few friends already do
+such a thing using our published <a class="reference" href="http://microformats.org/wiki/hcalendar">hCalendar</a> entries, a heap of nifty
+Haskell code and some dirty hack infested XSLT.  It works well, but it
+could do so much better given more data.  Unfortunately, the geoip
+solution wouldn't work as I envisaged because the precision of the city
+data isn't what I naïvely hoped for.</p>
+<p>All that aside, and with the failed plan in tatters on the floor, it did
+leave a few interesting artefacts to be mulled over instead of doing
+Real Work™.</p>
+<div class="section">
+<h1><a id="how-inaccurate" name="how-inaccurate">How inaccurate?</a></h1>
+<p>Using MaxMind's <a class="reference" href="http://www.maxmind.com/app/locate_my_ip">Locate my IP</a> service, which presumably queries their
+largest and most current database to attract customers, I'm reported as
+being:</p>
+<blockquote>
+<table border="1" class="docutils">
+<colgroup>
+<col width="43%" />
+<col width="57%" />
+</colgroup>
+<thead valign="bottom">
+<tr><th class="head">Attribute</th>
+<th class="head">Data</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr><td>Your IP Address</td>
+<td>62.249.253.214</td>
+</tr>
+<tr><td>Countries</td>
+<td>United Kingdom</td>
+</tr>
+<tr><td>Region</td>
+<td>O2 (Telford and Wrekin)</td>
+</tr>
+<tr><td>Global Cities</td>
+<td>Telford</td>
+</tr>
+<tr><td>Latitude/Longitude</td>
+<td>52.6333/-2.5000</td>
+</tr>
+<tr><td>ISP</td>
+<td>Telford</td>
+</tr>
+<tr><td>Organization</td>
+<td>Entanet International Ltd</td>
+</tr>
+<tr><td>Netspeed</td>
+<td>Dialup</td>
+</tr>
+<tr><td>Domain Name</td>
+<td>entanet.co.uk</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p>Okay, so at the moment of that query it gets the correct country, net
+speed, organisation(my ISP <a class="reference" href="http://www.ukfsn.org/">UKFSN</a> resells Entanet service) but that is
+it <a class="footnote-reference" href="#id5" id="id2" name="id2">[2]</a>.  Not that we really should be expecting any great accuracy with
+the data, because of the way IPs are assigned and used.</p>
+<p>Assuming that I would be happy with my location being reported as
+Telford, how inaccurate is the data?  In the context of path cross the
+question is &quot;would I be likely to travel to Telford for a beer?&quot;  Time
+to brush up on spherical trigonometry basics I guess.</p>
+<p>The data is reasonably correct in stating a location of N52.6333°;
+W2.5000° for Telford.  My location, assuming the WGS-84 datum, is
+N52.015°; W0.221°.</p>
+<p>Calculating the Great-circle distance between the two coordinates is
+relatively easy.  I've hacked together a really simple Python module
+called <tt class="docutils literal"><span class="pre">upoints</span></tt> that allows you to calculate the distance between two
+points on Earth(or any other approximately spherical body with a few
+minor changes).  It offers the Law of Cosines and haversine methods for
+calculating the distance, because they're the two I happen to know.</p>
+</div>
+<div class="section">
+<h1><a id="too-inaccurate" name="too-inaccurate">Too inaccurate?</a></h1>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="k">from</span> <span class="nn">upoints</span> <span class="k">import</span> <span class="n">point</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Home</span> <span class="o">=</span> <span class="n">point</span><span class="o">.</span><span class="n">Point</span><span class="p">(</span><span class="mf">52.015</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.221</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Telford</span> <span class="o">=</span> <span class="n">point</span><span class="o">.</span><span class="n">Point</span><span class="p">(</span><span class="mf">52.6333</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.5000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%i</span><span class="s"> kM&quot;</span> <span class="o">%</span> <span class="n">Home</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">Telford</span><span class="p">))</span>
+<span class="go">169 kM</span>
+</pre></div>
+<p>The script above tells us that the distance from my house to Telford is
+approximately 170 kM (just over 100 miles for those so inclined), given
+that result what is the answer to my question &quot;would I be likely to
+travel to Telford for a beer?&quot; Probably not.</p>
+<p>The answer isn't that simple though.  Whereas I probably wouldn't travel
+170 kM for a beer with my good friend Danny(sorry Danny!), I would
+consider travelling 170 kM to meet up with Roger Beckinsale.  It isn't
+because Danny is bad company(quite the contrary), it is because I live
+eight kilometres from Danny's house and can pop round for a beer
+whenever the urge hits me.  Roger on the other hand lives on the Isle of
+Lewis, as far North West as the British Isles go, and I haven't seen him
+for a year or so.</p>
+<p>There is only one conclusion to draw from this:  Accuracy is in the eye
+of the beerholder(sorry!).  This conclusion has led me to implement some
+new features in our manual path cross tool, all based around the idea of
+relative proximity.</p>
+<p>The &quot;average&quot; location of a person is important when calculating whether
+your paths cross <a class="footnote-reference" href="#id6" id="id3" name="id3">[3]</a>.  I'm not really interested in seeing when
+somebody who works at the same site as me is within twenty kilometres of
+me as it would clearly happen a lot, but I'd like to see when somebody
+visits from abroad or heads to a show within perhaps thirty kilometres
+of my location.</p>
+</div>
+<div class="section">
+<h1><a id="your-proximity-alert" name="your-proximity-alert">Your proximity alert</a></h1>
+<p>I've hacked support for relative proximities in to our Haskell tool, but
+<tt class="docutils literal"><span class="pre">upoints</span></tt> could be used as the basis to implement something similar in
+Python.  Taking Seemant, who lives in Boston, Ma., as an example as it
+is his fault I'm playing with Python and geoip <tt class="docutils literal"><span class="pre">upoints</span></tt> can tell us:</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">Seemant</span> <span class="o">=</span> <span class="n">point</span><span class="o">.</span><span class="n">Point</span><span class="p">(</span><span class="mf">42</span><span class="p">,</span> <span class="o">-</span><span class="mf">71</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%i</span><span class="s"> kM&quot;</span> <span class="o">%</span> <span class="n">Home</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">Seemant</span><span class="p">))</span>
+<span class="go">5257 kM</span>
+</pre></div>
+<p>We now have to make a decision about the range for the proximity alert
+given that Seemant lives some five thousand kilometres away.  Being that
+I owe him many beers for taking care of a lot of my <a class="reference" href="http://www.gentoo.org/">Gentoo</a> bugs for me,
+I should perhaps set the range to be quite low and save myself some
+money.</p>
+<p>Without taking in to account my stinginess it seems that a reasonable
+target range is the square root of the home-to-home distance.  From
+looking at the events I've tagged to meet up with someone in the past
+year it seems that all of them fall surprisingly evenly within the
+square root of the distance we live from each other.</p>
+<p>Marginally weighted square roots might be more appropriate in reality
+because there are some anomalies.  For example, I travelled from
+Kensington to West India Dock after LinuxWorld last year to catch up
+with friends who live a few minutes up the A1 from my house.  The reason
+being for most of last year our schedules seemed to be stopping us
+meeting up locally, but even that fell within 1.5 times the square root.
+Adding in a key to show the last face to face meeting, would probably
+allow one to assign weighting automatically.  Continuing the Seemant
+example would mean increasing his range significantly, being
+a BTS and email-only contact.</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="k">import</span> <span class="nn">math</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Home</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">Seemant</span><span class="p">))</span>
+<span class="go">72.511542038315213</span>
+</pre></div>
+<p>If we forget about the anomalies, and just take the square root as being
+correct I can populate the relationship for Seemant with a 73 kM limit.
+I'm sure each person involved will have their own idea of what
+a reasonable limit would be, so that should be user defined.</p>
+</div>
+<div class="section">
+<h1><a id="conclusions" name="conclusions">Conclusions</a></h1>
+<p>geoip wasn't, and isn't going to become, a viable way to update the path
+cross database and until more mobile devices come equipped with GPS
+automated updates just aren't going to be usable.  If you want to start
+claiming those owed beers the answer is to publish your schedule in
+valid hCalendar, and publish a hCard containing your home location so
+you get the correct range allowance.</p>
+<p>If you think of any good uses for <tt class="docutils literal"><span class="pre">upoints</span></tt>, drop me a mail.  Cool new
+uses with attached patches are even better!</p>
+</div>
+<div class="section">
+<h1><a id="bonus" name="bonus">Bonus</a></h1>
+<p>Having already implemented the basic class and distance method,
+I figured I may as well add bearing calculation too.  It's only 4 lines
+of code, so why not?</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="s">&quot;A heading of </span><span class="si">%i</span><span class="s">° will find the beers!&quot;</span> <span class="o">%</span> <span class="n">Home</span><span class="o">.</span><span class="n">bearing</span><span class="p">(</span><span class="n">Telford</span><span class="p">))</span>
+<span class="go">A heading of 294° will find the beers!</span>
+</pre></div>
+<table class="docutils footnote" frame="void" id="id4" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id1" name="id4">[1]</a></td><td>By &quot;automatically updating&quot; I mean simply a ping-and-forget
+service that listens for a user ID and location and updates the
+database.  My test code was a simple five line <a class="reference" href="http://www.python.org/">Python</a> script, it
+literally reads a configuration file for the user ID and pings my
+server.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="id5" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id2" name="id5">[2]</a></td><td>I guess you could argue it gets the US area code, US metro code
+and zipcode correct as none of them apply here.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="id6" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id3" name="id6">[3]</a></td><td>The implementation actually considers the mode, and not the
+average, in calculating &quot;home&quot; locations.  It makes it less prone
+to errors when people only report long distance changes, because
+the clustering isn't so obvious.  If more people hosted
+a complete <a class="reference" href="http://microformats.org/wiki/hcard">hCard</a>, we wouldn't even need to calculate this.</td></tr>
+</tbody>
+</table>
+<!-- :vim: set ft=rst ts=2 sw=2 et: -->
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference" href="geolocation_and_pathcross.txt">View document source</a>.
+Generated by <a class="reference" href="http://docutils.sourceforge.net/">Docutils</a> from <a class="reference" href="http://docutils.sourceforge.net/rst.html">reStructuredText</a> source.
+
+</div>
+</body>
+</html>

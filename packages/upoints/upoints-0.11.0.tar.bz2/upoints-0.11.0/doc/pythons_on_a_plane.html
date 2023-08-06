@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.4: http://docutils.sourceforge.net/" />
+<title>Pythons on a plane</title>
+<link rel="stylesheet" href="docutils.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="pythons-on-a-plane">
+<h1 class="title">Pythons on a plane</h1>
+<p>In what is probably the final spin-off from <a class="reference" href="geolocation_and_pathcross.html">geolocation and path
+cross</a> we'll be using the upoints modules to work with airport
+locations.  This can be useful if you'd like to calculate how far you've
+travelled in a certain period, or just as a large database for
+calculating rough distances between other places using the closest
+airports as locations because of their abundance.</p>
+<p>NOAA publishes an enormous amount of world weather information,
+and often it is keyed to airport location's weather stations.  Unlike
+many of the commercial weather data companies NOAA publish their
+data in clean, well defined formats, and along with the weather data they also
+publish extensive location data for the weather stations they monitor.
+And many thanks to them, because we can use their databases to populate
+our local geolocation databases.</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="k">from</span> <span class="nn">upoints</span> <span class="k">import</span> <span class="p">(</span><span class="n">point</span><span class="p">,</span> <span class="n">weather_stations</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">WMO_stations_database</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="s">&quot;http://weather.noaa.gov/data/nsd_bbsss.txt&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">WMO_stations</span> <span class="o">=</span> <span class="n">weather_stations</span><span class="o">.</span><span class="n">Stations</span><span class="p">(</span><span class="n">WMO_stations_database</span><span class="p">)</span>
+</pre></div>
+<p>The above snippet will import the WMO identifier keyed database
+available from the <a class="reference" href="http://weather.noaa.gov/tg/site.shtml">meteorological station location information page</a>.
+They also provide a database keyed with ICAO identifiers, which
+can also be imported:</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">ICAO_stations_database</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="s">&quot;http://weather.noaa.gov/data/nsd_cccc.txt&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ICAO_stations</span> <span class="o">=</span> <span class="n">weather_stations</span><span class="o">.</span><span class="n">Stations</span><span class="p">(</span><span class="n">ICAO_stations_database</span><span class="p">,</span> <span class="s">&quot;ICAO&quot;</span><span class="p">)</span>
+</pre></div>
+<p>The WMO indexed database contains 11548 entries and the
+ICAO keyed database contains 6611 entries as of 2007-05-30.
+Unfortunately, the WMO database isn't a superset of the
+ICAO data so you either have to choose one, work with duplicates
+or import both and filter the duplicates.</p>
+<p>Another thing to consider because of the size of the database is whether
+you need to operate on all the entries at once.  Maybe you only want to
+work with entries in the UK:</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">UK_locations</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mf">1</span><span class="p">]</span><span class="o">.</span><span class="n">country</span> <span class="o">==</span> <span class="s">&quot;United Kingdom&quot;</span><span class="p">,</span>
+<span class="gp">... </span>                           <span class="n">ICAO_stations</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+</pre></div>
+<p>Let us imagine for a minute that next month you're flying from London
+Luton to our office in Toulouse, then dropping by Birmingham for GUADEC,
+and returning to Stansted.  If we assume that the planes fly directly
+along Great Circles and don't get stuck in holding patterns waiting to
+land then we can calculate the distance for the whole journey quite
+easily.</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">Europe</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mf">1</span><span class="p">]</span><span class="o">.</span><span class="n">wmo</span> <span class="o">==</span> <span class="mf">6</span><span class="p">,</span> <span class="n">ICAO_stations</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">del</span><span class="p">(</span><span class="n">ICAO_stations</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Europe</span><span class="p">))</span>
+<span class="go">1130</span>
+</pre></div>
+<p>First we can see that the trip is entirely based in Europe, and
+according to the <a class="reference" href="http://weather.noaa.gov/tg/site.shtml">station location page</a> all the European stations are
+located within WMO region 6.  If we only work with the region
+6 locations then our operating database need only contain 1130 entries,
+and if we wished we could release the full database containing 10000
+entries we don't need from memory using code similar to the snippet
+above <a class="footnote-reference" href="#id2" id="id1" name="id1">[1]</a>.</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">Trip</span> <span class="o">=</span> <span class="n">point</span><span class="o">.</span><span class="n">Points</span><span class="p">([</span><span class="n">Europe</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;EGGW&#39;</span><span class="p">,</span> <span class="s">&#39;LFBO&#39;</span><span class="p">,</span> <span class="s">&#39;EGBB&#39;</span><span class="p">,</span> <span class="s">&#39;EGSS&#39;</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">legs</span> <span class="o">=</span> <span class="n">Trip</span><span class="o">.</span><span class="n">inverse</span><span class="p">()</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%i</span><span class="s"> legs&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Trip</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1</span><span class="p">))</span>
+<span class="go">3 legs</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Trip</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="k">print</span><span class="p">(</span><span class="s">&quot;  * </span><span class="si">%s</span><span class="s"> to </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">Trip</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">Trip</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mf">1</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+<span class="gp">... </span>    <span class="k">print</span><span class="p">(</span><span class="s">&quot;    - </span><span class="si">%i</span><span class="s"> kilometres on a bearing of </span><span class="si">%i</span><span class="s"> degrees&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">legs</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mf">1</span><span class="p">],</span> <span class="n">legs</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mf">0</span><span class="p">]))</span>
+<span class="go">  * Luton Airport  to Toulouse / Blagnac</span>
+<span class="go">    - 923 kilometres on a bearing of 171 degrees</span>
+<span class="go">  * Toulouse / Blagnac to Birmingham / Airport</span>
+<span class="go">    - 1006 kilometres on a bearing of 347 degrees</span>
+<span class="go">  * Birmingham / Airport to Stansted Airport</span>
+<span class="go">    - 148 kilometres on a bearing of 114 degrees</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="s">&quot;For a total of </span><span class="si">%i</span><span class="s"> kilometres&quot;</span> <span class="o">%</span> <span class="nb">sum</span><span class="p">([</span><span class="n">i</span><span class="p">[</span><span class="mf">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">legs</span><span class="p">]))</span>
+<span class="go">For a total of 2078 kilometres</span>
+</pre></div>
+<p>The <tt class="docutils literal"><span class="pre">Station</span></tt> class inherits from <tt class="docutils literal"><span class="pre">Trigpoint</span></tt> and as such you can
+use the functions and methods defined for it with <tt class="docutils literal"><span class="pre">Station</span></tt> objects.
+You could, for example, create a nice graphical view of your trip with
+<a class="reference" href="http://xplanet.sourceforge.net/">xplanet</a>:</p>
+<div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">Trip</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">((</span><span class="s">&quot;2007-06-29&quot;</span><span class="p">,</span> <span class="s">&quot;2007-06-30&quot;</span><span class="p">,</span> <span class="s">&quot;2007-07-12&quot;</span><span class="p">,</span>
+<span class="gp">... </span>                 <span class="s">&quot;2007-07-14&quot;</span><span class="p">),</span>
+<span class="gp">... </span>                <span class="n">Trip</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s">&quot;trip.txt&quot;</span><span class="p">,</span> <span class="s">&quot;w&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">from</span> <span class="nn">upoints</span> <span class="k">import</span> <span class="n">utils</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">dump_xearth_markers</span><span class="p">(</span><span class="n">Trip</span><span class="p">,</span> <span class="s">&quot;name&quot;</span><span class="p">)))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+<div class="figure">
+<a class="reference image-reference" href="http://www.jnrowe.ukfsn.org/graphics/xearth_trip.png"><img alt="Xplanet showing the locations for a small European trip" src="http://www.jnrowe.ukfsn.org/graphics/xearth_trip_mini.png" style="width: 256px; height: 192px;" /></a>
+</div>
+<p>The code above will create a file named <tt class="docutils literal"><span class="pre">trip.txt</span></tt> that can be used
+with xplanet or <a class="reference" href="http://www.cs.colorado.edu/~tuna/xearth/">xearth</a>.  It actually produces a reasonably accurate,
+and quite useful graphical representation of a trip.  An example of the
+output with xplanet can be seen on the right.</p>
+<p>If you'd prefer to see locations marked up with dates, perhaps as an aid
+to your own <a class="reference" href="http://esw.w3.org/topic/PathCross">path cross</a> suite, simply don't set the <tt class="docutils literal"><span class="pre">name</span></tt> parameter
+in your call to <tt class="docutils literal"><span class="pre">dump_xearth_markers()</span></tt>.  Also, as the function only
+requires a dictionary of <tt class="docutils literal"><span class="pre">Trigpoint</span></tt>-style objects you could
+apply <tt class="docutils literal"><span class="pre">filter()</span></tt> and <tt class="docutils literal"><span class="pre">map()</span></tt> expressions to the objects to generate
+your own lables for the markers.</p>
+<div class="figure">
+<a class="reference image-reference" href="http://www.jnrowe.ukfsn.org/graphics/xplanet_trip_date.png"><img alt="Xplanet showing the location points and dates for a trip" src="http://www.jnrowe.ukfsn.org/graphics/xplanet_trip_date_mini.png" style="width: 256px; height: 192px;" /></a>
+</div>
+<p>There is a wealth of <a class="reference" href="http://epydoc.sourceforge.net/">epydoc</a> generated HTML output in the tarball,
+including documentation and usage examples.  If you still have any
+questions after reading the documentation, drop me a <a class="reference" href="mailto:jnrowe&#64;ukfsn.org">mail</a> and I'll do
+my best to answer your questions.  Also, I'd love to hear from you if
+come up with any clever uses for for the modules in <tt class="docutils literal"><span class="pre">upoints</span></tt>.</p>
+<table class="docutils footnote" frame="void" id="id2" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id1" name="id2">[1]</a></td><td>I've personally taken to creating and using <tt class="docutils literal"><span class="pre">cPickle</span></tt> dumps of
+the database, where each WMO region is stored in
+a separate file.  If you do this you end up with some interesting
+results including the 123 locations from the Antarctic, and the
+8 obviously classifiable locations missing an WMO region in the
+data file.  I personally found it quite interesting that the list
+of entries by region is Europe(30%), Asia(30%), North and Central
+America(12%).  I'd expected it be more along the lines of one
+third Asia and one quarter each for Europe and North America with
+the rest split reasonably evenly.</td></tr>
+</tbody>
+</table>
+<!-- :vim: set ft=rst ts=2 sw=2 et: -->
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference" href="pythons_on_a_plane.txt">View document source</a>.
+Generated by <a class="reference" href="http://docutils.sourceforge.net/">Docutils</a> from <a class="reference" href="http://docutils.sourceforge.net/rst.html">reStructuredText</a> source.
+
+</div>
+</body>
+</html>
