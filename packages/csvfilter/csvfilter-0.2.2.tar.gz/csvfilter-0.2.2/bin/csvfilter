@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+import sys
+from optparse import OptionParser
+import csv
+
+from csvfilter import Processor, VERSION
+
+
+def main(options, args):
+    infile, outfile = get_files(options, args)
+    processor = get_processor(options, args)
+    writer = get_writer(outfile, options)
+    pump(processor, infile, writer)
+
+
+def get_files(options, args):
+    infile = open(args[0], 'r') if len(args) > 0 else sys.stdin
+    return infile, sys.stdout
+
+
+def get_processor(options, args):
+    fields = map(int, options.fields.split(',')) if options.fields else None
+    return Processor(fields=fields,
+                     skip=options.skip,
+                     delimiter=options.delimiter,
+                     invert=options.inverse)
+
+
+def get_writer(outfile, options):
+    return csv.writer(outfile, delimiter=options.out_delimiter,
+                      quotechar=options.out_quotechar)
+
+
+def pump(processor, infile, writer):
+    for output in processor.process(infile):
+        writer.writerow(output)
+
+
+if __name__ == '__main__':
+    usage = "Usage: %prog [options] [inputfile]" +\
+            "\n\nVersion: %s\nSource: %s" % (VERSION, 'https://github.com/codeinthehole/csvfilter/')
+    parser = OptionParser(usage=usage)
+    parser.add_option('-f', '--fields', dest='fields', default=None,
+                      help="Specify which fields to pluck")
+    parser.add_option('-s', '--skip', dest='skip', default=0,
+                      type='int', help="Number of rows to skip")
+    parser.add_option('-d', '--delimiter', dest='delimiter', default=',',
+                      help="Delimiter of incoming CSV data")
+    parser.add_option('-i', '--inverse', dest='inverse', default=False,
+                      action='store_true', help="Invert the filter - ie drop the selected fields")
+    parser.add_option('--out-delimiter', dest='out_delimiter', default=',',
+                      help="Delimiter to use for output")
+    parser.add_option('--out-quotechar', dest='out_quotechar', default='"',
+                      help="Quote character to use for output")
+    (options, args) = parser.parse_args()
+    main(options, args)
