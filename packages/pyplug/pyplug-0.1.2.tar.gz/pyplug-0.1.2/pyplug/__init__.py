@@ -1,0 +1,73 @@
+from putils.dynamics import Importer
+from putils.filesystem import Dir
+from types import FunctionType
+import os
+import mimetypes
+from pev import Eventer
+
+
+class MetaPlugin(type):
+	def __new__(metaclass, classname, bases, attrs):
+		new_class = super(MetaPlugin, metaclass).__new__(metaclass, classname, bases, attrs)
+		new_obj = new_class()
+		if "implements" in attrs:
+			for iface in attrs["implements"]:
+				iface.plugins[new_obj.name] = new_obj
+		if "events" in attrs:
+			eventer = Eventer()
+			for e,f in attrs["events"].iteritems():
+				eventer.subscribe(e, getattr(new_obj, f))
+		return new_class
+	
+	
+class Plugin(object):
+	__metaclass__ = MetaPlugin
+
+
+class MetaInterface(type):
+	def __new__(metaclass, classname, bases, attrs):
+		new_class = super(MetaInterface, metaclass).__new__(metaclass, classname, bases, attrs)
+		new_class.plugins = {}
+		for k, v in attrs.iteritems():
+			if type(v) is FunctionType:
+				setattr(new_class, k+"_get_all", classmethod(MetaInterface.meta_method_get_all(k)))
+				setattr(new_class, k+"_call_all", classmethod(MetaInterface.meta_method_call_all(k)))
+				setattr(new_class, k, classmethod(MetaInterface.meta_method_call_first(k)))
+		return new_class
+	
+	@staticmethod
+	def meta_method_get_all(method_name):
+		def wrapper(cls, *args, **kwargs):
+			for impl in cls.plugins.values():
+				method = getattr(impl, method_name)
+				yield method(*args, **kwargs)
+		return wrapper
+		
+	@staticmethod
+	def meta_method_call_all(method_name):
+		def wrapper(cls, *args, **kwargs):
+			for impl in cls.plugins.values():
+				method = getattr(impl, method_name)
+				method(*args, **kwargs)
+		return wrapper
+		
+	@staticmethod
+	def meta_method_call_first(method_name):
+		def wrapper(cls, *args, **kwargs):
+			for impl in cls.plugins.values():
+				method = getattr(impl, method_name)
+				return method(*args, **kwargs)
+		return wrapper
+		
+		
+class Interface(object):
+	__metaclass__ = MetaInterface
+	
+	
+class PluginLoader(object):
+	@staticmethod
+	def load(project_dir, plugin_dir):
+		def cb(p):
+			if mimetypes.guess_type(p)[0] == "text/x-python":
+				Importer.import_module_by_path(p, project_dir)
+		Dir.walk(plugin_dir, cb)
