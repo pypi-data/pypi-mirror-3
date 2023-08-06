@@ -1,0 +1,168 @@
+Metadata-Version: 1.0
+Name: commandwrapper
+Version: 0.6
+Summary: Command Wrapper (make subprocess.Popen() easy)
+Home-page: UNKNOWN
+Author: Yves-Gwenael Bourhis
+Author-email: ygbourhis at gmail.com
+License: GNU General Public License version 2.0
+Description: Author : Yves-Gwenael Bourhis
+            
+            ==================================================
+            Wrap a shell comand into a python threaded object.
+            ==================================================
+            
+            Usage:
+            ======
+            
+            You want to launch the following bash commands in a thread::
+            
+                [user@localhost ~]$ ls -l | grep pdf | wc -l
+                5
+            
+            here is how you can do it::
+            
+                >>> Ls = WrapCommand( 'ls -l')
+                >>> GrepPdf = WrapCommand( 'grep pdf')
+                >>> Wc = WrapCommand( 'wc -l')
+                >>> Wc.stdin = GrepPdf
+                >>> GrepPdf.stdin = Ls
+                >>> Wc.start( )
+                >>> #Do stuff
+                ...
+                >>> Wc.join()
+                >>> Wc.results
+                ('5\n', '')
+            
+            the 'results' property is a tuple  (stdoutdata, stderrdata)
+            
+            You can also do it this way::
+            
+                >>> Ls = WrapCommand( 'ls -l | grep pdf | wc -l', shell=True)
+                >>> Ls.start()
+                >>> #Do stuff
+                >>> Ls.join()
+                >>> Ls.results[0]
+                '5\n'
+            
+            You would need to specify 'shell=True' when the command
+            you wish to execute is actually built into the shell.
+            i.e.: on Windows if you use built in commands such as 'dir' or 'copy':
+            http://docs.python.org/library/subprocess.html#subprocess.Popen
+            
+            The purpose of doing it in a thread is when the above commands may
+            take a few hours, and that you want to perform other tasks in the
+            meanwhile.
+            You can check the process is still running with::
+            
+                >>> Wc.is_alive( )
+                False
+            
+            'True' would be returned if still running.
+            To terminate it prematurely (i.e. it deadlocked) you have the
+            'terminate()', 'kill()' or 'send_signal(signal) methods which are
+            self speaking.
+            When you want to wait for the thread to end, use the 'join()' method:
+            http://docs.python.org/library/threading.html#threading.Thread.join
+            
+            
+            You want to launch the following bash commands without threading::
+            
+                [user@localhost ~]$ ls -l | grep pdf | wc -l
+                5
+            
+            here is how you can do it::
+            
+                >>> Ls = WrapCommand( 'ls -l')
+                >>> GrepPdf = WrapCommand( 'grep pdf')
+                >>> Wc = WrapCommand( 'wc -l')
+                >>> Wc(GrepPdf(Ls))
+                '5\n'
+            
+            Avoid doing this for processes where a large amount of data is piped
+            between each command.
+            
+            instead, do it this way::
+            
+                >>> Ls = WrapCommand( 'ls -l | grep pdf | wc -l', shell=True)
+                >>> Ls()
+                '5\n'
+            
+            Prefer the threaded method instead if this may take a long time and
+            that you want to perform other tasks in the meanwhile.
+            
+            
+            You can specify another shell for running commands::
+            
+                >>> Ls = WrapCommand( 'ls', shell=True, executable='C:/windows/System32/WindowsPowerShell/v1.0/powershell.exe')
+                >>> print Ls()
+            
+                    Directory : C:\Users\Yves\python_tests
+            
+                Mode                LastWriteTime     Length Name
+                ----                -------------     ------ ----
+                -a---        27/01/2011     00:14       7006 commandwrapper.py
+                -a---        27/01/2011     00:15       7048 commandwrapper.pyc
+            
+            
+            You can also use Context Management (with_item):
+            http://docs.python.org/reference/compound_stmts.html#grammar-token-with_item
+            
+            example::
+            
+                >>> with WrapCommand( 'ls -l') as Ls:
+                ...     with WrapCommand( 'grep pdf') as GrepPdf:
+                ...         with WrapCommand( 'wc -l') as Wc:
+                ...             Wc.stdin = GrepPdf
+                ...             GrepPdf.stdin = Ls
+                ...             Wc.start( )
+                ...             #Do stuff
+                ...             Wc.join()
+                ...
+                >>> Wc.results
+                ('5\n', '')
+            
+            You may also simply want to have a subprocess objet::
+                
+                >>> ls = WrapCommand( 'ls -l')
+                >>> lscmd = ls.makeCmd()
+                >>>
+            
+            the returned object (`lscmd` in the example above) is a standard subprocess.Popen object
+            
+        
+            WrapOnceCommand is the same as WrapCommand, but the cmd attribute
+            which is a subprocess.Popen object will be created once and for all
+            Therefore the run methode (or the object) can only be called once.
+            The goal it to launch a command in a thread, and to have this
+            command easily start/stopped from elsewhere.
+            
+        
+        ===============
+        Release Notes :
+        ===============
+        
+        Release 0.1:
+        ============
+        
+        First Version
+        
+        
+        Release 0.5:
+        ============
+        
+        Removed the destructor (__del__ method) because of:
+            The Warning here:
+                http://docs.python.org/reference/datamodel.html#object.__del__
+            And becasue destroyed objects where not automaticaly removed by the
+            garbage collector as described here:
+                http://docs.python.org/library/gc.html#gc.garbage
+            Which could cause memory usage increase.
+        
+        Release 0.6:
+        ============
+        Changed author's contact info
+        
+Platform: Windows
+Platform: Linux
+Platform: Mac OS
