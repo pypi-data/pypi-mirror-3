@@ -1,0 +1,439 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_modify adminmedia %}
+{% load url from future %}
+
+{% block extrahead %}{{ block.super }}
+{% url 'admin:jsi18n' as jsi18nurl %}
+<script type="text/javascript" src="{{ jsi18nurl|default:"../../../jsi18n/" }}"></script>
+<script type="text/javascript" src="{{ STATIC_URL }}rms/js/rms.js"></script>
+{{ media }}
+{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+  <link rel="stylesheet" type="text/css" href="{% admin_media_prefix %}css/forms.css" />
+  <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}rms/css/style.css" />
+{% endblock %}
+
+{% block coltype %}{% if ordered_objects %}colMS{% else %}colM{% endif %}{% endblock %}
+
+{% block bodyclass %}{{ opts.app_label }}-{{ opts.object_name.lower }} change-form{% endblock %}
+
+{% block breadcrumbs %}{% if not is_popup %}
+<div class="breadcrumbs">
+     <a href="../../../">{% trans "Home" %}</a> &rsaquo;
+     <a href="../../">{{ app_label|capfirst|escape }}</a> &rsaquo;
+     {% if has_change_permission %}<a href="../">{{ opts.verbose_name_plural|capfirst }}</a>{% else %}{{ opts.verbose_name_plural|capfirst }}{% endif %} &rsaquo;
+     {% if add %}{% trans "Add" %} {{ opts.verbose_name }}{% else %}{{ original|truncatewords:"18" }}{% endif %}
+</div>
+{% endif %}{% endblock %}
+
+{% block content %}<div id="content-main">
+{% block object-tools %}
+{% if change %}{% if not is_popup %}
+  <ul class="object-tools">
+    {% block object-tools-items %}
+    <li><a href="history/" class="historylink">{% trans "History" %}</a></li>
+    {% if has_absolute_url %}<li><a href="../../../r/{{ content_type_id }}/{{ object_id }}/" class="viewsitelink">{% trans "View on site" %}</a></li>{% endif%}
+    {% endblock %}
+  </ul>
+{% endif %}{% endif %}
+{% endblock %}
+<form {% if has_file_field %}enctype="multipart/form-data" {% endif %}action="{{ form_url }}" method="post" id="{{ opts.module_name }}_form">{% csrf_token %}{% block form_top %}{% endblock %}
+<div>
+{% if is_popup %}<input type="hidden" name="_popup" value="1" />{% endif %}
+{% if save_on_top %}{% submit_row %}{% endif %}
+{% if errors %}
+    <p class="errornote">
+    {% blocktrans count errors|length as counter %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktrans %}
+    </p>
+    {{ adminform.form.non_field_errors }}
+{% endif %}
+
+{% for fieldset in adminform %}
+  {% include "admin/includes/fieldset.html" %}
+{% endfor %}
+
+{% block after_field_sets %}{% endblock %}
+
+{% for inline_admin_formset in inline_admin_formsets %}
+    {% include inline_admin_formset.opts.template %}
+{% endfor %}
+
+{% block after_related_objects %}{% endblock %}
+
+
+<!-- ###Begin: Tree view -->
+
+<div id="category-tree-view">
+
+             <fieldset class="module ">
+                 <h2> Tools</h2>
+            <div class="actions">
+              <label> Locale: 
+                  <input  value="" maxlength="7" size="7"
+                   id="input-clone-locale" type="text">
+                </label>
+              <button id="button-clone-locale" class="button" type="button">Clone locale</button> 
+              <button id="button-new-locale" class="button" type="button">New locale</button> 
+              <button id="button-delete-locale" class="button" type="button">Delete locale</button> 
+
+                <!-- <button id="button-clone-application" class="button" type="button">
+                    Clone application
+                </button>  -->
+
+              
+        <button id="button-export-locale" class="button" type="button"> Export locale</button>     
+        <button id="button-import-locale" class="button" type="button"> Import locale</button> 
+        
+        <label id="input-localefile" for="localefile"> Locale file:
+        <input type="file" id="localefile" name="localefile">
+        </label> 
+
+        
+        
+
+                      
+                        
+                    
+                    
+                </div>
+               
+            </div>
+                                </fieldset>
+    
+             <fieldset class="module ">
+                 <h2> Category filters</h2>
+            <div class="actions">
+              <label>Locale: 
+                <select id="select-locales" name="action">
+                
+                 </select>
+              </label> 
+             
+                <button id="button-change" class="button" type="button">Change</button> 
+                
+              <label> Deleted rules: 
+                <select id="select-show-deleted-rules" name="action">
+                    <option value="hide" selected="selected">Hidden</option>
+                    <option value="show">Visibles</option>
+                </select>
+              </label> 
+              
+              <button id="button-update" class="button" type="button">Change visibility</button> 
+              <button id="button-expand" class="button" type="button"> Expand Tree</button> 
+              <button id="button-collapse" class="button" type="button"> Collapse Tree</button> 
+                    
+                    
+                </div>
+               
+            </div>
+                                </fieldset>
+    
+            <fieldset class="module">
+                <h2> Categories </h2>
+                                  <div id="div-categories">
+                                </fieldset>
+    
+        </div>
+
+
+<!-- ###End: Tree view -->
+
+
+
+{% submit_row %}
+
+{% if adminform and add %}
+   <script type="text/javascript">document.getElementById("{{ adminform.first_field.id_for_label }}").focus();</script>
+{% endif %}
+
+{# JavaScript for prepopulated fields #}
+{% prepopulated_fields_js %}
+
+
+
+
+
+
+<!-- ###Begin: Tree view (Javascript)-->
+
+
+<script type="text/javascript" src="{{ STATIC_URL }}rms/js/jquery-1.7.1.min.js"></script>
+
+<script type="text/javascript">
+
+function export_locale(){
+      var current_locale = $("#select-locales").val();
+      var answer = confirm("Do you really want export \"" + current_locale + 
+                           "\" locale?");
+      if (answer){
+          window.location = '/app/locale?id={{ object_id }}&locale='
+          + current_locale;
+      }
+}
+
+
+function clone_application(){
+          var answer = confirm("Do you really want clone this application?");
+          if (answer){
+        $.getJSON('/app/clone?id={{ object_id }}', function(data) { 
+                        alert ("Application cloned");
+                        location.reload();
+        });
+            }
+}
+
+
+function clone_locale(){
+    var current_locale = $("#select-locales").val();
+    var new_locale = $("#input-clone-locale").val();
+    tmp = new_locale.split("-");
+    if (tmp.length != 2){
+        alert ("\"" + new_locale + "\" isn't a valid locale.");
+    }
+    else{
+          var answer = confirm("Do you want clone \"" + current_locale + 
+                "\" locale to \"" + new_locale + "\" locale?");
+          if (answer){
+        $.getJSON('/locale/clone?id={{ object_id }}&currentlocale=' +
+                        current_locale + '&newlocale=' + new_locale, function(data) { 
+                        alert ("Locale cloned");
+                        location.reload();
+        });
+            }
+    }
+
+}
+
+
+function new_locale(){
+    var new_locale = $("#input-clone-locale").val();
+    tmp = new_locale.split("-");
+    if (tmp.length != 2 && new_locale != "default"){
+        alert ("\"" + new_locale + "\" isn't a valid locale.");
+    }
+    else{
+          var answer = confirm("Do you want create \"" + 
+                new_locale + "\" locale?");
+          if (answer){
+        $.getJSON('/locale/new?id={{ object_id }}&newlocale=' +
+                        new_locale, function(data) { 
+                        alert ("Locale created");
+                        location.reload();
+        });
+            }
+    }
+
+}
+
+
+function delete_locale(){
+    var locale = $("#input-clone-locale").val();
+    tmp = locale.split("-");
+    if (tmp.length != 2){
+        alert ("\"" + locale + "\" isn't a valid locale.");
+    }
+    else{
+          var answer = confirm("Do you really want delete \"" + locale + 
+                "\" locale and all related rules?");
+          if (answer){
+        $.getJSON('/locale/delete?id={{ object_id }}&locale=' +
+                        locale, function(data) { 
+                        alert ("Locale deleted");
+                        location.reload();
+        });
+            }
+    }
+
+}
+
+$( function() {
+  var table_cat_items = [];
+    $.getJSON('/rules/{{ object_id }}', function(data) {
+
+    $.each(data, function(key_cat, cat) {
+      var key_cat = cat["id"];
+      var catid = cat["catid"];
+      var catname = cat["catname"];
+      var rulekeys = cat["rulekeys"];
+    
+      if (rulekeys != undefined) {
+
+        var table_rulekeys_items = [];
+        $.each(rulekeys, function(key_rk, rk) {
+          var key_rk= rk["id"];
+          var keyname= rk["keyname"];
+          var rules = rk["rules"];
+
+          if (rules != undefined){
+
+            var table_rules_items = [];
+            $.each(rules, function(key_r, r) {
+                var key_r= r["id"];
+                var rule= r["rule"];
+                var locale = r["locale"];
+                var message = r["message"];
+                var slug = r["slug"];
+                var weight = r["weight"];
+
+                table_rules_items.push('<li class="row1 tr message ' + locale +'" id="rule-' + key_r + '">' +
+                  ' <div class="td noexpand align-left" id="expand-ruledata-' + key_r +'">   </div>' + 
+                  ' <div class="td">' +
+                  '   <input name="rule-' + key_r + '-message" value="' + message + '" ' +
+                  '          class="row1 vTextField" maxlength="100" id="rule-' + key_r + '-message" type="text">' +
+                  ' </div>' + 
+                  ' <div class="td">' +
+                  '   <input name="rule-' + key_r + '-slug" value="' + slug + '" ' +
+                  '          class="vTextField slug" maxlength="50" id="rule-' + key_r + '-catid" type="text"' +
+                  '          readonly="readonly">' +
+                  ' </div>' + 
+                  ' <div class="td">' +
+                  '   <input name="rule-' + key_r + '-weight" value="' + weight + '" ' +
+                  '          class="row1 vTextField weight" maxlength="50" id="rule-' + key_r + '-weight" type="text">' +
+                  ' </div>' +                   
+                  ' <div class="td align-right">' + 
+                  '   <input name="rule-' + key_r + '-DELETE" id="rule-' + key_r + '-DELETE" type="checkbox">' + 
+                  ' </div>' + 
+                  ' <div class="ruledata noexpandable" id="expandable-ruledata-' + key_r + '" >' +
+                  ' <label class="required" for="id_description">Rule data:</label> ' + 
+                  '   <textarea class="row1 vLargeTextField rule-ruledata"' +
+                  '             name="rule-' + key_r + '-rule" cols="180" rows="5"' + 
+                  '             id="rule-' + key_r + '-rule">' +
+                  rule +
+                  '   </textarea>' +
+                  '</li>');                
+                
+            });
+            
+            table_rulekeys_items.push('<li class="row2 tr" id="rulekey-' + key_rk + '">' +
+              ' <div class="td expand align-left" id="expand-rules-' + key_rk +'">   </div>' + 
+              ' <div class="td">' +
+              '   <input name="rulekey-' + key_rk + '-keyname" value="' + keyname + '" ' +
+              '          class="row2 vTextField" maxlength="100" id="rulekey-' + key_rk + '-keyname" type="text">' +
+              ' </div>' + 
+              ' <div class="rules expandable" id="expandable-rules-' + key_rk + '" >' +
+              '   <div class="th align-left"> </div>  <div class="th"> Message </div>' +
+              '   <div class="th"> Slug </div> <div class="th"> Weight </div>' +
+              '   <div class="th align-right"> Delete?</div>' +
+              '     <ul id="ul-rules-' + key_rk+ '" class="tr">' +
+                    table_rules_items.join('\n') +
+              '     </ul>' +
+              ' <div class="">' +
+              '   <a class="add-rules" id="add-rules-' + key_rk + '" href="#" >' + "Add new rule"  + '</a>' +
+              ' </div>' + 
+              '   </div>' +
+              '</li>');
+          }
+        });
+        
+        table_cat_items.push('<li class="row1 tr" id="category-' + key_cat + '">' +
+          ' <div class="td expand align-left" id="expand-rulekeys-' + key_cat +'">   </div>' + 
+          ' <div class="td">' +
+          '   <input name="category-' + key_cat + '-catname" value="' + catname + '" ' +
+          '          class="row1 vTextField" maxlength="100" id="id_category-' + key_cat + '-catname" type="text">' +
+          ' </div>' + 
+          ' <div class="td">' +
+          '   <input name="category-' + key_cat + '-catid" value="' + catid + '" ' +
+          '          class="row1 vTextField" maxlength="50" id="category-' + key_cat + '-catid" type="text">' +
+          ' </div>' + 
+          ' <div class="rulekeys expandable" id="expandable-rulekeys-' + key_cat + '" >' +
+                    '   <div class="th align-left"> </div> ' + 
+                    '   <div class="th"> Key name</div> ' +
+          ' <ul class="tr">' +
+          table_rulekeys_items.join('\n') +
+          ' </ul></div>' +
+          '</li>');
+      }
+    });
+
+    var table = $('<div/>');
+
+    var html_table_head = ' ' +
+      '<div class="tr"> ' +
+      '  <div class="th align-left"></div> ' +
+      '  <div class="th">Category name</div> ' +
+      '  <div class="th">Category id</div> ' +
+       {# '  <div class="th align-right">Delete?</div> ' + #}
+      '</div>';
+    
+    var table_head = $(html_table_head);
+
+        var table_body = $('<ul/>',{
+            class: "tr",
+      html: table_cat_items.join('\n')
+    });
+
+    table.appendTo('#div-categories');
+    table_head.appendTo(table);
+    table_body.appendTo(table);
+  
+
+    $(".add-rules").click(function(event) {
+        tmp = $(event.target).attr("id").split("-");
+        $('#expandable-' + tmp[1]+ '-' + tmp[2]).show();
+                });
+
+    $(".expand").click(toggle_expandable);
+
+    $(".add-rules").click(add_rule);
+
+    $(".rule-ruledata").change(check_ruledata);
+    
+    $(".vTextField").keypress(disable_enter_key);
+     
+    $(".vTextField").focus(active_input);
+    $(".vTextField").focusout(deactive_input);
+    $(".vLargeTextField").focus(active_input);
+    $(".vLargeTextField").focusout(deactive_input);
+    
+    $.each($(".rule-ruledata"), function(k, v) {
+        val = $(v).val();
+        try {
+            val = JSON.stringify(JSON.parse(val), null, "  ");
+        }
+        catch (err){
+            console.log(val);
+        }
+        $(v).val(val); 
+    });
+    
+    setTimeout(function() { change_deleted_visibility(); }, 2000); 
+
+    get_locales({{ object_id }});
+    collapse();
+    
+    
+  });
+
+
+
+  $("#button-change").click(update_locale);
+
+  $("#button-collapse").click(collapse);
+
+  $("#button-expand").click(expand);
+  
+  $("#button-update").click(change_deleted_visibility);
+
+  $("#button-clone-locale").click(clone_locale);
+  $("#button-new-locale").click(new_locale);
+  $("#button-delete-locale").click(delete_locale);
+  $("#button-clone-application").click(clone_application);
+  $("#button-export-locale").click(export_locale);
+
+  $("#input-localefile").hide();
+  $("#button-import-locale").click(show_localefile_input);
+
+});
+
+</script>
+
+
+
+<!-- ###End: Tree view (Javascript) -->
+
+
+
+</div>
+</form></div>
+{% endblock %}
