@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+"""
+    jldtaskctl - Task Controller
+
+    @author: Jean-Lou Dupont
+"""
+import os, sys, argparse
+op=os.path
+
+try:
+    import jlddk
+except:
+    ### must be in dev mode then    
+    this_dir=op.dirname(__file__)
+    lib_path=op.abspath(op.join(this_dir, ".."))
+    sys.path.insert(0, lib_path)
+    import jlddk
+
+########################################################################
+
+DESC="Task Controller"
+DEFAULTS={
+          "polling_interval": 30
+          ,"max_backoff":     60
+          ,"min_backoff":     2
+          
+          ,"max_timeout_worker":    3*60
+          ,"max_timeout_error":     5*30
+          ,"max_pending":           2*60
+          ,"wait":                  5
+          
+          ,"clock_topic":    "tick"
+          }
+
+def main():
+    try:
+        import jlddk.do_setup
+        import logging
+        import jlddk.do_checks
+        from jlddk.tools_sys import info_dump, dnorm
+        
+        parser=argparse.ArgumentParser(description=DESC, fromfile_prefix_chars='@')
+        parser.add_argument('-tt',    dest='task_types',   nargs="+", type=str, help="Task types to handle", required=True)
+        
+        parser.add_argument('-tpc',   dest='clock_topic',  type=str, help="1 second clock topic-name", default=DEFAULTS["clock_topic"])
+        
+        parser.add_argument('-maxte', dest="max_timeout_error",  type=int, help="Maximum timeout upon error (seconds)", default=DEFAULTS["max_timeout_error"])
+        parser.add_argument('-maxpe', dest="max_pending",        type=int, help="Maximum pending timeout for task (seconds)", default=DEFAULTS["max_pending"])
+        parser.add_argument('-wait',  dest="wait",               type=int, help="Wait time between tasks (seconds)", default=DEFAULTS["wait"])
+        
+        parser.add_argument('-maxwt', dest="max_timeout_worker", type=int, help="Maximum pending timeout for task (seconds)", default=DEFAULTS["max_pending"])
+        
+        #parser.add_argument('-maxbo', dest='max_backoff',  type=int, help="Maximum backoff upon 'x_error' (seconds)", default=DEFAULTS["max_backoff"])
+        #parser.add_argument('-minbo', dest='min_backoff',  type=int, help="Minimum backoff upon 'x_error' (seconds)", default=DEFAULTS["min_backoff"])
+                        
+        parser.add_argument('-lc',  dest="logconfig", type=str,  help="Logging configuration file")
+        parser.add_argument('-ll',  dest="loglevel",  type=str,  help="Logging Level", choices=["debug", "info", "warning", "error"], default="info")        
+                        
+        args=parser.parse_args()
+        args=dnorm(vars(args))
+        
+        info_dump(args, 20)
+        
+        from jlddk.script_taskctl import run
+        run(args, **args)
+
+    except KeyboardInterrupt:
+        logging.info("..Exiting")
+        sys.exit(0)##no probs
+        
+    except Exception,e:
+        logging.error(str(e))
+        sys.exit(1)
+        
+sys.exit(main())
