@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+
+import os, sys, optparse
+
+try:
+    import maplot
+except ImportError:
+    print 'You do not seem to have the "maplot" package installed.' \
+          ' Either you never installed it or your PYTHON_PATH is not set correctly.' \
+          ' For more instructions see the README.txt file.'
+    sys.exit()
+
+
+usage = """
+
+maplot.py [-h] [-c --cols] [-l --labels] [-m --mode] [-f --format] [-s --sep]
+          [-d --deg] [-b --bins] [-a --assembly] [-q --noquantiles]
+          [--annotate] [--xmin --xmax --ymin --ymax] [--smin --smax]
+          [-t --title] [-e --extremes]
+          data_1 .. data_n
+
+**Input**: CSV files containing at least two numeric columns representing the two
+           samples to compare, and one with labels for each pair of points. Files must all
+           be in the same format. By default numeric columns are 2 and 3,
+           whilst column 1 contains the labels. Else, precise which columns to use with the
+           `--cols` argument.
+
+**Output**: depending on the chosen `--mode`, prints to stdout the name of the .png file produced,
+            prints to stdout a json containing enough information to reconstruct the plot using
+            Javascript, or produces an interactive matplotlib figure. """
+
+help = iter([
+"""The numbers or names of the two columns containing the numeric data to compare, separated by
+commas. E.g. --cols 3,5.""",
+"""The numbers or names of the columns containing the labels of the points, separated by
+commas. The first element must contain unique labels; others will be concatenated.
+E.g. --labels 1,6,7 may produce `Id | name | desc` labels.""",
+"""Display mode: 'normal' for static .pgn output,
+'interactive' - clic to display gene names, or
+'json' - json output to stdout for Javascript web interface.""",
+"""Data type: 'counts' for raw count data (default), 'rpkm' for normalized data.""",
+"""The character delimiting the columns of the file. If not specified, the program tries
+to detect it automatically. Use 'C^V' or '\t' for a <tab> delimiter.""",
+"""Degree of the interpolant percentile splines.""",
+"""Number of divisions of the x axis to calculate percentiles.""",
+"""Identifier for the Genrep assembly (e.g. 'hg19' or 7) used to add more
+information about features into the json output.""",
+"""Don't draw quantile splines. This may improve speed and lisibility in some cases.""",
+"""(In 'normal' mode) Indication of which datasets to annotate.
+Must be a string of binary values separated by commas, of the same lenght as the number of datasets, \
+1 indicating to annotate the corresponding set, 0 not to annotate. \
+E.g. For a list of datasets d1,d2,d3, if you want to annotate only d3, \
+type --annotate 0,0,1. It is advised to annotate only very small secondary datasets.""",
+"""Minimum x value to be displayed on the output graph.""",
+"""Maximum x value to be displayed on the output graph.""",
+"""Minimum y value to be displayed on the output graph.""",
+"""Maximum y value to be displayed on the output graph.""",
+"""Left bound to draw splines.""",
+"""Right bound to draw splines.""",
+"""Adds a title to the figure""",
+"""Create an output file containing features for which ratios were outside the specified
+ percentile (two-sided). For the moment, must be 1 or 5. The file is named *extreme_ratios_xxxxx* ."""
+])
+
+description = """Creates an `MA-plot` to compare transcription levels of a set of
+genes (or other genomic features) in two different conditions."""
+
+parser = optparse.OptionParser(usage=usage, description=description)
+
+parser.add_option("-c", "--cols", default='2,3', help = help.next())
+parser.add_option("-l", "--labels", default='1', help = help.next())
+parser.add_option("-m", "--mode", default='normal', help = help.next())
+parser.add_option("-f", "--format", default='counts', help = help.next())
+parser.add_option("-s", "--sep", default=None, help = help.next())
+parser.add_option("-d", "--deg", default=4, type="int", help = help.next())
+parser.add_option("-b", "--bins", default=30, type="int", help = help.next())
+parser.add_option("-a", "--assembly", default=None, help = help.next())
+parser.add_option("-q", "--noquantiles", default=True, action="store_false", help = help.next())
+parser.add_option("--annotate", default=None, help = help.next())
+parser.add_option("--xmin", default=None, type="float", help = help.next())
+parser.add_option("--xmax", default=None, type="float", help = help.next())
+parser.add_option("--ymin", default=None, type="float", help = help.next())
+parser.add_option("--ymax", default=None, type="float", help = help.next())
+parser.add_option("--smin", default=None, type="float", help = help.next())
+parser.add_option("--smax", default=None, type="float", help = help.next())
+parser.add_option("-t","--title", default="MA-plot", help = help.next())
+parser.add_option("-e","--extremes", default=False, type="int", help=help.next())
+
+(opt, args) = parser.parse_args()
+args = [os.path.abspath(a) for a in args]
+if len(args) < 1: parser.error("No data file provided.\n")
+
+annotate = None
+if opt.annotate:
+    annotate = [int(b) for b in opt.annotate.split(",")]
+    assert len(args) == len(annotate), "There must be one digit per dataset in --annotate."
+limits = [None or opt.xmin, None or opt.xmax, None or opt.ymin, None or opt.ymax]
+slimits = [None or opt.smin, None or opt.smax]
+cols = opt.cols.split(",")
+labels = opt.labels.split(",")
+if len(cols) != 2:
+    parser.error("--cols must be *two* integers or strings separated by commas (got %s)." % opt.cols)
+if opt.mode not in ["normal","interactive","json"]:
+    parser.error("--mode must be one of 'normal','interactive', or 'json' (got %s)." % opt.mode)
+if opt.format not in ["counts","rpkm"]:
+    parser.error("--format must be one of 'counts' or 'rpkm' (got %s)." % opt.format)
+
+maplot.MAplot(args, cols=cols, labels=labels, mode=opt.mode, data_format=opt.format, sep=opt.sep,
+        limits=limits, slimits=slimits,deg=opt.deg, bins=opt.bins, assembly_id=opt.assembly,
+        annotate=annotate, quantiles=opt.noquantiles, title=opt.title, extremes=opt.extremes)
+
+sys.exit(0)
+
