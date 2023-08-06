@@ -1,0 +1,633 @@
+/*
+GNU General Public License (GPL)
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.
+*/
+
+var SUCCESS = 0;
+var AUTH_FAIL = -1;
+var TIMEOUT = 1;
+var SERVER_FAULT = 2;
+
+var chat_focus = [];
+var chats = [];    // Records new chat windows being opened. 
+var global_received_date = '0001-01-01T00:00:00+00:00';
+var messages_found = 0;
+var new_chats = [];
+var poll_count = 0;         // The amount of server polls that have been made
+var poll_cycle = 10;        // The amount of polls to make in a cycle
+var sent_since_date = [];
+var timeout = 2000;
+var window_focus = true;
+
+if (typeof console == "undefined") {
+    this.console = {
+        log: function() {},
+        warn: function() {},
+        error: function() {}
+    };
+}
+
+function hash(str) {
+    var shaobj = new jsSHA(str);
+    return shaobj.getHash("HEX");
+}
+
+function getMinimizedChats() {
+    var cookie = jQuery.cookie('chats_minimized_'+username);
+    if (cookie) {
+        return cookie.split(/\|/);
+    }
+    return [];
+}
+
+function sanitizePath(call) {
+    return base_url + call;
+}
+
+function oc(a) {
+    // Thanks to Jonathan Snook: http://snook.ca
+    var o = {};
+    for(var i=0; i<a.length; i++) {
+        o[a[i]]='';
+    }
+    return o;
+}
+
+function reorderChats() {
+    var index = 0;
+    for (var i=0; i < chats.length; i++) {
+        var chatbox =  jQuery("#"+hash(chats[i]));
+        if (chatbox.css('display') != 'none') {
+            if (index === 0) {
+                chatbox.css('right', '20px');
+            } 
+            else {
+                width = (index)*(225+7)+20;
+                chatbox.css('right', width+'px');
+            }
+            index++;
+        }
+    }
+}
+
+function positionNewChat(chatbox) {
+    var open_chats = 0;
+    for (var i=0; i<chats.length; i++) {
+        if (jQuery("#"+hash(chats[i])).css('display') != 'none') {
+            open_chats++;
+        }
+    }
+    if (open_chats === 0) {
+        chatbox.css('right', '20px');
+    } 
+    else {
+        width = (open_chats)*(225+7)+20;
+        chatbox.css('right', width+'px');
+    }
+}
+
+function closeChat(chat_id, chat_type, audience) {
+    jQuery('#'+hash(chat_id)).css('display','none');
+    reorderChats();
+    var cookie = jQuery.cookie('chats-open-'+username);
+    var open_chats = [];
+    if (cookie) {
+        open_chats = cookie.split('|');
+    }
+    new_chats = [];
+    for (var i=0; i < open_chats.length; i++) {
+        if (open_chats[i] != chat_id) {
+            new_chats.push(open_chats[i]);
+        }
+    }
+    console.log('closeChat: cookie \n');
+    if (new_chats.length) {
+        jQuery.cookie('chats-open-'+username, new_chats.join('|'), {path: '/'});
+    }
+    else {
+        jQuery.cookie('chats-open-'+username, null, {path: '/'});
+    }
+    if (chat_type === undefined) {
+        return;
+    }
+    path = sanitizePath('/@@babblechat/clear_messages');
+    jQuery.ajax({
+        url: path,
+        cache: false,
+        data: {audience: audience, chat_type: chat_type, until: global_received_date },
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            console.error(textStatus);
+            console.error(errorThrown);
+        },
+        success: function() {
+            console.log(chat_id + "'s messages succesfully cleared. \n");
+        }
+    });
+}
+
+function handleChatEvents(chat_id) {
+    var chat_type = chat_id.split('_')[0];
+    chat_focus[chat_id] = false;
+    var chat_area = jQuery("#"+hash(chat_id)+" .chat-textarea");
+    chat_area.blur(function(){
+        chat_focus[chat_id] = false;
+        chat_area.removeClass('chat-textarea-'+chat_type+'-selected');
+    }).focus(function(){
+        chat_focus[chat_id] = true;
+        chat_area.addClass('chat-textarea-'+chat_type+'-selected');
+    });
+    var chatbox = jQuery("#"+hash(chat_id));
+    chatbox.click(function() {
+        if (chatbox.find('.chat-content').css('display') != 'none') {
+            chatbox.find('.chat-textarea').focus();
+        }
+    });
+}
+
+function createChatBox(chat_id) {
+    var path = sanitizePath('/@@render_chat_box');
+    var box_id = hash(chat_id);
+    jQuery.ajax({
+        url: path,
+        cache: false,
+        async: false,
+        data: {
+            chat_id: chat_id,
+            box_id: box_id,
+            tzoffset: -(new Date().getTimezoneOffset())
+        },
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            console.error(textStatus);
+            console.error(errorThrown);
+            return;
+        },
+        success: function(data) {
+            jQuery('body').append(data).find('.chat-message .time').each(function (){
+                jthis = jQuery(this);
+                var time = jthis.text().split(':');
+                var hour = time[0];
+                var minutes = time[1];
+                var date = new Date();
+                date.setHours(hour - date.getTimezoneOffset() / 60);
+                date.setMinutes(minutes);
+                jthis.replaceWith(date.toLocaleTimeString().substring(0,5));
+            });
+            var last_msg_date = jQuery('div#'+box_id).attr('last_msg_date');
+            if ((last_msg_date !== undefined)&&(last_msg_date > global_received_date)) {
+                global_received_date = last_msg_date;
+                sent_since_date = [];
+            }
+        }
+    });
+    return jQuery('#'+hash(chat_id));
+}
+
+function createChat(chat_id, minimize) {
+    console.log('createChat: chat_id is ' + chat_id);
+    var cookie = jQuery.cookie('chats-open-'+username);
+    console.log('createChat: cookie is ' + cookie);
+    var open_chats = [];
+    if (cookie) {
+        open_chats = cookie.split('|');
+    }
+    if (!(chat_id in oc(open_chats))) {
+        // Update the cookie if this new chat is not yet in it.
+        open_chats.push(chat_id);
+        var new_cookie = open_chats.join('|');
+        jQuery.cookie('chats-open-'+username, new_cookie, {path: '/'});
+        console.log('createChat: updated cookie = ' + new_cookie + '\n');
+    }
+
+    var chatbox = jQuery("#"+hash(chat_id));
+    if (chatbox.length > 0) {
+        // The chatbox exists, merely hidden
+        if (chatbox.css('display') == 'none') {
+            chatbox.css('display','block');
+            reorderChats();
+        }
+        chatbox.find(".chat-textarea").focus();
+        var chat_content = chatbox.find('.chat-content');
+        chat_content.scrollTop(chat_content[0].scrollHeight);
+        return;
+    }
+    chatbox = createChatBox(chat_id);
+    if (chatbox.length === 0) {
+        console.error('Could not create chatbox with id: ' + chat_id);
+        return;
+    }
+    positionNewChat(chatbox);
+    chats.push(chat_id);
+    if (minimize == 1) {
+        // Minimize the chat if it's in the minimized_chats cookie
+        var minimized_chats = getMinimizedChats();
+        if (chat_id in oc(minimized_chats)) {
+            chatbox.find('.chat-content').css('display','none');
+            chatbox.find('.chat-input').css('display','none');
+        }
+    }
+    handleChatEvents(chat_id);
+    chatbox.show();
+    var chat_content = chatbox.find('.chat-content');
+    if (chat_content.length) {
+        chat_content.scrollTop(chat_content[0].scrollHeight);
+    }
+    else {
+        console.error('createChat: could not get .chat-content');
+    }
+}
+
+function toLocalTime(timestr) {
+    //  time: An ISO8601 string timestamp
+    var year = timestr.substring(0,4);
+    var month = timestr.substring(5,7);
+    var day = timestr.substring(8,10);
+    var hour = timestr.substring(11,13);
+    var minute = timestr.substring(14,16);
+    var timeob = new Date(new Date(year, month, day, hour, minute) - new Date().getTimezoneOffset() * 60000);
+    return timeob.toLocaleTimeString().substring(0,5);
+}
+
+function appendMessages(chat_id, messages, clear_and_replace) {
+    /*  chat_id:    The id attr of the div containing the chat
+        clear_and_replace: Clear and replace all messages that might be in the chatbox (if it exists).
+    */
+    messages_found += 1;
+    if (!new_chats) {
+        new_chats = [];
+    }
+    new_chats[chat_id] = true;
+    var chat = jQuery('#'+hash(chat_id));
+    if (chat.length <= 0) {
+        createChat(chat_id);
+        // createChat will fetch all uncleared messages (including the new ones
+        // we have here), therefore we can just return here
+        return;
+    }
+    if (chat.css('display') == 'none') {
+        chat.css('display','block');
+        reorderChats();
+    }
+    var chat_content = chat.find(".chat-content");
+    if (clear_and_replace) {
+        chat_content.empty();
+    }
+    for (var i=0; i<messages.length; i++) {
+        //  XXX: Need to put in the full date if more than a day ago...
+        message = messages[i];
+        var text = message[1];
+        var fullname = message[3];
+        var localtime = toLocalTime(message[2]);
+        if (message[0] == username) {
+            if (messages[i][2] in oc(sent_since_date)) {
+                continue;
+            }
+            else {
+                message_html = '<div class="chat-message">' + 
+                                    '<span class="chat-message-me">'+localtime+' me:&nbsp;&nbsp;</span>' + 
+                                    '<span class="chat-message-content">'+text+'</span>' + 
+                                '</div>';
+            }
+        } 
+        else {
+            message_html = '<div class="chat-message">' + 
+                                '<span class="chat-message-them">'+localtime+' '+fullname+':&nbsp;&nbsp;</span>' + 
+                                '<span class="chat-message-content">'+text+'</span>' + 
+                            '</div>';
+        }
+        chat_content.append(message_html);
+    }
+    if (chat_content.css('display') == 'none') {
+        // The chatbox is minimized, so we change it's header color to alert
+        // the user.
+        chat.find('.chat-head').addClass('chat-head-minimized-with-messages');
+    }
+    chat_content.scrollTop(chat_content[0].scrollHeight);
+}
+
+function getUnclearedMessages() {
+    /* If poll() times out, then we will have to call this method instead to
+     *  get all uncleared messages, to avoid losing messages that were marked as
+     *  read during the timed out process. */
+    console.log('getUnclearedMessages');
+    path = sanitizePath('/@@babblechat/get_uncleared_messages');
+    jQuery.ajax({
+        url: path,
+        cache: false,
+        async: true,
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            console.error(textStatus);
+            console.error(errorThrown);
+            // This will let doTimout continue, i.e get_uncleared_messages will be called again.
+            return true; 
+        },
+        success: function(data) {
+            if (Number(data.status) == TIMEOUT) {
+                // This will let doTimout continue, i.e get_uncleared_messages will be called again.
+                return true; 
+            }
+            jQuery.each(data.messages, function(contact_id, messages) {
+                if (messages.length) {
+                    appendMessages('chatbox_'+contact_id, messages, 1);
+                }
+            });
+            jQuery.each(data.chatroom_messages, function(chatroom_id, messages) {
+                if (messages.length) {
+                    appendMessages('chatroom_'+chatroom_id, messages, 1);
+                }
+            });
+            // Cancel the current poll
+            jQuery.doTimeout('message_recovery_poll');
+            // Now call the normal poll again
+            poll_interval = poll_min;
+            poll_count = 0;
+            poll();
+        }
+    });
+}
+
+function poll_server() {
+    path = sanitizePath('/@@babblechat/poll');
+    jQuery.ajax({
+        url: path,
+        cache: false,
+        async: true,
+        timeout: timeout,
+        dataType: "json",
+        data: {username: username, since: global_received_date}, 
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            console.error('poll_server: ' + textStatus);
+            console.error('poll_server: ' + errorThrown);
+        },
+        success: function(data) {
+            if (Number(data.status)  == AUTH_FAIL) {
+                console.warn('poll: AUTH_FAIL');
+                return false;
+            }
+            if (Number(data.status)  == TIMEOUT) {
+                // When the server times out while fetching messages, we have
+                // to call init again, to get all uncleared_messages,
+                // otherwise we might lose some messages that might have been
+                // marked as read by the timed out process!
+
+                // First, we have to cancel the existing poll, without
+                // executing it's callback
+                console.warn('poll_server: TIMEOUT');
+                jQuery.doTimeout('message_poll');
+
+                // No we start a poll calling getUnclearedMessages.
+                // getUnclearedMessages will determine wether this poll will
+                // call again, or whether it will be replaced with the default
+                // message_poll.
+                jQuery.doTimeout('message_recovery_poll', poll_interval, function() {
+                    getUnclearedMessages();
+                });
+            }
+            jQuery.each(data.messages, function(contact_id, messages) {
+                if (messages.length) {
+                    appendMessages('chatbox_'+contact_id, messages, 0);
+                }
+            });
+            jQuery.each(data.chatroom_messages, function(chatroom_id, messages) {
+                if (messages.length) {
+                    appendMessages('chatroom_'+chatroom_id, messages, 0);
+                }
+            });
+            if (data.last_msg_date > global_received_date)  {
+                global_received_date = data.last_msg_date;
+                sent_since_date = [];
+            }
+        }
+    });
+}
+
+function poll() {
+    /* The way doTimout works, it will execute the code in the callback
+     * function *after* poll_interval has passed. */
+    console.log('poll: poll_interval = '+ poll_interval);
+    jQuery.doTimeout('message_poll', poll_interval, function(){
+        poll_server();
+        if (messages_found > 0) {
+            // Reset the poll
+            console.log('resetting the poll');
+            messages_found = 0;
+            poll_count = 0;
+            poll_interval = poll_min;
+            poll();
+            return;
+        } 
+        poll_count++;
+        if (poll_count >= poll_cycle) { 
+            if (poll_interval < poll_max) {
+                poll_interval *= 2;
+            } 
+            if (poll_interval > poll_max) {
+                poll_interval = poll_max;
+            } 
+            // Reset the poll
+            poll_count = 0;
+            poll();
+            return;
+        }
+        return true;
+    });
+}
+
+function keypressed(event, textarea, audience, hashed_id, chat_type) {
+	if(event.keyCode == 13 && !event.shiftKey) {
+        var textbox = jQuery(textarea);
+		var message = textbox.val();
+		message = message.replace(/^\s+|\s+jQuery/g,"");
+		textbox.val('').focus().css('height','44px');
+		if (message !== '') {
+            path = sanitizePath('/@@babblechat/send_message');
+            jQuery.ajax({
+                url: path,
+                cache: false,
+                async: true,
+                dataType: "json",
+                data: {to: audience, message: message, chat_type: chat_type}, 
+                error: function (XMLHttpRequest, textStatus, errorThrown) {
+                    console.error(textStatus);
+                    if (errorThrown) {
+                        console.error(errorThrown);
+                    }
+                    var chat_content = jQuery('#'+hashed_id+' .chat-content');
+                    chat_content.append(
+                        '<div class="chat-message">' + 
+                            '<span class="chat-message-error">Connection Error</span>' + 
+                        '</div>');
+                    chat_content.scrollTop(chat_content[0].scrollHeight);
+                },
+                success: function(data) { 
+                    var chat_content = jQuery('#'+hashed_id+' .chat-content');
+                    if (data.status == SERVER_FAULT) {
+                        chat_content.append(
+                            '<div class="chat-message">' + 
+                                '<span class="chat-message-error">Connection Error</span>' + 
+                            '</div>');
+                    }
+                    else {
+                        console.log("Message succesfully sent.");
+                        sent_since_date = sent_since_date.concat([data.last_msg_date]);
+                        message = message.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;");
+                        list = message.match(/\b(http:\/\/www\.\S+\.\w+|www\.\S+\.\w+|http:\/\/(?=[^w]){3}\S+[\.:]\S+)[^ ]+\b/g);
+                        if (list) {
+                            for (i = 0; i < list.length; i++) {
+                                message = message.replace( list[i], "<a target='_blank' href='" + escape( list[i] ) + "'>"+ list[i] + "</a>" );
+                            }
+                        }
+                        var now = new Date();
+                        var minutes = now.getMinutes().toString();
+                        if (minutes.length==1) {minutes = '0'+minutes;}
+                        var time = now.toLocaleTimeString().substring(0,5);
+                        chat_content.append(
+                            '<div class="chat-message">' + 
+                                '<span class="chat-message-me">'+time+' me:&nbsp;&nbsp;</span>' + 
+                                '<span class="chat-message-content">'+message+'</span>' + 
+                            '</div>');
+                    }
+                    chat_content.scrollTop(chat_content[0].scrollHeight);
+                    poll_interval = poll_min;
+                    poll_count = 0;
+                    poll(); // Calling poll, cancels the existing poll and replaces it with a new one 
+                            // (with the updated poll values)
+                }
+            });
+		}
+	}
+	var adjustedHeight = textarea.clientHeight;
+	var maxHeight = 94;
+	if (maxHeight > adjustedHeight) {
+		adjustedHeight = Math.max(textarea.scrollHeight, adjustedHeight);
+		if (maxHeight) {
+			adjustedHeight = Math.min(maxHeight, adjustedHeight);
+        }
+		if (adjustedHeight > textarea.clientHeight) {
+			jQuery(textarea).css('height',adjustedHeight+8 +'px');
+        }
+	} 
+    else {
+		jQuery(textarea).css('overflow','auto');
+	}
+}
+
+function toggleChat(chat_id) {
+    var minimized_chats = getMinimizedChats();
+    var hashed_id = hash(chat_id); 
+    var new_cookie;
+    if (jQuery('#'+hashed_id+' .chat-content').css('display') == 'none') {  
+        // Chat will be maximized
+        new_cookie = [];
+        for (var i=0; i < minimized_chats.length; i++) {
+            if (minimized_chats[i] != chat_id) {
+                new_cookie.push(minimized_chats[i]);
+            }
+        }
+        jQuery.cookie('chats_minimized_'+username, new_cookie.join('|'));
+        var chat_content = jQuery('#'+hashed_id+' .chat-content');
+        chat_content.css('display','block');
+        chat_content.scrollTop(chat_content[0].scrollHeight);
+        jQuery('#'+hashed_id+' .chat-head').removeClass('chat-head-minimized-with-messages');
+        jQuery('#'+hashed_id+' .chat-input').css('display','block');
+    } 
+    else {
+        // Chat will be minimized
+        if (!(chat_id in oc(minimized_chats))) {
+            new_cookie = chat_id;
+            new_cookie += '|'+minimized_chats.join('|');
+            jQuery.cookie('chats_minimized_'+username, new_cookie);
+        }
+        jQuery('#'+hashed_id+' .chat-content').css('display','none');
+        jQuery('#'+hashed_id+' .chat-input').css('display','none');
+    }
+}
+
+function startChat(chat_id) {
+    createChat(chat_id, 0);
+    jQuery("#"+hash(chat_id)+" .chat-textarea").focus();
+    // Reset the polling
+    messages_found = 0;
+    poll_count = 0;
+    poll_interval = poll_min;
+    poll();
+}
+
+function init() {  
+    if (!username) {
+        return true; // This will let doTimout continue, i.e init will be called again.
+    }
+    var open_chats = [];
+    var cookie = jQuery.cookie('chats-open-'+username);
+    console.log('init: cookie = ' + cookie + '\n');
+    jQuery.cookie('chats-open-'+username, null, {path: '/'});
+    if (cookie) {
+        open_chats = cookie.split('|');
+        for (var i=0; i<open_chats.length; i++) {
+            var chat_id = open_chats[i];
+            if (chat_id) { 
+                createChat(chat_id, 1);
+            }
+        }
+    }
+    path = sanitizePath('/@@babblechat/initialize');
+    jQuery.ajax({
+        url: path,
+        cache: false,
+        dataType: "json",
+        timeout: timeout,
+        error: function (XMLHttpRequest, textStatus, errorThrown) {
+            console.error('init: ' + textStatus);
+            console.error('init: ' + errorThrown);
+            // This will let doTimout continue, i.e init will be called again.
+            return true; 
+        },
+        success: function(data) {
+            if (Number(data.status) == TIMEOUT) {
+                // This will let doTimout continue, i.e init will be called again.
+                console.warn('init: TIMEOUT');
+                return true; 
+            }
+            else if (Number(data.status) == AUTH_FAIL) {
+                console.warn('init: AUTH_FAIL');
+                return false;
+            }
+            console.log('init: Success!');
+            poll_interval = poll_min;
+            poll_count = 0;
+            poll();
+        }
+    });
+}
+
+jQuery(document).ready(function() {
+    jQuery('#form-widgets-conversation').each(function () {
+        $(this).scrollTop(this.scrollHeight);
+    });
+    var chatdata = jQuery('span#babble-client-chatdata');
+    poll_max = chatdata.attr('poll_max');
+    poll_min = chatdata.attr('poll_min');
+    username = chatdata.attr('username');
+    base_url = chatdata.attr('base_url');
+    poll_interval = poll_min;   // The initial polling period
+    console.info("chat.js: username: " + username);
+
+    if (init()) { 
+        jQuery.doTimeout(poll_max, function() {
+            init();
+        });
+    }
+});
