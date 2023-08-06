@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+"""
+logcat-color
+
+Copyright 2012, Marshall Culpepper
+Licensed under the Apache License, Version 2.0
+
+Portions Copyright 2009, The Android Open Source Project
+Thanks to Jeff Sharkey, the author of coloredlogcat.py,
+the original inspiration of logcat-color
+"""
+import asyncore
+import fcntl
+import optparse
+import os
+import struct
+from subprocess import Popen, PIPE
+import sys
+import termios
+
+try:
+    import logcatcolor
+except:
+    # add .. to include path for local testing
+    sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
+from logcatcolor.config import LogcatColorConfig
+from logcatcolor.profile import Profile
+from logcatcolor.reader import LogcatReader
+
+class LogcatColor(object):
+    def __init__(self):
+        self.width = self.get_term_width()
+        self.parse_args()
+        self.config = LogcatColorConfig(self.options.config)
+
+        self.profile = None
+        if len(self.args) >= 1:
+            self.profile = Profile.get_profile(self.args[0])
+            if self.profile:
+                self.args = self.args[1:]
+
+        if not self.profile:
+            self.logcat_args.extend(self.args)
+
+    def get_term_width(self):
+        stdout_fd = sys.stdout.fileno()
+        if os.isatty(stdout_fd):
+            # unpack the current terminal width / height
+            data = fcntl.ioctl(stdout_fd, termios.TIOCGWINSZ, '1234')
+            height, width = struct.unpack('hh', data)
+        else:
+           # store a large width when the output of this script is being piped
+           width = 2000
+
+        return width
+
+    def parse_args(self):
+        parser = optparse.OptionParser()
+
+        # logcat-color options
+        parser.add_option("--config", dest="config", default=None,
+            help="path to logcat-color config file (default: ~/.logcat-config)")
+
+        # ADB options
+        parser.add_option("-d", "--device", action="append_const",
+            dest="adb_args", const="-d",
+            help="connect to the only plugged-in device")
+        parser.add_option("-e", "--emulator", action="append_const",
+            dest="adb_args", const="-e",
+            help="connect to the only running emulator")
+        parser.add_option("-s", "--serial-number", dest="serial_number",
+            default=None, help="connect to a specific device by it's serial" +
+                               " number")
+
+        # Logcat options
+        # See http://developer.android.com/guide/developing/tools/logcat.html
+        # We can't support -d / -s since we use them for ADB above, but we
+        # provide long-form options in case they are needed
+        parser.add_option("-b", "--buffer", action="append", dest="buffers",
+            help="loads an alternate log buffer for viewing, such as event or" +
+                 " radio")
+        parser.add_option("-c", "--clear", action="append_const",
+            dest="logcat_args", const="-c",
+            help="clears (flushes) the entire log and exits")
+        parser.add_option("--dump", action="append_const",
+            dest="logcat_args", const="-d",
+            help="dumps the log to the screen and exits")
+        parser.add_option("-f", "--file", dest="file", default=None,
+            help="writes log message output to <file>. the default is stdout")
+        parser.add_option("-g", "--print-size", action="append_const",
+            dest="logcat_args", const="-g",
+            help="prints the size of the specified log buffer and exits")
+        parser.add_option("-n", "--max-rotated-logs",
+            dest="max_rotated_logs", type="int",
+            help="sets the maximum number of rotated logs. requires the -r" +
+                 " option (default: 4)")
+        parser.add_option("-r", "--rotate", dest="rotate_kbytes", type="int",
+            help="rotates the log file every <rotate_kbytes> of output." +
+                 " requires the -f option (default: 16)")
+        parser.add_option("--silent", action="append_const", dest="logcat_args",
+            const="-s", help="sets the default filter spec to silent")
+        parser.add_option("-v", "--format", dest="format", default=None,
+            help="sets the output format for log messages. possible formats:" +
+                 " brief, process, tag, raw, time, threadtime, long" +
+                 " (default: brief)")
+
+        (options, args) = parser.parse_args()
+        self.options = options
+        self.args = args
+
+        if options.serial_number:
+            self.adb_args = ["-s", options.serial_number]
+        else:
+            self.adb_args = options.adb_args or []
+
+        self.logcat_args = options.logcat_args or []
+        if options.buffers:
+            for buf in options.buffers:
+                self.logcat_args.extend(["-b", buf])
+
+        if options.file:
+            self.logcat_args.extend(["-f", options.file])
+
+        if options.max_rotated_logs:
+            self.logcat_args.extend(["-n", options.max_rotated_logs])
+
+        if options.rotate_kbytes:
+            self.logcat_args.extend(["-r", options.rotate_kbytes])
+
+        if options.format:
+            self.logcat_args.extend(["-v", options.format])
+
+    def start(self):
+        if self.profile:
+            buffers = self.profile.get_buffers()
+            if buffers:
+                for b in buffers: self.logcat_args.extend(["-b", b])
+
+        # if someone is piping, use stdin as input. if not, invoke adb logcat
+        input = sys.stdin
+        if os.isatty(sys.stdin.fileno()):
+            adb_command = ["adb"]
+            adb_command.extend(self.adb_args)
+            adb_command.append("logcat")
+            adb_command.extend(self.logcat_args)
+            input = Popen(adb_command, stdout=PIPE).stdout
+
+        reader = LogcatReader(input, self.config, profile=self.profile,
+            width=self.width)
+        try:
+            asyncore.loop()
+        except KeyboardInterrupt, e:
+            pass
+
+if __name__ == "__main__":
+    LogcatColor().start()
