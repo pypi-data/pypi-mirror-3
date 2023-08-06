@@ -1,0 +1,594 @@
+# $Id: publiforge.rnc 86b088d85a5a 2012/03/21 22:20:47 patrick $
+
+start = publiforge
+
+
+publiforge = element publiforge { publiforge.attributes, publiforge.content }
+
+publiforge.attributes =
+   version.attribute
+version.attribute = attribute version { "1.0" }
+
+publiforge.content =
+   processor
+ | user
+ | group
+ | storage
+ | project
+ | build
+ | project.processing
+ | (users?, groups?, storages?, projects?)
+
+
+# =============================================================================
+#                                    processor
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ processor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+processor = element processor { processor.content }
+
+processor.content =
+   localized.label+,
+   localized.description*,
+   engine,
+   ancestors?,
+   processor.variables?,
+   output?
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ engine ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+engine = element engine { engine.content }
+
+engine.content = xsd:token {pattern = "[a-z.]+"}
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ancestors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~ ancestors
+ancestors = element ancestors { ancestors.content }
+
+ancestors.content =
+   ancestor+
+
+# ~~~~~~ ancestor
+ancestor = element ancestor { ancestor.content }
+
+ancestor.content = xsd:NCName
+
+# ~~~~~ output
+output = element output { output.content }
+
+output.content =  xsd:anyURI
+
+
+# =============================================================================
+#                                      user
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ users ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+users = element users { users.content }
+
+users.content =
+   user+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ user ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+user = element user { user.attributes, user.content }
+
+user.attributes =
+   user.login.attribute
+ & user.status.attribute?
+user.login.attribute = attribute login { xsd:ID {minLength = "2"} }
+user.status.attribute = attribute status { "draft" | "active" | "inactive" }
+
+user.content =
+   password?
+ & name
+ & email
+ & language?
+ & home?
+ & page_size?
+ & expiration?
+ & ips?
+ & permissions?
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ password ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+password = element password { password.attributes, password.content }
+
+password.attributes =
+   hash.attribute?
+hash.attribute = attribute hash { "true" }
+
+password.content = xsd:token {minLength = "8"}
+
+# ~~~~~~~~~~~~~~ name, email, language, home, page_size, expiration ~~~~~~~~~~~
+
+name = element name { xsd:token {minLength = "2"} }
+
+email = element email {
+   xsd:token {pattern = "[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}" } }
+
+language = element language { lang.enumeration }
+
+home = element home { "storages" | "projects" | "site" }
+
+page_size = element page_size { "5" | "10" | "20" | "40" | "80" }
+
+expiration = element expiration { xsd:date }
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ips & ip ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ips = element ips { ips.content }
+
+ips.content =
+   ip+
+
+ip = element ip { ip.content }
+
+ip.content = xsd:token {pattern = "\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}"}
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~ permissions & permission ~~~~~~~~~~~~~~~~~~~~~~~~
+
+permissions = element permissions { permissions.content }
+
+permissions.content =
+   permission+
+
+permission = element permission { permission.attributes, permission.content }
+
+permission.attributes =
+   scope.attribute
+scope.attribute = attribute scope {
+   "all" | "doc" | "usr" | "grp" | "stg" | "prj" }
+
+permission.content = "manager" | "editor" | "user"
+
+
+# =============================================================================
+#                                    group
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ groups ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+groups = element groups { groups.content }
+
+groups.content =
+   group+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ group ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+group = element group { group.attributes, group.content }
+
+group.attributes =
+   group.id.attribute
+group.id.attribute = attribute xml:id { xsd:ID }
+   
+group.content =
+   label,
+   description?,
+   permissions?,
+   group.members?
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ group.member ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~ group.members
+group.members = element members { group.members.content }
+
+group.members.content =
+   group.member+
+
+# ~~~~~ group.member
+group.member = element member { group.member.content }
+
+group.member.content = xsd:NCName
+
+
+# =============================================================================
+#                                   storage
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ storages ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+storages = element storages { storages.content }
+
+storages.content =
+   storage+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ storage ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+storage = element storage { storage.attributes, storage.content }
+
+storage.attributes =
+   storage.id.attribute
+storage.id.attribute = attribute xml:id { xsd:ID }
+
+storage.content =
+   label,
+   description?,
+   vcs,
+   access?,
+   refresh?,
+   reset?,
+   members?
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~ reset, access, refresh ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+reset = element reset { xsd:boolean }
+access = element access { "open" | "restricted" | "closed" }
+refresh = element refresh { xsd:integer }
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ vcs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+vcs = element vcs {
+   (  (attribute engine { "none" }, vcs.none.content)
+    | (attribute engine { "local" }, vcs.local.content)
+    | (attribute engine { "hg" }, vcs.hg.content) ) }
+ 
+vcs.none.content =
+   public?
+vcs.local.content =
+   public?
+vcs.hg.content =
+   url,
+   (vcs.user,  vcs.password?)?
+
+# ~~~~~ public
+public = element public { public.content }
+
+public.content = xsd:anyURI
+
+# ~~~~~ url
+url = element url { url.content }
+
+url.content = xsd:anyURI
+   
+# ~~~~~ vcs.user, vcs.password
+vcs.user = element user { vcs.user.content }
+vcs.password = element password { vcs.password.content }
+
+vcs.user.content = xsd:NCName
+vcs.password.content = xsd:token
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ members & member ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~ members
+members = element members { members.content }
+
+members.content =
+   (member | member-group)+
+
+# ~~~~~ member
+member = element member { member.attributes, member.content }
+
+member.attributes =
+   permission.attribute?
+ & in-menu.attribute?
+permission.attribute = attribute permission { "editor" | "user" | "none" }
+in-menu.attribute = attribute in-menu { xsd:boolean }
+
+member.content = xsd:NCName
+
+# ~~~~~ member-group
+member-group = element member-group {
+   member-group.attributes, member-group.content }
+
+member-group.attributes =
+   permission.attribute?
+
+member-group.content = xsd:NCName
+
+
+# =============================================================================
+#                                    project
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ projects ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+projects = element projects { projects.content }
+
+projects.content =
+   project+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ project ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+project = element project { project.attributes, project.content }
+
+project.attributes =
+   project.status.attribute
+project.status.attribute = attribute status { "draft" | "active" | "archived" }
+
+project.content =
+   label,
+   description?,
+   deadline?,
+   project.processings?,
+   project.packs?,
+   members?
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ deadline ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+deadline = element deadline { deadline.content }
+
+deadline.content =
+   xsd:date
+
+
+# =============================================================================
+#                                     build
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ build ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+build = element build { build.attributes, build.content }
+
+build.attributes =
+   id.attribute
+id.attribute = attribute xml:id { xsd:ID }
+
+build.content =
+   settings,
+   build.processing,
+   build.pack?
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ settings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~ settings
+settings = element settings { settings.content }
+
+settings.content =
+   element setting { attribute key { "storage.root" }, setting.content },
+   element setting { attribute key { "build.root" }, setting.content },
+   setting*
+
+# ~~~~~ setting
+setting = element setting { setting.attributes, setting.content }
+
+setting.attributes =
+   setting.key.attribute
+setting.key.attribute = attribute key { xsd:NCName }
+
+setting.content = text
+
+
+# =============================================================================
+#                                   processings
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ processings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+project.processings = element processings { project.processings.content }
+
+project.processings.content =
+   project.processing+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ processing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~ processing
+project.processing = element processing { project.processing.content }
+build.processing = element processing { build.processing.content }
+
+project.processing.content =
+   label,
+   description?,
+   processing.processor,
+   variables?,
+   resources?,
+   templates?,
+   output?
+build.processing.content =
+   processing.processor,
+   variables?,
+   resources?,
+   templates?
+
+# ~~~~~ processing.processor
+processing.processor = element processor { processing.processor.content }
+
+processing.processor.content = xsd:NCName
+
+
+# =============================================================================
+#                                     Packs
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ packs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+project.packs = element packs { project.packs.content }
+
+project.packs.content =
+   project.pack+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pack ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~ pack
+project.pack = element pack { pack.attributes, project.pack.content }
+build.pack = element pack { pack.attributes, build.pack.content }
+
+pack.attributes =
+   recursive.attribute?
+recursive.attribute = attribute recursive { xsd:boolean }
+
+project.pack.content =
+   label,
+   description?,
+   files?,
+   resources?,
+   templates?
+build.pack.content =
+   files,
+   resources?,
+   templates?
+
+
+# =============================================================================
+#                                     Variables
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ variables ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+processor.variables = element variables { processor.variables.content }
+variables = element variables { variables.content }
+
+processor.variables.content =
+   var.group+
+variables.content =
+   var+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ var.group ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+var.group = element group { var.group.content }
+
+var.group.content =
+   localized.label+,
+   localized.description*,
+   processor.var+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ var ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~ var
+processor.var = element var {
+   var.attributes,
+   (  (attribute type { "string" }, processor.var.content.string)
+    | (attribute type { "boolean" }, processor.var.content.boolean)
+    | (attribute type { "integer" }, processor.var.content.integer)
+    | (attribute type { "select" }, processor.var.content.select)
+    | (attribute type { "regex" }, processor.var.content.regex) ),
+   processor.var.content
+}
+var = element var { var.attributes, var.content }
+
+var.attributes =
+   name.attribute
+ & visible.attribute?
+name.attribute = attribute name { xsd:NCName }
+visible.attribute = attribute visible { xsd:boolean }
+
+processor.var.content.string =
+   default.string?
+processor.var.content.boolean =
+   default.boolean?
+processor.var.content.integer =
+   default.integer?
+processor.var.content.select =
+   default.select?,
+   option+
+processor.var.content.regex =
+   default.regex?,
+   pattern
+processor.var.content =
+   localized.description*
+var.content =
+   value,
+   default.string?
+
+# ~~~~~ default
+default.string = element default { text }
+default.boolean = element default { xsd:boolean }
+default.integer = element default { xsd:integer }
+default.select = element default { text }
+default.regex = element default { text }
+
+# ~~~~~ value
+value = element value { value.content }
+
+value.content = text
+
+# ~~~~~ option
+option = element option { option.attributes, option.content }
+
+option.attributes =
+   value.attribute?
+value.attribute = attribute value { text }
+
+option.content = text
+
+# ~~~~~ pattern
+pattern = element pattern { pattern.content }
+
+pattern.content = text
+
+
+# =============================================================================
+#                            Files, resources, templates
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ files ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~ files
+files = element files { files.content }
+
+files.content =
+   file+
+
+# ~~~~~ file
+file = element file { file.attributes, file.content }
+
+file.attributes =
+   visible.attribute?
+
+file.content = xsd:anyURI
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ resources ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~ resources
+resources = element resources { resources.content }
+
+resources.content =
+   resource+
+
+# ~~~~~~ resource
+resource = element resource { resource.attributes, resource.content }
+
+resource.attributes =
+   visible.attribute?
+
+resource.content = xsd:anyURI
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ templates ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~ templates
+templates = element templates { templates.content }
+
+templates.content =
+   template+
+
+# ~~~~~~ template
+template = element template { template.attributes, template.content }
+
+template.attributes =
+   template.to.attribute
+ & visible.attribute?
+template.to.attribute = attribute to { xsd:anyURI }
+
+template.content = xsd:anyURI
+
+
+# =============================================================================
+#                               Localized elements
+# =============================================================================
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ label ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+label = element label { label.content }
+localized.label = element label { localized.label.attributes, label.content }
+
+localized.label.attributes =
+   lang.attribute
+lang.attribute = attribute xml:lang { lang.enumeration }
+lang.enumeration = "en" | "fr" | "es"
+
+label.content = text
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ description ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+description = element description { description.content }
+localized.description = element description {
+   localized.description.attributes, description.content }
+
+localized.description.attributes =
+   lang.attribute
+
+description.content = text

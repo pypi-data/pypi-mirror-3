@@ -1,0 +1,110 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="base">
+<head>
+  <title></title>
+  <script metal:fill-slot="js"
+          src="/Static/Js/prj_results.js" type="text/javascript"></script>
+</head>
+<body>
+<div id="mainPanel" metal:fill-slot="main">
+  ${form.begin()}
+  <!-- ............................... Buttons ............................ -->
+  <div id="buttons">
+    <div class="first">
+      ${request.breadcrumbs.back_button()}
+    </div>
+    <div class="last">
+      <span id="refresh" tal:condition="working"
+            tal:attributes="class request.registry.settings.get('refresh.long', '8')"></span>
+      <span tal:condition="not working" tal:omit-tag="">
+        ${form.button(request.current_route_path(), _('Refresh'), class_='buttonMain')}
+      </span>
+      ${form.button(route('project_dashboard', project_id=project['project_id']), _('View dashboard'))}
+    </div>
+    <hr class="hidden"/>
+  </div>
+  <div id="main">
+    <h2 id="subtitle" class="project" title="${_('Results')}">${project['label']}</h2><br/>
+    <!-- ............................. Flash .............................. -->
+    <div id="flashAlert" tal:condition="request.session.peek_flash('alert')">
+      <div tal:repeat="message request.session.pop_flash('alert')">${message}</div>
+    </div>
+    <!-- ............................ Action list ......................... -->
+    <h3 class="list">${_('Result List')}</h3>
+    <div class="listActions">
+      <div class="first"><img src="/Static/Images/build.png" alt="builds" title="${_('Builds')}"/></div>
+      <div class="last">
+        ${form.submit_image('dnl!#', _('Download selected results'),
+        '/Static/Images/action_download.png')}
+      </div>
+    </div>    
+    <!-- ............................... Results ........................... -->
+    <table class="list" tal:define="datetime import: datetime ; join import: os.path.join">
+      <tr>
+        <th class="checkbox">${form.checkbox('check_all')}</th>
+        <th>${_('User')}</th>
+        <th>${_('Processing')}</th>
+        <th>${_('Pack')}</th>
+        <th>${_('Start time')}</th>
+        <th>${_('Status')}</th>
+        <th class="last">${_('Actions')}</th>
+      </tr>
+      <tr tal:repeat="result results">
+        <td class="checkbox">
+          ${form.checkbox('#%s' % result['build_id'], id=None, class_='listCheck')}
+        </td>
+        <td>
+          <a href="${route('user_view', user_id=result['user_id'])}">
+            ${users[result['user_id']]}
+          </a>
+        </td>
+        <td>
+          <a href="${route('processing_view', project_id=project['project_id'],
+                   processing_id=result['processing_id'])}">
+            ${processings[result['processing_id']][0]}
+          </a>
+        </td>
+        <td>
+          <a href="${route('pack_view', project_id=project['project_id'], pack_id=result['pack_id'])}">
+            ${packs[result['pack_id']]}
+          </a>
+        </td>
+        <td>${datetime.datetime.fromtimestamp(result['start']).isoformat(' ').split('.')[0]}</td>
+        <td tal:switch="result['status'] == 'none'">
+          <div tal:case="True" id="build_${result['build_id']}" class="progressGauge">
+            <div style="${'width: {p}%;'.format(p=progress[result['build_id']][1])}"></div>
+          </div>
+          <div tal:case="False" class="${result['status'] == 'fatal' and 'ko' or 'ok'}">
+            ${status_label[result['status']]}
+          </div>
+        </td>
+        <td class="last">
+          <div tal:switch="result['status'] == 'none'" tal:omit-tag="">
+            <span tal:case="True" tal:omit-tag="">
+              ${form.button(route('build_progress', build_id=result['build_id']),
+                src='/Static/Images/action_progress_one.png', title=_('View progress'), class_="slow")}
+            </span>
+            <span tal:case="False" tal:omit-tag=""
+                  tal:define="storage_id processings[result['processing_id']][1].partition('/')[0] ;
+                              path processings[result['processing_id']][1].partition('/')[2]">
+              <span tal:condition="result.get('files')">
+                ${form.submit_image('dnl!%s' % result['build_id'], _('Download result'),
+                  '/Static/Images/action_download_one.png')}
+                ${form.button(route('storage_browse', storage_id=storage_id, path=path),
+                  src='/Static/Images/action_browse_one.png', title=_('View in storage'), class_="slow")}
+              </span>
+              ${form.button(route('build_view', build_id=result['build_id'], _anchor='build'),
+                src='/Static/Images/action_info_one.png', title=_('View build'), class_="slow")}
+            </span>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <div id="flash" tal:condition="not results">${_('No recent result.')}</div>
+  </div>
+  ${form.end()}
+</div>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="base">
+<head><title></title></head>
+<body>
+<div id="mainPanel" metal:fill-slot="main">
+  ${form.begin()}
+  <!-- ............................... Buttons ............................ -->
+  <div id="buttons">
+    <div class="first">
+      ${request.breadcrumbs.back_button()}
+    </div>
+    <div class="last">
+      <span tal:condition="i_editor" tal:omit-tag="">
+        ${form.button(route('processing_edit', project_id=project['project_id'],
+          processing_id=processing.processing_id), _('Edit'), class_='buttonMain')}
+      </span>
+      ${form.submit('exp!.x', _('Export'))}
+      <span tal:condition="i_editor" tal:omit-tag="">
+        ${form.button(route('project_%s' % ('edit' in request.breadcrumbs.back_path() and 'edit' or 'view'),
+          project_id=project['project_id']), _('View project settings'))}
+      </span>
+    </div>
+    <hr class="hidden"/>
+  </div>
+  <div id="main" tal:define="local_text import: publiforge.lib.xml.local_text">
+    <h2 id="subtitle" class="processing" title="${_('Processing')}">
+      ${project['label']} <em>${processing.label}</em>
+    </h2>
+    <!-- ............................. Description ........................ -->
+    <div id="toolTip" tal:condition="description">${description}</div>
+    <!-- ................................ Tabs ............................ -->
+    <div id="tabSet"  tal:define="file_types ('resource', 'template')">
+      ${tab_set.toc('tabProcessing')}
+      <!-- ..... Description ...... -->
+      ${tab_set.tab_begin(0, 'd')}
+      ${form.grid_item(None, _('Processing:'), processing.label, class_='')}
+      ${form.grid_item(None, _('Description:'), processing.description, class_='')}
+      <div class="formItem">
+        <label><em>${_('Processor:')}</em></label>
+        <div>
+          ${local_text(processor.find('processor'), 'label', request)}
+          ${form.submit_image('des!', _('Description'), '/Static/Images/action_help_one.png')}
+       </div>
+      </div>
+      ${tab_set.tab_end()}
+      <!-- ....... Variables ...... -->
+      ${tab_set.tab_begin(1, 'v')}
+      <table class="list" tal:condition="processor.find('processor/variables') is not None">
+        <caption>${_('Variables')}</caption>
+        <thead>
+          <tr>
+            <th colspan="2">${_('Name')}</th>
+            <th></th>
+            <th>${_('Value')}</th>
+            <th class="center">${_('Visible')}</th>
+            <th class="last">${_('Action')}</th>
+          </tr>
+        </thead>
+        <tbody tal:repeat="group processor.findall('processor/variables/group')" class="group">
+          <tr>
+            <th colspan="6">${local_text(group, 'label', request)}</th>
+          </tr>
+          <tr tal:repeat="var group.findall('var')">
+            <td class="checkbox"></td>
+            <td>${var.get('name')}</td>
+            <td>=</td>
+            <td tal:switch="var.get('type') == 'boolean'">
+              <span tal:case="True"
+                    tal:condition="var.get('name') in variables and variables.get(var.get('name')).value == 'true'"
+                    tal:omit-tag="">
+                <img src="/Static/Images/check.png" alt="X"/>
+              </span>
+              <span tal:case="False" tal:omit-tag="">
+                ${var.get('name') in variables and variables.get(var.get('name')).value or ''}
+              </span>
+            </td>
+            <td class="center">
+              <span tal:condition="var.get('name') in variables and variables.get(var.get('name')).visible"
+                    tal:omit-tag="">
+                <img src="/Static/Images/check.png" alt="X"/>
+              </span>
+            </td>
+            <td class="last">
+              ${form.submit_image('des!%s' % var.get('name'),
+                local_text(var, 'description', request).partition(' --')[0],
+                '/Static/Images/action_help_one.png')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      ${tab_set.tab_end()}
+      <!-- ......... Files ........ -->
+      ${tab_set.tab_begin(2, 'f')}
+      <div tal:define="files_view load: files_view.macro.pt" metal:use-macro="files_view"/>
+      ${tab_set.tab_end()}
+      <!-- ......... Output ....... -->
+      ${tab_set.tab_begin(3, 'o')}
+      <div tal:condition="processing.output" tal:omit-tag="">
+        <div class="formItem">
+          <label><em>${_('Storage:')}</em></label>
+          <div>
+            <a href="${route('storage_root', storage_id=output['storage_id'])}"
+               class="slow">${output['label']}</a>
+          </div>
+          <div class="clear"></div>
+        </div>
+        <div class="formItem">
+          <label><em>${_('Path:')}</em></label>
+          <div>
+            ${processing.output}
+            ${form.button(route('storage_browse', storage_id=output['storage_id'],
+              path=processing.output.partition('/')[2]),
+              src='/Static/Images/action_browse.png', title=_('View in storage'), class_="slow")}
+          </div>
+          <div class="clear"></div>
+        </div>
+      </div>
+      ${tab_set.tab_end()}
+    </div>
+  </div>
+  ${form.end()}
+</div>
+</body>
+</html>

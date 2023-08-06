@@ -1,0 +1,212 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="base">
+<head>
+  <title></title>
+  <script metal:fill-slot="js"
+          src="/Static/Js/stg_browse.js" type="text/javascript"></script>
+</head>
+<body>
+<div id="mainPanel" metal:fill-slot="main">
+  ${form.begin(request.current_route_path(_anchor='current'), multipart=True)}
+  <!-- ............................... Buttons ............................ -->
+  <div id="buttons">
+    <div>
+      ${request.breadcrumbs.back_button()}
+    </div>
+    <hr class="hidden"/>
+  </div>
+  <div id="main">
+    <h2 id="subtitle" class="storage" title="${_('Storage')}">${storage['label']}</h2>
+    <!-- ............................ Description ......................... -->
+    <div class="description">
+      ${form.grid_item(None, _('Description:'), storage['description'], class_='')}
+      <div tal:condition="not 'none' in storage['vcs_engine']" tal:omit-tag="">
+        ${form.grid_item(None, _('Version control:'),
+          _(vcs_engines.get(storage['vcs_engine'], storage['vcs_engine'])).partition(u'–')[2], class_='')}
+        ${form.grid_item(None, _('Source:'), storage['vcs_url'], class_='')}
+        <div class="formItem"
+             tal:condition="storage['perm'] != 'user' and not 'local' in storage['vcs_engine']">
+          <label><em>${_('Credentials:')}</em></label>
+          <div class="vcsUser">
+            ${_('User:')} <input id="vcs_user" name="vcs_user" type="text"/>  
+            ${_('Password:')} <input id="vcs_password" name="vcs_password" type="password"/>
+            <input id="vcs_change" name="vcs_change" type="submit" value="${_('Change')}" class="button"/>
+          </div>
+        </div>
+        ${form.grid_item(None, _('Public URL:'), storage['public_url'], class_='')}
+      </div>
+    </div>
+    <!-- ........................... Containers ........................... -->
+    <div tal:define="container load: container.macro.pt" metal:use-macro="container"/>
+    <!-- ............................. Flash .............................. -->
+    <div tal:define="flash load: flash.macro.pt" metal:use-macro="flash"/>
+    <!-- ........................... Action list .......................... -->
+    <div class="listActions">
+      <div id="actionParams" tal:condition="action in ('del?#', 'dir?', 'upl?')">
+        <div tal:condition="action == 'dir?'">${form.grid_text('directory', _('Directory:'))}</div>
+        <div tal:condition="action == 'upl?'">${form.grid_upload('upload_file', _('File:'))}</div>
+        <div tal:condition="'none' not in storage['vcs_engine'] and action != 'dir?'">
+          ${form.grid_text('message', _('Message:'))}
+        </div>
+        <div class="submit">
+          <span tal:switch="action" tal:omit-tag="">
+            <span tal:case="'del?#'">${form.submit('del!#.x', _('Confirm deletion'), class_='button')}</span>
+            <span tal:case="'dir?'">${form.submit('dir!.x', _('Make directory'), class_='button')}</span>
+            <span tal:case="'upl?'">${form.submit('upl!.x', _('Upload file'), class_='button')}</span>
+          </span>
+          ${form.submit_cancel(_('Cancel'))}
+        </div>
+      </div>
+      <div class="first path">
+        <h3>
+          ${form.button(route('storage_index'), src='/Static/Images/go_top22.png',
+            title=_('Back to all storages'))} ${html_path}
+        </h3>
+      </div>
+      <div class="last"> 
+        <span tal:switch="working" tal:omit-tag="">
+          <span tal:case="True" tal:omit-tag="">
+            <img id="refresh" src="/Static/Images/wait_synchro.gif"
+                 alt="In progress" title="${_('In progress...')}"
+                 tal:attributes="class request.registry.settings.get('page.short_refresh', '3')"/>
+          </span>
+          <span tal:case="False" tal:omit-tag="">
+            <span tal:condition="'project' in request.session and 'container' not in request.session" tal:omit-tag="">
+              ${form.submit_image('npk!#', _('Create a pack with selected files for "${p}"', dict(p=request.session['project']['label'])),
+              '/Static/Images/action_pack.png')}
+              <img src="/Static/Images/action_pipe.png" alt="Pipe"/>
+            </span>
+            ${form.submit_image('sch!', _('Search in storage'), '/Static/Images/action_search.png')}
+            <img src="/Static/Images/action_pipe.png" alt="Pipe"/>
+            ${form.submit_image('dnl!#', _('Download files'), '/Static/Images/action_download.png')}
+            <span tal:condition="storage['perm'] != 'user'">
+              <img src="/Static/Images/action_pipe.png" alt="Pipe"/>
+              ${form.submit_image('upl?', _('Upload files'), '/Static/Images/action_upload.png')}
+              ${form.submit_image('dir?', _('Make directory'), '/Static/Images/action_mkdir.png')}
+              <img src="/Static/Images/action_pipe.png" alt="Pipe"/>
+              ${form.submit_image('del?#', _('Delete files'), '/Static/Images/action_delete.png')}
+            </span>
+            <img src="/Static/Images/action_pipe.png" alt="Pipe"/>
+            ${form.submit_image('syn!', _('Synchronize storage'),
+              '/Static/Images/action_synchronize.png')}
+          </span>
+        </span>
+      </div>
+    </div>
+    <!-- ........................... Browse table ......................... -->
+    <table class="list browse" tal:define="join import: os.path.join">
+      <caption>${_('Directory content')}</caption>
+      <tr>
+        <th class="checkbox">${form.checkbox('check_all')}</th>
+        <th class="first">${sortable_column(request, _('Name'), 'name')}</th>
+        <th class="first">${_('Actions')}</th>
+        <th>${sortable_column(request, _('Size'), 'size')}</th>
+        <th>${sortable_column(request, _('Age/Date'), 'date')}</th>
+        <th>${_('Revision')}</th>
+        <th class="last">${_('Author')}</th>
+        <th class="last">${_('Message')}</th>
+      </tr>
+      <!-- ........ Up ........ -->
+      <tr tal:condition="path">
+        <td class="checkbox"></td>
+        <td class="first" colspan="7">
+          <a href="${route('storage_browse', storage_id=storage['storage_id'], path=join(path, '..'))}" class="slow">
+            <img src="/Static/Images/up.png" alt="up"/> ..
+          </a>
+        </td>
+      </tr>
+      <!-- .... Directories .... -->
+      <tr tal:repeat="item dirs" tal:attributes="id action[4:] == item[0] and 'current'">
+        <td class="checkbox">
+          ${form.checkbox('#%s' % item[0], id=None, class_='listCheck')}
+        </td>
+        <td class="first">
+          <a href="${route('storage_browse', storage_id=storage['storage_id'], path=join(path, item[0]))}" class="slow">
+            <img src="/Static/Images/MimeTypes/folder.png" alt="folder"/> ${item[0]}
+          </a>
+        </td>
+        <td class="first">
+          <div tal:condition="not working" tal:omit-tag="">
+            <div tal:switch="action">
+              <div tal:case="'del?%s' % item[0]" id="actionParams">
+                <div tal:condition="'none' not in storage['vcs_engine']">${form.grid_text('message', _('Message:'))}</div>
+                ${form.submit('del!%s.x' % item[0], _('Confirm deletion'), class_='button')}
+                ${form.submit_cancel(_('Cancel'))}
+              </div>
+              <div tal:case="'ren?%s' % item[0]" id="actionParams">
+                ${form.grid_text('new_name', _('New name / place:'))}
+                <div tal:condition="'none' not in storage['vcs_engine']">${form.grid_text('message', _('Message:'))}</div>
+                ${form.submit('ren!%s.x' % item[0], _('Confirm change'), class_='button')}
+                ${form.submit_cancel(_('Cancel'))}
+              </div>
+              <div tal:condition="action[4:] != item[0]">
+                ${form.button(route('file_info', storage_id=storage['storage_id'], path=join(path, item[0])),
+                  src='/Static/Images/action_info_one.png', title=_('Display directory information'))}
+                ${form.submit_image('dnl!%s' % item[0], _('Download directory'), '/Static/Images/action_download_one.png')}
+                <span tal:condition="storage['perm'] != 'user'">
+                  ${form.submit_image('ren?%s' % item[0], _('Rename / move directory'), '/Static/Images/action_rename_one.png')}
+                  ${form.submit_image('del?%s' % item[0], _('Delete directory'), '/Static/Images/action_delete_one.png')}
+                </span>
+              </div>
+            </div>
+          </div>
+        </td>
+        <td class="info">${item[2]}</td>
+        <td class="info">${item[3]}</td>
+        <td class="info">${item[4]}</td>
+        <td class="info last">${item[5]}</td>
+        <td class="info last">${item[6]}</td>
+      </tr>
+      <!-- ....... Files ....... -->
+      <tr tal:repeat="item files" tal:attributes="id action[4:] == item[0] and 'current'">
+        <td>${form.checkbox('#%s' % item[0], id=None, class_='listCheck')}</td>
+        <td class="first">
+          <img src="/Static/Images/MimeTypes/${item[1] if item[1] in FILE_TYPES else 'unknown'}.png" alt="${item[1]}" title="${item[1]}"/>
+          <a href="${route('file_download', storage_id=storage['storage_id'], path=join(path, item[0]))}">${item[0]}</a>
+        </td>
+        <td class="first">
+          <div tal:condition="not working" tal:omit-tag="">
+            <div tal:switch="action">
+              <div tal:case="'upl?%s' % item[0]" id="actionParams">
+                ${form.grid_upload('upload_file', _('File:'))}
+                <div tal:condition="'none' not in storage['vcs_engine']">${form.grid_text('message', _('Message:'))}</div>
+                ${form.submit('upl!%s.x' % item[0], _('Replace file'), class_='button')}
+                ${form.submit_cancel(_('Cancel'))}
+              </div>
+              <div tal:case="'ren?%s' % item[0]" id="actionParams">
+                ${form.grid_text('new_name', _('New name / place:'))}
+                <div tal:condition="'none' not in storage['vcs_engine']">${form.grid_text('message', _('Message:'))}</div>
+                ${form.submit('ren!%s.x' % item[0], _('Confirm change'), class_='button')}
+                ${form.submit_cancel(_('Cancel'))}
+              </div>
+              <div tal:case="'del?%s' % item[0]" id="actionParams">
+                <div tal:condition="'none' not in storage['vcs_engine']">${form.grid_text('message', _('Message:'))}</div>
+                ${form.submit('del!%s.x' % item[0], _('Confirm deletion'), class_='button')}
+                ${form.submit_cancel(_('Cancel'))}
+              </div>
+              <div tal:condition="action[4:] != item[0]">
+                ${form.button(route('file_info', storage_id=storage['storage_id'], path=join(path, item[0])),
+                  src='/Static/Images/action_info_one.png', title=_('Display file information'))}
+                <span tal:condition="storage['perm'] != 'user'">
+                  ${form.submit_image('upl?%s' % item[0], _('Replace file'), '/Static/Images/action_upload_one.png')}
+                  ${form.submit_image('ren?%s' % item[0], _('Rename / move file'), '/Static/Images/action_rename_one.png')}
+                  ${form.submit_image('del?%s' % item[0], _('Delete file'), '/Static/Images/action_delete_one.png')}
+                </span>
+              </div>
+            </div>
+          </div>
+        </td>
+        <td class="info">${item[2]}</td>
+        <td class="info">${item[3]}</td>
+        <td class="info">${item[4]}</td>
+        <td class="last info">${item[5]}</td>
+        <td class="last info">${item[6]}</td>
+      </tr>
+    </table>
+  </div>
+  ${form.end()}
+</div>  
+</body>
+</html>

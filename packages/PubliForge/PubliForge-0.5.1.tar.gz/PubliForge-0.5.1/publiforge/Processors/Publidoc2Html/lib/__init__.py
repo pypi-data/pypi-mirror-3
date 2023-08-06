@@ -1,0 +1,1 @@
+"""Publidoc2Html scripts."""
