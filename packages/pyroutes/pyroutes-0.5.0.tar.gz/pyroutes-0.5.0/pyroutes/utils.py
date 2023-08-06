@@ -1,0 +1,134 @@
+"""
+This module holds handy utilities for development and debugging of pyroutes
+applications. The methods found here are _not_ meant for use in production
+environments, no guarantees are given for their stability or security.
+"""
+
+import datetime
+import mimetypes
+import posixpath
+import os
+os.path = posixpath
+
+from pyroutes import settings
+from pyroutes.template import TemplateRenderer
+from pyroutes.http.response import Response, Redirect, Http403, Http404
+from pyroutes.contrib import autoreload
+
+from wsgiref.simple_server import make_server
+
+def devserver(application, port=8001, address='0.0.0.0', auto_reload=True):
+    """
+    Simple development server for rapid development. Use to create a simple web
+    server. For testing purposes only. Has no builting handling of file
+    serving, use fileserver in this class. Typical usage::
+
+        from pyroutes import route, application, utils
+        #<define routes>
+        if __name__ == '__main__':
+            utils.devserver(application)
+
+    This starts a server listening on all interfaces, port 8001. It
+    automatically reloads modified files.
+    """
+
+    def server_thread():
+        "A small wrapper method for wsgiref.make_server().serve_forever()"
+        httpd = make_server(address, port, application)
+        print "Starting server on %s port %d..." % (address, port)
+        httpd.serve_forever()
+    if auto_reload:
+        autoreload.main(server_thread)
+    else:
+        server_thread()
+
+def fileserver(request, *path_list):
+    """
+    Simple file server for development servers. Not for use in production
+    environments. Typical usage::
+
+        from pyroutes import route, utils
+        route('/media')(utils.fileserver)
+
+    That will add the fileserver to the route /media. If DEV_MEDIA_BASE is
+    defined in settings, host files from this folder. Otherwise, use current
+    working directory.
+
+    .. note::
+        DEV_MEDIA_BASE and route path is concatenated, i.e. if you use
+        '/srv/media' for as the media base, and map the route to '/files', all
+        files will be looked for in '/srv/media/files'
+    """
+
+    path_list = request.matched_path.strip('/').split('/') + list(path_list)
+
+    # Do not expose entire file system
+    if '..' in path_list:
+        raise Http404
+
+    path = os.path.join(getattr(settings, 'DEV_MEDIA_BASE', '.'), *path_list)
+
+    if not os.path.exists(path):
+        raise Http404
+
+    if not os.access(path, os.R_OK):
+        raise Http403
+
+    modified = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+    modified = datetime.datetime.strftime(modified, "%a, %d %b %Y %H:%M:%S")
+    if 'HTTP_IF_MODIFIED_SINCE' in request.ENV:
+        if request.ENV.get('HTTP_IF_MODIFIED_SINCE') == modified:
+            return Response(status_code='304 Not Modified',
+                    default_content_header=False)
+
+    headers = [
+        ('Last-Modified', modified),
+    ]
+
+    if os.path.isdir(path):
+        if not request.ENV['PATH_INFO'].endswith('/'):
+            return Redirect(path.lstrip('.') + '/')
+
+        listing = []
+        files = []
+        for entry in sorted(os.listdir(path)):
+            if os.path.isdir(os.path.join(path, entry)):
+                listing.append({'li':
+                    {'a': entry + "/", 'a/href': entry + "/"}})
+            else:
+                files.append({'li': {'a': entry, 'a/href': entry}})
+        # Done to list folders before files
+        listing += files
+
+        template_data = {
+            'file_list': listing,
+            'title': 'Listing of %s' % path.lstrip('.')
+        }
+
+        templaterenderer = TemplateRenderer(
+            settings.BUILTIN_BASE_TEMPLATE,
+            template_dir=settings.BUILTIN_TEMPLATES_DIR
+        )
+        return Response(
+            templaterenderer.render(
+                os.path.join('fileserver', 'directory_listing.xml'),
+                template_data
+            ),
+            headers
+        )
+
+    contenttype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    size = os.path.getsize(path)
+
+    headers.append(('Content-Type', contenttype))
+    headers.append(('Content-Length', str(size)))
+
+    def file_wrapper(iterable):
+        return iter(lambda: iterable.read(8192), '')
+    if 'wsgi.file_wrapper' in request.ENV:
+        file_wrapper = request.ENV['wsgi.file_wrapper']
+
+    fh = open(path, 'rb')
+    wrapped_file = file_wrapper(fh)
+
+    return Response(wrapped_file, headers=headers)
