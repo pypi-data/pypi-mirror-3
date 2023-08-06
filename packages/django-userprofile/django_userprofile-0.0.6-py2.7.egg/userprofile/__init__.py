@@ -1,0 +1,14 @@
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.core.exceptions import ImproperlyConfigured
+from userprofile import utils
+
+user_profile_module = getattr(settings, 'USER_PROFILE_MODULE', None)
+if not user_profile_module:
+    raise ImproperlyConfigured("You must provide an \
+USER_PROFILE_MODULE setting.")
+
+# connect profile property to user
+profile_model = utils.get_profile_model()
+User.profile = property(lambda u: profile_model.\
+        objects.get_or_create(user=u)[0])
