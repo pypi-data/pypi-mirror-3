@@ -1,0 +1,461 @@
+#!/usr/bin/env python
+"""
+ratchet-agent: agent to monitor log files and send notices to Ratchet.io
+"""
+
+import ConfigParser
+import copy
+import hashlib
+import json
+import logging
+import optparse  # instead of argparse, for python2.6 compat
+import os
+import re
+import shelve
+import signal
+import socket
+import stat
+import sys
+import threading
+import time
+
+import requests
+
+log = logging.getLogger(__name__)
+
+DEFAULT_ENDPOINT = 'https://submit.ratchet.io/api/item/'
+DEFAULT_TIMEOUT = 3  # in seconds
+        
+LOG_LEVEL = {
+    'notset': 0,
+    'notse': 0,
+    'debug': 10,
+    'info': 20,
+    'warning': 30,
+    'warni': 30,
+    'error': 40,
+    'critical': 50,
+    'criti': 50
+}
+
+
+## utils
+
+def parse_timestamp(format, s):
+    try:
+        ts = time.mktime(time.strptime(s, format))
+    except ValueError:
+        # fall back to current timestamp
+        ts = time.time()
+    return int(ts)
+
+
+def find_filenames(app_config):
+    """
+    Returns a list of all the filenames to process from the specified app
+    """
+    filenames = []
+    for target in app_config['targets']:
+        if os.path.isfile(target):
+            if should_process_file(app_config, target):
+                filenames.append(target)
+        elif os.path.isdir(target):
+            for relative_name in os.listdir(target):
+                filename = os.path.join(target, relative_name)
+                if os.path.isfile(filename) and should_process_file(app_config, filename):
+                    filenames.append(filename)
+
+    return filenames
+
+
+def should_process_file(app_config, filename):
+    """
+    Returns True if we should process the specified filename for the specified app
+    """
+    if not os.path.isfile(filename):
+        return False
+    
+    if filename in app_config['blacklist']:
+        return False
+
+    if filename in app_config['targets']:
+        return True
+
+    ext = filename.split('.')[-1]
+    if app_config['ext_whitelist']:
+        return ext in app_config['ext_whitelist']
+
+    if ext in app_config['ext_blacklist']:
+        return False
+
+    return True
+
+
+## processors
+
+def choose_processor(filename):
+    """
+    Returns the Processor subclass that should be used to process the specified file
+    """
+    if filename.endswith('.ratchet'):
+        return RatchetFileProcessor
+    return LogFileProcessor
+
+
+class Processor(object):
+    """
+    Base Processor class
+    """
+    def __init__(self, scanner, app):
+        self.scanner = scanner
+        self.app = app
+
+    def process(self, fp):
+        raise NotImplementedError()
+
+    def send_payload(self, payload):
+        # do immediate http post
+        # in the future, will do this with batches and single separate thread
+        config = self.app['config']
+        log.debug("Sending payload: %s", payload)
+        requests.post(config['endpoint'], data=payload, timeout=config['timeout'])
+
+
+class RatchetFileProcessor(Processor):
+    """
+    Processor for .ratchet files
+    Each line is a json-encoded payload, so all we have to do is decode it and send it.
+    """
+    def process(self, fp, filename, state):
+        for line in fp:
+            log.debug("read line. length: %d hash: %s", len(line), hashlib.md5(line).hexdigest())
+            self._process_line(line)
+    
+    def _process_line(self, line):
+        line = line.strip()
+        if not line:
+            log.debug("Skipping empty line")
+            return
+        try:
+            payload = json.loads(line)
+        except ValueError:
+            log.warning("Could not process badly formatted line: %s", line)
+            return
+
+        self.send_payload(payload)
+
+
+class LogFileProcessor(Processor):
+    """
+    Processor for general log files - currently works reasonably well for paste/pylons log files.
+    Some events we want will span multiple lines.
+    """
+    # list of tuples containing (pattern, strptime format)
+    # pattern should put the timestamp into group #1
+    _message_start_pats = [
+        # pylons generic
+        (re.compile(r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),(\d+)?\s+(?P<level>[A-Z]+)\s+(?P<title>.*$)'), 
+         '%Y-%m-%d %H:%M:%S'),
+    ]   
+
+    def process(self, fp, filename, state):
+        empty_message = {'data': [], 'timestamp': None, 'level': None, 'title': None}
+        current_message = state.get('current_message', copy.deepcopy(empty_message))
+
+        for line in fp:
+            # does this look like the beginning of a new log message?
+            new_message_match = None
+
+            for pattern, format in self._message_start_pats:
+                match = pattern.match(line)
+                if match:
+                    new_message_match = match
+                    break
+
+            if new_message_match:
+                if current_message['data']:
+                    # done with the previous item - send it off and clear data
+                    self._process_message(current_message, filename)
+                    current_message = copy.deepcopy(empty_message)
+                
+                # save interesting data from first line
+                current_message['timestamp'] = parse_timestamp(format, 
+                    new_message_match.group('timestamp'))
+                current_message['level'] = new_message_match.group('level')
+                current_message['title'] = new_message_match.group('title')
+            
+            current_message['data'].append(line)
+        
+        if self.scanner.scan_start_time - state['mtime'] > 1:
+            # it's been at least 1 second since anything was written to the file
+            # if there's a pending message, send it
+            if current_message['data']:
+                self._process_message(current_message, filename)
+                current_message = copy.deepcopy(empty_message)
+
+        state['current_message'] = current_message
+
+    def _process_message(self, message, filename):
+        # if the level is below our threshold, ignore it
+        level_string = (message.get('level') or '').lower()
+        level = LOG_LEVEL.get(level_string, 0)
+        min_level = self.app['config']['min_log_level']
+        if level < min_level:
+            log.debug("Skipping message; level: %s min_level: %d", level_string, min_level)
+            return
+
+        data = "".join(message['data'])
+        log.debug("Processing message. Timestamp: %s Level: %s Title: %s Data: %s",
+            message['timestamp'], message['level'], message['title'], data)
+        # eventually, we'll send level and title as separate params
+        # for now, send it all together
+        payload = {}
+        payload['access_token'] = self.app['config']['params.access_token']
+        payload['timestamp'] = message['timestamp']
+        payload['body'] = data
+
+        params = {}
+        params.update(self.app['payload_params'])
+        params['server.log_file'] = filename
+
+        payload['params'] = json.dumps(params)
+
+        self.send_payload(payload)
+
+
+## main thread and loop
+
+class ScannerThread(threading.Thread):
+    """
+    The main 'scanner' thread - scans files and posts items to the ratchet.io api.
+    There should only be a single instance of this thread.
+    """
+    def __init__(self, stop_event, config):
+        super(ScannerThread, self).__init__()
+        self.stop_event = stop_event
+        self.config = config
+        
+        self.apps = {}
+        for app_name, app_config in config.iteritems():
+            if app_name == '_global':
+                continue
+            self.apps[app_name] = {
+                'name': app_name,
+                'config': app_config,
+                'payload_params': {
+                    'server.host': socket.gethostname(),
+                    'server.environment': app_config['params.environment'],
+                    'server.branch': app_config['params.branch'],
+                    'server.root': app_config['params.root'],
+                    'server.github.account': app_config['params.github.account'],
+                    'server.github.repo': app_config['params.github.repo'],
+                    'notifier.name': 'ratchet-agent',
+                    'notifier.ratchet_agent_app': app_name,
+                }
+            }
+
+    def run(self):
+        sleep_seconds = self.config['_global']['sleep_time']
+        while not self.stop_event.is_set():
+            log.info("scanner thread looping...")
+            start_time = time.time()
+
+            try:
+                self.scan_all()
+            except:
+                log.exception("Caught exception in ScannerThread.run() loop")
+            
+            # sleep for at most sleep_seconds seconds.
+            wait_time = (start_time + sleep_seconds) - time.time()
+            if wait_time > 0:
+                self.stop_event.wait(wait_time)
+
+    def scan_all(self):
+        # we keep state in a dictionary like:
+        # {'files': {'filename1': {'pos': 12345, 'inode': 4567}, ...}}
+        self.scan_start_time = time.time()
+        state = shelve.open(self.config['_global']['statefile'])
+        apps_state = state.get('apps', {})
+
+        for app in self.apps.itervalues():
+            self.scan_app(app, apps_state)
+
+        # we've been mutating apps_state, but the shelf doesn't know about it.
+        # assign back, then close, to persist the changes.
+        state['apps'] = apps_state
+        state.close()
+
+    def scan_app(self, app, apps_state):
+        app_state = apps_state.setdefault(app['name'], {})
+        files_state = app_state.setdefault('files', {})
+
+        filenames = find_filenames(app['config'])
+
+        for filename in filenames:
+            stats = os.stat(filename)
+            inode = stats[stat.ST_INO]
+            mtime = stats[stat.ST_MTIME]
+            if filename in files_state:
+                # filename we've seen before.
+                if inode != files_state[filename]['inode']:
+                    # file has been rotated. reset to position 0 and store new inode.
+                    files_state[filename] = {'pos': 0, 'inode': inode, 'mtime': mtime}
+            else:
+                # new file - initialize
+                files_state[filename] = {'pos': 0, 'inode': inode, 'mtime': mtime}
+
+            self.scan_file(app, filename, files_state[filename])
+
+    def scan_file(self, app, filename, file_state):
+        processor = choose_processor(filename)(self, app)
+        with open(filename, 'r') as fp:
+            pos = file_state['pos']
+            log.debug("file %s seeking to pos %d", filename, pos)
+            fp.seek(pos)
+            processor.process(fp, filename, file_state)
+            new_pos = fp.tell()
+            log.debug("file %s new pos %d", filename, new_pos)
+            file_state['pos'] = new_pos
+        
+
+def register_signal_handlers(stop_event):
+    def signal_handler(signum, frame):
+        log.info("Shutting down...")
+        stop_event.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT, signal.SIGALRM):
+        signal.signal(sig, signal_handler)
+
+
+def main_loop():
+    stop_event = threading.Event()
+    register_signal_handlers(stop_event)
+    scanner = ScannerThread(stop_event, config)
+    scanner.start()
+
+    # sleep until the thread is killed 
+    # have to sleep in a loop, instead of worker.join(), otherwise we'll never get the signals
+    while scanner.isAlive():
+        time.sleep(1)
+    
+    log.info("Shutdown complete")
+
+
+## configuration
+
+def build_option_parser():
+    parser = optparse.OptionParser()
+
+    parser.add_option('-c', '--config', dest='config_file', action='store', 
+        default='ratchet-agent.conf', help='Path to configuration file. Default: ratchet-agent.conf in the working directory.')
+
+    # verbosity
+    verbosity = optparse.OptionGroup(parser, 'Verbosity')
+    verbosity.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False, 
+        help='Verbose output (uses log level DEBUG)')
+    verbosity.add_option('-q', '--quiet', dest='quiet', action='store_true', default=False,
+        help='Quiet output (uses log level WARNING)')
+    
+    parser.add_option_group(verbosity)
+
+    return parser
+
+
+def parse_config(filename):
+    defaults = {
+        'statefile': '/tmp/ratchet-agent.state',
+        'sleep_time': '10',
+        'endpoint': DEFAULT_ENDPOINT,
+        'timeout': str(DEFAULT_TIMEOUT),
+        'root': os.getcwd(),
+        'ext_whitelist': 'log, ratchet',
+        'ext_blacklist': '',
+        'targets': '',
+        'blacklist': '',
+    }
+
+    def to_int(val):
+        return int(val)
+    def to_list(val):
+        return re.split(r'\s+', val)
+    def to_log_level(val):
+        return LOG_LEVEL[val.lower()]
+    parsers = {
+        'sleep_time': to_int,
+        'timeout': to_int,
+        'ext_whitelist': to_list,
+        'ext_blacklist': to_list,
+        'targets': to_list,
+        'blacklist': to_list,
+        'max_file_page': to_int,
+        'min_log_level': to_log_level,
+    }
+
+    cp = ConfigParser.SafeConfigParser(defaults)
+    cp.read([filename])
+
+    config = {}
+    for section_name in cp.sections():
+        if section_name.startswith('app:'):
+            app_name = section_name[len('app:'):]
+            app = {'name': app_name}
+            for option_name, raw_value in cp.items(section_name):
+                if option_name in parsers:
+                    value = parsers[option_name](raw_value)
+                else:
+                    value = raw_value
+                app[option_name] = value
+            
+            config[app_name] = app
+
+    global_config = cp.defaults()
+    config['_global'] = {}
+    for option_name, raw_value in global_config.iteritems():
+        if option_name in parsers:
+            value = parsers[option_name](raw_value)
+        else:
+            value = raw_value
+        config['_global'][option_name] = value
+
+    return config
+
+
+def validate_config(config):
+    errors = []
+    required_vars = ['params.access_token', 'targets']
+    for app_name, app_config in config.iteritems():
+        if app_name == '_global':
+            continue
+        for var_name in required_vars:
+            if not app_config.get('params.access_token'):
+                errors.append("app:%s is missing required var %s" % (app_name, var_name))
+    if errors:
+        print "CONFIGURATION ERRORS"
+        for error in errors:
+            print error
+        print
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    # first parse command-line options to get the path to the config file
+    parser = build_option_parser()
+    (options, args) = parser.parse_args()
+    
+    # now parse the config file
+    config = parse_config(options.config_file)
+
+    # validate - will exit if invalid
+    validate_config(config)
+
+    # set up logging
+    level = logging.INFO
+    if options.verbose:
+        level = logging.DEBUG
+    elif options.quiet:
+        level = logging.WARNING
+    logging.basicConfig(level=level)
+
+    # start main loop
+    main_loop()
+
