@@ -1,0 +1,136 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"  tal:define="xyz here/on_access">
+<head metal:use-macro="here/issue_dealer_template/macros/head">
+<title>Calendar view</title>
+</head>
+<body tal:define="prefs python:here.get_user_preferences(); offset python:int(request.get('offset', 0))">
+<metal:block define-macro="content">
+<span tal:replace="structure python:here.render_breadcrumbs()"></span>
+<span metal:use-macro="here/issue_dealer_template/macros/remote"></span>
+<metal:block tal:define="abc here/handle_edited_settings" />
+<div class="calendarButtons">
+
+<form action="./issue_calendar" style="display: inline;">
+<metal:block tal:condition="python:prefs.show_contents">
+		<input type="hidden" name="show_contents:int" value="0" />
+		<input type="hidden" name="offset:int" tal:attributes="value offset" />
+		<input type="submit" value="Hide contents"
+			class="issueDealer" />
+</metal:block>
+<metal:block tal:condition="python:not prefs.show_contents">
+		<input type="hidden" name="show_contents:int" value="1" />
+		<input type="hidden" name="offset:int" tal:attributes="value offset" />
+		<input type="submit" value="Show contents"
+			class="issueDealer" />
+</metal:block>
+</form>
+
+<form action="./issue_calendar" style="display: inline;">
+<metal:block tal:condition="python:prefs.show_tags">
+		<input type="hidden" name="show_tags:int" value="0" />
+		<input type="hidden" name="offset:int" tal:attributes="value offset" />
+		<input type="submit" value="Hide tags"
+			class="issueDealer" />
+</metal:block>
+<metal:block tal:condition="python:not prefs.show_tags">
+		<input type="hidden" name="show_tags:int" value="1" />
+		<input type="hidden" name="offset:int" tal:attributes="value offset" />
+		<input type="submit" value="Show tags"
+			class="issueDealer" />
+</metal:block>
+</form>
+
+<form action="./issue_calendar" style="display: inline;">
+<metal:block tal:condition="python:prefs.show_owned_calendar">
+		<input type="hidden" name="show_owned_calendar:int" value="0" />
+		<input type="hidden" name="offset:int" tal:attributes="value offset" />
+		<input type="submit" value="Show owned by all"
+			class="issueDealer" />
+</metal:block>
+<metal:block tal:condition="python:not prefs.show_owned_calendar">
+		<input type="hidden" name="show_owned_calendar:int" value="1" />
+		<input type="hidden" name="offset:int" tal:attributes="value offset" />
+		<input type="submit" value="Show owned by you"
+			class="issueDealer" />
+</metal:block>
+</form>
+
+</div>
+
+<div id="wide_main" metal:define-macro="calendar" tal:define="dates python:here.get_calendar_date_range(offset=offset)">
+
+<p>Displaying open events (goal, problem, question, idea) in the date range
+<span tal:replace="python:here.render_date(dates[0])" /> -
+<span tal:replace="python:here.render_date(dates[-1])" />, in this context
+owned by <span tal:condition="prefs/show_owned_calendar">you</span><span tal:condition="not:prefs/show_owned_calendar">all</span>.</p>
+
+<a class="button" href="#" tal:attributes="href python:'./issue_calendar?offset=' + str(offset - 30)">Previous 30 days</a>
+&nbsp;&nbsp;&nbsp;
+<a class="button" href="#" tal:attributes="href python:'./issue_calendar_past_due'">Past due date</a>
+&nbsp;&nbsp;&nbsp;
+<a class="button" href="#" tal:attributes="href python:'./issue_calendar?offset=' + str(offset + 30)">Next 30 days</a>
+
+<table class="calendarListing" width="98%">
+	<tr>
+		<th class="field">Date</th>
+		<th class="field">&nbsp;</th>
+		<th class="field">Issue</th>
+		<th class="field">Action issues</th>
+		<th class="field">Due</th>
+		<th class="field">Owners</th>
+		<th tal:condition="python:here.get_user().has_permission('Add/edit issues and relations')"
+			 class="field">Reschedule</th>
+	</tr>
+	<tr><td colspan="4">&nbsp;</td></tr>
+
+	<metal:block tal:repeat="date dates">
+	<tr tal:define="oddrow repeat/date/odd" tal:attributes="class python:test(oddrow, 'issueDealerOdd', 'issueDealerEven')">
+		<td tal:content="python:here.render_date(date)">2007/01/01</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td tal:condition="python:here.get_user().has_permission('Add/edit issues and relations')">&nbsp;</td>
+	</tr>
+	<metal:block tal:repeat="issue python:here.get_events_for_date(date)">
+	<tr tal:define="oddrow repeat/date/odd" tal:attributes="class python:test(oddrow, 'issueDealerOdd', 'issueDealerEven')">
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td tal:content="structure issue/render_html_title_and_link"></td>
+		<td tal:content="python:len(issue.get_contained_action_issues())">&nbsp;</td>
+		<td tal:content="issue/render_due">Due</td>
+		<td tal:content="issue/render_owners">Owner</td>
+		<td tal:condition="python:here.get_user().has_permission('Add/edit issues and relations')">
+			<a href="#" tal:attributes="href string:${issue/absolute_url}/reschedule?days=-7">&lt;&lt;</a>
+			&nbsp;&nbsp;
+			<a href="#" tal:attributes="href string:${issue/absolute_url}/reschedule?days=-1">&lt;</a>
+			&nbsp;&nbsp;
+			<a href="#" tal:attributes="href string:${issue/absolute_url}/reschedule?days=1">&gt;</a>
+			&nbsp;&nbsp;
+			<a href="#" tal:attributes="href string:${issue/absolute_url}/reschedule?days=7">&gt;&gt;</a>
+		</td>
+	</tr>
+	<tr tal:condition="python:prefs.show_tags" tal:define="oddrow repeat/date/odd" tal:attributes="class python:test(oddrow, 'issueDealerOdd', 'issueDealerEven')">
+		<td colspan="2">&nbsp;</td>
+		<td><b>Tags:</b> <span tal:content="issue/render_tags" /><br /><br /></td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td tal:condition="python:here.get_user().has_permission('Add/edit issues and relations')">&nbsp;</td>
+	</tr>
+	<tr tal:condition="python:prefs.show_contents" tal:define="oddrow repeat/date/odd" tal:attributes="class python:test(oddrow, 'issueDealerOdd', 'issueDealerEven')">
+		<td colspan="2">&nbsp;</td>
+		<td tal:content="structure issue/render_contents"></td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td tal:condition="python:here.get_user().has_permission('Add/edit issues and relations')">&nbsp;</td>
+	</tr>
+	</metal:block>
+	</metal:block>
+
+</div>
+<div metal:use-macro="here/issue_dealer_template/macros/copyright"></div>
+</metal:block>
+</body>
+</html>
