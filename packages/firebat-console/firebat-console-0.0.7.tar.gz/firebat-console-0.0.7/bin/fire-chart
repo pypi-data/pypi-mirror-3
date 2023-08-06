@@ -1,0 +1,115 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+firebat.chart
+~~~~~~~~~~~~~~~
+
+Generate statis Web site with test results.
+"""
+
+import os
+import sys
+import shutil
+import argparse
+import logging
+
+from jinja2 import FileSystemLoader
+from jinja2.environment import Environment
+
+from firebat import __version__, __path
+from firebat.console.aggr import process_phout
+
+
+def exit_err(msg):
+    logger = logging.getLogger('firebat.console')
+    if isinstance(msg, str):
+        msg = [msg, ]
+    for m in msg:
+        logger.error(m)
+    if not logger.handlers:
+        sys.stderr.write(msg)
+    sys.exit(1)
+
+
+def get_arg_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--dst', action='store',
+                    dest='dst_dir', default='result',
+                    help='Destination folder to store result',)
+
+    parser.add_argument('-p', '--points', action='store',
+                    dest='points_num', default=200,
+                    help='Number of points in chart. **May affect UI speed**',)
+
+    parser.add_argument('-f', '--force', action='store_const',
+                    dest='overwrite', const=True,
+                    help='Overwrite destination directory if exist.',)
+
+    parser.add_argument('--debug', action="store_const", const=True,
+            help='Whether to show debug msg in STDOUT', dest='debug')
+
+    parser.add_argument('--version', action='version',
+            version='%(prog)s ' + __version__)
+    return parser
+
+
+def get_logger(args):
+    logger = logging.getLogger('firebat.console')
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    if args.debug:
+        ch.setLevel(logging.DEBUG)
+    else:
+        ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s  %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    return logger
+
+
+def prepare_dir(args):
+    src_path = __path + '/result_markdown'
+    try:
+        if args.overwrite and os.path.exists(args.dst_dir):
+            shutil.rmtree(args.dst_dir)
+        shutil.copytree(src_path, args.dst_dir)
+    except OSError, e:
+        exit_err(['Can\'t write result folder:', e])
+    os.chdir(args.dst_dir)
+
+
+def render_pages(context):
+    env = Environment()
+    env.loader = FileSystemLoader('.')
+    for f in os.listdir("."):
+        if f.endswith(".jinja"):
+            page_tmpl = env.get_template(f)
+            with open(f.replace('.jinja', '.html'), 'w+') as page_fh:
+                result = page_tmpl.render(context).encode('utf-8')
+                page_fh.write(result)
+
+    # remove tmpl files only after all pages rendered.
+    for f in os.listdir("."):
+        if f.endswith(".jinja"):
+            os.unlink(f)
+
+
+def main():
+    args = get_arg_parser().parse_args()
+    logger = get_logger(args)
+    orig_wd = os.getcwd()
+    with open('phout.txt', 'r') as phout_fh:
+        prepare_dir(args)
+        context = process_phout(phout_fh,
+                      points_num=args.points_num,
+                      dst_file='js/firebat/data_series.js',
+                      fire_path=orig_wd + '/.fire_up.json')
+
+        render_pages(context)
+
+    os.chdir(orig_wd)
+    logger.info('All done.')
+
+if __name__ == '__main__':
+    main()
