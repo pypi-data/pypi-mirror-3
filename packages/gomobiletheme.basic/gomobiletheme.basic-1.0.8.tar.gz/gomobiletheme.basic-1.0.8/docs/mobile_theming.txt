@@ -1,0 +1,267 @@
+===================
+ Mobile theming
+===================
+
+This document explains how do to mobile theming with Plone and
+gomobile.mobile product.
+
+Note that Go Mobile product family is still very young and 
+some first hand insight how Plone works is needed to
+effectively use it. 
+
+Mobile detection
+----------------
+
+This document does not deal how you will become aware that the user is using a mobile browser.
+
+Alternatives are
+
+* The user comes to site using mobile URL (m.yoursite.com or yoursite.mobi)
+
+* User has set a special cookie "I want to see mobile version of the site"
+
+* Mobile phone is detected by sniffing HTTP headers (see mobile.sniffer_ product)
+
+Developers also have a way to force the site to mobile mode for the development.
+Usually this is done by having a special domain for this. If you are doing 
+development locally, you can put::
+
+	mobi.localhost 127.0.0.1
+	
+to */etc/hosts file* (the location of file depends on the operating system,
+but it is available on all operating systems). Then make sure that
+
+# gomobile.mobile product is installed
+
+# you have valid settings in portal_properties/mobile_properties in Zope management interface,
+  including theme name
+
+# Enter the site using URL http://mobi.localhost:8080/yoursiteid or similar
+
+gomobile.mobile, when installed, will activate mobile theme in monkey-patched
+SkinnableObjectManager.getSkinNameFromRequest() if IMobileDiscriminator tool 
+thinks the incoming HTTP request is for mobile.
+
+Preview mode
+============
+
+Besides web and mobile mode, there exists a preview mode. This is a special
+mobile mode) with some enhancing Javascripts and CSS files included.
+
+Some rules for preview mode::
+
+	mobile_tool.isMobileRequest() call will return True 
+	
+	mobile_tool.isPreviewRequest() call will return True
+	
+Preview mode is used by *Mobile preview* portlet to render the site 
+mobile-like though normal mobile rules would not be satified by the 
+site editors web browser.  	
+
+If you want to enable preview mode on your site, see that preview views,
+templates and Javascripts get included when the incoming request is marked
+as "preview" by IMobileDiscriminator. For example, see gomobile.mobile product.
+
+Admin mode
+==========
+
+Admin mode is another special mode supported by IMobileDiscriminator.
+This is mostly used when managing content in converged site using gomobile.convergence
+product. 
+
+The default admin mode behavior is toggle on admin mode when the user is logged in.
+
+When the admin mode is on the mobile content is visible in folder listing, though
+the site uses web mode otherwise. This is the prerequisitement to be able to 
+edit the content (content must be visible for editing!) for mobile only sections 
+of the site.
+
+Admin mode is checked by folder listing and portal search queries.
+
+Admin mode rules::
+
+	mobile_tool.isAdminRequest() call will return True
+
+	mobile_tool.isMobileRequest() call will return False 
+	
+	mobile_tool.isPreviewRequest() call will return False
+	
+Reacting to the mobility
+------------------------
+
+Your site can have three kind of content and views
+
+* Views available for web and mobile
+
+* Views available for mobile only
+
+* Views available for web only 
+
+Old fashioned way
+=================
+
+Old fashioned way to is to theming your site for mobile using default 
+Plone theming facilities
+
+* You'll have a separate skin product and layer for mobile
+  with its own main_template.pt
+  
+* Mobile has its own viewlet configuration
+ 
+gomobile.mobile has a theme layer gomobile.mobile.interfaces.IMobileLayer which is
+activated when the site is in mobile mode (see paragraph Mobile detection) above.
+
+You can register your views and viewlets to this layer, or your custom skin layer
+extending this layer and they will be shown only for mobile visitors. 
+
+Also, you need to hide the standard Plone viewlets. Go to @@manage-viewlets 
+URI on your site in mobile mode::
+
+	http://mobi.localhost:8080/yoursiteid/@@manage-viewlets
+	
+Because viewlet configurations are theme specific, you need to use this 
+trick to force the site to use mobile theme to be able to edit mobile theme viewlets.
+	
+# Hide all viewlets which are unreleavent to mobile.
+
+# Export the viewlet configuration using portal_setup in ZMI
+
+# Put the resulting viewlets.xml to your theme product default/profiles GenericSetup XML
+
+New fashioned way
+=================
+
+The whole theme for the mobile site is built from the scratch using 
+collective.skinny theming facilities.
+
+# If skinny theme URI is present in portal_properties/mobile_properties
+  it is toggled on by special before-traversing hook if IMobileDiscriminator
+  thinks HTTP request is a mobile request
+  
+# IMobileLayer is applied on the HTTP request object manually (instead by
+  CMFSkin theming machinary).
+
+Example: See gomobiletheme.basic.
+
+There will be severe performance penalty if you do not implement
+collective.skinny versions of templates for your content views
+and other views (forms, sitemap). 
+	
+This is because collective.skinny will 
+
+# render the default Plone version of the page
+
+# extracts <div id="content">...</div> part of the page
+
+# put the extracted part to collective.skinny frame
+
+Reacting to mobility manually
+-----------------------------
+
+This is mostly a concern if you have special views or viewlets which need to
+behave little differently for web and mobile viewers. 
+
+You can check the browsing mode is *gomobile.mobile.interfaces.IMobileDiscrimator* utility
+and its shortcut version *mobile_tool* view. mobile_tool is always tied to request and
+context, when IMobileDiscrimator instance can be recycled from a request to another.
+	
+	from gomobile.mobile.interfaces import IMobile
+
+	from Products.Five.browser import BrowserView
+
+	class MyView(BrowserView):
+
+		def __init__(self, context, request):
+			self.context = context
+			self.requet = request
+					
+		def getMobileTool():
+			# NOTE: Following may not work in view's __init__()
+			# method due to traversing rules
+			return self.context.unrestrictedTraverse("mobile_tool") 
+
+		def __call__():
+			mobile_tool = self.getMobileTool()
+			if mobile_tool.isMobileRequest():
+				# Do something mobile
+			else:
+				# Do something webby
+				
+You can also do this in template::
+
+	<tal:mobile-stuff condition="here/@@mobile_tool/isMobileRequest">
+		<!-- Satisfy iPhone lovers -->
+	</tal:mobile-stuff>
+	
+The best practive is that should keep manual traversing call count low and create mobile_tool
+only once for view / HTTP request. 
+	
+Discriminating viewlets
+=======================
+
+Package gomobile.mobile.common contains some viewlet mix-in class 
+useful for multichannel publishing
+
+* WebOnlyViewletMixin
+
+* MobileOnlyViewletMixin
+
+Mix-in class override viewlet render() method to return empty string
+if the HTTP request is not for the correct media: WebOnlyViewletMixin
+return HTML code only for webby HTTP requests. 
+
+The best practive is to use viewlet layer registration and avoid 
+using these viewlets if possible.
+
+Mobile templates and CSS
+------------------------
+
+The following HTML and CSS best practices are recommended
+
+* HTML doctype must be XHTML mobile profile - not normal XHTML or transitional HTML
+
+* Generated HTML code must be valid XHTML - this is not necessary case
+  for all default Plone views and templates
+  
+* There are two different rendering chains 
+
+	# High-end chain for Webkit and Gecko based browsers (webkit.css). 
+	  Background graphics and complex styling allowed.
+	  
+	# Low-end chain for non-webkit based browsers. Only include max three
+	  images per page. Do not use background images.
+	  
+mobile.sniffer package has heurestics to detect which rendering chain you should
+use. 
+
+Mobile image resizing
+---------------------
+
+It makes great sense to resize all your images for mobile. This way you avoid
+horizontal scrolling appearing on mobile devices and wide images breaking the site layout and
+the user experience.
+
+Mobile screen size data is read from mobile.sniffer package which includes support
+for various handset databases and option to read WAP headers if present.
+
+All image src URLs must be rewritten so that images are loaded through mobile resizer. 
+
+Resizer has following options::
+
+* Force arbitary width and height
+
+* Force width and height depending on the mobile size
+
+* Add width and height adding (the final width = mobile screen width - padding in pixels)
+
+All resizer URLs must be stamped with user agent identified (MD5 of user agent string)
+to make sure that cache doesn't serve mobile images resized for another handset.
+
+See gomobile.mobile.browser.common.LogoViewlet how to put images through 
+resizer.
+
+gomobile.imageinfo package has helper methods to deal with various kinds of image
+objects existing in Zope world (uploaded, file system, static resource...)
+
+.. mobile.sniffer:: 
+
