@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load mezzanine_tags shop_tags i18n %}
+
+{% block meta_title %}{% trans "Your Cart" %}{% endblock %}
+{% block title %}{% trans "Your Cart" %}{% endblock %}
+
+{% block breadcrumb_menu %}
+{{ block.super }}
+<li>{% trans "Your Cart" %}</li>
+{% endblock %}
+
+{% block main %}
+{% if request.cart.has_items %}
+<form method="post" class="form-cart form-shop">
+{% csrf_token %}
+{% for error in cart_formset.errors %}
+{% if error.values.0 %}{{ error.values.0 }}{% endif %}
+{% endfor %}
+{{ cart_formset.management_form }}
+<table class="table table-striped">
+	<tr>
+		<th colspan="2" class="left">{% trans "Item" %}</th>
+		<th>{% trans "Unit Price" %}</th>
+		<th class="center">{% trans "Qty" %}</th>
+		<th>{% trans "Price" %}</th>
+		<th class="center">{% trans "Remove?" %}</th>
+	</tr>
+    {% for form in cart_formset.forms %}
+    {% with form.instance as item %}
+	<tr>
+		<td width="30">
+            {{ form.id }}
+			{% if item.image %}
+			<a href="{{ item.get_absolute_url }}">
+                <img alt="{{ item.description }}" src="{{ MEDIA_URL }}{% thumbnail item.image 30 30 %}">
+            </a>
+			{% endif %}
+		</td>
+		<td class="left">
+		    <a href="{{ item.get_absolute_url }}">{{ item.description }}</a>
+        </td>
+		<td>{{ item.unit_price|currency }}</td>
+		<td class="quantity">{{ form.quantity }}</td>
+		<td>{{ item.total_price|currency }}</td>
+		<td class="center">{{ form.DELETE }}</td>
+	</tr>
+	{% endwith %}
+	{% endfor %}
+	<tr>
+		<td colspan="5">{% order_totals %}</td>
+		<td>&nbsp;</td>
+	</tr>
+</table>
+<div class="form-actions clearfix">
+    <div class="form-actions-wrap">
+    <a href="{% url shop_checkout %}" class="btn btn-primary btn-large">{% trans "Go to Checkout" %}</a>
+    <input type="submit" name="update_cart" class="btn btn-large" value="{% trans "Update Cart" %}">
+    </div>
+</div>
+</form>
+
+{% if discount_form %}
+<form method="post" class="discount-form">
+    {% csrf_token %}
+    <ul>
+        {{ discount_form.as_ul }}
+        <li><input type="submit" class="button" value="Apply"></li>
+    </ul>
+</form>
+{% endif %}
+
+{% with request.cart.upsell_products as upsell_products %}
+{% if upsell_products %}
+<div class="related">
+    <h2>{% trans "You may also like:" %}</h2>
+    <ul class="products">
+        {% for product in upsell_products %}
+        <li>
+	        <a href="{{ product.get_absolute_url }}">
+	            <div class="img">
+		            {% if product.image %}
+		            <img src="{{ STATIC_URL }}{% thumbnail product.image 90 90 %}" />
+		            {% endif %}
+	            </div>
+	            {{ product }}
+            </a>
+            {% if product.has_price %}
+            <p class="price">
+                {% if product.on_sale %}
+	                <span class="old-price">{{ product.unit_price|currency }}</span>
+	                {% trans "On sale:" %}
+                {% endif %}
+                {{ product.price|currency }}
+            </p>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endwith %}
+
+{% else %}
+<p>{% trans "Your Cart is empty." %}</p>
+{% endif %}
+{% endblock %}
