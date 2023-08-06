@@ -1,0 +1,55 @@
+"""Tests around copy operations"""
+
+
+from functools import partial
+import os
+import unittest
+
+import utils
+
+from dedupe_copy import dedupe_copy
+
+
+do_copy = partial(dedupe_copy.run_dupe_copy, read_from_path=None,
+    extensions=None, read_manifest_data=None, manifest_out_path=None,
+    path_rules=None, copy_to_path=None, ignore_old_collisions=False,
+    ignored_patterns=None, csv_report_path=None, walk_threads=4,
+    read_threads=8, copy_threads=8, convert_manifest_paths_to='',
+    convert_manifest_paths_from='', no_walk=False)
+
+
+class TestCopySystem(unittest.TestCase):
+    """Test system level copy of files"""
+
+    def setUp(self):
+        """Create temporary directory and test data"""
+        self.temp_dir = utils.make_temp_dir('copy_sys')
+        self.file_data = utils.make_file_tree(self.temp_dir, file_count=10,
+            extensions=None)
+
+    def tearDown(self):
+        """Remove temporary directory and all test files"""
+        utils.remove_dir(self.temp_dir)
+
+    def test_copy_no_change_no_dupes(self):
+        """Test copying of small tree to same structure - only tests the file
+        layout
+        """
+        copy_to_path = os.path.join(self.temp_dir, 'tree_copy')
+        # perform the copy
+        do_copy(read_from_path=self.temp_dir, copy_to_path=copy_to_path,
+            path_rules=['*:no_change'])
+        # the abspath is preserved when copying into a new target
+        copy_to_path = os.path.join(copy_to_path, self.temp_dir)
+        # verify we didn't alter the existing data
+        result, notes = utils.verify_files(self.file_data)
+        self.assertTrue(result, 'Altered original files: {0}'.format(notes))
+        # verify the copied data
+        for file_info in self.file_data:
+            file_info[0] = file_info[0].replace(self.temp_dir, copy_to_path, 1)
+        result, notes = utils.verify_files(self.file_data)
+        self.assertTrue(result, 'Failed to copy files: {0}'.format(notes))
+
+
+if __name__ == '__main__':
+    unittest.main()
