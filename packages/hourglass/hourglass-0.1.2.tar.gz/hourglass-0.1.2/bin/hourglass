@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+
+from hourglass.clock import Clock
+from hourglass.schedule import Schedule
+from redis.exceptions import ConnectionError
+from rq import use_connection, Queue
+from rq.worker import yellow, green
+import argparse
+import os
+import redis
+import sys
+import times
+
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
+
+def log(s):
+    now = times.now().strftime('%H:%M:%S')
+    sys.stdout.write('%s: %s\n' % (now, s))
+
+def main():
+    args = parse_args()
+
+    connection = redis.Redis(
+        host=args.host,
+        port=args.port,
+        db=args.db)
+    use_connection(connection)
+
+    try:
+        queue = Queue(args.queue)
+        schedule = Schedule(args.schedule)
+        clock = Clock(queue, schedule, args.interval)
+
+        log('%s dispatching to %s...' % (
+            green(schedule.name), green(queue.name)))
+
+        while True:
+            job = clock.tick()
+            now = times.now()
+            if job is not None:
+                q = job.queue or args.queue
+                delta = now - job.eta
+                log('%s: %s %s (%s)' % (
+                    green(q),
+                    job.get_call_string(),
+                    yellow('(ETA+%s)' % delta),
+                    job.id))
+
+    except ConnectionError as e:
+        log(e)
+    except KeyboardInterrupt:
+        log('Shutting down...')
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Starts the hourglass daemon.')
+    parser.add_argument('--host', '-H', default='localhost', help='The Redis hostname (default: localhost)')
+    parser.add_argument('--port', '-p', type=int, default=6379, help='The Redis portnumber (default: 6379)')
+    parser.add_argument('--db', '-d', type=int, default=0, help='The Redis database (default: 0)')
+    parser.add_argument('--queue', '-q', type=str, default='default', help='The default queue to delegate jobs to')
+    parser.add_argument('--schedule', '-s', type=str, default='scheduled', help='The schedule queue name')
+    parser.add_argument('--interval', '-i', type=float, default=1, help='The maximum interval for checking the schedule, in seconds')
+
+    return parser.parse_args()
+
+if __name__ == '__main__':
+    main()
