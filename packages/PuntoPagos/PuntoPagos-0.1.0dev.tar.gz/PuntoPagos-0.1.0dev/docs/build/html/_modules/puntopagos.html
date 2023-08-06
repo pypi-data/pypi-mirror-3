@@ -1,0 +1,281 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>puntopagos &mdash; PuntoPagos Python 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="PuntoPagos Python 0.1 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li><a href="../index.html">PuntoPagos Python 0.1 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for puntopagos</h1><div class="highlight"><pre>
+<span class="c">#encoding=UTF-8</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">httplib</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="kn">import</span> <span class="n">strftime</span><span class="p">,</span> <span class="n">gmtime</span>
+<span class="kn">import</span> <span class="nn">hmac</span>
+<span class="kn">import</span> <span class="nn">hashlib</span>
+<span class="kn">import</span> <span class="nn">base64</span>
+
+<span class="n">PUNTOPAGOS_CODES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&#39;ok&#39;</span><span class="p">:</span> <span class="s">&#39;00&#39;</span><span class="p">,</span>
+    <span class="s">&#39;no_ok&#39;</span><span class="p">:</span> <span class="s">&#39;99&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+<span class="n">PUNTOPAGOS_URLS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&#39;sandbox&#39;</span><span class="p">:</span> <span class="s">&#39;sandbox.puntopagos.com&#39;</span><span class="p">,</span>
+    <span class="s">&#39;production&#39;</span><span class="p">:</span> <span class="s">&#39;www.puntopagos.com&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+<span class="n">PUNTOPAGOS_ACTIONS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&#39;create&#39;</span><span class="p">:</span> <span class="s">&#39;/transaccion/crear&#39;</span><span class="p">,</span>
+    <span class="s">&#39;process&#39;</span><span class="p">:</span> <span class="s">&#39;/transaccion/procesar/</span><span class="si">%(token)s</span><span class="s">&#39;</span><span class="p">,</span>
+    <span class="s">&#39;status&#39;</span><span class="p">:</span> <span class="s">&#39;/transaccion/</span><span class="si">%(token)s</span><span class="s">&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+<span class="n">PUNTOPAGOS_SIGNABLE_HEADERS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&#39;create&#39;</span><span class="p">:</span> <span class="s">&#39;transaccion/crear</span><span class="se">\n</span><span class="s">&#39;</span> \
+              <span class="s">&#39;</span><span class="si">%(trx_id)s</span><span class="se">\n</span><span class="s">&#39;</span> \
+              <span class="s">&#39;</span><span class="si">%(monto)0.2f</span><span class="se">\n</span><span class="s">&#39;</span> \
+              <span class="s">&#39;</span><span class="si">%(fecha)s</span><span class="s">&#39;</span><span class="p">,</span>
+    <span class="s">&#39;status&#39;</span><span class="p">:</span> <span class="s">&#39;transaccion/traer</span><span class="se">\n</span><span class="s">&#39;</span> \
+              <span class="s">&#39;</span><span class="si">%(token)s</span><span class="se">\n</span><span class="s">&#39;</span> \
+              <span class="s">&#39;</span><span class="si">%(trx_id)s</span><span class="se">\n</span><span class="s">&#39;</span> \
+              <span class="s">&#39;</span><span class="si">%(monto)0.2f</span><span class="se">\n</span><span class="s">&#39;</span> \
+              <span class="s">&#39;</span><span class="si">%(fecha)s</span><span class="s">&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">PUNTOPAGOS_PAYMENT_METHODS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="mi">1</span><span class="p">:</span> <span class="s">u&quot;Botón de Pago Banco Santander&quot;</span><span class="p">,</span>
+    <span class="mi">2</span><span class="p">:</span> <span class="s">u&quot;Tarjeta Presto&quot;</span><span class="p">,</span>
+    <span class="mi">3</span><span class="p">:</span> <span class="s">u&quot;Webpay Transbank&quot;</span><span class="p">,</span>
+    <span class="mi">4</span><span class="p">:</span> <span class="s">u&quot;Botón de Pago Banco de Chile&quot;</span><span class="p">,</span>
+    <span class="mi">5</span><span class="p">:</span> <span class="s">u&quot;Botón de Pago BCI&quot;</span><span class="p">,</span>
+    <span class="mi">6</span><span class="p">:</span> <span class="s">u&quot;Botón de Pago TBanc&quot;</span><span class="p">,</span>
+    <span class="mi">7</span><span class="p">:</span> <span class="s">u&quot;Botón de Pago Banco Estado&quot;</span><span class="p">,</span>
+    <span class="c">#10:  &quot;Tarjeta Ripley&quot;,</span>
+    <span class="mi">15</span><span class="p">:</span> <span class="s">u&quot;Paypal&quot;</span><span class="p">,</span>
+    <span class="c">#999: u&quot;Banco de Prueba&quot;</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">get_image</span><span class="p">(</span><span class="n">medio_pago</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">medio_pago</span> <span class="ow">in</span> <span class="n">PUNTOPAGOS_PAYMENT_METHODS</span>
+    <span class="k">return</span> <span class="s">&quot;http://www.puntopagos.com/content/mp</span><span class="si">%d</span><span class="s">.gif&quot;</span> <span class="o">%</span> <span class="n">mp</span>
+
+
+<span class="k">def</span> <span class="nf">sign</span><span class="p">(</span><span class="n">string</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">hmac</span><span class="o">.</span><span class="n">HMAC</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">string</span><span class="p">,</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha1</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">())</span>
+
+
+<span class="k">class</span> <span class="nc">PuntoPagoJsonResponseError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<div class="viewcode-block" id="PuntoPagoResponse"><a class="viewcode-back" href="../index.html#puntopagos.PuntoPagoResponse">[docs]</a><span class="k">class</span> <span class="nc">PuntoPagoResponse</span><span class="p">():</span>
+    <span class="n">complete</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">sandbox</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sandbox</span> <span class="o">=</span> <span class="n">sandbox</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">complete</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="ow">is</span> <span class="n">httplib</span><span class="o">.</span><span class="n">OK</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">complete</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">content</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">PuntoPagoJsonResponseError</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_process_data</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_process_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Override this method for processing `dict` self.data</span>
+<span class="sd">        previously set on constructor. By default does nothing.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="PuntoPagoCreateResponse"><a class="viewcode-back" href="../gettingstarted.html#puntopagos.PuntoPagoCreateResponse">[docs]</a><span class="k">class</span> <span class="nc">PuntoPagoCreateResponse</span><span class="p">(</span><span class="n">PuntoPagoResponse</span><span class="p">):</span>
+    <span class="n">success</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="n">trx_id</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">amount</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">_process_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trx_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;trx_id&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">amount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;monto&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">token</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;token&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">method</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;medio_pago&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="s">&#39;medio_pago&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="k">else</span> <span class="bp">None</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="n">PUNTOPAGOS_ACTIONS</span><span class="p">[</span><span class="s">&#39;process&#39;</span><span class="p">]</span> <span class="o">%</span> <span class="p">{</span><span class="s">&#39;token&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">token</span><span class="p">}</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;url&#39;</span><span class="p">:</span> <span class="n">PUNTOPAGOS_URLS</span><span class="p">[</span><span class="s">&#39;sandbox&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sandbox</span> <span class="k">else</span> <span class="s">&#39;production&#39;</span><span class="p">],</span>
+            <span class="s">&#39;action&#39;</span><span class="p">:</span> <span class="n">action</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">redirection_url</span> <span class="o">=</span> <span class="s">&quot;http://</span><span class="si">%(url)s%(action)s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">success</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s">&#39;respuesta&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s">u&#39;00&#39;</span>
+
+</div>
+<div class="viewcode-block" id="PuntoPagoStatusResponse"><a class="viewcode-back" href="../gettingstarted.html#puntopagos.PuntoPagoStatusResponse">[docs]</a><span class="k">class</span> <span class="nc">PuntoPagoStatusResponse</span><span class="p">(</span><span class="n">PuntoPagoResponse</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="PuntoPagoRequest"><a class="viewcode-back" href="../gettingstarted.html#puntopagos.PuntoPagoRequest">[docs]</a><span class="k">class</span> <span class="nc">PuntoPagoRequest</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">sandbox</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="n">PUNTOPAGOS_URLS</span><span class="p">[</span><span class="s">&#39;sandbox&#39;</span> <span class="k">if</span> <span class="n">sandbox</span> <span class="k">else</span> <span class="s">&#39;production&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">ssl</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection</span> <span class="o">=</span> <span class="n">httplib</span><span class="o">.</span><span class="n">HTTPSConnection</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connection</span> <span class="o">=</span> <span class="n">httplib</span><span class="o">.</span><span class="n">HTTPConnection</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="c">#self.connection.set_debuglevel(3 if sandbox else 0)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sandbox</span> <span class="o">=</span> <span class="n">sandbox</span>
+
+<div class="viewcode-block" id="PuntoPagoRequest.status"><a class="viewcode-back" href="../gettingstarted.html#puntopagos.PuntoPagoRequest.status">[docs]</a>    <span class="k">def</span> <span class="nf">status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token</span><span class="p">,</span> <span class="n">trx_id</span><span class="p">,</span> <span class="n">monto</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Create a request for verify a transaction status</span>
+
+<span class="sd">        :param token:       Unique token, asigned by puntopagos to transaction.</span>
+<span class="sd">        :param trx_id:      Client unique transaction id (varchar(50)).</span>
+<span class="sd">        :param monto:       Transaction total amount.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">now</span> <span class="o">=</span> <span class="n">strftime</span><span class="p">(</span><span class="s">&quot;%a, </span><span class="si">%d</span><span class="s"> %b %Y %H:%M:%S GMT&quot;</span><span class="p">,</span> <span class="n">gmtime</span><span class="p">())</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;token&#39;</span><span class="p">:</span> <span class="n">token</span><span class="p">,</span>
+            <span class="s">&#39;trx_id&#39;</span><span class="p">:</span> <span class="n">trx_id</span><span class="p">,</span>
+            <span class="s">&#39;monto&#39;</span><span class="p">:</span> <span class="n">monto</span><span class="p">,</span>
+            <span class="s">&#39;fecha&#39;</span><span class="p">:</span> <span class="n">now</span>
+        <span class="p">}</span>
+
+        <span class="n">authorization_string</span> <span class="o">=</span> <span class="n">PUNTOPAGOS_SIGNABLE_HEADERS</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span> <span class="o">%</span> <span class="n">data</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_headers</span><span class="p">(</span><span class="n">authorization_string</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+        <span class="n">status_action</span> <span class="o">=</span> <span class="n">PUNTOPAGOS_ACTIONS</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span> <span class="o">%</span> <span class="p">{</span><span class="s">&#39;token&#39;</span><span class="p">:</span> <span class="n">token</span><span class="p">}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s">&#39;GET&#39;</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="n">status_action</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">getresponse</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">PuntoPagoStatusResponse</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">sandbox</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sandbox</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="PuntoPagoRequest.create"><a class="viewcode-back" href="../gettingstarted.html#puntopagos.PuntoPagoRequest.create">[docs]</a>    <span class="k">def</span> <span class="nf">create</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trx_id</span><span class="p">,</span> <span class="n">medio_pago</span><span class="p">,</span> <span class="n">monto</span><span class="p">,</span> <span class="n">detalle</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Create a request (and a transaction) to puntopagos.com.</span>
+
+<span class="sd">        :param trx_id:      Client unique transaction id (varchar(50)).</span>
+<span class="sd">        :param medio_pago:  Payment method id, valid ids in PUNTOPAGOS_PAYMENT_METHODS.</span>
+<span class="sd">        :param monto:       Transaction total amount.</span>
+<span class="sd">        :param detalle:     Transaction detail (optional).</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">strftime</span><span class="p">(</span><span class="s">&quot;%a, </span><span class="si">%d</span><span class="s"> %b %Y %H:%M:%S GMT&quot;</span><span class="p">,</span> <span class="n">gmtime</span><span class="p">())</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;trx_id&#39;</span><span class="p">:</span> <span class="n">trx_id</span><span class="p">,</span>
+            <span class="s">&#39;medio_pago&#39;</span><span class="p">:</span> <span class="n">medio_pago</span><span class="p">,</span>
+            <span class="s">&#39;monto&#39;</span><span class="p">:</span> <span class="n">monto</span><span class="p">,</span>
+            <span class="s">&#39;detalle&#39;</span><span class="p">:</span> <span class="n">detalle</span><span class="p">,</span>
+            <span class="s">&#39;fecha&#39;</span><span class="p">:</span> <span class="n">now</span>
+        <span class="p">}</span>
+
+        <span class="n">authorization_string</span> <span class="o">=</span> <span class="n">PUNTOPAGOS_SIGNABLE_HEADERS</span><span class="p">[</span><span class="s">&#39;create&#39;</span><span class="p">]</span> <span class="o">%</span> <span class="n">data</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_headers</span><span class="p">(</span><span class="n">authorization_string</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s">&#39;POST&#39;</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="n">PUNTOPAGOS_ACTIONS</span><span class="p">[</span><span class="s">&#39;create&#39;</span><span class="p">],</span>
+                                <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">getresponse</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">PuntoPagoCreateResponse</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">sandbox</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sandbox</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="PuntoPagoRequest.create_headers"><a class="viewcode-back" href="../getingstarted.html#puntopagos.PuntoPagoRequest.create_headers">[docs]</a>    <span class="k">def</span> <span class="nf">create_headers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">authorization_string</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Create standard headers for a puntopagos.com request</span>
+
+<span class="sd">        :param authorization_string: Signable authorization string.</span>
+<span class="sd">        :param now: struct_time usually returned by `gmtime()`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">signed</span> <span class="o">=</span> <span class="n">sign</span><span class="p">(</span><span class="n">authorization_string</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;secret&#39;</span><span class="p">])</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;apikey&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;key&#39;</span><span class="p">],</span> <span class="s">&#39;signed&#39;</span><span class="p">:</span> <span class="n">signed</span><span class="p">}</span>
+        <span class="n">authorization</span> <span class="o">=</span> <span class="s">&#39;PP </span><span class="si">%(apikey)s</span><span class="s">:</span><span class="si">%(signed)s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">params</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s">&#39;Fecha&#39;</span><span class="p">:</span> <span class="n">now</span><span class="p">,</span>
+            <span class="s">&#39;Autorizacion&#39;</span><span class="p">:</span> <span class="n">authorization</span><span class="p">,</span>
+            <span class="s">&#39;Content-Type&#39;</span><span class="p">:</span> <span class="s">&#39;application/json&#39;</span>
+        <span class="p">}</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li><a href="../index.html">PuntoPagos Python 0.1 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011, Pedro Burón, Alejandro Varas.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>
