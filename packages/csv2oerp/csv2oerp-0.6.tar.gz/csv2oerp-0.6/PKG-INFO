@@ -1,0 +1,123 @@
+Metadata-Version: 1.1
+Name: csv2oerp
+Version: 0.6
+Summary: Python CSV to OpenERP importation library
+Home-page: https://bitbucket.org/StefMangin/python-csv2oerp-0.6
+Author: Stéphane Mangin
+Author-email: stephane.mangin@freesbee.fr
+License: LGPLv3+
+Description: ********
+        csv2oerp
+        ********
+        
+        `csv2oerp` is a simple tool to perform a data migration, through an `OpenERP` 
+        mapping bounded to a `CSV` file.
+        You can easily order your data as the manner of `OpenERP` (`models`, `fields`).
+        The structure of the mapping is simple and intuitive, you can also perform a 
+        pre-process on data being imported, omit it or just modify it.
+        
+        Quick start
+        ===========
+        
+        Import csv2oerp and some callbacks::
+        
+            >>> from csv2oerp import Import_session
+            >>> from csv2oerp.fields import Column, Custom, Relation
+            >>> from csv2oerp.callbacks import get_id, get_ids
+        
+        Configure OpenERP connection::
+        
+            >>> host = '198.168.0.1'
+            >>> port = 8069
+            >>> dbname = 'database'
+            >>> user = 'admin'
+            >>> pwd = 'admin'
+            >>> csv2oerp.connect(host, port, user, pwd, dbname)
+        
+        Create a new importation instance::
+        
+            >>> example_file = Import_session()
+        
+        Set the CSV file to use::
+        
+            >>> example_file.set_input_file('example_file.csv', ',', '"', 'utf-8')
+        
+        Define a custom callback(Field's value pre-treatment)::
+        
+            >>> def country_code(self, model, field, value, line):
+            ...     """Return the first two uppered characters from current column value
+            ...     """
+            ...     return value[:2].upper()
+        
+        Define your mapping to link both csv and OpenERP::
+        
+            >>> mapping = {
+            ...     # Define a base model (Always in list form)
+            ...     'res.partner.address': [
+            ...         {
+            ... 
+            ...         # Custom field's value
+            ...         'type':         Custom('default', search=True),
+            ...
+            ...         # Concatenated columns fields
+            ...         'street':       Column([7, 6]),
+            ...         'street2':      Column([8, 5]),
+            ...
+            ...         # Simple fields
+            ...         'zip':          Column(9),
+            ...         'city':         Column(10),
+            ...         'cedex':        Column(68),
+            ...         'phone':        Column(14),
+            ...         'fax':          Column(15),
+            ...         'email':        Column(17),
+            ...
+            ...         # Model's relation with dynamic insertion from OpenERP database
+            ...         # Not native object from OpenERP framework
+            ...         'region_id':    Custom(11, get_id('res.region', ['name']))
+            ...         'dep_id':       Custom(12, get_id('res.dep', ['name']))
+            ...
+            ...         # Model's relations not updated if exists
+            ...         'country_id':   Relation('REL_res_partner_address,NO_UPDATE::res.country'),
+            ...
+            ...         # Model's relations with unique value between objects
+            ...         'partner_id':   Relation('REL_res_partner_address::res.partner', search=True),
+            ...
+            ...         },
+            ...     ],
+            ...
+            ...     # Define relations between models
+            ...     'REL_res_partner_address::res.partner': {
+            ...         'name':         Column(1),
+            ...         'siren':        Column(2),
+            ...         'website':      Column(16),
+            ...         'comment':      Column(56),
+            ...         },
+            ...
+            ...     # Relation without write if exists
+            ...     'REL_res_partner_address,NO_UPDATE::res.country':  {
+            ...         'code':         Column(13, callback=_country_code, search=True),
+            ...         'name':         Column(13, search=True),
+            ...         },
+            ...     })
+            >>> example_file.set_mapping(mapping)
+        
+        Finally start the import process::
+        
+            >>> example_file.start()
+        
+        And show statistics of objects's activities during the importation process::
+        
+            >>> csv2oerp.show_stats()
+        
+        
+        
+Keywords: openerp import csv xls xlsx data importation migration xml xml-rpc xmlrpc rpc json
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Database
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
