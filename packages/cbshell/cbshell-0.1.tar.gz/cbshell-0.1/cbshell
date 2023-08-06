@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+# -*-python-*-
+
+import couchbase
+import optparse
+import json
+import sys
+
+BANNER = "Interactive python shell for Couchbase."
+
+USAGE = \
+    "%prog [options] couchbase-address\n\n" + \
+    BANNER + "\n\n" \
+    "A couchbase-address is a couchbase cluster REST address:\n" \
+    "  HOST[:PORT][/BUCKET]\n\n" \
+    "Examples:\n" \
+    "  %prog localhost\n" \
+    "  %prog 10.3.121.192\n" \
+    "  %prog 10.3.121.192:8091\n" \
+    "  %prog 10.3.121.192:8091/default\n" \
+    "  %prog 10.3.121.192/default\n" \
+    "  %prog localhost/default\n" \
+    "  %prog localhost/my-bucket -u Administrator -p password"
+
+EXAMPLES = """
+Examples:
+  bucket['hello'] = 'world'     # Variable bucket holds key-value items.
+  bucket['hello']               # Retrieves the item with key 'hello'.
+  flags, cas, val = b['hello']  # Variable b is the same as bucket.
+
+                                # Variable cb is a couchbase.Server object.
+  x = cb['my-bucket']           # Use cb to navigate to other buckets.
+  x['my-key'] = {"json": 1234}  # Automatically JSON'ified.
+
+  for row in b.view("_design/my-design-doc/_view/my-view"):
+      print row                 # Iterate through view results.
+
+You can use json.loads(myJsonString) and json.dumps(myObject) to
+convert a json string to and from a python object.
+
+See: https://github.com/couchbase/couchbase-python-client for more info.
+"""
+
+def help():
+    print BANNER + "\n" + EXAMPLES
+
+def main(argv):
+    p = optparse.OptionParser(usage=USAGE)
+    p.add_option("-u", "--username",
+                 action="store", type="string", default=None,
+                 help="REST username for cluster or server node")
+    p.add_option("-p", "--password",
+                 action="store", type="string", default=None,
+                 help="REST password for cluster or server node")
+    opts, rest = p.parse_args(argv[1:])
+    if len(rest) > 1:
+        sys.exit("error: too many arguments; see -h for help")
+
+    if len(rest) > 0:
+        addr = rest[0]
+    else:
+        addr = "localhost"
+
+    addr_more = addr + "/"
+    host_port = addr_more.split("/")[0] + ":"
+    host = host_port.split(":")[0] or "localhost"
+    port = host_port.split(":")[1] or "8091"
+    bucket_name = addr_more.split('/')[1] or "default"
+
+    global cb
+    global bucket
+    global b
+
+    import requests
+    try:
+        print "connecting to couchbase: " + host + ":" + port
+        cb = couchbase.Server(host + ":" + port,
+                              username=opts.username,
+                              password=opts.password)
+        print "connected."
+        print "    cb     = couchbase '%s:%s'" % (host, port)
+    except requests.exceptions.ConnectionError as e:
+        sys.exit("error: could not connect to couchbase: %s;\n"
+                 "  please check your server, username, password;\n"
+                 "  exception: %s" % (addr, e))
+
+    try:
+        bucket = cb[bucket_name]
+        b = bucket
+        print "    bucket = cb['%s']" % (bucket_name)
+        print "    b      = cb['%s']" % (bucket_name)
+    except couchbase.exception.BucketUnavailableException as e:
+        sys.exit("error: could not access bucket: %s;\n"
+                 "  exception: %s" % (bucket_name, e))
+
+    import code
+    try:
+        print
+        code.InteractiveConsole(locals=globals()).interact('type "help()" for help')
+    except KeyboardInterrupt:
+        print("interrupted - exiting.")
+
+
+if __name__ == '__main__':
+    main(sys.argv)

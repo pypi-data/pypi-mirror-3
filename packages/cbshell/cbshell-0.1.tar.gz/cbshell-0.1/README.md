@@ -1,0 +1,67 @@
+cbshell - interactive python shell for couchbase
+================================================
+
+Prerequisites
+-------------
+
+* Python 2.6
+* pip
+
+Installation
+------------
+
+pip install cbshell
+
+Running
+-------
+
+    $ ./cbshell -h
+    Usage: cbshell [options] couchbase-address
+    
+    Interactive python shell for Couchbase.
+    
+    A couchbase-address is a couchbase cluster REST address:
+      HOST[:PORT][/BUCKET]
+
+    Examples:
+      cbshell localhost
+      cbshell 10.3.121.192
+      cbshell 10.3.121.192:8091
+      cbshell 10.3.121.192:8091/default
+      cbshell 10.3.121.192/default
+      cbshell localhost/default
+      cbshell localhost/my-bucket -u Administrator -p password
+    
+    Options:
+      -h, --help            show this help message and exit
+      -u USERNAME, --username=USERNAME
+                            REST username for cluster or server node
+      -p PASSWORD, --password=PASSWORD
+                            REST password for cluster or server node
+
+Using
+-----
+
+    $ ./cbshell 10.3.121.192 -u Administrator -p couchbaseR0ck$
+    connecting to couchbase: 10.3.121.192:8091
+    connected.
+        cb     = couchbase '10.3.121.192:8091'
+        bucket = cb['default']
+        b      = cb['default']
+    
+    type "help()" for help
+    >>>
+    >>> b['user-001'] = 'steve'
+    >>> user = b['user-001']
+    >>> print user
+
+Getting more help examples
+--------------------------
+
+    >>> help()
+
+License
+-------
+
+Apache 2.0 License
+
