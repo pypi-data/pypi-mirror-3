@@ -1,0 +1,233 @@
+Metadata-Version: 1.0
+Name: bethel.silva.purge
+Version: 1.0b
+Summary: Send HTTP PURGE to caching servers on content publishing events
+Home-page: http://pypi.python.org/pypi/bethel.silva.purge
+Author: Andy Altepeter
+Author-email: aaltepet@bethel.edu
+License: GPL
+Description: bethel.silva.purge
+        ==================
+        
+        .. contents:: Table of Contents
+        
+        Introduction
+        ------------
+        
+        This package is a wrapper around `plone.cachepurging <http://pypi.python.org/pypi/plone.cachepurging>`__, providing purge support for
+        for Silva content. Purges of Silva content are triggered when that content is 
+        changed or published.
+        
+        Many Silva sites sit behind a caching proxy server (e.g. varnish, squid,
+        pound, etc).  The cache server will cache Silva content until it expires.  For
+        the most part this is positive and a good thing, so long as the caching
+        headers are set correctly in Silva.  
+        
+        There becomes a problem, however, when a cached page is republished or
+        closed. The caching server will continue to serve the cached page until it
+        expires, even though there is newer content in Silva.  The old content on
+        the caching server is referred to as 'stale'.
+        
+        This extension adds a PurgingService to the Silva root.  This service has
+        options to enable purging, specifying the caching servers, and configuring 
+        plone.cachepurging-style simple virtualhosting (renamed to domain translations).
+        There is also support for complex virtualhost situations, where many 
+        virtualhosts are served from different areas of a single Silva root (this is
+        called path translations).
+        
+        The actual PURGE requests occur AFTER the request is finished, via a 
+        ZPublisher.pubevents.PubSuccess event.  Each PURGE path is put into a queue
+        and multiple worker threads operate on the queue until empty.  This is a sweet
+        feature of plone.cachepurging, as it does not slow down the response to the
+        client.
+        
+        Note: while installing and configuring this extension is easy, do you homework!
+        Read through the plone.cachepurging documentation and make sure you understand
+        the fundamentals of PURGE.
+        
+        
+        Operation in Silva
+        ------------------
+        
+        When content is modified or published in Silva, a Purge event is triggered.
+        
+        
+        On modification
+        ~~~~~~~~~~~~~~~
+        
+        This package markes SilvaObject with the IPurgeable interface. This enables
+        purging on IObjectMovedEvent and IObjectModifiedEvent. This ought to include 
+        containers (e.g. saving a container's metadata). FMI see: 
+        `purging objects automatically <http://pypi.python.org/pypi/plone.cachepurging/1.0.3#purging-objects-automatically>`__
+        
+        If the object event is for an index document, the container is also purged.
+        
+        
+        On Publish
+        ~~~~~~~~~~
+        
+        IVersions have an IPublishingEvent subscriber, which is triggered on every
+        publishing event (publish, approval requesting, expires, approved, etc). While
+        this will cause PURGEs to occur on events which to not affect the published
+        version, the only effect is that the content is purged and needs to be 
+        re-fetched.
+        
+        This causes a Purge of the IContent object, NOT the IVersion object, since the version
+        isn't cached.
+        
+        If the object event is for an index document, the container is also purged.
+        
+        
+        What PURGE urls are generated?
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Multiple PURGE urls are generated for each event.  The following illustrates the
+        paths generated BEFORE being translated by domain or path.
+        
+        
+        Object Events
+        *************
+        
+        1. Standard plone.cachepurging path: the full rooted path to object. For publishable
+           content, this would be the path to the version, e.g. 
+        
+           /silva/example.com/doc/1.
+        
+        2. [with path translations enabled] Index objects will add paths for the container, 
+           both with and without a trailing slash.  e.g. for an event on /silva/example.com/folder/index:
+        
+           /silva/example.com/folder
+           /silva/example.com/folder/
+        
+        3. [with domain translations enabled] The path relative to the silva root. e.g. 
+           for
+           
+           /silva/folder/doc:
+           /folder/doc
+        
+        
+        Publishing Events
+        *****************
+        
+        1. Standard plone.cachepurging path: the full rooted path to object. For 
+           publishable content, this would be the path to the version, e.g. 
+           
+           /silva/example.com/doc/1.
+        
+        2. [with path translations enabled] Path to IContent, e.g.
+        
+           /silva/example.com/doc
+        
+        3. [with path translations enabled] Index objects will add paths for the 
+           container, both with and without a trailing slash.  e.g. for an event on 
+           /silva/example.com/folder/index:
+        
+           /silva/example.com/folder
+           /silva/example.com/folder/
+        
+        4. [with domain translations enabled] The path relative to the silva root. 
+           e.g. for /silva/folder/doc:
+        
+           /folder/doc
+        
+        
+        Installation
+        ------------
+        
+        To install the service, activate the "Silva Purging Service' extension in the 
+        service_extensions. Installing this extension installs a `plone.registry <http://pypi.python.org/pypi/plone.registry>`__ into 
+        the silva root and registers it as a local utility. The registry is used by 
+        plone.cachepurging to store it's configuration.
+        
+        
+        Configuration
+        -------------
+        
+        The service is configured via a ZMI management screen. Configuration will
+        change the plone.registry settings for plone.cachepurging, and configure the
+        path translations for complex vhosting.
+        
+        
+        1. Enable the service
+        ~~~~~~~~~~~~~~~~~~~~~
+        
+        This field represents the value of plone.cachepurging.interfaces.ICacheSettings.enabled.
+        
+        Checking this will enable cache purging.
+        
+        
+        2. Set Cache Proxies
+        ~~~~~~~~~~~~~~~~~~~~
+        
+        All frontend caching servers need to be added to this field. The format for each
+        is a URI, e.g. http://cachingserver.example.com:6081
+        
+        
+        3. Complex Virtual Hosting (a.k.a. Path Translations)
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Some Silva installations may serve multiple domains from within a single Silva 
+        root. These domains may be located underneath the Silva root, e.g. 
+        /silva_root/domain1, /silva_root/domain2, etc.  When this is the case, 
+        plone.cachepurging vhosting support is not sufficient. Path Translations need
+        to be used instead.
+        
+        A path translation is simply an rule on how to translate a rooted path into
+        a virtualhosting string.
+        
+        To enable complex vhosting, check the "use path translations" field.
+        
+        Configure the path translations by adding them one per line.  The format for
+        each line is the "rooted path + ' ' + translated path".  As an example, let's say
+        there is a vhost at /silva/example.com/.  This is accessed from the domain
+        http://example.com.  The line for this path translation would then be:
+        
+        /silva/example.com /VirtualHostBase/http/example.com:80/silva/www/VirtualHostRoot
+        
+        Path Translations support multiple vhosts to the same root.  If www.example.com 
+        also points /silva/example.com, an additional line can be added:
+        
+        /silva/example.com /VirtualHostBase/http/www.example.com:80/silva/www/VirtualHostRoot
+        
+        Additionally https vhosts can be supplied:
+        
+        /silva/example.com /VirtualHostBase/https/www.example.com:443/silva/www/VirtualHostRoot
+        
+        Support for inside-out hosting (using _vh_ segments) is supported, and in fact
+        any string can be supplied as the "translated path".  The critical thing here
+        is that the path generated match the path cached by the caching server, or no
+        content will be purged.
+        
+        When purging urls are being generated, any matching paths will have the matching
+        part replaced with the vhost string, for all matches.  The search for matching\
+        paths begins with the full path to the object then proceeds down the path, 
+        removing the last path component on each pass.
+        
+        
+        4. Domain Translations
+        ~~~~~~~~~~~~~~~~~~~~~~
+        
+        Configures plone.cachepurging virtual host support. This package includes two 
+        types of virtual hosting support, so the plone.cachepurging style is renamed 
+        to 'domain translations'.  This approach rewrites the path from the silva root 
+        to a virtual hosting url.
+        
+        To enable, check "Use domain translations", and add the domains in the "Domains"
+        field.
+        
+        For more information on how this type of virtualhost works, see the
+        `plone.cachepurging documentation <http://pypi.python.org/pypi/plone.cachepurging/1.0.3#virtual-hosting-and-url-rewriting>`__.
+        
+        
+        
+        bethel.silva.purge changes
+        ========================
+        
+        bethel.silva.purge 1.0b (2012-05-29)
+        ------------------------------------
+        
+        * initial release for bethel.silva.purge
+        
+Keywords: silva varnish cache purge
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
