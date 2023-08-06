@@ -1,0 +1,10 @@
+__version__ = "0.2.1"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = '(Not currently on any branch)'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = '442183896671010cfa5c383783adc0e8540702a9'
+__git_head_subject__ = 'Finished release v0.2.1.'
+__git_head_message__ = '* release/v0.2.1:\n  TRIVIAL fix get_os_version_string\n  empty commit after version v0.2'
+__git_dirty_diff__ = ''
