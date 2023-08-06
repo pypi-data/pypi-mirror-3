@@ -1,0 +1,185 @@
+RC = Release Critical (for next release)
+
+  Documentation
+    - Clarify node state signification, and consider renaming them in the code.
+      Ideas:
+        TEMPORARILY_DOWN becomes UNAVAILABLE
+        BROKEN is removed ?
+    - Clarify the use of each error codes:
+      - NOT_READY removed (connection kept opened until ready)
+      - Split PROTOCOL_ERROR (BAD IDENTIFICATION, ...)
+    - Add docstrings (think of doctests)
+
+  Code
+
+    Code changes often impact more than just one node. They are categorised by
+    node where the most important changes are needed.
+
+    General
+RC  - Review XXX in the code (CODE)
+RC  - Review TODO in the code (CODE)
+RC  - Review output of pylint (CODE)
+    - When all cells are OUT_OF_DATE in backup mode, the one with most data
+      could become UP_TO_DATE with appropriate backup_tid, so that the cluster
+      stays operational. (FEATURE)
+    - Finish renaming UUID into NID everywhere (CODE)
+    - Remove sleeps (LATENCY, CPU WASTE)
+      Code still contains many delays (explicit sleeps or polling timeouts).
+      They must be removed to be either infinite (sleep until some condition
+      becomes true, without waking up needlessly in the meantime) or null
+      (don't wait at all).
+    - Implements delayed connection acceptation.
+      Currently, any node that connects to early to another that is busy for
+      some reasons is immediately rejected with the 'not ready' error code. This
+      should be replaced by a queue in the listening node that keep a pool a
+      nodes that will be accepted late, when the conditions will be satisfied.
+      This is mainly the case for :
+        - Client rejected before the cluster is operational
+        - Empty storages rejected during recovery process
+      Masters implies in the election process should still reject any connection
+      as the primary master is still unknown.
+    - Implement transaction garbage collection API (FEATURE)
+      NEO packing implementation does not update transaction metadata when
+      deleting object revisions. This inconsistency must be made possible to
+      clean up from a client application, much in the same way garbage
+      collection part of packing is done.
+    - Factorise node initialisation for admin, client and storage (CODE)
+      The same code to ask/receive node list and partition table exists in too
+      many places.
+    - Clarify handler methods to call when a connection is accepted from a
+      listening conenction and when remote node is identified
+      (cf. neo/lib/bootstrap.py).
+    - Choose how to handle a storage integrity verification when it comes back.
+      Do the replication process, the verification stage, with or without
+      unfinished transactions, cells have to set as outdated, if yes, should the
+      partition table changes be broadcasted ? (BANDWITH, SPEED)
+    - Make SIGINT on primary master change cluster in STOPPING state.
+    - Review PENDING/HIDDEN/SHUTDOWN states, don't use notifyNodeInformation()
+      to do a state-switch, use a exception-based mechanism ? (CODE)
+    - Review handler split (CODE)
+      The current handler split is the result of small incremental changes. A
+      global review is required to make them square.
+    - Make handler instances become singletons (SPEED, MEMORY)
+      In some places handlers are instanciated outside of App.__init__ . As a
+      handler is completely re-entrant (no modifiable properties) it can and
+      should be made a singleton (saves the CPU time needed to instanciates all
+      the copies - often when a connection is established, saves the memory
+      used by each copy).
+    - Review node notifications. Eg. A storage don't have to be notified of new
+      clients but only when one is lost.
+    - Review transactional isolation of various methods
+      Some methods might not implement proper transaction isolation when they
+      should. An example is object history (undoLog), which can see data
+      committed by future transactions.
+
+    Storage
+    - Use HailDB instead of a stand-alone MySQL server.
+    - Notify master when storage becomes available for clients (LATENCY)
+      Currently, storage presence is broadcasted to client nodes too early, as
+      the storage node would refuse them until it has only up-to-date data (not
+      only up-to-date cells, but also a partition table and node states).
+    - In backup mode, 2 simultaneous replication should be possible so that:
+      - outdated cells does not block backup for too long time
+      - constantly modified partitions does not prevent outdated cells to
+        replicate
+      Current behaviour is undefined and the above 2 scenarios may happen.
+    - Create a specialized PartitionTable that know the database and replicator
+      to remove duplicates and remove logic from handlers (CODE)
+    - Consider insert multiple objects at time in the database, with taking care
+      of maximum SQL request size allowed. (SPEED)
+    - Prevent from SQL injection, escape() from MySQLdb api is not sufficient,
+      consider using query(request, args) instead of query(request % args)
+    - Make listening address and port optionnal, and if they are not provided
+      listen on all interfaces on any available port.
+    - Make replication speed configurable (HIGH AVAILABILITY)
+      In its current implementation, replication runs at lowest priority, not to
+      degrades performance for client nodes. But when there's only 1 storage
+      left for a partition, it may be wanted to guarantee a minimum speed to
+      avoid complete data loss if another failure happens too early.
+    - Pack segmentation & throttling (HIGH AVAILABILITY)
+      In its current implementation, pack runs in one call on all storage nodes
+      at the same time, which lcoks down the whole cluster. This task should
+      be split in chunks and processed in "background" on storage nodes.
+      Packing throttling should probably be at the lowest possible priority
+      (below interactive use and below replication).
+    - tpc_finish failures propagation to master (FUNCTIONALITY)
+      When asked to lock transaction data, if something goes wrong the master
+      node must be informed.
+    - Verify data checksum on reception (FUNCTIONALITY)
+      In current implementation, client generates a checksum before storing,
+      which is only checked upon load. This doesn't prevent from storing
+      altered data, which misses the point of having a checksum, and creates
+      weird decisions (ex: if checksum verification fails on load, what should
+      be done ? hope to find a storage with valid checksum ? assume that data
+      is correct in storage but was altered when it travelled through network
+      as we loaded it ?).
+    - Check replicas: (HIGH AVAILABILITY)
+      - Automatically tell corrupted cells to fix their data when a good source
+        is known.
+      - Add an option to also check all rows of trans/obj/data, instead of only
+        keys (trans.tid & obj.{tid,oid}).
+
+    Master
+    - Master node data redundancy (HIGH AVAILABILITY)
+      Secondary master nodes should replicate primary master data (ie, primary
+      master should inform them of such changes).
+      This data takes too long to extract from storage nodes, and losing it
+      increases the risk of starting from underestimated values.
+      This risk is (currently) unavoidable when all nodes stop running, but this
+      case must be avoided.
+    - If the cluster can't start automatically because the last partition table
+      is not operational, allow the user to select an older operational one,
+      and truncate the DB.
+    - Optimize operational status check by recording which rows are ready
+      instead of parsing the whole partition table. (SPEED)
+    - tpc_finish failures propagation to client (FUNCTIONALITY)
+      When a storage node notifies a problem during lock/unlock phase, an error
+      must be propagated to client.
+
+    Client
+    - Merge Application into Storage (SPEED)
+    - Optimize cache.py by rewriting it either in C or Cython (LOAD LATENCY)
+    - Use generic bootstrap module (CODE)
+    - If too many storage nodes are dead, the client should check the partition
+      table hasn't changed by pinging the master and retry if necessary.
+    - Implement restore() ZODB API method to bypass consistency checks during
+      imports.
+    - tpc_finish might raise while transaction got successfully committed.
+      This can happen if it gets disconnected from primary master while waiting
+      for AnswerFinishTransaction after primary received it and hence will
+      commit transaction independently from client presence. Client could
+      legitimaltely think transaction is not committed, and might decide to
+      retry. To solve this, client can know if its TTID got successfuly
+      committed by looking at currently unused '(t)trans.ttid' column.
+    - Fix and reenable deadlock avoidance (SPEED). This is required for
+      neo.threaded.test.Test.testDeadlockAvoidance
+
+    Admin
+    - Make admin node able to monitor multiple clusters simultaneously
+    - Send notifications (ie: mail) when a storage or master node is lost
+
+    Tests
+    - Use another mock library that is eggified and maintained.
+      See http://garybernhardt.github.com/python-mock-comparison/
+      for a comparison of available mocking libraries/frameworks.
+    - Fix epoll descriptor leak.
+    - Fix occasional deadlocks in threaded tests.
+
+  Later
+    - Consider auto-generating cluster name upon initial startup (it might
+      actualy be a partition property).
+    - Consider ways to centralise the configuration file, or make the
+      configuration updatable automaticaly on all nodes.
+    - Consider storing some metadata on master nodes (partition table [version],
+      ...). This data should be treated non-authoritatively, as a way to lower
+      the probability to use an outdated partition table.
+    - Decentralize primary master tasks as much as possible (consider
+      distributed lock mechanisms, ...)
+    - Choose how to compute the storage size
+    - Make storage check if the OID match with it's partitions during a store
+    - Investigate delta compression for stored data
+      Idea would be to have a few most recent revisions being stored fully, and
+      older revision delta-compressed, in order to save space.
+    - Consider using multicast for cluster-wide notifications. (BANDWITH)
+      Currently, multi-receivers notifications are sent in unicast to each
+      receiver. Multicast should be used.
