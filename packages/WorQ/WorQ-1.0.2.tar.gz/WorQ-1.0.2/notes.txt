@@ -1,0 +1,122 @@
+========
+Commands
+========
+
+Build source distribution::
+
+    python setup.py sdist
+    python setup.py sdist upload
+
+Run tests::
+
+    pip install -r requires.txt
+    nosetests
+
+Build documentation::
+
+    cd doc
+    make html
+
+====
+TODO
+====
+
+- Deferred.wait should continue waiting if its value is a Deferred
+- Write test that passes completed deferred result to task (should work)
+- Allow tasks to be cancelled
+- Implement "map" and "reduce"
+- Decouple TaskSpace from Broker?
+- Reload worker pool config on HUP
+
+=========
+Completed
+=========
+
+x - Skip tests if queue backend is not running
+x - Allow setting custom task id
+x   - Raise error when invoking task with duplicate id
+x - process.WorkerPool should work with MemoryQueue (pass results back to pool)
+x - Remove update_status; doesn't work with memory.TaskQueue + process.WorkerPool
+x - Task(..., id=function) - function gets same args as task
+x - Remove TaskSet
+x - What happens to TaskSet results when a subtask is not invoked before the
+x   result set expires (e.g., when the broker is busy)? This should not happen.
+x   IOW, TaskSet results should not expire when there are subtasks in the queue
+x   waiting to be invoked.
+x - TaskSet should be resilient to lost intermediate results
+x - Task(..., id=...) - Do not allow duplicate task ids in Queue
+x - Deferred.ignore_result
+x - Rename (Redis|Memory)Queue to TaskQueue (like WorkerPool)
+xx - Improve performance of RedisQueue.get with a transaction
+x   prevent race to remove task_id from queue by only having one broker do that
+x - Cascading timeout (to reserved ids)
+x - Should be able to associate a task with one or more deferred arguments.
+x   example:
+x       r0 = q.task()
+x       r1 = q.task()
+x       res = q.task([r0, r1]) # defer execution until r0 and r1 have completed
+x       res.wait()
+x   limitations:
+x       - deferreds are not thread-safe
+x       - should not attempt to retrieve deferred argument values
+x         prior to enqueueing the dependent task
+x   algorithm:
+x       enqueue task with deferred arguments (deferred task)
+x           setup deferred argument storage (with info to invoke deferred task)
+x           for each deferred argument:
+x               atomically
+x                   set result promise task_id (if not already set)
+x                   pop result promise
+x                   pop result message
+x                   return (promise, message)
+x               if promise:
+x                   # we now own the result
+x                   if message is valid:
+x                       transfer result to deferred argument storage
+x                       if all arguments are present:
+x                           enqueue deferred task
+x               else:
+x                   raise result already allocated error
+x       worker set result
+x           atomically
+x               get result promise task_id
+x               set result message
+x           if promise task_id is valid:
+x               transfer result to deferred argument storage
+x               if all arguments are present:
+x                   enqueue deferred task
+x - Rename DeferredResult to Deferred.
+x - Call taskset with no args uses default task that simply returns it's first arg
+x - Ignore None in taskset results
+x - TaskSet should store final task with its results
+x - Implement thread pool
+x - Come up with a name for the worker pool coordinator process. "Pool manager"
+x - Guaranteed message delivery in redis
+x   - result is created in redis on enqueue task
+x   - task/result has a state machine: pending, in process, completed, lost...
+x   - running task can update its status on its (in process) result object
+x - Task monitoring (must be optional)
+x   - update result heartbeat periodically
+x   - use this for better TaskSet resilience
+xx - Improve task serialization for fast option and task_id access (avoid unpickle of parameters, etc.)
+x - Include task name in repr of DeferredResult
+x - Fix TODO items in worq.pool.process
+x   - Add support for heartbeat/keepalive
+x     Atomically set result timeout when task processing begins
+x       - Refactor/simplify broker to manage a single queue (for BRPOPLPUSH)
+x       - Combine queue and result store (they need to interact)
+x           can always make a hybrid (ex: Redis/Postgres) backend if needed
+x       BRPOPLPUSH next task id
+x       atomically:
+x           EXPIRE result
+x           GET task details
+x           LREM task id from queue (process task if successful)
+x   - Improve status/heartbeat handling to not process old status values.
+x Pass TaskStatus objects through result queue (avoid extra status key)
+x MIT license
+x Move worq.procpool to worq.pool.process
+x new name for project: WorQ
+x Worker process pool
+x   - Controlled worker shutdown without loss of work
+xx Use multiprocessing.ProcessPool (look into process monitoring, dying, etc.)
+x Make task.wait block on queue result with timeout (use queue primitives rather than busy wait)
