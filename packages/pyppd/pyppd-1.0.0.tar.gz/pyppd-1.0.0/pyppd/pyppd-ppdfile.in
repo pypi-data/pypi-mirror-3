@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+
+# compressor.py
+@compressor@
+# compressor.py
+
+import os
+import sys
+from optparse import OptionParser
+from sys import argv
+import base64
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+from io import BytesIO
+
+from os.path import basename
+from errno import EPIPE
+
+def load():
+    ppds_compressed = base64.b64decode(ppds_compressed_b64)
+    ppds_decompressed = decompress(ppds_compressed)
+    ppds = pickle.loads(ppds_decompressed)
+    return ppds
+
+def ls():
+    binary_name = basename(argv[0])
+    ppds = load()
+    for key, value in ppds.items():
+        if key == 'ARCHIVE': continue
+        for ppd in value[2]:
+            try:
+                print(ppd.replace('"', '"' + binary_name + ':', 1))
+            except IOError as e:
+                # Errors like broken pipes (program which takes the standard
+                # output terminates before this program terminates) should not
+                # generate a traceback.
+                if e.errno == EPIPE: exit(0)
+                raise
+
+def cat(ppd):
+    # Ignore driver's name, take only PPD's
+    ppd = ppd.split(":")[-1]
+    # Remove also the index
+    ppd = "0/" + ppd[ppd.find("/")+1:]
+
+    ppds = load()
+    ppds['ARCHIVE'] = BytesIO(decompress(ppds['ARCHIVE']))
+
+    if ppd in ppds:
+        start = ppds[ppd][0]
+        length = ppds[ppd][1]
+        ppds['ARCHIVE'].seek(start)
+        return ppds['ARCHIVE'].read(length)
+
+def main():
+    usage = "usage: %prog list\n" \
+            "       %prog cat URI"
+    version = "%prog 0.4.9\n" \
+              "Copyright (c) 2010 Vitor Baptista.\n" \
+              "This is free software; see the source for copying conditions.\n" \
+              "There is NO warranty; not even for MERCHANTABILITY or\n" \
+              "FITNESS FOR A PARTICULAR PURPOSE."
+    parser = OptionParser(usage=usage,
+                          version=version)
+    (options, args) = parser.parse_args()
+
+    if len(args) == 0 or len(args) > 2:
+        parser.error("incorrect number of arguments")
+
+    if args[0].lower() == 'list':
+        ls()
+    elif args[0].lower() == 'cat':
+        if not len(args) == 2:
+            parser.error("incorrect number of arguments")
+        ppd = cat(args[1])
+        if not ppd:
+            parser.error("Printer '%s' does not have default driver!" % args[1])
+        try:
+            # avoid any assumption of encoding or system locale; just print the
+            # bytes of the PPD as they are
+            if sys.version_info.major < 3:
+                sys.stdout.write(ppd)
+            else:
+                sys.stdout.buffer.write(ppd)
+        except IOError as e:
+            # Errors like broken pipes (program which takes the standard output
+            # terminates before this program terminates) should not generate a
+            # traceback.
+            if e.errno == EPIPE: exit(0)
+            raise
+    else:
+        parser.error("argument " + args[0] + " invalid")
+
+# PPDs Archive
+ppds_compressed_b64 = b"@ppds_compressed_b64@"
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        # We don't want a KeyboardInterrupt throwing a
+        # traceback into stdout.
+        pass
