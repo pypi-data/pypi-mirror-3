@@ -1,0 +1,210 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Javascript Internals &mdash; Django Interactive API Documentation 1.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Django Interactive API Documentation 1.1.0 documentation" href="index.html" />
+    <link rel="next" title="Help" href="help.html" />
+    <link rel="prev" title="Template Customization" href="templatecustomization.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="help.html" title="Help"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="templatecustomization.html" title="Template Customization"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Django Interactive API Documentation 1.1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="javascript-internals">
+<h1>Javascript Internals<a class="headerlink" href="#javascript-internals" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="the-loop">
+<h2>The Loop<a class="headerlink" href="#the-loop" title="Permalink to this headline">¶</a></h2>
+<p>In order to create the necessary javascript methods and functions, a loop is executed that builds a javascript file dyanmically.  It is not recommended to overwrite this file.</p>
+<p>The javascript that generates each API Doc control looks like this:</p>
+<div class="highlight-python"><pre>$(document).ready(function() {
+   $('.action').hide();
+
+   $('.api_heading').click(function(){
+       $(this).parent().children('.action').slideToggle('slow');
+   });
+   $('.clear').click(function(){
+       $(this).parent().children('.response').empty();
+   });
+   {% for api in apis %}
+       {% for apiobj in api.apiobject_set.all %}
+       {% for method in apiobj.apimethod_set.all %}
+       $('#call_{{ method.slug }}').click(function(){
+           {% if method.parameter.all %}
+               var param_url = "?";
+               var api_url = "{{ method.api_url }}";
+               {% for param in method.parameter.all %}
+               {% if param.type == 'text' %}
+                   var var_{{ param.name }} = $('input#{{ method.slug }}_{{ param.name }}').val();
+                   if (var_{{ param.name }} == '')
+                   {
+                       var_{{ param.name }} = "{{ param.default_value }}";
+                   }
+                   {% if param.get_or_url == 'get' %}
+                   param_url = param_url + "{{ param.name }}=" + var_{{ param.name }} + "";
+                   {% endif %}
+                   {% if param.get_or_url == 'url' or param.get_or_url == 'delete' %}
+                   api_url = api_url + "/" + var_{{ param.name }};
+
+                   {% endif %}
+               {% endif %}
+               {% endfor %}
+
+           {% endif %}
+           var call_url = api_url + param_url + "&amp;format=jsonp";
+           $(this).parent().children('pre').replaceWith("&lt;pre&gt;{{ method.get_type_display }}: &lt;a href='" + call_url + "'&gt;" + call_url + "&lt;/a&gt;&lt;/pre&gt;");
+
+           {% if method.type == 'post' or method.type == 'put' %}
+           var dataString = {};
+             {% for param in method.parameter.all %}
+               {% if param.type != 'no_input' %}
+                dataString['{{ param.name }}'] = var_{{ param.name }};
+               {% endif %}
+             {% endfor %}
+           {% endif %}
+          $.ajax({
+             url: call_url,
+             dataType: 'jsonp',
+             type: "{{ method.get_type_display }}",
+             {% if method.type == 'post' or method.type == 'put' %}
+             data: JSON.stringify(dataString),
+
+             {% endif %}
+             processData: false,
+             statusCode: {
+                204: function() {
+                    $('&lt;h6&gt;Response&lt;/h6&gt;&lt;pre&gt;204 Object Deleted&lt;/pre&gt;').appendTo('#{{ method.slug }}_response');
+                }
+               },
+             contentType: "application/json",
+             success: function(data){
+
+               $('&lt;h6&gt;Response&lt;/h6&gt;&lt;pre&gt;' + JSON.stringify(data) + '&lt;/pre&gt;').appendTo('#{{ method.slug }}_response');
+
+             },
+             error: function(jqXHR, textStatus, errorThrown){
+                if (errorThrown == "UNAUTHORIZED"){
+
+                $('&lt;h6&gt;Response&lt;/h6&gt;&lt;pre&gt;401 API Key is missing or incorrect&lt;/pre&gt;').appendTo('#{{ method.slug }}_response')
+                }
+                if (errorThrown == "NOT FOUND")
+                {
+                $('&lt;h6&gt;Response&lt;/h6&gt;&lt;pre&gt;404 Object not found&lt;/pre&gt;').appendTo('#{{ method.slug }}_response')
+                }
+
+             }
+          });
+
+
+       });
+       {% endfor %}
+       {% endfor %}
+   {% endfor %}
+ });</pre>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Javascript Internals</a><ul>
+<li><a class="reference internal" href="#the-loop">The Loop</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="templatecustomization.html"
+                        title="previous chapter">Template Customization</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="help.html"
+                        title="next chapter">Help</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/javascript.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="help.html" title="Help"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="templatecustomization.html" title="Template Customization"
+             >previous</a> |</li>
+        <li><a href="index.html">Django Interactive API Documentation 1.1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011 - 2012, Derek Stegelman.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>
