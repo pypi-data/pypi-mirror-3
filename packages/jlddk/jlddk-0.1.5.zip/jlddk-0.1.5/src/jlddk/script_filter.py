@@ -1,0 +1,36 @@
+"""
+    Created on 2012-01-27
+    @author: jldupont
+"""
+import logging, sys
+from tools_sys import prepare_callable
+from tools_logging import setloglevel
+
+
+def run(module=None, function=None, loglevel="info", logconfig=None):
+    
+    if logconfig is not None:
+        logging.config.fileConfig(logconfig)
+
+    setloglevel(loglevel)
+
+    try:                
+        logging.info("Preparing callable '%s' from module '%s'" % (function, module))
+        _mod, fnc=prepare_callable(module, function)
+    except:
+        raise Exception("%s.%s isn't callable..." %(module, function))
+            
+    logging.info("Starting loop...")
+    while True:
+        
+        iline=sys.stdin.readline()
+
+        try:
+            oline=fnc(iline)
+        except KeyboardInterrupt:
+            raise
+        except Exception, e:
+            try:    logging.error("Error processing '%s' : %s" % (iline[:20], str(e)))
+            except: pass
+            
+        sys.stdout.write(oline)
