@@ -1,0 +1,486 @@
+=========
+Scheduler
+=========
+
+The scheduler concept is implemented as an additional scheduler container which
+contains scheduler items.
+
+
+Usage
+-----
+
+Let's now start by create a remote procesor whichc contains our scheduler
+container:
+
+  >>> import p01.remote.processor
+  >>> import p01.remote.scheduler
+  >>> from p01.remote import interfaces
+  >>> from p01.remote import testing
+  >>> remoteProcessor = p01.remote.processor.RemoteProcessor()
+  >>> scheduler = remoteProcessor._scheduler
+
+Our scheduler provides a list of pending objects. This list is empty by default:
+
+  >>> scheduler._pending
+  []
+
+
+Delay
+-----
+
+We can add a scheduler item for delay a job processing. Let's add such an item:
+
+  >>> firstEcho = p01.remote.scheduler.Delay(u'echo')
+  >>> interfaces.IDelay.providedBy(firstEcho)
+  True
+
+The default delay is set to None:
+
+  >>> firstEcho.delay
+  0
+
+Now we can add the delay item to the scheduler:
+
+  >>> scheduler.add(firstEcho)
+
+As you can see the scheduler contains on item:
+
+  >>> sorted(scheduler.values())
+  [<Delay 1 for: u'echo'>]
+
+But the item isn't scheduled:
+
+  >>> scheduler._pending
+  []
+
+The method pullNextSchedulerItem returns a pending job or None since we don't
+have one pending:
+
+  >>> scheduler.pullNextSchedulerItem() is None
+  True
+
+Now let's add a second scheduler item within some scheduler time:
+
+  >>> secondEcho = p01.remote.scheduler.Delay(u'echo', 10, startTime=0)
+  >>> secondEcho.delay
+  10
+  >>> secondEcho.nextCallTime
+  10
+
+  >>> scheduler.add(secondEcho)
+  >>> sorted(scheduler.values(), key=lambda x:(x.__name__, x.__name__))
+  [<Delay 1 for: u'echo'>,
+   <Delay 2 for: u'echo'>]
+
+Let's update the pending list with the built in updatePending method and a
+call time larger then the scheduler item delay time:
+
+  >>> now = 100
+  >>> secondEcho.nextCallTime
+  10
+  >>> scheduler.updatePending(now)
+  >>> secondEcho.nextCallTime
+  110
+  >>> scheduler._pending
+  [<Delay 2 for: u'echo'>]
+
+As you can see, we will get the pending item with the ``pullNextSchedulerItem``
+method.
+
+  >>> scheduler.pullNextSchedulerItem(now)
+  <Delay 2 for: u'echo'>
+
+As you can see, we will not get the scheduled item twice for the same call time:
+
+  >>> job = scheduler.pullNextSchedulerItem(now)
+  >>> job
+
+If we wait a couple seconds, we will get the same scheduled item again. We can
+simulate the waiting time with increase the used ``now`` timestamp. Let's add
+another 10 second to now which is far in the future since our delay is 1:
+
+  >>> now += 10
+  >>> job = scheduler.pullNextSchedulerItem(now)
+  >>> job
+  <Delay 2 for: u'echo'>
+
+
+Delay
+-----
+
+As you saw  in the above test we can add a scheduler item with a delay time.
+Let's create one:
+
+  >>> delayItem = p01.remote.scheduler.Delay(u'foo')
+
+The delayItem provides the ISchedulerItem and IDelay interface:
+
+  >>> interfaces.ISchedulerItem.providedBy(delayItem)
+  True
+
+  >>> interfaces.IDelay.providedBy(delayItem)
+  True
+
+Such a delay item provides a delay time of 0 (zero) by default:
+
+  >>> delayItem.delay
+  0
+
+The delay item also provides a next call time which is by default 0 (zero):
+
+  >>> delayItem.nextCallTime
+  0
+
+This nextCallTime provides the time stamp for the next job processing time. Or
+let's be correct the next time where the scheduler will get added to the
+pending list. The remote processor will catch such pending schdeuler items and
+get the real job by the scheduler items jobName argument. Jobs are by default
+implemented as local persistent objects and stored in the internal container
+called ``_jobs``. Now let's check if the next call time will get
+calculated based on the previous next call time and the delay. Note a zero
+delay will always return a zero next call time:
+
+  >>> delayItem.nextCallTime
+  0
+
+  >>> delayItem.getNextCallTime(5)
+  0
+
+  >>> delayItem.delay = 10
+  >>> delayItem.getNextCallTime(100)
+  110
+
+As you can see the nextCallTime get set to the given call time since we didn't
+had an initial nextCallTime:
+
+  >>> delayItem.nextCallTime
+  110
+
+Now if we use the same time stamp, we will get the previous cached next call
+time:
+
+  >>> delayItem.getNextCallTime(100)
+  110
+
+And the scheduler and the scheduler doesn't change the next call time:
+
+  >>> delayItem.nextCallTime
+  110
+
+
+If we use a larger call time then the nextCallTime we will still get the
+same next call time as before:
+
+  >>> delayItem.getNextCallTime(150)
+  110
+
+But the scheduler will set it's next call time to the next time stamp which is
+used as cached value till we will call the getNextCalllTime method with a
+larger value then the cached next call time:
+
+  >>> delayItem.nextCallTime
+  160
+
+
+Cron
+----
+
+A probably more interesting implementation is the cron scheduler item. This
+cron item can schedule jobs at a specific given time. Let's setup such a cron
+item:
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'bar')
+
+The cronItem provides the ISchedulerItem and ICron interface:
+
+  >>> interfaces.ISchedulerItem.providedBy(cronItem)
+  True
+
+  >>> interfaces.ICron.providedBy(cronItem)
+  True
+
+Let's first explain how this works. The cron scheduler provides a next call
+time stamp. If the calculated next call time is smaller then the last call time,
+the cron scheduler item will calculate the new next call time and store them
+as nextCallTime. After that the previous nextCallTime get returnd. This will
+make sure that we have a minimum of time calculation calls because each time
+a cron scheduler item get asked about the next call time the stored time is
+used. The cron schdeuler item onl calculates the next call time if the existing
+next call time is smaller then the given call time.
+
+
+Now let's test a cron as a scheduler item. setup a simple corn item with a
+5 minute period:
+
+  >>> import time
+  >>> now = 0
+  >>> echoLoop = p01.remote.scheduler.Cron(u'echo', minute=(5,), startTime=now)
+
+Now add the item to the schdeuler:
+
+  >>> scheduler.add(echoLoop)
+
+As you can see the scheduler contains one cron and the previous delay items:
+
+  >>> sorted(scheduler.values(), key=lambda x:(x.__name__, x.__name__))
+  [<Delay 1 for: u'echo'>,
+   <Delay 2 for: u'echo'>,
+   <Cron 3 for: u'echo'>]
+
+But the item isn't scheduled:
+
+  >>> scheduler._pending
+  []
+
+Now we can get the job based on the jobName ``echo`` defined from the cron
+scheduler item if we call pullNextSchedulerItem. But if we call this within
+the current start time, we do not get a job because the scheduler is set to
+5 minutes:
+
+  >>> scheduler.pullNextSchedulerItem(now) is None
+  True
+
+  >>> scheduler._pending
+  []
+
+If we use a future time stamp for our call time, the delay and the cron
+scheduler item will process their jobs. But heads up, since both reference the
+same job by it's jobName called``echo`` we only will get this job added once
+to the pending list. OK, first let's use the internal method with our old call
+time. This should not add something to the pending list:
+
+  >>> scheduler.updatePending(now)
+  >>> scheduler._pending
+  []
+
+A new call time will add only one job to the pending list:
+
+  >>> now += 100*60
+  >>> scheduler.updatePending(now)
+  >>> scheduler._pending
+  [<Delay 2 for: u'echo'>]
+
+And if we use another job referenced by the cron, we will get two different
+jobs in the pending list. But first let's reset the scheduler which will
+clean out all pending scheduled items:
+
+  >>> scheduler.reset()
+  >>> scheduler._pending
+  []
+
+and register the second job:
+
+  >>> anotherEchoJob = testing.EchoJob()
+  >>> remoteProcessor.addJob(u'anotherEcho', anotherEchoJob)
+  >>> echoLoop.jobName = u'anotherEcho'
+
+Now we will get two different jobs scheduled by the different scheduler items:
+
+  >>> now += 100*60
+  >>> scheduler.updatePending(now)
+  >>> scheduler._pending
+  [<Delay 2 for: u'echo'>, <Cron 3 for: u'anotherEcho'>]
+
+
+Now let's test the the different cron settings. Note that we provide a tuple of
+values for minutes, hours, month, dayOfWeek and dayOfMonth. This means you can
+schedule a job for every 15 minutes if you will set the minutes to
+(0, 15, 30, 45) or if you like to set a job only each 15 minutes after an hour
+you can set minutes to (15,). If you will set more then one argument e.g.
+minute, hours or days etc. all arguments must fit the given time.
+
+Let's start with a cron scheduler for every first and second minute per hour.
+Normaly the corn scheduler item will set now ``int(time.time())`` as
+nextCallTime value. For test our cron scheduler items, we use a explicit
+startTime value of 0 (zero):
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'bar', minute=(0, 1), startTime=0)
+
+The next call time is set based on the given startTime value. This means the
+first call will be at 0 (zero) minute:
+
+  >>> cronItem.nextCallTime
+  0
+
+Now let's call getNextCallTime, as you can see we will get the next call time
+we calculated during object initialization which is the given startTime and the
+next call time is set t tne next minute:
+
+  >>> cronItem.getNextCallTime(0)
+  0
+  >>> cronItem.nextCallTime
+  60
+
+If we use a call time of 5 seconds, we still will get the cached next call
+time of 60 minutes and we will not generate a new next call time since this
+time is already in the future:
+
+  >>> cronItem.getNextCallTime(5)
+  60
+  >>> cronItem.nextCallTime
+  60
+
+If we call the cron scheduler item with a call time equal or larger then our
+1 minute delay from the cached next call time, we will get the cached call time
+as value as we whould get similar to a smaller call time (see sample above).
+
+  >>> cronItem.getNextCallTime(65)
+  60
+
+We also get a calculated next call time for the first minute in the next hour:
+
+  >>> cronItem.nextCallTime
+  3600
+
+All future calls with a smaller time then the first minute in the next hour
+will return the cached next call time.
+
+  >>> cronItem.getNextCallTime(125)
+  3600
+
+  >>> cronItem.getNextCallTime(1*60*60)
+  3600
+
+
+Now start to test the cron scheduler arguments and check if the scheduled time
+will fit for the given values:
+
+  >>> now = 0
+  >>> tuple(time.gmtime(now))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+
+This sample shows you how the nextCallTime get cached based on calling
+getNextCallTime. Let's use the minute settings for this test:
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', minute=(0, 10), startTime=0)
+  >>> cronItem.nextCallTime
+  0
+
+  >>> cronItem.getNextCallTime(0)
+  0
+  >>> cronItem.nextCallTime
+  600
+
+  >>> nct = cronItem.getNextCallTime(2)
+  >>> nct
+  600
+  >>> cronItem.nextCallTime
+  600
+
+  >>> nct = cronItem.getNextCallTime(10*60)
+  >>> nct
+  600
+  >>> cronItem.nextCallTime
+  3600
+
+  >>> nct = cronItem.getNextCallTime(1*60*60)
+  >>> nct
+  3600
+  >>> cronItem.nextCallTime
+  4200
+
+  >>> nct = cronItem.getNextCallTime(2*60*60)
+  >>> nct
+  4200
+  >>> cronItem.nextCallTime
+  7800
+
+  >>> nct = cronItem.getNextCallTime(5*60*60)
+  >>> nct
+  7800
+  >>> cronItem.nextCallTime
+  18600
+
+Minutes
+
+Let's start testing the time tables
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', startTime=0)
+  >>> cronItem.minute = (0, 10)
+  >>> tuple(time.gmtime(now))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', minute=(2, 13), startTime=0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(0)))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(2*60)))
+  (1970, 1, 1, 0, 2, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(4*60)))
+  (1970, 1, 1, 0, 13, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(13*60)))
+  (1970, 1, 1, 0, 13, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(13*60)))
+  (1970, 1, 1, 1, 2, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(15*60)))
+  (1970, 1, 1, 1, 2, 0, 3, 1, 0)
+
+Hour
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', hour=(2, 13), startTime=0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(0)))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(2*60*60)))
+  (1970, 1, 1, 2, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(4*60*60)))
+  (1970, 1, 1, 13, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(13*60*60)))
+  (1970, 1, 1, 13, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(13*60*60)))
+  (1970, 1, 2, 2, 0, 0, 4, 2, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(15*60*60)))
+  (1970, 1, 2, 2, 0, 0, 4, 2, 0)
+
+Month
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', month=(1, 2, 5, 12),
+  ...     startTime=0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(0)))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(90*24*60*60)))
+  (1970, 2, 1, 0, 0, 0, 6, 32, 0)
+
+  #wondering if leap year are ok???
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(120*24*60*60)))
+  (1970, 5, 1, 0, 0, 0, 4, 121, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(130*24*60*60)))
+  (1970, 12, 1, 0, 0, 0, 1, 335, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(360*24*60*60)))
+  (1970, 12, 1, 0, 0, 0, 1, 335, 0)
+
+Day of week [0..6], jan 1 1970 is a wednesday.
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', dayOfWeek=(0, 2, 4, 5),
+  ...     startTime=0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(0)))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(24*60*60)))
+  (1970, 1, 2, 0, 0, 0, 4, 2, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(2*24*60*60)))
+  (1970, 1, 3, 0, 0, 0, 5, 3, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(4*24*60*60)))
+  (1970, 1, 5, 0, 0, 0, 0, 5, 0)
+
+DayOfMonth [1..31]
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', dayOfMonth=(1, 12, 21, 30),
+  ...     startTime=0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(0)))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(12*24*60*60)))
+  (1970, 1, 12, 1, 0, 0, 0, 12, 0)
+
+Combined
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', minute=(10,),
+  ...     dayOfMonth=(1, 12, 21, 30), startTime=0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(0)))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(10*60)))
+  (1970, 1, 1, 0, 10, 0, 3, 1, 0)
+
+  >>> cronItem = p01.remote.scheduler.Cron(u'echo', minute=(10,), hour=(4,),
+  ...     dayOfMonth=(1, 12, 21, 30), startTime=0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(0)))
+  (1970, 1, 1, 0, 0, 0, 3, 1, 0)
+  >>> tuple(time.gmtime(cronItem.getNextCallTime(10*60)))
+  (1970, 1, 1, 4, 10, 0, 3, 1, 0)

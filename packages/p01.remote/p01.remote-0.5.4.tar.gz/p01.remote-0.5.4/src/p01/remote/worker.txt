@@ -1,0 +1,117 @@
+===========
+Job Workers
+===========
+
+The actual processing of the jobs in a queue is handled by a spearate
+component, known as a worker. This component usually runs in its own
+thread and provides its own main loop.
+
+  >>> import time
+  >>> from p01.remote import worker
+
+The ``worker`` module provides a simple worker which executes one job at a
+time. A multithread worker is not supported right now. Let's create the
+necessary components to test the worker:
+
+1. Create the remote processor and add it to the root site:
+
+  >>> from p01.remote import interfaces
+  >>> from p01.remote import testing
+  >>> import p01.remote.processor
+  >>> remoteProcessor = p01.remote.processor.RemoteProcessor()
+
+  >>> sm = root['remote'] = remoteProcessor
+
+2. Register a job that simply sleeps and writes a message:
+
+  >>> sleepJob = testing.SleepJob()
+  >>> remoteProcessor.addJob('sleep', sleepJob)
+
+3. Setup a database:
+
+  >>> from ZODB.tests import util
+  >>> import transaction
+  >>> db = util.DB()
+
+  >>> from zope.app.publication.zopepublication import ZopePublication
+  >>> conn = db.open()
+  >>> conn.root()[ZopePublication.root_name] = root
+  >>> transaction.commit()
+
+
+The Simple Worker
+-----------------
+
+This worker executes one job at a time. It was designed for jobs that would
+take a long time and use up most of the processing power of a computer. It is
+also the default worker for the remote processor. Feel free to implement a multi
+thread worker if needed.
+
+Let's first register a few jobs:
+
+  >>> jobid = remoteProcessor.processJob(u'sleep', (0.04, 1))
+  >>> jobid = remoteProcessor.processJob(u'sleep', (0.1,  2))
+  >>> jobid = remoteProcessor.processJob(u'sleep', (0,    3))
+  >>> jobid = remoteProcessor.processJob(u'sleep', (0.08, 4))
+  >>> transaction.commit()
+
+Let's start by executing a job directly. The first argument to the simple
+worker constructor is the database and the second the traversal stack to
+the remote processor. All other arguments are optional:
+
+  >>> proc = worker.SimpleWorker(
+  ...     remoteProcessor._p_jar.db(), ['remote'], waitTime=0.0)
+
+Let's now process the first job. We clear the log and we also have to end any
+existing interactions in order to process the job in this thread:
+
+  >>> log_info.clear()
+
+  >>> from zope.security import management
+  >>> management.endInteraction()
+  >>> proc.processNextJob()
+  True
+
+  >>> print log_info
+  p01.remote INFO
+    Job: 1
+
+Let's now use the worker from within the remote processor. Since the worker
+constructors also accept additional arguments, they are specified as well:
+
+  >>> remoteProcessor.workerFactory
+  <class 'p01.remote.worker.SimpleWorker'>
+
+  >>> remoteProcessor.workerArguments
+  {'waitTime': 0.0}
+
+The wait time has been set to zero for testing purposes only. It is really set
+to 1 second by default. Let's now start processing jobs, wait a little bit
+for all the jobs to complete and then stop processing again:
+
+  >>> remoteProcessor.startProcessing()
+  >>> transaction.commit()
+
+  >>> time.sleep(0.5)
+
+  >>> remoteProcessor.stopProcessing()
+  >>> transaction.commit()
+
+The log shows that all jobs have been processed. But more importantly, they
+were all completed in the order they were defined. Note the first job get
+processed before we started the remote processor. And yes this means a remote
+processor can process jobs if the queue is not started. Starting a remote
+processor only means that the job get processed as jobs without to do it
+manualy.
+
+  >>> print log_info
+  p01.remote INFO
+    Job: 1
+  p01.remote INFO
+    RemoteProcessor 'remote' started
+  p01.remote INFO
+    Job: 2
+  p01.remote INFO
+    Job: 3
+  p01.remote INFO
+    Job: 4
