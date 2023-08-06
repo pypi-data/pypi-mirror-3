@@ -1,0 +1,108 @@
+jsonurl
+=======
+
+Introduction
+------------
+
+jsonurl is a simple library for managing the serialisation and deserialisation of URL query strings which represent hierarchically structured data.  
+
+It will take python data structures which can be represented in JSON and convert them to flat key/value pairs for use in URL query strings, and it will take URL query strings and parse them into hierarchical data structures.
+
+This is convenient if you wish to pass structured data around in the URL itself rather than in a POST body.  This may complement a web API which also accepts JSON strings in the body of a POST request, providing equivalent functionality using GET without constructing URLs which include url-encoded json objects.
+
+
+Usage
+-----
+
+    >>> import jsonurl
+
+### Converting Data Structures
+
+A simple flat dictionary
+
+    >>> d = {"one" : 1, "two" : 2}
+    
+    >>> jsonurl.query_string(d)
+    'one=1&two=2'
+
+A dictionary with a nested dictionary
+
+    >>> d = {"one" : {"two" : 2, "three" : 3}, "four" : 4}
+    >>> q = jsonurl.query_string(d)
+    >>> q
+    'four=4&one.three=3&one.two=2'
+
+We can also get a flat dictionary as a proxy for the hierarchic one, if we do not want jsonurl to actually prepare the query part of the URL for us
+
+    >>> jsonurl.dict_to_args(d)
+    {'four': '4', 'one.three': '3', 'one.two': '2'}
+
+We can parse the query string back into a python dictionary object
+
+    >>> jsonurl.parse_query(q)
+    {'four': 4, 'one': {'three': 3, 'two': 2}}
+
+We can also serialise nested lists:
+
+    >>> d = {"one" : 1, "two" : [2,3,4]}
+
+The flattened data structure:
+
+    >>> jsonurl.dict_to_args(d)
+    {'two.1': '3', 'two.0': '2', 'two.2': '4', 'one': '1'}
+
+The query string itself:
+
+    >>> q = jsonurl.query_string(d)
+    >>> q
+    'one=1&two.0=2&two.1=3&two.2=4'
+
+This can be comfortably parsed back into a python data structure
+
+    >>> jsonurl.parse_query(q)
+    {'two': [2, 3, 4], 'one': 1}
+
+We can go on to serialise arbitrarily complex data structures
+
+    >>> d = {"one" : [ {"two" : 2, "three" : 3}, 4 ]}
+    >>> q = jsonurl.query_string(d)
+    >>> q
+    'one.0.three=3&one.0.two=2&one.1=4'
+
+### Escape Characters
+
+jsonurl will also handle url-escaping:
+
+    >>> q = {"escape_me" : "I'll need escaping"}
+    >>> s = jsonurl.query_string(q)
+    >>> s
+    'escape_me=I%27ll+need+escaping'
+
+jsonurl uses "+" for a space instead of %20 to improve readability
+
+It also unescapes everything during parse:
+
+    >>> jsonurl.parse_query(s)
+    {'escape_me': "I'll need escaping"}
+
+Since jsonurl uses "." as its separator, dictionary keys with "." in the name are escaped.  We prefix each "." with another during serialisation:
+
+    >>> d = {"user.names" : ["richard", "jones"]}
+    >>> q = jsonurl.query_string(d)
+    >>> q
+    'user..names.0=richard&user..names.1=jones'
+
+".." is then converted back during parsing:
+
+    >>> jsonurl.parse_query(q)
+    {'user.names': ['richard', 'jones']}
+
+
+### Parameter Ordering
+
+It orders the query parameters, to make it easier to read long query strings:
+
+    >>> d = {"b" : "last", "a" : [1,2,3]}
+    >>> jsonurl.query_string(d)
+    'a.0=1&a.1=2&a.2=3&b=last'
+
