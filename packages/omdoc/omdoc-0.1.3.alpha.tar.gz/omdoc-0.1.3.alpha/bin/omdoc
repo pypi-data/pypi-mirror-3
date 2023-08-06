@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+import os
+import sys
+import shutil
+import glob
+from jinja2 import Environment, FileSystemLoader
+from omdoc import settings, extensions
+
+HEADER = '\033[40;93m'
+GREEN = '\033[92m'
+RED = '\033[40;91m'
+ENDC = '\033[0m'
+
+def print_header(msg):
+    print HEADER + ' ' + msg + ' ' + ENDC
+
+def print_error(msg):
+    print RED + msg + ENDC
+
+def print_success(msg):
+    print GREEN + msg + ENDC
+
+# set working directory
+cwd = os.getcwd()
+
+# if there is no layout.html in this directory then fail
+if not os.path.exists('./layout.html'):
+    print_error('layout.html not found, are you in the right directory?')
+    sys.exit()
+
+# set up jinja environment
+env = Environment(
+        extensions=extensions.extensions,
+        loader=FileSystemLoader('.')
+    )
+
+# load up the config
+
+
+# make the build directory if it doesn't exist
+if not os.path.exists('%s/_build' % cwd):
+    os.mkdir('%s/_build' % cwd)
+
+
+# copy all directories into the build folder
+contents = os.listdir('.')
+directories = []
+for obj in contents:
+    if os.path.isdir(obj) and obj not in settings.EXCLUDED_DIRNAMES:
+        directories.append(obj)
+
+if directories:
+    print_header(' - Copying directories')
+
+for dir in directories:
+    if dir not in settings.EXCLUDED_DIRNAMES:
+        # remove from the build folder
+        try:
+            shutil.rmtree('./_build/%s' % dir)
+        except OSError:
+            pass
+        try:
+            shutil.copytree('./%s' % dir, './_build/%s' % dir)
+            print_success('  - _build/%s' % dir )
+        except OSError:
+            pass
+
+
+# get a list of all files except layout.html
+docs = glob.glob('*.html')
+docs.remove('layout.html')
+
+# render each out saving them in _build
+print_header('- Rendering')
+for doc in docs:
+    print_success('  - %s' % doc)
+    template = env.get_template(doc)
+    out = template.render()
+
+    # apply the filters
+    for filter in settings.FILTERS:
+        f = getattr(settings, filter)
+        out = f(out)
+
+    # save it
+    fh = open('%s/_build/%s' % (cwd, doc), 'w')
+    fh.write(out)
+    fh.close()
+
+# now feedback
+plural = 'file' if len(docs) == 1 else 'files'
+print_success('\n%s %s rendered.' % (len(docs), plural))
