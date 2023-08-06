@@ -1,0 +1,1 @@
+define(["cilantro/types/objectset/models","cilantro/types/objectset/views"],function(a,b){return{Models:a,Views:b}})
