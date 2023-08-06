@@ -1,0 +1,224 @@
+Metadata-Version: 1.0
+Name: repoze.errorlog
+Version: 0.9.2
+Summary: Error logging and reporting middleware
+Home-page: http://www.repoze.org
+Author: Agendaless Consulting
+Author-email: repoze-dev@lists.repoze.org
+License: BSD-derived (http://www.repoze.org/LICENSE.txt)
+Description: repoze.errorlog README
+        ======================
+        
+        Overview
+        --------
+        
+        This package implements a WSGI middleware filter which intercepts
+        exceptions and writes them to a Python logging module channel (or the
+        ``wsgi.errors`` filehandle, if no channel is configured).  It also
+        allows the browsing of limited exception history via a browser UI.
+        
+        Configuration
+        -------------
+            
+        If you want to use the default configuration, you can just include the
+        filter in your application's PasteDeploy pipeline, e.g.::
+        
+          [pipeline:main]
+          pipeline = egg:Paste#cgitb
+                     egg:repoze.errorlog#errorlog
+                     yourapp
+        
+        If you want to override the default configuration, you need to make a
+        separate section for the filter.  The Paste configuration options at
+        this time are ``channel``, ``keep`` and ``path``.  To configure
+        repoze.errorlog to use the ``Repoze`` logging channel, which sends to
+        the logging channel as if you had send to a logger from code where
+        you did 'from logging import getLogger; logger = getLogger("Repoze")'
+        and to keep 50 tracebacks around for through-the-web exception
+        viewing, configure like so::
+        
+           [filter:errorlog]
+           channel = Repoze
+           keep = 50
+           path = /__my_error_log__
+           ignore = RuntimeError my.module:MyError
+        
+        By default, no channel is configured, and tracebacks are sent to the
+        ``wsgi.errors`` file handle (which should cause the errors to show up in
+        your server's error log).  By default, the exception history length
+        ('keep') is 20.
+        
+        By default, the error log's path is ``/__error_log__``; you can change
+        this as necessary for your deployment.
+        
+        The ignore parameter prevents the exceptions named from being logged
+        or kept in exception history (although they are reraised).  By
+        default, no exceptions are ignored.
+        
+        To use the reconfigured filter in the pipeline::
+        
+           [pipeline:main]
+           pipeline = egg:Paste#cgitb
+                      errorlog
+                      yourapp
+        
+        If you don't use PasteDeploy, you can configure the ErrorLog
+        middleware manually::
+        
+          app = ErrorLog(app, channel=None, keep=20, path='/__error_log__', 
+                         ignored_exceptions=())
+        
+        Usage
+        -----
+        
+        To view recent tracebacks via your browser (exception history), visit
+        the ``/__error_log__`` path at the hostname represented by your server.
+        A view will be presented showing you all recent tracebacks.  Clicking
+        on one will bring you to a page which shows you the traceback and a
+        rendering of the WSGI environment which was present at the time the
+        exception occurred.
+        
+        Integrating
+        -----------
+        
+        When repoze.errorlog is placed into the pipeline, two keys are placed
+        into the wsgi environment on every request (even when an exception is
+        not raised and caught by repoze.errorlog)::
+        
+              repoze.errorlog.path -- the path at which the errorlog is configured
+        
+              repoze.errorlog.entryid -- the entry id of the next error
+        
+         Middleware and applications that catch exceptions can compose a URL
+         to the current error (for helpful development feedback) when they
+         know repoze.errorlog is in the pipeline by using the following code::
+        
+              from paste.request import construct_url
+              path = environ['repoze.errorlog.path']
+              entry = environ['repoze.errorlog.entryid']
+              url = construct_url(environ, path_info=path, 
+                                  querystring='entry=%s' % entry)
+        
+        
+        Reporting Bugs / Development Versions
+        -------------------------------------
+        
+        Visit http://bugs.repoze.org to report bugs.  Visit
+        http://svn.repoze.org to download development or tagged versions.
+        
+        
+        0.9.2 (2012-03-29)
+        ------------------
+        
+        - This release is the last which will maintain support for Python 2.4 /
+          Python 2.5.
+        
+        - Added support for continuous integration using ``tox`` and ``jenkins``.
+        
+        - Added support for PyPy.
+        
+        - Added 'setup.py dev' alias (runs ``setup.py develop`` plus installs
+          ``nose`` and ``coverage``).
+        
+        - Moved to github.
+        
+        0.9.1 (2010-05-23)
+        ------------------
+        
+        - Make it possible to send exceptions to a logger channel as described
+          in the docs; this didn't actually work previously because a) I'm not
+          very good at programming and b) the Python logging module is
+          terrible (using ``s[-1]`` and not catching an exception when the
+          string is empty rather than using ``s.endswith()``, at least under
+          Python 2.4).
+        
+        0.9 (2010-05-23)
+        ----------------
+        
+        - Bump copyrights.
+        
+        - Remove dependency on ``ez_setup.py``.
+        
+        - Docs now show how to use ``ErrorLog`` outside PasteDeploy.
+        
+        - Avoid a dependency on `elementtree` when used with Python 2.5 and later.
+          In those Python versions we used the built-in xml.etree support.
+        
+        - 100% test coverage.
+        
+        0.8 (2008-06-25)
+        ----------------
+        
+        - Remove post-mortem debug middleware (moved to repoze.debug).
+        
+        - Initial PyPI release.
+        
+        0.7 (2008-05-21)
+        ----------------
+        
+        - Add post-mortem debug middleware (egg:repoze.errorlog#pdbpm)
+        
+        - Remove versions from dependencies.
+        
+        0.6
+        ---
+        
+        - Get rid of find-link point to http://dist.repoze.org in setup.py.
+        
+        - Bump ez_setup.py version.
+        
+        0.5
+        ---
+        
+        - Depend on elementree 1.2.6 explicitly.
+        
+        0.4
+        ---
+        
+        - Add 'ignore' feature to configuration.  A value consisting of
+          space-separated entry point names can be used here, indicating that
+          these exception types should not be logged or kept in exception
+          history.
+        
+        - Allow __error_log__ view path to be configured via 'path' entry in
+          Paste configuration.
+        
+        - Place 'repoze.errorlog.path' and 'repoze.errorlog.entryid' in the
+          WSGI environment to allow error-catching middleware and apps to
+          compose URLs to errors.
+        
+        0.3
+        ---
+        
+        - 0.2 didn't work as a filter. :-(
+        
+        - Don't use zope.pagetemplate, it has too many (potentially
+          conflicting) dependencies.  Instead use meld for template views.
+        
+        0.2
+        ---
+        
+        - Provide a TTW view (accessible via '/__error_log__') of recent
+          tracebacks.
+        
+        0.1
+        ---
+        
+        - Initial release.
+        
+        
+Keywords: web application server wsgi zope
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 2.4
+Classifier: Programming Language :: Python :: 2.5
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Middleware
