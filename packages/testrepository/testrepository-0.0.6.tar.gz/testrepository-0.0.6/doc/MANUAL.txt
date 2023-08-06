@@ -1,0 +1,138 @@
+Test Repository users manual
+++++++++++++++++++++++++++++
+
+Overview
+~~~~~~~~
+
+Test repository is a small application for tracking test results. Any test run
+that can be represented as a subunit stream can be inserted into a repository.
+
+Typical workflow is to have a repository into which test runs are inserted, and
+then to query the repository to find out about issues that need addressing. For
+instance, using the sample subunit stream included with Test repository::
+
+  # Create a store to manage test results in.
+  $ testr init
+  # add a test result (shows failures)
+  $ testr load < doc/example-failing-subunit-stream
+  # see the tracked failing tests again
+  $ testr failing
+  # fix things
+  $ testr load < doc/example-passing-subunit-stream
+  # Now there are no tracked failing tests
+  $ testr failing
+
+Most commands in testr have comprehensive online help, and the commands::
+  $ testr help
+  $ testr commands
+
+Will be useful to explore the system.
+
+Running tests
+~~~~~~~~~~~~~
+
+Test Repository can be taught how to run your tests by setting up a .testr.conf
+file in your cwd. A file like::
+
+  [DEFAULT]
+  test_command=foo $IDOPTION
+  test_id_option=--bar $IDFILE
+
+will cause 'testr run' to run 'foo' and process it as 'testr load' would.
+Likewise 'testr run --failing' will run 'foo --bar failing.list' and process it
+as 'testr load' would. failing.list will be a newline separated list of the
+test ids that your test runner outputs. Arguments passed to run are passed
+through to your test runner command line. To pass options through to your test
+running, use a ``--`` before your options.  For instance, 
+``testr run quux -- bar --no-plugins`` would run
+``foo quux bar --no-plugins`` using the above config example.  Shell variables
+are expanded in these commands on platforms that have a shell.
+
+To get a full list of these options run ``testr help run``.
+
+Having setup a .testr.conf, a common workflow then becomes::
+
+  # Fix currently broken tests - repeat until there are no failures.
+  $ testr run --failing
+  # Do a full run to find anything that regressed during the reduction process.
+  $ testr run
+  # And either commit or loop around this again depending on whether errors
+  # were found.
+
+The --failing option turns on ``--partial`` automatically (so that if the
+partial test run were to be interrupted, the failing tests that aren't run are
+not lost).
+
+Listing tests
+~~~~~~~~~~~~~
+
+It is useful to be able to query the test program to see what tests will be
+run - this permits partitioning the tests and running multiple instances with
+separate partitions at once. Set 'test_list_option' in .testr.conf like so::
+
+  test_list_option=--list-tests
+
+You also need to use the $LISTOPT option to tell testr where to expand things:
+
+  test_command=foo $LISTOPT $IDOPTION
+
+All the normal rules for invoking test program commands apply: extra parameters
+will be passed through, if a test list is being supplied test_option can be
+used via $IDOPTION.
+
+The output of the test command when this option is supplied should be a series
+of test ids, in any order, `\n' separated on stdout.
+
+To test whether this is working the `testr list-tests` command can be useful.
+
+Parallel testing
+~~~~~~~~~~~~~~~~
+
+If both test listing and filtering (via either IDLIST or IDFILE) are configured
+then testr is able to run your tests in parallel::
+
+  $ testr run --parallel
+
+This will first list the tests, partition the tests into one partition per CPU
+on the machine, and then invoke multiple test runners at the same time, with
+each test runner getting one partition. Currently the partitioning algorithm
+is a simple round-robin, and the CPU detection is only implemented for Linux.
+
+Hiding tests
+~~~~~~~~~~~~
+
+Some test runners (for instance, zope.testrunner) report pseudo tests having to
+do with bringing up the test environment rather than being actual tests that
+can be executed. These are only relevant to a test run when they fail - the
+rest of the time they tend to be confusing. For instance, the same 'test' may
+show up on multiple parallel test runs, which will inflate the 'executed tests'
+count depending on the number of worker threads that were used. Scheduling such
+'tests' to run is also a bit pointless, as they are only ever executed
+implicitly when preparing (or finishing with) a test environment to run other
+tests in.
+
+testr can ignore such tests if they are tagged, using the filter_tags
+configuration option. Tests tagged with any tag in that (space separated) list
+will only be included in counts and reports if the test failed (or errored).
+
+Repositories
+~~~~~~~~~~~~
+
+A testr repository is a very simple disk structure. It contains the following
+files (for a format 1 repository - the only current format):
+
+* format: This file identifies the precise layout of the repository, in case
+  future changes are needed.
+
+* next-stream: This file contains the serial number to be used when adding another
+  stream to the repository.
+
+* failing: This file is a stream containing just the known failing tests. It
+  is updated whenever a new stream is added to the repository, so that it only
+  references known failing tests.
+
+* #N - all the streams inserted in the repository are given a serial number.
+
+* repo.conf: This file contains user configuration settings for the repository.
+  ``testr repo-config`` will dump a repo configration and
+  ``test help repo-config`` has online help for all the repository settings.
