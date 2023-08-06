@@ -1,0 +1,1195 @@
+#  _________________________________________________________________________
+#
+#  Coopr: A COmmon Optimization Python Repository
+#  Copyright (c) 2008 Sandia Corporation.
+#  This software is distributed under the BSD License.
+#  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
+#  the U.S. Government retains certain rights in this software.
+#  For more information, see the Coopr README.txt file.
+#  _________________________________________________________________________
+
+"""
+This file contains a library of functions needed to construct linear/piecewise-linear
+constraints for a Pyomo model. All piecewise types except for SOS2, BIGM_SOS1,
+BIGM_BIN were taken from the paper: Mixed-Integer Models for Non-separable Piecewise Linear
+Optimization: Unifying framework and Extensions (Vielma, Nemhauser 2008).
+
+TODO: Add regression tests for the following completed tasks
+*) user not providing floats can be an major issue for BIGM's and M
+*) Other TODO's
+*) affine functions - BIGM_SOS1, BIGM_SOS2 ***** possible edge case bug
+
+Possible Extensions
+       *) Support for functions which are discontinuous in the domain/range. 
+          This would require updating input structure and a check for which
+          piecewise reps would support this.
+       *) Consider another piecewise rep "SOS2_MANUAL" where we manually implement extra constraints to
+          define an SOS2 set, this would be compatible with GLPK, http://winglpk.sourceforge.net/media/glpk-sos2_02.pdf
+       *) double check that LOG and DLOG reps really do require (2^n)+1 points
+       *) piecewise reps for multivariable functions
+"""
+
+__all__ = ['Piecewise']
+
+import logging
+import math
+import itertools
+import operator
+
+from block import Block
+from constraint import Constraint
+from sos import SOSConstraint
+from var import Var, _VarData, _VarArray
+from set_types import PositiveReals, NonNegativeReals, Binary
+from pyutilib.component.core import alias
+from pyutilib.misc import flatten_tuple
+from pyutilib.enum import Enum
+
+#from linearize import _LinearData, \
+#                      _characterize_function, \
+#                      _isNonDecreasing, \
+#                      _isNonIncreasing, \
+#                      Bound,\
+#                      WARNING_TOLERANCE
+
+logger = logging.getLogger('coopr.pyomo')
+
+PWRepn = Enum('SOS2','BIGM_BIN','BIGM_SOS1','CC','DCC','DLOG','LOG','MC','INC')
+
+##############
+############## the following code may be moved to a new module soon
+##############
+WARNING_TOLERANCE = 1e-8
+
+Bound = Enum('Lower','Upper','Equal')
+
+def _isNonDecreasing(vals):
+    """
+    checks that list of points is
+    nondecreasing
+    """
+    it = iter(vals)
+    it.next()
+    op = operator.ge
+    return all(itertools.starmap(op,itertools.izip(it,vals)))
+
+def _isNonIncreasing(vals):
+    """
+    checks that list of points is
+    nonincreasing
+    """
+    it = iter(vals)
+    it.next()
+    op = operator.le
+    return all(itertools.starmap(op,itertools.izip(it,vals)))
+
+def _characterize_function(tol,f_rule,model,points,*index):
+    """
+    Generates a list of range values and checks
+    for convexity/concavity. Assumes domain points
+    are sorted in increasing order.
+    """
+    
+    # we cast to float to avoid possible integer division in cases where
+    # the user supplies integer type points for return values
+    values = [ float(f_rule(model,*flatten_tuple((index,x)))) for x in points ]
+    slopes = [ (values[i]-values[i-1])/(points[i]-points[i-1]) for i in xrange(1,len(points)) ]
+
+    # TODO: Warn when the slopes of two consecutive line
+    #       segments are nearly equal since this is likely
+    #       due to a user mistake and may cause issue with
+    #       the solver.
+    #       *** This is already done below but there 
+    #           is probably a more correct way
+    #           to send this warning through Pyomo
+    if not all(itertools.starmap(lambda x1,x2: abs(x1-x2) > tol,itertools.izip(slopes,itertools.islice(slopes,1,None)))):
+        print "WARNING: slopes of consecutive linear segments detected to be within "+str(tol)+" of one another"
+
+    if _isNonDecreasing(slopes):
+        # convex
+        return 1,values
+    elif _isNonIncreasing(slopes):
+        # concave
+        return -1,values
+    return 0,values
+
+class _LinearData(object):
+    """
+    This class defines the base class for all linearization
+    and piecewise constraint generators..
+    """
+
+    def __init__(self, name, bound_type, domain_pts, range_pts):
+        self.name = name
+        self._bound_type = bound_type
+        # ***Note: most (if not all) classes derived off of _LinearData
+        #          assume the list of domain points is sorted.
+        if not _isIncreasing(domain_pts):
+            msg = "'%s' does not have a list of domain points "\
+                  "that is strictly increasing"
+            raise ValueError, msg % (self.name,)
+        self._domain_pts = domain_pts
+        self._range_pts = range_pts
+        
+        self.active = True
+        self._constraints = []
+        self._vars = []
+
+    def activate(self):
+        [con.activate() for con in self._constraints]
+        self.active=True
+    
+    def deactivate(self):
+        [con.deactivate() for con in self._constraints]
+        self.active=False
+
+    def _update_constraints(self,model,name,con_obj):
+        constraint_name = self.name+'_'+name
+        self._constraints.append(con_obj)
+        setattr(model,constraint_name,con_obj)
+    
+    def _update_vars(self,model,name,var_obj):
+        var_name = self.name+'_'+name
+        self._vars.append(var_obj)
+        setattr(model,var_name,var_obj)
+        return var_obj
+
+class _LinearizedBounds(_LinearData):
+    """
+    Called to create linearizations of a function
+    """
+
+    def __init__(self, *args, **kwds):
+        self._grad_range_pts = kwds.pop("grad_range_pts",None)
+        _LinearData.__init__(self,*args,**kwds)
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        dy_pts = self._grad_range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,dy_pts,bound_type]:
+            raise RuntimeError, "_LinearizedBounds: construct() called during invalid state."
+
+        tangent_indices = range(len(x_pts))
+
+        def con_rule(model,i):
+            LHS = y_var
+            F_AT_XO = y_pts[i]
+            dF_AT_XO = dy_pts[i]
+            X_MINUS_XO = x_var-x_pts[i]
+            if bound_type == Bound.Upper:
+                return LHS <= F_AT_XO + dF_AT_XO*X_MINUS_XO
+            elif bound_type == Bound.Lower:
+                return LHS >= F_AT_XO + dF_AT_XO*X_MINUS_XO
+            else:
+                raise ValueError, "Invalid Bound for _LinearizedBounds object"
+        self._update_constraints(model,'tangent_constraint', Constraint(tangent_indices,rule=con_rule))
+##############
+##############
+##############
+
+def _isPowerOfTwo(x):
+    """
+    checks that a number is a nonzero and positive power of 2
+    """
+    if (x <= 0):
+        return false
+    else:
+        return ( (x & (x - 1)) == 0 )
+
+def _isIncreasing(vals):
+    """
+    checks that a list of points is
+    strictly increasing
+    """
+    it = iter(vals)
+    it.next()
+    op = operator.gt
+    return all(itertools.starmap(op,itertools.izip(it,vals)))
+
+def _GrayCode(nbits):
+    """
+    Generates a GrayCode of nbits represented
+    by a list of lists
+    """
+    bitset = [0 for i in xrange(nbits)]
+    # important that we copy bitset each time
+    graycode = [list(bitset)]
+
+    for i in xrange(2,(1<<nbits)+1):
+        if i%2:
+            for j in xrange(-1,-nbits,-1):
+                if bitset[j]:
+                    bitset[j-1]=bitset[j-1]^1
+                    break
+        else:
+            bitset[-1]=bitset[-1]^1
+        # important that we copy bitset each time
+        graycode.append(list(bitset))
+
+    return graycode
+
+class _SimpleSinglePiecewise(_LinearData):
+    """
+    Called when the piecwise points list has only two points
+    """
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_SimpleSinglePiecewise: construct() called during invalid state."
+        
+        # create a single linear constraint
+        LHS = y_var
+        F_AT_XO = y_pts[0]
+        dF_AT_XO = (y_pts[1]-y_pts[0])/float(x_pts[1]-x_pts[0]) # call float() to protect against integer division
+        X_MINUS_XO = x_var-x_pts[0]
+        if bound_type == Bound.Upper:
+            expr= LHS <= F_AT_XO + dF_AT_XO*X_MINUS_XO        
+        elif bound_type == Bound.Lower:
+            expr= LHS >= F_AT_XO + dF_AT_XO*X_MINUS_XO        
+        elif bound_type == Bound.Equal:
+            expr= LHS == F_AT_XO + dF_AT_XO*X_MINUS_XO
+        else:
+            raise ValueError, "Invalid Bound for _SimpleSinglePiecewise object"
+        self._update_constraints(model,'single_line_constraint',Constraint(expr=expr))
+
+        # In order to enforce the same behavior as actual piecewise constraints,
+        # we constrain the domain variable between the outer domain pts. But in order to
+        # prevent filling the model with unecessary constraints, we only do this
+        # when absolutely necessary.
+        if x_var.lb < x_pts[0]:
+            self._update_constraints(model,'simplified_piecewise_domain_constraint_lower',Constraint(expr=x_pts[0] <= x_var))
+        if x_var.ub > x_pts[1]:
+            self._update_constraints(model,'simplified_piecewise_domain_constraint_upper',Constraint(expr=x_var <= x_pts[-1]))
+        
+class _SimplifiedPiecewise(_LinearData):
+    """
+    Called when piecewise constraints are simplified due to a lower bounding
+    convex function or an upper bounding concave function
+    """
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_SimplifiedPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+        
+        # create indexers
+        bounds_constraint_index = range(len_x_pts-1)
+        
+        # create linear constraints
+        def con_rule(model,i):
+            LHS = y_var
+            F_AT_XO = y_pts[i]
+            dF_AT_XO = (y_pts[i+1]-y_pts[i])/float(x_pts[i+1]-x_pts[i]) # call float() to protect against integer division
+            X_MINUS_XO = x_var-x_pts[i]
+            if bound_type == Bound.Upper:
+                return LHS <= F_AT_XO + dF_AT_XO*X_MINUS_XO        
+            elif bound_type == Bound.Lower:
+                return LHS >= F_AT_XO + dF_AT_XO*X_MINUS_XO 
+            else:
+                raise ValueError, "Invalid Bound for _SimplifiedPiecewise object"
+
+        self._update_constraints(model,'simplified_piecewise_constraint',Constraint(bounds_constraint_index,rule=con_rule))
+        
+        # In order to enforce the same behavior as actual piecewise constraints,
+        # we constrain the domain variable between the outer domain pts. But in order to
+        # prevent filling the model with unecessary constraints, we only do this
+        # when absolutely necessary.
+        if x_var.lb < x_pts[0]:
+            self._update_constraints(model,'simplified_piecewise_domain_constraint_lower',Constraint(expr=x_pts[0] <= x_var))
+        if x_var.ub > x_pts[-1]:
+            self._update_constraints(model,'simplified_piecewise_domain_constraint_upper',Constraint(expr=x_var <= x_pts[-1]))
+    
+class _SOS2Piecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the SOS2 formulation
+    """
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_SOS2Piecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+
+        # create indexers
+        sos2_index = range(len_x_pts)
+    
+        # create vars
+        sos2_y = self._update_vars(model,'SOS2_y',Var(sos2_index,within=NonNegativeReals))
+        
+        # create piecewise constraints
+        self._update_constraints(model,'SOS2_constraint1',Constraint(expr=x_var == sum(sos2_y[i]*x_pts[i] for i in sos2_index)))
+        
+        LHS = y_var
+        RHS = sum(sos2_y[i]*y_pts[i] for i in sos2_index)
+        expr = None
+        if bound_type == Bound.Upper:
+            expr= LHS <= RHS
+        elif bound_type == Bound.Lower:
+            expr= LHS >= RHS
+        elif bound_type == Bound.Equal:
+            expr= LHS == RHS
+        else:
+            raise ValueError, "Invalid Bound for _SOS2Piecewise object"
+        self._update_constraints(model,'SOS2_constraint2',Constraint(expr=expr))
+
+        self._update_constraints(model,'SOS2_constraint3',Constraint(expr=sum(sos2_y[j] for j in sos2_index) == 1))
+
+        self._update_constraints(model,'SOS2_constraint4',SOSConstraint(var=sos2_y, sos=2))
+
+class _DCCPiecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the DCC formulation
+    """
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_DCCPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+
+        # create indexers
+        polytopes = range(1,len_x_pts)
+        vertices = range(1,len_x_pts+1)
+        def polytope_verts(p):
+            return xrange(p,p+2)
+        
+        # create vars
+        lmda = self._update_vars(model,'DCC_lambda',Var(polytopes,vertices,within=PositiveReals))
+        bin_y = self._update_vars(model,'DCC_bin_y',Var(polytopes,within=Binary))        
+        
+        # create piecewise constraints
+        self._update_constraints(model,'DCC_constraint1',Constraint(expr=x_var == sum(lmda[p,v]*x_pts[v-1] for p in polytopes for v in polytope_verts(p))))
+
+        LHS = y_var
+        RHS = sum(lmda[p,v]*y_pts[v-1] for p in polytopes for v in polytope_verts(p))
+        expr = None
+        if bound_type == Bound.Upper:
+            expr= LHS <= RHS
+        elif bound_type == Bound.Lower:
+            expr= LHS >= RHS
+        elif bound_type == Bound.Equal:
+            expr= LHS == RHS
+        else:
+            raise ValueError, "Invalid Bound for _DCCPiecewise object"
+        self._update_constraints(model,'DCC_constraint2',Constraint(expr=expr))
+        
+        def con3_rule(model,p):
+            return bin_y[p] == sum(lmda[p,v] for v in polytope_verts(p))
+        self._update_constraints(model,'DCC_constraint3',Constraint(polytopes,rule=con3_rule))
+
+        self._update_constraints(model,'DCC_constraint4',Constraint(expr=sum(bin_y[p] for p in polytopes) == 1))
+
+class _DLOGPiecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the DLOG formulation
+    """
+
+    def __init__(self, *args, **kwds):
+        _LinearData.__init__(self,*args,**kwds)
+        if not _isPowerOfTwo(len(self._domain_pts)-1):
+            msg = "'%s' does not have a list of domain points "\
+                  "with length (2^n)+1"
+            raise ValueError, msg % (self.name,)
+    
+    def _Branching_Scheme(self,L):
+        """
+        Branching scheme for DLOG
+        """
+        MAX = 2**L
+        mylists1 = {}
+        for i in xrange(1,L+1):
+            mylists1[i] = []
+            start = 1
+            step = MAX/(2**i)
+            while(start < MAX):
+                mylists1[i].extend([j for j in xrange(start,start+step)])
+                start += 2*step
+                
+        biglist = xrange(1,MAX+1)
+        mylists2 = {}
+        for i in sorted(mylists1.keys()):
+            mylists2[i] = []
+            for j in biglist:
+                if j not in mylists1[i]:
+                    mylists2[i].append(j)
+            mylists2[i] = sorted(mylists2[i])
+    
+        return mylists1, mylists2
+
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_DLOGPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+        
+        # create branching schemes
+        L_i = int(math.log(len_x_pts-1,2))
+        B_ZERO,B_ONE = self._Branching_Scheme(L_i)
+        
+        # create indexers
+        polytopes = range(1,len_x_pts)
+        vertices = range(1,len_x_pts+1)
+        bin_y_index = range(1,L_i+1)
+        def polytope_verts(p):
+            return xrange(p,p+2)
+
+        # create vars
+        lmda = self._update_vars(model,'DLOG_lambda',Var(polytopes,vertices,within=PositiveReals))
+        bin_y = self._update_vars(model,'DLOG_bin_y',Var(bin_y_index,within=Binary))
+        
+        # create piecewise constraints
+        self._update_constraints(model,'DLOG_constraint1',Constraint(expr=x_var == sum(lmda[p,v]*x_pts[v-1] for p in polytopes for v in polytope_verts(p))))
+        
+        LHS = y_var
+        RHS = sum(lmda[p,v]*y_pts[v-1] for p in polytopes for v in polytope_verts(p))
+        expr = None
+        if bound_type == Bound.Upper:
+            expr= LHS <= RHS
+        elif bound_type == Bound.Lower:
+            expr= LHS >= RHS
+        elif bound_type == Bound.Equal:
+            expr= LHS == RHS
+        else:
+            raise ValueError, "Invalid Bound for _DLOGPiecewise object"
+        self._update_constraints(model,'DLOG_constraint2',Constraint(expr=expr))
+
+        self._update_constraints(model,'DLOG_constraint3',Constraint(expr=sum(lmda[p,v] for p in polytopes for v in polytope_verts(p)) == 1))
+
+        def con4_rule(model,l):
+            return sum(lmda[p,v] for p in B_ZERO[l] for v in polytope_verts(p)) <= bin_y[l]
+        self._update_constraints(model,'DLOG_constraint4',Constraint(bin_y_index,rule=con4_rule))
+
+        def con5_rule(model,l):
+            return sum(lmda[p,v] for p in B_ONE[l] for v in polytope_verts(p)) <= (1-bin_y[l])
+        self._update_constraints(model,'DLOG_constraint5',Constraint(bin_y_index,rule=con5_rule))
+
+
+class _CCPiecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the CC formulation
+    """
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_CCPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+
+        # create indexers
+        polytopes = range(1,len_x_pts)
+        vertices = range(1,len_x_pts+1)
+        def vertex_polys(v):
+            if v == 1:
+                return [v]
+            if v == len_x_pts:
+                return [v-1]
+            else:
+                return [v-1,v]
+        
+        # create vars
+        lmda = self._update_vars(model,'CC_lambda',Var(vertices,within=NonNegativeReals))
+        bin_y = self._update_vars(model,'CC_bin_y',Var(polytopes,within=Binary))
+
+        # create piecewise constraints
+        self._update_constraints(model,'CC_constraint1',Constraint(expr=x_var == sum(lmda[v]*x_pts[v-1] for v in vertices)))
+
+        LHS = y_var
+        RHS = sum(lmda[v]*y_pts[v-1] for v in vertices)
+        expr = None
+        if bound_type == Bound.Upper:
+            expr= LHS <= RHS
+        elif bound_type == Bound.Lower:
+            expr= LHS >= RHS
+        elif bound_type == Bound.Equal:
+            expr= LHS == RHS
+        else:
+            raise ValueError, "Invalid Bound for _CCPiecewise object"
+        self._update_constraints(model,'CC_constraint2',Constraint(expr=expr))
+        
+        self._update_constraints(model,'CC_constraint3',Constraint(expr=sum(lmda[v] for v in vertices) == 1))
+
+        def con4_rule(model,v):
+            return lmda[v] <= sum(bin_y[p] for p in vertex_polys(v))
+        self._update_constraints(model,'CC_constraint4',Constraint(vertices,rule=con4_rule))
+        
+        self._update_constraints(model,'CC_constraint5',Constraint(expr=sum(bin_y[p] for p in polytopes) == 1))
+
+class _LOGPiecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the LOG formulation
+    """
+
+    def __init__(self, *args, **kwds):
+        _LinearData.__init__(self,*args,**kwds)
+        if not _isPowerOfTwo(len(self._domain_pts)-1):
+            msg = "'%s' does not have a list of domain points "\
+                  "with length (2^n)+1"
+            raise ValueError, msg % (self.name,)
+
+    def _Branching_Scheme(self,n):
+        """
+        Branching scheme for LOG, requires a gray code
+        """
+        BIGL = 2**n
+        S = range(1,n+1)
+        # turn the GrayCode into a dictionary indexed
+        # starting at 1
+        G = dict(enumerate(_GrayCode(n),start=1))
+        
+        L = dict((s,[k+1 for k in xrange(BIGL+1) if ((k == 0) or (G[k][s-1] == 1)) and ((k == BIGL) or (G[k+1][s-1] == 1))]) for s in S)
+        R = dict((s,[k+1 for k in xrange(BIGL+1) if ((k == 0) or (G[k][s-1] == 0)) and ((k == BIGL) or (G[k+1][s-1] == 0))]) for s in S)
+        
+        return S,L,R
+    
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_LOGPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+        
+        # create branching schemes
+        L_i = int(math.log(len_x_pts-1,2))
+        S_i,B_LEFT,B_RIGHT = self._Branching_Scheme(L_i)
+
+        # create indexers
+        polytopes = range(1,len_x_pts)
+        vertices = range(1,len_x_pts+1)
+        bin_y_index = S_i
+        
+        # create vars
+        lmda = self._update_vars(model,'LOG_lambda',Var(vertices,within=NonNegativeReals))
+        bin_y = self._update_vars(model,'LOG_bin_y',Var(bin_y_index,within=Binary))
+
+        # create piecewise constraints
+        self._update_constraints(model,'LOG_constraint1',Constraint(expr=x_var == sum(lmda[v]*x_pts[v-1] for v in vertices)))
+
+        LHS = y_var
+        RHS = sum(lmda[v]*y_pts[v-1] for v in vertices)
+        expr = None
+        if bound_type == Bound.Upper:
+            expr= LHS <= RHS
+        elif bound_type == Bound.Lower:
+            expr= LHS >= RHS
+        elif bound_type == Bound.Equal:
+            expr= LHS == RHS
+        else:
+            raise ValueError, "Invalid Bound for _LOGPiecewise object"
+        self._update_constraints(model,'LOG_constraint2',Constraint(expr=expr))
+
+        self._update_constraints(model,'LOG_constraint3',Constraint(expr=sum(lmda[v] for v in vertices) == 1))
+
+        def con4_rule(model,s):
+            return sum(lmda[v] for v in B_LEFT[s]) <= bin_y[s]
+        self._update_constraints(model,'LOG_constraint4',Constraint(bin_y_index,rule=con4_rule))
+
+        def con5_rule(model,s):
+            return sum(lmda[v] for v in B_RIGHT[s]) <= (1-bin_y[s])
+        self._update_constraints(model,'LOG_constraint5',Constraint(bin_y_index,rule=con5_rule))
+
+
+
+class _MCPiecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the MC formulation
+    """
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_MCPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+
+        # create indexers
+        polytopes = range(1,len_x_pts)
+
+        # create constants
+        SLOPE = dict((p,(y_pts[p]-y_pts[p-1])/float(x_pts[p]-x_pts[p-1])) for p in polytopes)
+        INTERSEPT = dict((p,y_pts[p-1] - (SLOPE[p]*x_pts[p-1])) for p in polytopes)
+
+        # create vars
+        poly_x = self._update_vars(model,'MC_poly_x',Var(polytopes))
+        bin_y = self._update_vars(model,'MC_bin_y',Var(polytopes,within=Binary))
+
+        # create piecewise constraints
+        self._update_constraints(model,'MC_constraint1',Constraint(expr=x_var == sum(poly_x[p] for p in polytopes)))
+
+        LHS = y_var
+        RHS = sum(poly_x[p]*SLOPE[p]+bin_y[p]*INTERSEPT[p] for p in polytopes)
+        expr = None
+        if bound_type == Bound.Upper:
+            expr=  LHS <= RHS
+        elif bound_type == Bound.Lower:
+            expr=  LHS >= RHS
+        elif bound_type == Bound.Equal:
+            expr=  LHS == RHS
+        else:
+            raise ValueError, "Invalid Bound for _INCPiecewise object"
+        self._update_constraints(model,'MC_constraint2',Constraint(expr=expr))
+        
+        def con3_rule(model,p):
+            return bin_y[p]*x_pts[p-1] <= poly_x[p]
+        self._update_constraints(model,'MC_constraint3',Constraint(polytopes,rule=con3_rule))
+
+        def con4_rule(model,p):
+            return poly_x[p]  <= bin_y[p]*x_pts[p]
+        self._update_constraints(model,'MC_constraint4',Constraint(polytopes,rule=con4_rule))
+
+        self._update_constraints(model,'MC_constraint5',Constraint(expr=sum(bin_y[p] for p in polytopes) == 1))
+
+    
+class _INCPiecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the INC formulation
+    """
+
+    def construct(self,model,x_var,y_var):
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_INCPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+
+        # create indexers
+        polytopes = range(1,len_x_pts)
+        bin_y_index = range(1,len_x_pts-1)
+        
+        # create vars
+        delta = self._update_vars(model,'INC_delta',Var(polytopes))
+        delta[1].setub(1)
+        delta[len_x_pts-1].setlb(0)
+        bin_y = self._update_vars(model,'INC_bin_y',Var(bin_y_index,within=Binary))
+
+        # create piecewise constraints        
+        self._update_constraints(model,'INC_constraint1',Constraint(expr=x_var == x_pts[0] + sum(delta[p]*(x_pts[p]-x_pts[p-1]) for p in polytopes)))
+
+        LHS = y_var
+        RHS = y_pts[0] + sum(delta[p]*(y_pts[p]-y_pts[p-1]) for p in polytopes)
+        expr = None
+        if bound_type == Bound.Upper:
+            expr= LHS <= RHS
+        elif bound_type == Bound.Lower:
+            expr= LHS >= RHS
+        elif bound_type == Bound.Equal:
+            expr= LHS == RHS
+        else:
+            raise ValueError, "Invalid Bound for _INCPiecewise object"
+        self._update_constraints(model,'INC_constraint2',Constraint(expr=expr))
+
+        def con3_rule(model,p):
+            if p != polytopes[-1]:
+                return delta[p+1] <= bin_y[p]
+            else:
+                return Constraint.Skip
+        self._update_constraints(model,'INC_constraint3',Constraint(polytopes,rule=con3_rule))
+
+        def con4_rule(model,p):
+            if p != polytopes[-1]:
+                return bin_y[p] <= delta[p]
+            else:
+                return Constraint.Skip
+        self._update_constraints(model,'INC_constraint4',Constraint(polytopes,rule=con4_rule))
+
+class _BIGMPiecewise(_LinearData):
+    """
+    Called to generate Piecewise constraint using the BIGM formulation
+    """
+
+    def __init__(self,*args,**kwds):
+        self._binary = kwds.pop("binary",False)
+        self._sos1 = kwds.pop("sos1",False)
+        if (self._binary+self._sos1) != 1:
+            raise ValueError, "_BIGMPiecewise must be initialized with the binary or sos1 input flag set to True (choose one)."
+        _LinearData.__init__(self,*args,**kwds)
+
+    def construct(self,model,x_var,y_var):
+        #
+        # The BIGM methods currently determine tightest constant M values. This method is
+        # implemented in such a way that binary/sos1 variables are not created when this M is
+        # zero.
+        #
+        tag = ""
+        x_pts = self._domain_pts
+        y_pts = self._range_pts
+        bound_type = self._bound_type
+        if None in [x_pts,y_pts,bound_type]:
+            raise RuntimeError, "_BIGMPiecewise: construct() called during invalid state."
+        len_x_pts = len(x_pts)
+
+        binary = self._binary
+        sos1 = self._sos1
+        if binary is True:
+            tag += "bin"
+        elif sos1 is True:
+            tag += "sos1"
+        else:
+            raise ValueError, "_BIGMPiecewise: construct() called during invalid state."
+        
+        # generate tightest bigM values
+        OPT_M = {}
+        OPT_M['UB'] = {}
+        OPT_M['LB'] = {}
+
+        if bound_type in [Bound.Upper,Bound.Equal]:
+            OPT_M['UB'] = self._find_M(x_pts, y_pts, Bound.Upper)
+        if bound_type in [Bound.Lower,Bound.Equal]:
+            OPT_M['LB'] = self._find_M(x_pts, y_pts, Bound.Lower)
+        
+        all_keys = set(OPT_M['UB'].keys()).union(OPT_M['LB'].keys())
+        full_indices = []
+        full_indices.extend(range(1,len_x_pts))
+        bigm_y_index = None
+        bigm_y = None
+        if len(all_keys) > 0:
+            bigm_y_index = all_keys
+            
+            def y_domain():
+                if binary is True:
+                    return Binary
+                elif sos1 is True:
+                    return NonNegativeReals
+            bigm_y = self._update_vars(model,tag+'_y',Var(bigm_y_index,within=y_domain()))
+        
+        def con1_rule(model,i):
+            if bound_type in [Bound.Upper,Bound.Equal]:
+                rhs = 1.0
+                if i not in OPT_M['UB'].keys():
+                    rhs *= 0.0
+                else:
+                    rhs *= OPT_M['UB'][i]*(1-bigm_y[i])
+                return y_var - (y_pts[i-1] + ((y_pts[i]-y_pts[i-1])/float(x_pts[i]-x_pts[i-1]))*(x_var-x_pts[i-1])) <= rhs
+            elif bound_type == Bound.Lower:
+                rhs = 1.0
+                if i not in OPT_M['LB'].keys():
+                    rhs *= 0.0
+                else:
+                    rhs *= OPT_M['LB'][i]*(1-bigm_y[i])
+                return y_var - (y_pts[i-1] + ((y_pts[i]-y_pts[i-1])/float(x_pts[i]-x_pts[i-1]))*(x_var-x_pts[i-1])) >= rhs
+
+        def con2_rule(model):
+            expr = [bigm_y[i] for i in xrange(1,len_x_pts) if i in all_keys]
+            if len(expr) > 0:
+                return sum(expr) == 1
+            else:
+                return Constraint.Skip
+
+        def conAFF_rule(model,i):
+            rhs = 1.0
+            if i not in OPT_M['LB'].keys():
+                rhs *= 0.0
+            else:
+                rhs *= OPT_M['LB'][i]*(1-bigm_y[i])
+            return y_var - (y_pts[i-1] + ((y_pts[i]-y_pts[i-1])/float(x_pts[i]-x_pts[i-1]))*(x_var-x_pts[i-1])) >= rhs
+
+        self._update_constraints(model,'BIGM_constraint1',Constraint(full_indices,rule=con1_rule))
+        if len(all_keys) > 0:
+            self._update_constraints(model,'BIGM_constraint2',Constraint(rule=con2_rule))
+        if bound_type == Bound.Equal:
+            self._update_constraints(model,'BIGM_constraint3',Constraint(full_indices,rule=conAFF_rule))
+        
+        if len(all_keys) > 0:
+            if sos1 is True:
+                self._update_constraints(model,'BIGM_constraint4',SOSConstraint(var=bigm_y, sos=1))
+
+        # In order to enforce the same behavior as the other piecewise reps
+        # we constrain the domain variable between the outer domain pts. But in order to
+        # prevent filling the model with unecessary constraints, we only do this
+        # when absolutely necessary.
+        if x_var.lb < x_pts[0]:
+            self._update_constraints(model,'simplified_piecewise_domain_constraint_lower',Constraint(expr=x_pts[0] <= x_var))
+        if x_var.ub > x_pts[-1]:
+            self._update_constraints(model,'simplified_piecewise_domain_constraint_upper',Constraint(expr=x_var <= x_pts[-1]))
+
+    def _M_func(self,a,Fa,b,Fb,c,Fc):
+        return Fa - Fb - ((a-b) * ((Fc-Fb) / float(c-b)))
+
+    def _find_M(self,x_pts,y_pts,bound_type):
+        len_x_pts = len(x_pts)
+        _self_M_func = self._M_func
+
+        M_final = {}
+        for j in xrange(1,len_x_pts):
+            index = j
+            if (bound_type == Bound.Lower):
+                M_final[index] = min( [0.0, min([_self_M_func(x_pts[k],y_pts[k],x_pts[j-1],y_pts[j-1],x_pts[j],y_pts[j]) for k in xrange(len_x_pts)])] )
+            elif (bound_type == Bound.Upper):
+                M_final[index] = max( [0.0, max([_self_M_func(x_pts[k],y_pts[k],x_pts[j-1],y_pts[j-1],x_pts[j],y_pts[j]) for k in xrange(len_x_pts)])] )
+            else:
+                raise ValueError, "Invalid Bound passed to _find_M function"
+            if M_final[index] == 0.0:
+                del M_final[index]
+        return M_final
+
+class Piecewise(Block):
+    """
+    Adds piecewise-linear constraints to a Pyomo model for functions of the form, y = f(x).
+    
+    Usage:
+            model.const = Piecewise(model.index,model.yvar,model.xvar,**Keywords) - for indexed variables
+            model.const = Piecewise(model.yvar,model.xvar,**Keywords) - for non-indexed variables
+            
+            where,
+                    model.index - indexing set
+                    model.yvar - Pyomo Var which represents the range values of f(x)
+                    model.xvar - Pyomo Var which represents the domain values of f(x)
+
+    Keywords:
+    
+-pw_pts={},[],()  
+          A dictionary of lists (keys are index set) or a single list (for non-indexed variables) defining
+          the set of domain vertices for a continuous piecewise linear function. Default is None
+
+-pw_repn=''
+          Indicates the type of piecewise representation to use. Each representation uses its own sets of different 
+          constraints and variables. This can have a major impact on performance of the MIP solve.
+          Choices:
+                 
+                 ~ + 'SOS2' - standard representation using SOS2 variables. (Default)
+                 ~ + 'BIGM_BIN' - uses BigM constraints with binary variables. Theoretically tightest M
+                                  values are automatically determined.
+                 ~ + 'BIGM_SOS1' - uses BigM constraints with sos1 variables. Theoretically tightest M
+                                  values are automatically determined.
+                 ~*+ 'DCC' - Disaggregated convex combination model
+                 ~*+ 'DLOG' - Logarithmic Disaggregated convex combination model
+                 ~*+ 'CC' - Convex combination model
+                 ~*+ 'LOG' - Logarithmic branching convex combination
+                 ~*+ 'MC' - Multiple choice model
+                 ~*+ 'INC' - Incremental (delta) method
+
+                   * Source: "Mixed-Integer Models for Non-separable Piecewise Linear Optimization: 
+                              Unifying framework and Extensions" (Vielma, Nemhauser 2008)
+                   ~ Refer to the optional 'force_pw' kwd.
+
+-pw_constr_type=''
+          Indicates whether piecewise function represents an upper bound, lower bound, or equality constraint.
+          Choices:
+                 
+                   + 'UB' - y variable is bounded above by piecewise function
+                   + 'LB' - y variable is bounded below by piecewise function
+                   + 'EQ' - y variable is equal to the piecewise function
+
+-f_rule=f(model,i,j,...,x)
+          A callable object defining the function that linearizations/piecewise constraints will be applied to.
+          First argument must be a Pyomo model. The last argument is the domain value at which the function evaluates.
+          Intermediate arguments are the corresponding indices of the Piecewise component (if any).
+          Examples:
+                   + def f(model,j,x):
+                          if (j == 2):
+                             return x**2 + 1.0
+                          else:
+                             return x**2 + 5.0
+                   + f = lambda model,x: return exp(x) + value(model.p) (p is a Pyomo Param)
+                   + def f(model,x):
+                         return mydictionary[x]
+
+-force_pw=True/False
+          Using the given function rule and pw_pts, a check for convexity/concavity is implemented. If (1) the function is convex and
+          the piecewise constraints are lower bounds or if (2) the function is concave and the piecewise constraints are upper bounds
+          the piecewise constraints will be substituted for strictly linear constraints. Setting 'force_pw=True' will force the use
+          of the original piecewise constraints when one of these two cases applies.
+    """
+    
+    alias("Piecewise", "A Generator of linear and piecewise-linear constraints.")
+    
+    def __init__(self, *args, **kwds):
+        
+        # this is temporary as part of a move to user inputs
+        # using Enums rather than strings
+        translate_repn = {'BIGM_SOS1':PWRepn.BIGM_SOS1,\
+                          PWRepn.BIGM_SOS1:PWRepn.BIGM_SOS1,\
+                          'BIGM_BIN':PWRepn.BIGM_BIN,\
+                          PWRepn.BIGM_BIN:PWRepn.BIGM_BIN,\
+                          'SOS2':PWRepn.SOS2,\
+                          PWRepn.SOS2:PWRepn.SOS2,\
+                          'CC':PWRepn.CC,\
+                          PWRepn.CC:PWRepn.CC,\
+                          'DCC':PWRepn.DCC,\
+                          PWRepn.DCC:PWRepn.DCC,\
+                          'DLOG':PWRepn.DLOG,\
+                          PWRepn.DLOG:PWRepn.DLOG,\
+                          'LOG':PWRepn.LOG,\
+                          PWRepn.LOG:PWRepn.LOG,\
+                          'MC':PWRepn.MC,\
+                          PWRepn.MC:PWRepn.MC,\
+                          'INC':PWRepn.INC,\
+                          PWRepn.INC:PWRepn.INC,\
+                          None:None}
+        # this is temporary as part of a move to user inputs
+        # using Enums rather than strings
+        translate_bound = {'UB':Bound.Upper,\
+                           Bound.Upper:Bound.Upper,\
+                           'LB':Bound.Lower,\
+                           Bound.Lower:Bound.Lower,\
+                           'EQ':Bound.Equal,\
+                           Bound.Equal:Bound.Equal,\
+                           None:None}
+
+        # TODO: Update the keyword names. I think these are more clear
+        #       pw_constr_type -> bound_type
+        #       pw_pts -> domain_pts. 
+        #       force_pw -> simpify=False (would be default True)
+        #
+        #       Another thougth is to move entirely to
+        #       args since there are only two optional keywords (force_pw, warning_tol).
+        
+        # extract all keywords used by this class
+        pw_points = kwds.pop('pw_pts',None)
+        # translate the user input to the enum type
+        pw_rep = kwds.pop('pw_repn','SOS2')
+        pw_rep = translate_repn.get(pw_rep,pw_rep)
+        # translate the user input to the enum type
+        bound_type = kwds.pop('pw_constr_type',None)        
+        bound_type = translate_bound.get(bound_type,bound_type)
+        f_rule = kwds.pop('f_rule',None)
+        force_pw = kwds.pop('force_pw',False)
+        warning_tol = kwds.pop('warning_tol',WARNING_TOLERANCE)
+
+        # all but the last two args should go to Block
+        try:
+            # Blocks have special handling when calling
+            # __setattr__ with anything derived from component.
+            # However, in this particular case we need to override
+            # this so that these two variables don't get re-added 
+            # as new model components, therefore we directly modify
+            # __dict__
+            self.__dict__['_domain_var'] = args[-1]
+            self.__dict__['_range_var'] = args[-2]
+        except IndexError:
+            msg = "Piecewise component initialized with less than two arguments"
+            raise TypeError, msg
+        
+        args = args[:-2]
+        #
+        # NOTE: The 'ctype' keyword argument is not defined here. This mocks
+        #       what is done in PyomoModel.py, although here it feels like
+        #       somewhat of a hack. The alternative is to modify the all_blocks()
+        #       method to include Piecewise type components. I'm not sure which is
+        #       best at this time. Although, a consequence of the current implementation
+        #       is that model.pprint() labels Piecewise blocks as simply Blocks.
+        #
+        #kwds.setdefault('ctype', Piecewise)
+        Block.__init__(self,*args,**kwds)
+
+        # Check that the variables args are actually Pyomo Vars
+        if not(isinstance(self._domain_var,_VarData) or isinstance(self._domain_var,_VarArray)):
+            msg = "Piecewise component has invalid "\
+                  "argument type for domain variable, %s"
+            raise TypeError, msg % (repr(self._domain_var),)
+        if not(isinstance(self._range_var,_VarData) or isinstance(self._range_var,_VarArray)):
+            msg = "Piecewise component has invalid "\
+                  "argument type for range variable, %s"
+            raise TypeError, msg % (repr(self._range_var),)
+        
+        # Test that the keyword values make sense
+        if f_rule.__class__ is not type(lambda: None):
+            msg = "Piecewise component keyword 'f_rule' must "\
+                  "be a function"
+            raise ValueError, msg
+        if bound_type not in Bound:
+            msg = "Invalid value for Piecewise component "\
+                  "keyword 'pw_constr_type'" 
+            raise ValueError, msg
+        if warning_tol.__class__ is not float:
+            msg = "Invalid type '%s' for Piecewise component "\
+                  "keyword 'warning_tol', which must be of type 'float'" 
+            raise TypeError, msg % (type(warning_tol),)
+
+        self._pw_rep = pw_rep
+        self._bound_type = bound_type
+        self._f_rule = f_rule
+        self._force_pw = force_pw
+        self._warning_tol = warning_tol
+        
+        if self.is_indexed() is False:
+            if not (isinstance(pw_points, list) or isinstance(pw_points,tuple)):
+                msg = "Invalid type '%s' for Piecewise component "\
+                      "keyword 'pw_pts', which must be of type "\
+                      "'list' or 'tuple' for non-indexed Piecewise component" 
+                raise TypeError, msg % (type(pw_points),)
+            self._domain_points = {None:pw_points}
+        else:
+            if not isinstance(pw_points,dict):
+                msg = "Invalid type '%s' for Piecewise component "\
+                      "keyword 'pw_pts', which must be of type "\
+                      "'dict' for indexed Piecewise component"
+                raise TypeError, msg % (type(pw_points),)
+            self._domain_points = pw_points
+    
+    # GAH: Perhaps we should add 'deactivate' functionality to Blocks
+    def deactivate(self):
+        """
+        Deactivates all _LinearData components of this class.
+        """
+        [comp.deactivate() for comp in self._data.itervalues()]
+        self.active = False
+    
+    # GAH: Perhaps we should add 'activate' functionality to Blocks
+    def activate(self):
+        """
+        Activates all _LinearData components of this class.
+        """
+        [comp.activate() for comp in self._data.itervalues()]
+        self.active = True
+    
+    def construct(self, *args, **kwds):
+        """
+        A quick hack to call add after data has been loaded.
+        """
+        generate_debug_messages = (__debug__ is True) and (logger.isEnabledFor(logging.DEBUG) is True)
+        self._constructed=True
+
+        # We need to be able to add and construct new model
+        # components on the fly so we make this Block behave concretely 
+        self.concrete_mode()
+
+        # construct each index of this component
+        if self.is_indexed() is False:
+            if generate_debug_messages:
+                logger.debug("  Constructing single Piecewise component (index=None)")
+            self.add( None )
+        else:
+            for index in self._index:
+                if generate_debug_messages:
+                    logger.debug("  Constructing Piecewise index "+str(index))
+                self.add( index )
+
+    def add(self, index ):
+
+        _self_parent = self._parent()
+        _self_domain_pts_index = self._domain_points[index]
+        _self_xvar = None
+        _self_yvar = None
+        if self.is_indexed() is False:
+            # allows one to mix Var and _VarData as input to 
+            # non-indexed Piecewise, index would be None in this case
+            # so for Var elements Var[None] is Var, but _VarData[None] would fail
+            _self_xvar = self._domain_var
+            _self_yvar = self._range_var
+        else:
+            # The following allows one to specify a Var or _VarData
+            # object even with an indexed Piecewise component.
+            # The most common situation will most likely be a VarArray,
+            # so we try this first.
+            try:
+                _self_xvar = self._domain_var[index]
+            except Exception:
+                _self_xvar = self._domain_var
+            try:
+                _self_yvar = self._range_var[index]
+            except Exception:
+                _self_yvar = self._range_var
+        
+        # We add the requirment that the domain variable used by Piecewise is
+        # always bounded from above and below.
+        if (_self_xvar.lb is None) or (_self_xvar.ub is None):
+            msg = "Piecewise '%s[%s]' found an unbounded variable "\
+                  "used for the constraint domain: '%s'. "\
+                  "Piecewise component requires the domain variable have "\
+                  "lower and upper bounds."
+            raise ValueError, msg % (self.name, index, _self_xvar)
+
+        # Print a warning when the feasible region created by the piecewise
+        # constraints does not include the domain variables bounds
+        if _self_xvar.lb < min(_self_domain_pts_index):
+            # print warning
+            msg = "WARNING: Piecewise '%s[%s]' feasible region does not "\
+                  "include the lower bound of domain variable: %s.lb = %s < %s"
+            print msg % (self.name, index, _self_xvar, _self_xvar.lb, min(_self_domain_pts_index))
+        if _self_xvar.ub > max(_self_domain_pts_index):
+            # print warning
+            msg = "WARNING: Piecewise '%s[%s]' feasible region does not "\
+                  "include the upper bound of domain variable: %s.ub = %s > %s"
+            print msg % (self.name, index, _self_xvar, _self_xvar.ub, max(_self_domain_pts_index))
+
+        # generate the list of range values using the function rule
+        # check if convexity or concavity holds as well
+        force_simple = False
+        if self.is_indexed() is False:
+            character, range_pts = _characterize_function(self._warning_tol,self._f_rule, _self_parent, _self_domain_pts_index)
+        else:
+            character, range_pts = _characterize_function(self._warning_tol,self._f_rule, _self_parent, _self_domain_pts_index, index)
+
+        # Make automatic simplications to the piecewise constraints
+        # for the special cases of convexity and lower bound 
+        # or concavity and upper bound
+        if (character == -1):
+            if (self._bound_type == Bound.Upper):
+                force_simple = True
+        elif (character == 1):
+            if (self._bound_type == Bound.Lower):
+                force_simple = True
+                        
+        # make sure the user does not want to disable the automatic
+        # simplifications above
+        if self._force_pw is True:
+            force_simple = False
+        
+        comp = None
+        keywords={'name':str(index),\
+                  'bound_type':self._bound_type,\
+                  'domain_pts':_self_domain_pts_index,\
+                  'range_pts':range_pts}
+        if force_simple is True:
+            # In the case where the feasible region is convex or concave (and
+            # the user does not want to force the use of piecewise constraints)
+            # use simple linear constraints.
+            comp = _SimplifiedPiecewise(**keywords)
+        else:
+            if len(_self_domain_pts_index) == 2:
+                # Always use a simple single line constraint when 
+                # only two points are present in the piecewise list
+                comp = _SimpleSinglePiecewise(**keywords)
+            else:
+                # generate piecewise constraints
+                if self._pw_rep == PWRepn.SOS2:
+                    comp = _SOS2Piecewise(**keywords)
+                elif self._pw_rep == PWRepn.INC:
+                    comp = _INCPiecewise(**keywords)
+                elif self._pw_rep == PWRepn.MC:
+                    comp = _MCPiecewise(**keywords)
+                elif self._pw_rep == PWRepn.DCC:
+                    comp = _DCCPiecewise(**keywords)
+                elif self._pw_rep == PWRepn.DLOG:
+                    comp = _DLOGPiecewise(**keywords)
+                elif self._pw_rep == PWRepn.CC:
+                    comp = _CCPiecewise(**keywords)
+                elif self._pw_rep == PWRepn.LOG:
+                    comp = _LOGPiecewise(**keywords)
+                elif self._pw_rep == PWRepn.BIGM_BIN:
+                    comp = _BIGMPiecewise(binary=True, **keywords)
+                elif self._pw_rep == PWRepn.BIGM_SOS1:
+                    comp = _BIGMPiecewise(sos1=True, **keywords)
+                else:
+                    msg = "Piecewise '%s[%s]' does not have a valid "\
+                          "piecewise representation: '%s'"
+                    raise ValueError, msg % (self.name, index, self._pw_rep)
+
+        self._data[index] = comp
+        comp.construct(self,_self_xvar,_self_yvar)
+
+    # TODO: Define what this means
+    def reset(self):
+        raise NotImplementedError, "Piecewise component has not yet implemented "\
+                                 "the reset method"
+
