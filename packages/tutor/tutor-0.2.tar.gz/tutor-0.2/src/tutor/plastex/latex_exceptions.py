@@ -1,0 +1,2 @@
+class LaTeXError(Exception):
+    pass
