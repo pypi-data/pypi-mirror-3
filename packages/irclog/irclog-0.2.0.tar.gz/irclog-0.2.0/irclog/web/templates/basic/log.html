@@ -1,0 +1,189 @@
+{% extends 'channel.html' %}
+{% block title %}
+  {{ log.date }} &larr; {{ super() }}
+{% endblock %}
+{% block heading %}
+  <span class="super">{{ super() }}</span>
+  <span class="arrow">&rarr;</span>
+  <a href="{{ log|url }}" class="log">{{ log.date }}</a>
+{% endblock %}
+{% macro autolink(text) -%}
+  {% autoescape false %}
+    {%- filter replace('rel="nofollow"', 'rel="noreferrer"') -%}
+      {{- text|urlize(80, nofollow=True) -}}
+    {%- endfilter %}
+  {% endautoescape %}
+{%- endmacro %}
+{% block aside %}
+  <nav>
+    <div class="calendar">{% autoescape false %}
+      {% set date = require('datetime:date') %}
+      {% set Calendar = require('calendar:Calendar') %}
+      {% set cal = Calendar(6).itermonthdates(log.date.year, log.date.month) %}
+      <table class="calendar">
+        <caption>Calendar</caption>
+        <thead>
+          <tr>
+            {% for wkday in ('sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat') %}
+              <th class="{{ wkday }}">{{ wkday|capitalize }}</th>
+            {% endfor %}
+            <th class="sun">
+          </tr>
+        </thead>
+        <tbody>
+          {% for week in cal|batch(7) %}
+            <tr class="week week-{{ loop.index }}">
+              {% for day in week %}
+                {% set in_ = day.month == log.date.month %}
+                <td class="{{ loop.cycle('sun', 'mon', 'tue', 'wed',
+                                         'thu', 'fri', 'sat') }}
+                           {{ in_ and 'in' or 'out' }}
+                           {{ day == date.today() and 'today' or '' }}">
+                  {% if day == log.date %}
+                    <strong>{{ day.day }}</strong>
+                  {% else %}
+                    <a href="{{ log.channel[day]|url }}">{{ day.day }}</a>
+                  {% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endautoescape %}</div>
+    <div class="channels">
+      <h2>{{ log.server }}</h2>
+      <ul>
+        {% for channel in log.server %}
+          {% if channel == log.channel %}
+            {% set this_log = log %}
+          {% elif channel[log.date].is_logged() %}
+            {% set this_log = channel[log.date] %}
+          {% else %}
+            {% set this_log = None %}
+          {% endif %}
+          {% if this_log %}
+            <li>
+              {% if channel == log.channel %}
+                <strong>{{ channel }}</strong>
+              {% else %}
+                <a href="{{ this_log|url }}">{{ channel }}</a>
+              {% endif %}
+              <span style="background-color: rgba(0, 0, 0, 
+                {% if not this_log.is_logged() %}
+                  0
+                {%- elif this_log.file_size + 102400 > 524288-%}
+                  1.0
+                {%- else -%}
+                  {{ ((this_log.file_size + 102400) / 524288)|round(2) -}}
+                {%- endif -%}
+                );"
+                class="size">{{- this_log.file_size|filesizeformat -}}
+              <span>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  </nav>
+{% endblock %}
+{% block body %}
+  <article class="log">
+    {% macro messaged_at(msg, msg_id) %}
+      <a href="#{{ msg_id }}" class="time">
+        {{- msg.messaged_at.strftime('%H:%M:%S') -}}
+      </a>
+    {% endmacro %}
+    {% macro nick_id(nick, nick_ids) -%}
+      {%- set max_id = nick_ids.itervalues()|sort(reverse=True)|first or 0 -%}
+      {%- set next_id = max_id + 1 -%}
+      {{- nick_ids.setdefault(nick, next_id) -}}
+    {%- endmacro %}
+    {% set nick_ids = {} %}
+    {% for msg in log %}
+      {% set msg_id = 'message-' ~ loop.index %}
+      {% if msg is Message %}
+        <p id="{{ msg_id }}"
+           class="{% if msg is PublicMessage %} public-message public
+                  {% elif msg is ActionMessage %} action-message action
+                  {% elif msg is NoticeMessage %} notice-message notice
+                  {% endif %} message">
+          {{ messaged_at(msg, msg_id) }}
+          <span class="nick nick-{{ nick_id(msg.nick, nick_ids) }}">
+            {{ msg.nick }}
+          </span>
+          <span class="line">{{ autolink(msg.line) }}</span>
+        </p>
+      {% elif msg is JoinMessage or msg is QuitMessage %}
+        <p id="{{ msg_id }}"
+           class="{% if msg is JoinMessage %} join join-announce
+                  {% elif msg is QuitMessage %} quit quit-announce
+                  {% endif %} announce">
+          {{ messaged_at(msg, msg_id) }}
+          <span class="nick nick-{{ nick_id(msg.nick, nick_ids) }}"
+                title="{{ msg.ident }}">{{ msg.nick }}</span>
+          {% if msg is JoinMessage %}
+            has joined <span class="channel">{{ msg.channel }}</span>.
+          {% else %}
+            has quit <span class="channel">{{ log.channel }}</span>:
+            <q class="reason">{{ msg.reason }}</q>
+          {% endif %}
+        </p>
+      {% elif msg is ModeMessage %}
+        <p id="{{ msg_id }}" class="mode announce mode-announce">
+          {{ messaged_at(msg, msg_id) }}
+          mode/<span class="channel">{{ log.channel }}</span>
+          <span class="modelist">[<span class="mode">
+            {{- msg.modelist.split(' ')[0] }}</span>
+            {% for nick in msg.modelist.split(' ')[1:] %}
+              <span class="nick-{{ nick_id(nick, nick_ids) }}">{{ nick }}</span>
+            {%- endfor -%}
+          ]</span> by <span class="nick nick-{{ nick_id(msg.nick, nick_ids) }}">
+            {{ msg.nick }}</span>
+        </p>
+      {% elif msg is NickMessage %}
+        <p id="{{ msg_id }}" class="nick announce nick-announce">
+          {{ messaged_at(msg, msg_id) }}
+          <span class="nick nick-{{ nick_id(msg.from_, nick_ids) }}">
+            {{- msg.from_ -}}
+          </span> is now known as
+          {% autoescape false %}
+            {% do nick_ids.update({msg.to: nick_id(msg.from_, nick_ids)|int}) %}
+          {% endautoescape %}
+          <span class="nick nick-{{ nick_id(msg.to, nick_ids) }}">
+            {{- msg.to -}}
+          </span>
+        </p>
+      {% else %}
+        <!-- {% autoescape false -%}
+               {{ msg.__class__ }}
+             {%- endautoescape %} -->
+      {% endif %}
+      {% if loop.last %}
+        {% if require('datetime:date').today() == log.date %}
+          {% autoescape false %}
+            <script>
+            // <![CDATA[
+            document.write('<div class="refresh" id="refresh">Refresh</div>');
+            // ]]>
+            </script>
+            <script>
+            // <![CDATA[
+            $('#refresh.refresh').click(function() {
+              var url = {{ log|url|json }};
+              if (location.href.indexOf('?') < 0) {
+                url += '?';
+              }
+              location.href = url + '#{{ msg_id }}';
+            });
+            // ]]>
+            </script>
+          {% endautoescape %}
+        {% else %}
+          {% set nextday = log.date + require('datetime').timedelta(days=1) %}
+          <a href="{{ nextday }}" class="refresh">{{ nextday }}</a>
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+  </article>
+{% endblock %}
