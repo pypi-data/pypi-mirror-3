@@ -1,0 +1,70 @@
+===============================================
+collective.theme.iwaters
+===============================================
+
+Overview
+--------
+
+This product is a installable Plone Theme developed by `IW:LEARN <http://iwlearn.net/>`_.
+
+The origins of this theme date back to 2005, it was converted to a deliverance theme in 2010.
+
+Requirements
+------------
+
+    - Plone 4.1.x (http://plone.org/products/plone)
+    - plone.app.theming
+
+
+Installation
+------------
+
+Add Plone site
+~~~~~~~~~~~~~~
+
+Install Plone 4.1 with plone.app.theming and create a Plone site (if you have not already) with Diazo theming configured.
+
+
+Zip file
+~~~~~~~~
+
+If you are an end user, you might enjoy installation via zip file import.
+
+Download the zip file: http://plone.org/products/collective.theme.iwaters/releases/0.2/iwaters.zip
+Import the theme from the Diazo theme control panel.
+
+With buildout
+~~~~~~~~~~~~~
+
+To use this skin, on a buildout based installation:
+
+    Edit your buildout.cfg and add the following information::
+
+        [buildout]
+        ...
+        eggs =
+            collective.theme.iwaters
+            plone.app.theming
+
+
+
+    If another package depends on the collective.theme.iwaters egg or
+    includes its zcml directly you do not need to specify anything in the
+    buildout configuration: buildout will detect this automatically.
+
+    After updating the configuration you need to run the ''bin/buildout'',
+    which will take care of updating your system.
+
+Go to the 'Site Setup' page in the Plone interface and click on the
+'Add/Remove Products' link.
+
+Choose the product (check its checkbox) and click the 'Install' button.
+
+Uninstall -- This can be done from the same management screen, but only
+if you installed it from the quick installer.
+
+Note: You may have to empty your browser cache to see the effects of the
+product installation.
+
+
+
