@@ -1,0 +1,56 @@
+hourglass
+=========
+
+hourglass_ is a minimalist scheduler for rq_.
+
+``hourglass`` provides a date-sorted queue class, ``Schedule``, that
+stores jobs that are to be run at some point in the future, and a
+daemon script, ``hourglass``, that delegates those jobs to the regular
+queues processed by ``rqworker`` processes.
+
+.. _hourglass: http://github.com/pitchfork/hourglass
+.. _rq: http://github.com/nvie/rq
+
+Usage
+-----
+
+Run the ``hourglass`` daemon script included with the package. Example
+usage::
+
+    import times
+    from datetime import timedelta
+    from rq import use_connection
+    from hourglass import Schedule
+
+    def test_job(n):
+        return n
+
+    use_connection()
+
+    s = Schedule()
+
+    # schedule a job to be run 3 minutes from now
+    eta = times.now() + timedelta(0, 180)
+    job = s.enqueue(eta, test_job, 5)
+
+``hourglass`` managed jobs include an additional property, ``eta``,
+which is the time passed as the first argument to ``Schedule.enqueue``
+and ``Schedule.enqueue_job``.  They also include another property,
+``queue`` for specifying which queue to dispatch the job to when
+``eta`` has elapsed.
+
+The ``Schedule`` queue and ``hourglass`` daemon use UTC times under the
+hood, so eta's passed to the scheduler should be in UTC as well.
+
+Changelog
+---------
+
+0.1.1
+~~~~~
+
+Fixes for Python packaging.
+
+0.1
+~~~
+
+Initial release.
