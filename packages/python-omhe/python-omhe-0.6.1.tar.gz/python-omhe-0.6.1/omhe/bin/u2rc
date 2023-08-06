@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+import pycurl
+import sys
+from omhe.core.parseomhe import parseomhe
+from omhe.core import upload2restcat
+
+
+try:
+    from omhe.core.settings import USERNAME, PASSWORD, SENDER, RECEIVER, SUBJECT, SEC_LEVEL, RESTCAT_SERVER
+except:
+    print "I couldn't find your settings.py.  Perhaps you need to create one?"
+    print sys.exc_info()
+    exit(1)
+
+
+URL="%s/api/create/" % (RESTCAT_SERVER)
+routing={
+        'sndr':SENDER,
+        'rcvr':RECEIVER,
+        'subj': SUBJECT,
+         'sec': SEC_LEVEL,
+        }
+
+if __name__ == "__main__":
+    """
+Accept a singe omhe string from the command line. Parse, then print
+the resulting dict, then upload to RESTCat
+"""
+    try:
+        userpass=sys.argv[1]
+        sender=sys.argv[2]
+        receiver=sys.argv[3]
+        subject=sys.argv[4]
+        restcat_server=sys.argv[5]
+        omhe_str=sys.argv[6]
+        out_file=sys.argv[7]
+        print len(sys.argv)
+        if len(sys.argv)==9:
+            idr=sys.argv[8]
+        else:
+            idr=None
+            
+    except(IndexError):
+        print "You must supply username, password, an omhe message, and an out file!"
+        print "u2rc [user:pass] [sender] [receiver] [subject] [restcat_server] [omhe_message] [out.json] <idr>"
+        exit(1)
+        
+
+    
+    print "Input omhe string is: %s" % (omhe_str)
+    
+    try:
+        """ Instantaiate an instance of the OMHE class"""
+        o = parseomhe()
+        """Parse it if valid, otherwise raise the appropriate error"""
+        try:
+            d=o.parse(omhe_str)
+            """Send the OMHE dictonary to RESTCat"""
+        except():
+            print "Failed to parse OMHE string"
+            sys.exit(1)
+        
+        result=upload2restcat.upload2restcat(d, userpass, sender, receiver,
+                                             subject, restcat_server,
+                                             out_file, idr)
+        print "HTTP Response Code=%s" % (result.getinfo(result.HTTP_CODE),)
+        result.close()
+        
+    except():
+        print "An unexpected error occured. Here is the post-mortem:"
+        print sys.exc_info()
