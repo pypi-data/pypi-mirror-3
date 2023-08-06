@@ -1,0 +1,368 @@
+================================
+zeam.form.ztk collection widgets
+================================
+
+First we need some test interfaces that uses collections::
+
+  >>> from zope import schema, interface
+  >>> from zope.component import getMultiAdapter
+  >>> from zope.interface.verify import verifyObject
+
+  >>> class IListOfTextlines(interface.Interface):
+  ...     names = schema.List(
+  ...         title=u"People Names",
+  ...         value_type=schema.TextLine(required=False),
+  ...         required=False)
+
+  >>> class IRequiredListOfBools(interface.Interface):
+  ...     assertions = schema.List(
+  ...         title=u"Assertions result",
+  ...         value_type=schema.Bool(required=True),
+  ...         required=True)
+
+  >>> class ListOfTextlines(object):
+  ...    interface.implements(IListOfTextlines)
+  ...    names = None
+
+  >>> content = ListOfTextlines()
+  >>> content.names = list()
+
+Field
+-----
+
+So now you can create a field, and get a collection field:
+
+  >>> from zeam.form.base import interfaces
+  >>> from zeam.form.base.markers import NO_VALUE
+  >>> from zeam.form.ztk import Fields
+  >>> from zeam.form.ztk.interfaces import ICollectionSchemaField
+
+  >>> fields = Fields(IListOfTextlines)
+  >>> field = fields['names']
+  >>> field
+  <ListSchemaField People Names>
+  >>> verifyObject(ICollectionSchemaField, field)
+  True
+  >>> ICollectionSchemaField.extends(interfaces.IField)
+  True
+  >>> field.required
+  False
+
+This field works on list, and contains text lines:
+
+  >>> field.collectionType
+  <type 'list'>
+  >>> value_field = field.valueField
+  >>> value_field
+  <TextLineSchemaField >
+  >>> verifyObject(interfaces.IField, value_field)
+  True
+  >>> value_field.required
+  False
+
+On a required list of required booleans:
+
+  >>> required_fields = Fields(IRequiredListOfBools)
+  >>> required_field = required_fields['assertions']
+  >>> required_field
+  <ListSchemaField Assertions result>
+  >>> verifyObject(ICollectionSchemaField, required_field)
+  True
+  >>> required_field.required
+  True
+  >>> required_field.collectionType
+  <type 'list'>
+  >>> required_value_field = required_field.valueField
+  >>> required_value_field
+  <BooleanSchemaField >
+  >>> verifyObject(interfaces.IField, required_value_field)
+  True
+  >>> required_value_field.required
+  True
+
+Validation
+~~~~~~~~~~
+
+Validation should validate only a list of textlines:
+
+  >>> field.validate(NO_VALUE)
+  >>> field.validate([])
+  >>> field.validate([u'paul', u'henri'])
+
+And fail in other conditions:
+
+  >>> field.validate(set())
+  u'Object is of wrong type.'
+  >>> field.validate([4, 5, 6])
+  u'Wrong contained type'
+
+If the field is required you cannot provide empty lists:
+
+  >>> required_field.validate(NO_VALUE)
+  u'Missing required value.'
+  >>> required_field.validate([])
+  u'Missing required value.'
+  >>> required_field.validate([True, False, True])
+
+Generic Widget
+--------------
+
+You can get a generic widget out of your field::
+
+  >>> from zeam.form.ztk import Widgets, FormData
+  >>> from zope.publisher.browser import TestRequest
+
+  >>> request = TestRequest()
+  >>> form = FormData(content, request)
+  >>> form.ignoreContent = False
+
+  >>> widgets = Widgets(fields, form=form, request=request)
+  >>> widgets.update()
+  >>> widget = widgets['form.field.names']
+  >>> widget
+  <ListGenericFieldWidget People Names>
+  >>> verifyObject(interfaces.IFieldWidget, widget)
+  True
+
+The widget create a list of sub-widget to edit each value of the list.
+But since our list of values was empty in our contant, we have no
+widgets here. An another side effect is that we can't remove values as
+well::
+
+  >>> widget.valueField
+  <TextLineSchemaField >
+  >>> len(widget.valueWidgets)
+  0
+  >>> widget.allowAdding
+  True
+  >>> widget.allowRemove
+  True 
+
+Let's now create a widget which have values, and we will see that we
+have a sub-widget for each entry of the collection::
+
+  >>> list_content = ListOfTextlines()
+  >>> list_content.names = [u'Arthur', u'Henri', u'Paul']
+
+  >>> list_form = FormData(list_content, request)
+  >>> list_form.ignoreContent = False
+
+  >>> list_widgets = Widgets(
+  ...     fields, form=list_form, request=request)
+
+  >>> list_widgets.update()
+  >>> list_widget = list_widgets['form.field.names']
+  >>> list_widget
+  <ListGenericFieldWidget People Names>
+
+  >>> len(list_widget.valueWidgets)
+  3
+  >>> list_widget.allowAdding
+  True
+  >>> list_widget.allowRemove
+  True
+  >>> list(list_widget.valueWidgets)
+  [<TextLineWidget form.field.names.field.0>,
+   <TextLineWidget form.field.names.field.1>,
+   <TextLineWidget form.field.names.field.2>]
+  >>> map(lambda w:w.value, list_widget.valueWidgets)
+  [{'form.field.names.field.0': u'Arthur'},
+   {'form.field.names.field.1': u'Henri'},
+   {'form.field.names.field.2': u'Paul'}]
+
+Getting input from the request
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The widget is able to get its data from the request. Sub-widgets will be
+created for each data value found in the request::
+
+  >>> list_request = TestRequest(form={
+  ...     'form.field.names': u'2',
+  ...     'form.field.names.present.0': u'1',
+  ...     'form.field.names.field.0': u'Nicolas',
+  ...     'form.field.names.present.1': u'1',
+  ...     'form.field.names.field.1': u'Jean',})
+
+This request parsed with our widget we will create two sub-widget, one
+with the value ``Nicolas``, the other with the value ``Jean``::
+
+  >>> peopleInvitation = FormData(content, list_request)
+
+  >>> peopleWidgets = Widgets(
+  ...     fields,
+  ...     form=peopleInvitation,
+  ...     request=list_request)
+
+  >>> peopleWidgets.update()
+  >>> peopleWidget = peopleWidgets['form.field.names']
+  >>> len(peopleWidget.valueWidgets)
+  2
+  >>> peopleWidget.allowAdding
+  True
+  >>> peopleWidget.allowRemove
+  True
+  >>> list(peopleWidget.valueWidgets)
+  [<TextLineWidget form.field.names.field.0>,
+   <TextLineWidget form.field.names.field.1>]
+  >>> map(lambda w:w.value, peopleWidget.valueWidgets)
+  [{'form.field.names.field.0': u'Nicolas'},
+   {'form.field.names.field.1': u'Jean'}]
+
+A request can ask to remove one of the values contained in the request::
+
+  >>> list_request = TestRequest(form={
+  ...     'form.field.names': u'2',
+  ...     'form.field.names.remove': u'Remove',
+  ...     'form.field.names.checked.0': u'checked',
+  ...     'form.field.names.present.0': u'1',
+  ...     'form.field.names.field.0': u'Nicolas',
+  ...     'form.field.names.present.1': u'1',
+  ...     'form.field.names.field.1': u'Jean',})
+
+And if we parse this request, we will have only one sub-widget created
+for the second value, the first will have been ignored (and so removed)::
+
+  >>> peopleInvitation = FormData(content, list_request)
+
+  >>> peopleWidgets = Widgets(
+  ...     fields,
+  ...     form=peopleInvitation,
+  ...     request=list_request)
+
+  >>> peopleWidgets.update()
+  >>> peopleWidget = peopleWidgets['form.field.names']
+  >>> len(peopleWidget.valueWidgets)
+  1
+  >>> peopleWidget.allowAdding
+  True
+  >>> peopleWidget.allowRemove
+  True
+  >>> list(peopleWidget.valueWidgets)
+  [<TextLineWidget form.field.names.field.1>]
+  >>> map(lambda w:w.value, peopleWidget.valueWidgets)
+  [{'form.field.names.field.1': u'Jean'}]
+
+In the same way, a request can ask to add a new empty sub-widget in
+order to be able to enter a new value::
+
+  >>> list_request = TestRequest(form={
+  ...     'form.field.names': u'3',
+  ...     'form.field.names.add': u'Add',
+  ...     'form.field.names.present.1': u'1',
+  ...     'form.field.names.field.1': u'Jean',})
+
+With that request the widget will create two widgets, and one (new)
+empty::
+
+  >>> peopleInvitation = FormData(content, list_request)
+
+  >>> peopleWidgets = Widgets(
+  ...     fields,
+  ...     form=peopleInvitation,
+  ...     request=list_request)
+
+  >>> peopleWidgets.update()
+  >>> peopleWidget = peopleWidgets['form.field.names']
+  >>> len(peopleWidget.valueWidgets)
+  2
+  >>> peopleWidget.allowAdding
+  True
+  >>> peopleWidget.allowRemove
+  True
+  >>> list(peopleWidget.valueWidgets)
+  [<TextLineWidget form.field.names.field.1>,
+   <TextLineWidget form.field.names.field.3>]
+  >>> map(lambda w:w.value, peopleWidget.valueWidgets)
+  [{'form.field.names.field.1': u'Jean'},
+   {'form.field.names.field.3': u''}]
+
+With an empty request, you will have no values, and won't be able to
+remove values::
+
+  >>> peopleInvitation = FormData(content, request)
+
+  >>> peopleWidgets = Widgets(
+  ...     fields,
+  ...     form=peopleInvitation,
+  ...     request=request)
+
+  >>> peopleWidgets.update()
+  >>> peopleWidget = peopleWidgets['form.field.names']
+  >>> len(peopleWidget.valueWidgets)
+  0
+  >>> peopleWidget.allowAdding
+  True
+  >>> peopleWidget.allowRemove
+  True 
+
+And you have the same with a request containing just the marker::
+
+  >>> zeroPeopleRequest = TestRequest(form={
+  ...     'form.field.names': u'4'})
+  >>> peopleInvitation = FormData(content, request)
+
+  >>> peopleWidgets = Widgets(
+  ...     fields,
+  ...     form=peopleInvitation,
+  ...     request=zeroPeopleRequest)
+
+  >>> peopleWidgets.update()
+  >>> peopleWidget = peopleWidgets['form.field.names']
+  >>> len(peopleWidget.valueWidgets)
+  0
+  >>> peopleWidget.allowAdding
+  True
+  >>> peopleWidget.allowRemove
+  True 
+
+Generic Widget extractor
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+You are able to extract values from the request using the
+corresponding widget extractor::
+
+  >>> list_request = TestRequest(form={
+  ...     'form.field.names': u'4',
+  ...     'form.field.names.present.0': u'1',
+  ...     'form.field.names.field.0': u'Nicolas',
+  ...     'form.field.names.present.2': u'1',
+  ...     'form.field.names.field.2': u'Jean',})
+
+  >>> list_form = FormData(content, list_request)
+
+  >>> list_extractor = getMultiAdapter(
+  ...      (field, list_form, list_request),
+  ...      interfaces.IWidgetExtractor)
+
+  >>> list_extractor
+  <zeam.form.ztk.widgets.collection.MultiGenericWidgetExtractor object at ...>
+  >>> verifyObject(interfaces.IWidgetExtractor, list_extractor)
+  True
+
+And you are able to get back your values:
+
+  >>> list_extractor.extract()
+  ([u'Nicolas', u'Jean'], None)
+
+It will work as well if you have no values in your request::
+
+  >>> noPeopleRequest = TestRequest(form={
+  ...     'form.field.names': u'0'})
+  >>> noPeopleInvitation = FormData(content, noPeopleRequest)
+
+  >>> noPeopleExtractor = getMultiAdapter(
+  ...      (field, noPeopleInvitation, noPeopleRequest),
+  ...      interfaces.IWidgetExtractor)
+  >>> noPeopleExtractor.extract()
+  ([], None)
+
+If you have a fully empty request::
+
+  >>> noPeopleInvitation = FormData(content, request)
+
+  >>> noPeopleExtractor = getMultiAdapter(
+  ...      (field, noPeopleInvitation, request),
+  ...      interfaces.IWidgetExtractor)
+  >>> noPeopleExtractor.extract()
+  (<Marker NO_VALUE>, None)
+
