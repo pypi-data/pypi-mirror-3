@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+"""
+    Receives from an SQS queue and outputs JSON/string object to stdout
+
+
+    @author: Jean-Lou Dupont
+"""
+import os, sys, argparse
+op=os.path
+
+try:
+    import jldaws
+except:
+    ### must be in dev mode then    
+    this_dir=op.dirname(__file__)
+    lib_path=op.abspath(op.join(this_dir, ".."))
+    sys.path.insert(0, lib_path)
+    import jldaws
+
+########################################################################
+
+DESC="Receive JSON object from an SQS queue"
+DEFS={
+          "batch_size": 10
+          ,"polling_interval": 30
+          }
+
+def main():
+    try:
+        import jldaws.do_setup
+        import logging
+        import jldaws.do_checks
+        
+        parser=argparse.ArgumentParser(description=DESC, fromfile_prefix_chars='@')
+        parser.add_argument('-e',    dest="propagate_error",  action="store_true", help="Propagate SQS error", default=False)        
+        parser.add_argument('-w',    dest="format_any",  action="store_true", help="Any message format accepted i.e. not just JSON", default=False)        
+        parser.add_argument('-fq',   dest="flush_queue", action="store_true", help="Flush SQS queue at startup")
+        parser.add_argument('-p',    dest="polling_interval", type=int, help="Polling interval (seconds)", default=DEFS["polling_interval"])
+        parser.add_argument('-bs',   dest="batch_size", type=int, help="Maximum batch size per interval", default=DEFS["batch_size"])
+        parser.add_argument('-qn',   dest="queue_name", type=str, help="SQS queue name", required=True)
+        parser.add_argument('-r',    dest="retry_always",  action="store_true", help="Always retry (includes backoff)", default=False)
+        args=parser.parse_args()
+        
+        from jldaws.script_rxsqs import run
+        run(args)
+
+    except KeyboardInterrupt:
+        logging.info("..Exiting")
+        sys.exit(0)##no probs
+        
+    except Exception,e:
+        logging.error(str(e))
+        sys.exit(1)
+        
+
+sys.exit(main())
