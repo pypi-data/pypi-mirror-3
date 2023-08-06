@@ -1,0 +1,70 @@
+#!/usr/bin/python
+# mrpump, a twitter bot
+# Copyright (C) 2012 Jared Jennings
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+import sys
+import logging
+from ConfigParser import ConfigParser
+import pkg_resources
+from mrpump.auth import get_api
+from mrpump.drive import loop
+from mrpump.forehead import Forehead
+
+def setup_logging(cp):
+    levelname = cp.get('global', 'log level')
+    level = getattr(logging, levelname.upper())
+    logging.basicConfig(stream=sys.stdout, level=level,
+        format='%(asctime)s: %(name)s: %(levelname)s: %(message)s')
+
+def load_chems(cp, forehead):
+    log = logging.getLogger('load_chems')
+    plugin_path = cp.get('global', 'plugin path').split(':')
+    # got some help from http://trac.edgewall.org/browser/trunk/trac/loader.py
+    distributions, errors = pkg_resources.working_set.find_plugins(
+            pkg_resources.Environment(plugin_path))
+    for d in distributions:
+        if d not in pkg_resources.working_set:
+            log.debug('adding plugin %s from %s', d, d.location)
+            pkg_resources.working_set.add(d)
+    # ... heck with the errors
+    for chem_section in cp.get('global', 'chems').split(','):
+        chem_section = chem_section.strip()
+        use = cp.get(chem_section, 'use')
+        # expect syntax: egg:Eggname#entrypointname
+        # syntax modelled after http://pythonpaste.org/deploy/#the-config-file
+        egg, ep = use.split(':')[1].split('#')
+        chem_class = pkg_resources.load_entry_point(egg, 'mrpump.chem', ep)
+        settings = {'name': chem_section}
+        settings.update(dict(cp.items(chem_section)))
+        chem = chem_class(**settings)
+        forehead.add(chem)
+        log.info('added chem %r', chem_section)
+
+if __name__ == '__main__':
+    cp = ConfigParser({
+            'log level': 'debug',
+            'plugin path': '',
+        })
+    cp.read(sys.argv[1])
+    api = get_api(cp)
+    setup_logging(cp)
+    how_often = float(cp.get('global', 'check every'))
+    cache = cp.get('global', 'cache')
+    me = cp.get('global', 'screen name')
+    forehead = Forehead()
+    load_chems(cp, forehead)
+    loop(api, how_often, cache, me, forehead)
