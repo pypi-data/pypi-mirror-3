@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+
+"""
+Loads the SNPs and the phenotype and runs PANAMA
+
+"""
+from optparse import OptionParser
+import panama.core.run, sys, os, pdb, copy, pickle, pandas
+from panama.utilities.plot_parameters import *
+import scipy as SP
+import logging as LG
+FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+LG.basicConfig(level=LG.INFO, format = FORMAT)
+SP.random.seed(1)
+
+LOG_LEVELS = {'debug': LG.DEBUG,
+              'info': LG.INFO,
+              'warning': LG.WARNING,
+              'error': LG.ERROR
+              }
+
+
+if __name__ == "__main__":
+    usage = "usage: %prog [options] gene_expr_file snp_file"
+    parser = OptionParser(usage=usage)
+
+
+    parser.add_option("-l", "--log", dest="level", action="store", type="string",
+                      help="Activate logging and set logging level [debug/info/warning/error]")
+
+    parser.add_option("-p", "--parallel", dest="num_processes", action="store", type="int", default=0,
+                      help="Parallelize association scan")
+
+    parser.add_option("-d", "--output-dir", dest="output_directory", action="store", type="str", default=None,
+                      help="Output directory")
+
+    (options, args) = parser.parse_args()
+
+
+    if len(args)==0:
+        print "ERROR: no files specified"
+        sys.exit()
+    
+    if options.level != None and options.level in LOG_LEVELS.keys():
+        LEVEL = LOG_LEVELS.get(options.level, LG.NOTSET)
+        FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+        LG.basicConfig(level=LEVEL,format=FORMAT)
+
+    if options.output_directory == None:
+	options.output_directory = "./"
+	
+    parallel = False
+    num_processes = 0
+    if options.num_processes > 0:
+	num_processes = options.num_processes
+	parallel = True
+
+
+    expr = pandas.read_csv(args[0], header = 0, index_col = 0)
+    snps = pandas.read_csv(args[1], header = 0, index_col = 0)
+    assert SP.all(expr.columns == snps.columns), "the samples are not in the same order!"
+    assert len(expr.index) > 500, "please, run PANAMA with at least 500 genes"
+
+    sample_names = expr.columns
+    gene_names = expr.index
+    snp_names = snps.index
+
+    qv, pv = panama.core.run.PANAMA(expr.values.T, snps.values.T, write_files = False, statistics = True,
+				    dir_name = None, parallel = parallel,
+				    jobs = num_processes, FDR_addition_associations = 0.01)
+
+    results = pandas.DataFrame(qv, snp_names, gene_names)
+    if not os.path.exists(options.output_directory):
+     	os.makedirs(options.output_directory)
+
+    results.to_csv(os.path.join(options.output_directory,"PANAMA_results.csv"), sep = ',')
+
+
