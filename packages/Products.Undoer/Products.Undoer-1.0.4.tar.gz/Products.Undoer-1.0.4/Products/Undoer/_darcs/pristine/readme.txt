@@ -1,0 +1,17 @@
+What is Undoer?
+
+Undoer is a product/patch that enables transactions to be undone based
+on a date.  Useful if you or someone else has managed to make a lot of
+separate changes that would be cumbersome to undo the usual Zope way
+and no recent (enough) backups are available.  See the Undo tab in the
+Zope Management Interface for instructions on how to use it.
+
+The original script was developed by Nidelven IT for Huridocs (who
+paid for it) and later re-written by Nidelven IT for use by the Zope
+community.
+
+It is available from
+
+  http://www.nidelven-it.no/d
+
+and any questions/comments can be sent to info@nidelven-it.no
