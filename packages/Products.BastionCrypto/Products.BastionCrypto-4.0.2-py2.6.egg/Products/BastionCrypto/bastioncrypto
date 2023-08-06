@@ -1,0 +1,426 @@
+#!/usr/bin/env python
+#
+#    Copyright (C) 2005  Corporation of Balclutha.
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+__version__ = '1.0.0'
+
+from Tkinter import *
+import getopt, sys, os, re, traceback, tempfile
+from httplib import HTTPConnection, HTTPSConnection
+from urlparse import urlparse
+import urllib
+
+win32 = sys.platform == 'win32'
+
+    
+root = Tk()
+title = 'BastionCrypto'
+
+def aboutWindow():
+    from tkMessageBox import showinfo
+    showinfo('%s - About' % title, 
+             """This program is a browser plugin which allows us to seamlessly do client-side cryptography.  A dialogue pops up asking you for you PGP key's passphrase so that we can continue with our automated responses.  Visit http://www.last-bastion.net/BastionCrypto for futher explanation""")
+
+def helpWindow():
+    from tkMessageBox import showinfo
+    showinfo('%s - Help' % title,
+	     """This program wraps GPG.  If you are having problems, then you probably don't have GPG installed properly.  Please visit http://www.last-bastion.net/BastionCrypto to find further GPG resources for your system.""")
+
+def versionWindow():
+    from tkMessageBox import showinfo
+    showinfo('%s - Version' % title, 'Version %s (c) Last Bastion Network' % __version__)
+
+
+class BastionCrypto:
+    """
+    wrap gpg in a little gui which asks for passphrase before carrying out command
+    """
+    did_lock = 0
+    
+    def __init__(self, input_file):
+        try:
+            # Open the input file and read the metadata headers
+            in_f = open(input_file, 'rt')
+            metadata = {}
+
+            while 1:
+                line = in_f.readline()[:-1]
+                if not line: break
+                sep = line.find(':')
+                key = line[:sep]
+                val = line[sep+1:]
+                metadata[key] = val
+            self.metadata = metadata
+                               
+            # parse the incoming url
+            scheme, self.host, self.path = urlparse(metadata['url'])[:3]
+            self.ssl = scheme == 'https'
+            
+	    content = in_f.read()
+	    if content:
+	        content_file = tempfile.NamedTemporaryFile('w+t')
+                content_file.write(content)
+                content_file.seek(0)
+                self.content_file = content_file
+            else:
+		self.content_file = None
+
+            self.saved = 1
+            in_f.close()
+                
+            try:
+                os.remove(input_file)
+            except OSError:
+                pass # Sometimes we aren't allowed to delete it
+            
+            if self.ssl:
+                # See if ssl is available
+                try:
+                    from socket import ssl
+                except ImportError:
+                    fatalError('SSL support is not available on this system. '
+                               'Make sure openssl is installed '
+                               'and reinstall Python.')
+            self.lock_token = None
+            self.did_lock = 0
+        except:
+            # for security, always delete the input file even if
+            # a fatal error occurs, unless explicitly stated otherwise
+            # in the config file
+            try:
+                exc, exc_data = sys.exc_info()[:2]
+                os.remove(input_file)
+            except OSError:
+                # Sometimes we aren't allowed to delete it
+                raise exc, exc_data
+            raise
+        
+    def __del__(self):
+        if self.did_lock:
+            # Try not to leave dangling locks on the server
+            self.unlock(interactive=0)
+
+        
+    def launch(self):
+        """Launch gpg"""
+        if self.metadata.get('lock-token'):
+            # A lock token came down with the data, so the object is
+            # already locked, see if we can borrow the lock
+            if (self.metadata.get('borrow_lock','')
+                or askYesNo('This object is already locked by you in another'
+                            ' session.\n Do you want to borrow this lock'
+                            ' and continue?')):
+                self.lock_token = 'opaquelocktoken:%s' \
+                                  % self.metadata['lock-token']
+            else:
+                sys.exit()            
+        
+        from tkSimpleDialog import askstring
+        self.output_file = tempfile.NamedTemporaryFile('w+t')
+        
+	# for some reason, content is getting stomped on if we set output to input file,
+	# this is strange because it works on the command line ...
+        arguments = '%s --output %s' % (self.metadata['arguments'], self.output_file.name) 
+        if self.content_file:
+	    arguments = '%s %s' % (arguments, self.content_file.name)
+
+        if self.metadata.get('lock', 0):
+            self.lock()
+	if win32:
+	   bin = 'gpg.exe'
+	else:
+	   bin = 'gpg'
+
+	# --yes get's rid of all sorts of horrible nasties in the gpg dialogue!!
+	command = '%s --passphrase-fd 0 --no-tty --verbose --yes --batch %s' % (bin, arguments)	
+	#raise AssertionError, command
+        stdin,stdout,stderr = os.popen3(command)
+        passphrase = askstring('BastionCrypto', 'Enter your Pass Phrase',show='*')
+
+	stdin.write(passphrase)
+	stdin.close()
+	output = stdout.read()
+	stdout.close()
+	error = stderr.read()
+	#
+	# hmmm, we can't trap the return code from popen3, so we're just going to 
+	# check that the output file is definitely larger than the input file ...
+	# 
+	self.output_file.seek(0,2)
+	if not self.content_file or os.path.getsize(self.content_file.name) < os.path.getsize(self.output_file.name):
+            self.saved = self.putChanges()
+	else:
+	    fatalError('GPG Exception\n%s\n%s' % (output, error))
+        if self.metadata.get('lock', 0):
+            self.unlock()
+        
+        
+    def putChanges(self):
+        """Save changes to the file back to Zope"""
+        if self.lock_token is None:
+            # We failed to get a lock initially, so try again before saving
+            if not self.lock():
+                # Confirm save without lock
+                if not askYesNo('Could not acquire lock. '
+                                'Attempt to save to Zope anyway?'):
+                    return 0
+            
+	self.output_file.seek(0)
+	body = self.output_file.read()
+
+        headers = {'Content-Type': 
+                   self.metadata.get('content_type', 'text/plain')}
+        
+        if self.lock_token is not None:
+            headers['If'] = '<%s> (<%s>)' % (self.path, self.lock_token)
+        
+        response = self.zopeRequest('PUT', headers, body)
+        del body # Don't keep the body around longer then we need to
+
+        if response.status / 100 != 2:
+            # Something went wrong
+            if self.askRetryAfterError(response, 
+                                       'Could not save to Zope.\n'
+                                       'Error occurred during HTTP put'):
+                return self.putChanges()
+            else:
+                return 0
+        return 1
+    
+    def lock(self):
+        """Apply a webdav lock to the object in Zope"""
+        if self.lock_token is not None:
+            return 0 # Already have a lock token
+        
+        headers = {'Content-Type':'text/xml; charset="utf-8"',
+                   'Timeout':'infinite',
+                   'Depth':'infinity',
+                  }
+        body = ('<?xml version="1.0" encoding="utf-8"?>\n'
+                '<d:lockinfo xmlns:d="DAV:">\n'
+                '  <d:lockscope><d:exclusive/></d:lockscope>\n'
+                '  <d:locktype><d:write/></d:locktype>\n'
+                '  <d:depth>infinity</d:depth>\n'
+                '  <d:owner>\n' 
+                '  <d:href>Zope External Editor</d:href>\n'
+                '  </d:owner>\n'
+                '</d:lockinfo>'
+                )
+        
+        response = self.zopeRequest('LOCK', headers, body)
+        
+        if response.status / 100 == 2:
+            # We got our lock, extract the lock token and return it
+            reply = response.read()
+            token_start = reply.find('>opaquelocktoken:')
+            token_end = reply.find('<', token_start)
+            if token_start > 0 and token_end > 0:
+                self.lock_token = reply[token_start+1:token_end]
+                self.did_lock = 1
+        else:
+            # We can't lock her sir!
+            if response.status == 423:
+                message = '(object already locked)'
+            else:
+                message = ''
+                
+            if self.askRetryAfterError(response, 
+                                       'Lock request failed', 
+                                       message):
+                self.lock()
+            else:
+                self.did_lock = 0
+        return self.did_lock
+                    
+    def unlock(self, interactive=1):
+        """Remove webdav lock from edited zope object"""
+        if not self.did_lock or self.lock_token is None:
+            return 0 # nothing to do
+            
+        headers = {'Lock-Token':self.lock_token}
+        response = self.zopeRequest('UNLOCK', headers)
+        
+        if interactive and response.status / 100 != 2:
+            # Captain, she's still locked!
+            if self.askRetryAfterError(response, 'Unlock request failed'):
+                self.unlock()
+            else:
+                self.did_lock = 0
+        else:
+            self.did_lock = 1
+            self.lock_token = None
+        return self.did_lock
+        
+    def zopeRequest(self, method, headers={}, body=''):
+        """Send a request back to Zope"""
+        try:
+            if self.ssl:
+                h = HTTPSConnection(self.host)
+            else:
+                h = HTTPConnection(self.host)
+
+            h.putrequest(method, self.path)
+            h.putheader('User-Agent', 'BastionCrypto/%s' % __version__)
+            h.putheader('Connection', 'close')
+
+            for header, value in headers.items():
+                h.putheader(header, value)
+
+            h.putheader("Content-Length", str(len(body)))
+
+            if self.metadata.get('auth','').lower().startswith('basic'):
+                h.putheader("Authorization", self.metadata['auth'])
+
+            if self.metadata.get('cookie'):
+                h.putheader("Cookie", self.metadata['cookie'])
+
+            h.endheaders()
+            h.send(body)
+            return h.getresponse()
+        except:
+            # On error return a null response with error info
+            class NullResponse:                
+                def getheader(self, n, d=None):
+                    return d
+                    
+                def read(self): 
+                    return '(No Response From Server)'
+            
+            response = NullResponse()
+            response.reason = sys.exc_info()[1]
+            
+            try:
+                response.status, response.reason = response.reason
+            except ValueError:
+                response.status = 0
+            
+            if response.reason == 'EOF occurred in violation of protocol':
+                # Ignore this protocol error as a workaround for
+                # broken ssl server implementations
+                response.status = 200
+                
+            return response
+            
+    def askRetryAfterError(self, response, operation, message=''):
+        """Dumps response data"""
+        if not message \
+           and response.getheader('Bobo-Exception-Type') is not None:
+            message = '%s: %s' % (response.getheader('Bobo-Exception-Type'),
+                                  response.getheader('Bobo-Exception-Value'))
+        return askRetryCancel('%s:\n%d %s\n%s' % (operation, response.status, 
+                                               response.reason, message))
+
+
+## Platform specific declarations ##
+
+if win32:
+    from win32ui import MessageBox
+    from win32process import CreateProcess, GetExitCodeProcess, STARTUPINFO
+    from win32event import WaitForSingleObject
+    from win32con import MB_OK, MB_OKCANCEL, MB_YESNO, MB_RETRYCANCEL, \
+                         MB_SYSTEMMODAL, MB_ICONERROR, MB_ICONQUESTION, \
+                         MB_ICONEXCLAMATION
+    import pywintypes
+
+    def errorDialog(message):
+        MessageBox(message, title, MB_OK + MB_ICONERROR + MB_SYSTEMMODAL)
+
+    def askRetryCancel(message):
+        return MessageBox(message, title, 
+                          MB_OK + MB_RETRYCANCEL + MB_ICONEXCLAMATION 
+                          + MB_SYSTEMMODAL) == 4
+
+    def askYesNo(message):
+        return MessageBox(message, title, 
+                          MB_OK + MB_YESNO + MB_ICONQUESTION +
+                          MB_SYSTEMMODAL) == 6
+
+
+else: # Posix platform
+
+    def errorDialog(message):
+        """Error dialog box"""
+        from tkMessageBox import showerror
+        showerror(title, message)
+
+    def askRetryCancel(message):
+        from tkMessageBox import askretrycancel
+        return askretrycancel(title, message)
+
+
+    def askYesNo(message):
+        from tkMessageBox import askyesno
+        return askyesno(title, message)
+
+
+def fatalError(message, exit=1):
+    """Show error message and exit"""
+    errorDialog('FATAL ERROR: %s' % message)
+    # Write out debug info to a temp file
+    debug_f = open(tempfile.mktemp('-zopeedit-traceback.txt'), 'w')
+    try:
+        traceback.print_exc(file=debug_f)
+    finally:
+        debug_f.close()
+    if exit: 
+        sys.exit(0)
+
+
+if __name__ == '__main__':
+	
+    help = None
+
+    try:
+	optlist, args = getopt.getopt(sys.argv[1:], 'vVh', ['version', 'help'])
+    except getopt.GetoptError:
+	help = 1
+
+    for o, a in optlist:
+        if o in ("-v", "-V", "--version"):
+	    print "%s %s by The Last Bastion Network (http://www.last-bastion.net/BastionCrypto)" % (sys.argv[0], __version__)
+            sys.exit()
+        if o in ("-h", "--help"):
+	    help = 1
+
+    if help or len(args) != 1:
+        print "%s <input file> (where input file has come from the BastionCrypto Zope/Plone suite)" % sys.argv[0]
+        sys.exit()
+	
+    input_file = args[0]
+
+    tk = Tk()
+    menu = Menu(root)
+    filemenu = Menu(menu)
+    menu.add_cascade(label='File', menu=filemenu)
+    filemenu.add_command(label='Quit', command=sys.exit)
+    helpmenu = Menu(menu)
+    menu.add_cascade(label='Help', menu=helpmenu)
+    helpmenu.add_command(label='Help', command=aboutWindow)
+    helpmenu.add_command(label='About', command=helpWindow)
+    helpmenu.add_command(label='Version', command=versionWindow)
+    root.config(menu=menu)
+
+    try:
+        BastionCrypto(input_file).launch()
+    except KeyboardInterrupt:
+        pass
+    except SystemExit:
+        pass
+    except:
+        fatalError(sys.exc_info()[1])
+
+    sys.exit(0)

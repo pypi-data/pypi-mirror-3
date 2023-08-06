@@ -1,0 +1,40 @@
+#!/usr/bin/expect --
+
+proc doIt { name email comment phrase type size expires } {
+send "$type\r"
+expect "What keysize do you want? (1024) "
+send "$size\r"
+expect "Key is valid for? (0) "
+send "$expires\r"
+expect "Is this correct (y/n)? "
+send "y\r"
+expect "Real name: "
+send "$name\r"
+expect "Email address: "
+send "$email\r"
+expect "Comment: "
+send "$comment\r"
+expect "Change (N)ame, (C)omment, (E)mail or (O)kay/(Q)uit? "
+send "o\r"
+expect "Enter passphrase: "
+send "$phrase\r"
+expect "Repeat passphrase: "
+send "$phrase\r"
+expect { default { send "\r\r" } }
+wait
+}
+
+if {[llength $argv] != 8} {
+        puts "usage: gpg.exp \[dir\] \[realname\] \[passphrase\] \[email\] \[comment\] \[type\] \[size\] \[expires\]"
+        puts "type is \[1 DSA & ElGamal, 2 DSA sign only, 4 ElGamal sign & encrypt\]"
+        puts "expires is \[ 0 - never, \[n\] - days, \[n\]w - weeks, \[n\]m - months, \[n\]y - years \]"
+        exit 1
+}
+
+spawn gpg --gen-key --homedir [lindex $argv 0 ]
+expect {
+         "Your selection? " { doIt "[lindex $argv 1]" "[lindex $argv 3]" "[lindex $argv 4]" "[lindex $argv 2]" [lindex $argv 5] [lindex $argv 6] [lindex $argv 7] 
+       } -re "you have to start GnuPG again" { spawn gpg --gen-key --homedir [lindex $argv 0]
+                                             expect "Your selection? " { doIt "[lindex $argv 1]" "[lindex $argv 3]" "[lindex $argv 4]" "[lindex $argv 2]"  [lindex $argv 5] [lindex $argv 6] [lindex $argv 7] }
+                                        }
+       }

@@ -1,0 +1,137 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      lang="en"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="bastioncrypto">
+
+  <metal:border fill-slot="top_slot">
+    <tal:border define="dummy python:request.set('enable_border',1)" />
+  </metal:border>
+
+  <body>
+
+    <div metal:fill-slot="main"
+         tal:define="text python: here.CookedBody(stx_level=2);
+                     utool context/@@plone_portal_state/portal_url;">
+
+      <h1>
+          <img src="" tal:define="icon python: context.getIcon(1)"
+               tal:attributes="src string:${utool}/${icon}">&nbsp;
+          <span tal:replace="here/title_or_id"/>
+      </h1>
+
+      <a href=""
+           class="link-parent"
+           tal:define="parent_url python:here.navigationParent(here, template.getId())"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:translate="go_to_parent_url">Up one level</a>
+
+      <p class="documentDescription"
+           tal:content="here/Description"
+           tal:condition="here/Description">
+            Description
+      </p>
+
+      <div class="stx"
+           tal:condition="text"
+           tal:attributes="class python:test(here.Format() in ('text/structured',
+                                             'text/x-rst', ), 'stx', 'plain')">
+           <div tal:replace="structure text" />
+      </div>
+
+      <form action="."
+            method="post"
+            tal:attributes="action template/getId" >
+
+        <fieldset>
+ 
+          <legend i18n:translate="legend_pgp_search">PGP Key Search</legend>
+ 
+          <table width="100%">
+            <tr>
+              <td><label>Key Id</label></td>
+              <td><label>Name</label></td>
+              <td><label>Email</label></td>
+              <td><label>Comment</label></td>
+            </tr>
+            <tr>
+              <td><input type="text" name="id:ignore_empty" size="12" 
+                         tal:attributes="value request/id | nothing"/></td>
+              <td><input type="text" name="name:ignore_empty" size="20"
+                         tal:attributes="value request/name | nothing"/></td>
+              <td><input type="text" name="email:ignore_empty" size="40"
+                         tal:attributes="value request/email | nothing"/></td>
+              <td><input type="text" name="comment:ignore_empty" 
+                         size="20" tal:attributes="value request/comment|nothing"/></td>
+            </tr>
+            <tr>
+              <td colspan="4">
+                 <div class="formControls" align="right">
+                     <input class="context"  type="submit"
+                            name="form.button.Search"
+                            value="Search"
+                            i18n:attributes="value" />
+                 </div>
+               </td>
+             </tr>
+          </table>
+
+        </fieldset>
+
+        <fieldset tal:condition="request/id | request/name | request/email | request/comment | nothing">
+
+           <legend i18n:translate="legend_results">Results</legend>
+
+           <span tal:define="results python: here.searchResults(REQUEST=request);
+                             b_start string:0;b_start request/b_start | b_start;
+                             Batch python: modules['Products.CMFPlone'].Batch;
+                             batch python: Batch(results, 10, int(b_start), orphan=2);
+			     batch_obs python: filter(lambda x:x, map(lambda x: x.getObject(),batch));">
+
+              <!-- Navigation -->
+              <div  tal:condition="batch_obs" metal:use-macro="here/batch_macros/macros/navigation" />
+
+
+              <table border="0" width="100%" tal:condition="batch_obs">
+                 <tr class="list-header">
+                    <th/>
+                    <th align="left">Key Id</th>
+                    <th align="left">Identity Information</th>
+                    <th align="left">&nbsp;</th>
+                 </tr>
+                 <tal:block tal:repeat="key batch_obs">
+                    <tr class="" 
+                        tal:attributes="class python: test(repeat['key'].index % 2, 'portalContent odd' 'portalContent even')">
+                       <td class="list-item">
+                          <img src="" tal:attributes="src string:${utool}/pgp.gif"/>
+                       </td>
+                       <td class="list-item">
+                          <a href="" tal:attributes="href key/id" tal:content="key/id"/>
+                       </td>
+                       <td class="list-item" tal:condition="not: here/obfuscate_email"
+                           tal:content="string: ${key/name} (${key/comment}) <${key/email}>"/>
+                       <td class="list-item" tal:condition="here/obfuscate_email"
+                           tal:content="string: ${key/name} (${key/comment}) <${key/obfuscated_email}>"/>
+                       <td>&nbsp;</td>
+                    </tr>
+                  </tal:block>
+              </table>
+
+              <!-- Navigation -->
+              <div tal:condition="batch_obs"  metal:use-macro="here/batch_macros/macros/navigation" />
+
+              <div tal:condition="not: batch_obs">No keys matched your query</div>
+           </span>
+
+        </fieldset>
+      </form>
+
+      <div tal:replace="structure provider:plone.documentactions">
+           Document actions (print, sendto etc)
+      </div>
+
+    </div>
+
+  </body>
+</html>
+

@@ -1,0 +1,66 @@
+#!/usr/bin/expect --
+
+if {[llength $argv] != 11} {
+        puts "usage: x509.exp \[base filename\] \[passphrase\] \[city\] \[state\] \[country\] \[company\] \[division\] \[email\] \[cn\] \[expiry days\] \[key size (bits)\]"
+        exit 1
+}
+
+#
+# there seemed to be a prob with it stuck in a stty sane wait which was cured by 
+# adding the -nottyinit/-nottycopy option on my production server ...
+#
+
+spawn -nottycopy openssl genrsa -des3 -out [lindex $argv 0].key [lindex $argv 10]
+		   	expect "Enter PEM pass phrase:" 
+			send "[lindex $argv 1]\r" 
+			expect "Verifying password - Enter PEM pass phrase:" 
+			send "[lindex $argv 1]\r" 
+			expect { default { exit } }
+
+spawn -nottycopy openssl rsa -in [lindex $argv 0].key -out [lindex $argv 0].keydec
+			expect "Enter PEM pass phrase:" 
+			send "[lindex $argv 1]\r"
+			expect { default { exit } }
+
+spawn -nottycopy openssl rsa -in [lindex $argv 0].key -pubout -out [lindex $argv 0].pub
+			expect "Enter PEM pass phrase:" 
+			send "[lindex $argv 1]\r"
+			expect { default { exit } }
+
+spawn -nottycopy openssl req -new -x509 -days [lindex $argv 9] -key [lindex $argv 0].keydec -out [lindex $argv 0].crt
+			expect "Country Name *:"
+			send "[lindex $argv 4]\r"
+			expect "State or Province Name (full name)*:"
+			send "[lindex $argv 3]\r"
+			expect "Locality Name (eg, city)*:"
+			send "[lindex $argv 2]\r"
+			expect "Organization Name (eg, company)*:"
+			send "[lindex $argv 5]\r"
+			expect "Organizational Unit Name (eg, section)*:"
+			send "[lindex $argv 6]\r"
+			expect "Common Name (eg, YOUR name)*:"
+			send "[lindex $argv 8]\r"
+			expect "Email Address*:"
+			send "[lindex $argv 7]\r"
+			expect { default { exit } }
+
+spawn -nottycopy openssl req -new -days [lindex $argv 9] -key [lindex $argv 0].keydec  -out [lindex $argv 0].req
+			expect "Country Name *:"
+			send "[lindex $argv 4]\r"
+			expect "State or Province Name (full name)*:"
+			send "[lindex $argv 3]\r"
+			expect "Locality Name (eg, city)*:"
+			send "[lindex $argv 2]\r"
+			expect "Organization Name (eg, company)*:"
+			send "[lindex $argv 5]\r"
+			expect "Organizational Unit Name (eg, section)*:"
+			send "[lindex $argv 6]\r"
+			expect "Common Name (eg, YOUR name)*:"
+			send "[lindex $argv 8]\r"
+			expect "Email Address*:"
+			send "[lindex $argv 7]\r"
+			expect "A challenge password*:"
+			send "pa55w0rd\r"
+			expect "An optional company name*:"
+			send "[lindex $argv 5]\r"
+			expect { default { exit } }
