@@ -1,0 +1,10 @@
+__version__ = "0.4.5"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = 'v0.4.5'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = 'b15b630f1f700db4d107a23aeb7e4ff3a84c80f7'
+__git_head_subject__ = "Merge branch 'release/v0.4.5'"
+__git_head_message__ = '* release/v0.4.5:\n  HOSTDEV-41 updating recipe template version - using git-py\n  README'
+__git_dirty_diff__ = ''
