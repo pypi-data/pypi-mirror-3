@@ -1,0 +1,611 @@
+Metadata-Version: 1.0
+Name: buildout.minitagificator
+Version: 2.4.22
+Summary: A buildout extension to replace buildout part by minitage interesant ones sponsored by Makina Corpus
+Home-page: https://github.com/minitage/buildout.minitagificator
+Author: Mathieu Pasquet
+Author-email: kiorky@cryptelium.net
+License: GPL
+Description: 
+        .. contents::
+        
+        Introduction
+        ============
+        
+        
+            - This packages aims to replace some buildout parts by minitage's ones.
+            - It replaces:
+        
+                - All zc.recipe.egg recipes but zc.recipe.custom:develop
+                - zc.buildout.easy_install.install.Installer
+                - zc.recipe.cmmi
+        
+        
+        Installation
+        =============
+        
+            - just add *buildout.minitagificator* to your buildout 's extension variable like ::
+        
+                [buildout]
+                extensions = buildout.minitagificator
+        
+        Makina Corpus sponsored software
+        ======================================
+        |makinacom|_
+        
+        * `Planet Makina Corpus <http://www.makina-corpus.org>`_
+        * `Contact us <mailto:python@makina-corpus.org>`_
+        
+        .. |makinacom| image:: http://depot.makina-corpus.org/public/logo.gif
+        .. _makinacom:  http://www.makina-corpus.com
+        
+        
+        
+        
+        
+        TIPS
+        ========
+        
+            -   set ``minitage-globalenv`` in buildout for the extension to set cflags
+                and other things borrowed from the project minibuild if any.
+        
+                - it will look for a section ``[minitagificator]`` to have regular options like
+                  extra-flags, path or includes to add to the environment
+        
+        
+        
+        # Copyright (C) 2009, Mathieu PASQUET <mpa@makina-corpus.com>
+        #
+        # This program is free software; you can redistribute it and/or modify
+        # it under the terms of the GNU General Public License as published by
+        # the Free Software Foundation; either version 2 of the License, or
+        # (at your option) any later version.
+        #
+        # This program is distributed in the hope that it will be useful,
+        # but WITHOUT ANY WARRANTY; without even the implied warranty of
+        # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        # GNU General Public License for more details.
+        
+        __docformat__ = 'restructuredtext en'
+        
+        import sys
+        from copy import copy, deepcopy
+        import os
+        import logging
+        
+        import pkg_resources
+        
+        from zc.buildout.easy_install import Installer
+        
+        from minitage.recipe.egg.egg import Recipe as Egg
+        from minitage.recipe.common import common
+        from minitage.recipe.scripts.scripts import Recipe as Script
+        from minitage.recipe.cmmi.cmmi import Recipe as Cmmi
+        from minitage.recipe.scripts.scripts import parse_entry_point
+        
+        __log__ = logging.getLogger('buildout.minitagificator')
+        
+        def activate(ws):
+            for entry in ws.entries:
+                if not entry in sys.path:
+                    sys.path.append(entry)
+        
+        
+        class Script(Script):
+        
+            for_patchs = True
+        
+        def monkey_patch_recipes(buildout):
+            # try to patch zc.recipe.egg
+            # and be kind on API Changes
+            __log__.info('Minitaging some recipes')
+        
+            try:
+                import zc.recipe.egg
+                if getattr(zc.recipe.egg, 'Egg', None):
+                    __log__.debug('Patched zc.recipe.egg.Egg')
+                    zc.recipe.egg.Egg = Script
+                else:
+                  __log__.debug('!!!! Can\'t patch zc.recipe.egg.Egg')
+                if getattr(zc.recipe.egg, 'Eggs', None):
+                    __log__.debug('Patched zc.recipe.egg.Eggs')
+                    zc.recipe.egg.Eggs = Egg
+                else:
+                  __log__.debug('!!!! Can\'t patch zc.recipe.egg.Eggs')
+                if getattr(zc.recipe.egg, 'Scripts', None):
+                    __log__.debug('Patched zc.recipe.egg.Scripts')
+                    zc.recipe.egg.Scripts = Script
+                else:
+                    __log__.debug('!!!! Can\'t patch zc.recipe.egg.Scripts')
+            except Exception, e:
+                __log__.debug('!!!! Can\'t patch zc.recipe.egg.(Scripts|Eggs): %s' % e)
+            try:
+                import zc.recipe.egg.custom
+                if getattr(zc.recipe.egg.custom, 'Custom', None):
+                    __log__.debug('Patched zc.recipe.egg.custom')
+                    zc.recipe.egg.custom.Custom = Egg
+                else:
+                    __log__.debug('!!!! Can\'t patch zc.recipe.egg.custom.Custom!!!')
+            except:
+                __log__.debug('!!!! Can\'t patch zc.recipe.egg.custom.Custom.')
+            try:
+                import zc.recipe.cmmi
+                if getattr(zc.recipe.cmmi, 'Recipe', None):
+                    __log__.debug('Patched zc.recipe.cmmi')
+                    zc.recipe.cmmi.Recipe = Cmmi
+                else:
+                    __log__.debug('!!!! Can\'t patch zc.recipe.cmmi')
+            except Exception, e:
+                __log__.debug('!!!! Can\'t patch zc.recipe.cmmi')
+        
+        
+        def monkey_patch_buildout_installer(buildout):
+            __log__.info('Minitaging Buildout Installer')
+            dexecutable = buildout['buildout']['executable']
+            def install(specs, dest,
+                        links=(), index=None,
+                        executable=dexecutable, always_unzip=None,
+                        path=None, working_set=None, newest=True, versions=None,
+                        use_dependency_links=None, allow_hosts=('*',),
+                        include_site_packages=None, allowed_eggs_from_site_packages=None,
+                        prefer_final=None):
+                if not '/' in executable:
+                    executable = common.which(executable)
+        
+                if not working_set:
+                    working_set = pkg_resources.WorkingSet([])
+        
+                for i, spec in enumerate(specs[:]):
+                    if 'setuptools' in spec:
+                        try:
+                            # do we have distribute out there
+                            working_set.require('distribute')
+                            if isinstance(specs[i], str):
+                                specs[i] = specs[i].replace('setuptools', 'distribute')
+                            __log__.info('We are using distribute')
+                        except:
+                            __log__.info('We are not using distribute')
+                opts = copy(buildout['buildout'])
+                opts['executable'] = executable
+                opts['buildoutscripts'] = 'true'
+                r = Egg(buildout, 'foo', opts)
+                r.eggs = specs
+                r._dest = dest
+                if not r._dest:
+                    r._dest = buildout['buildout']['eggs-directory']
+                if links:
+                    r.find_links = links
+                if index:
+                    r.index = index
+                if always_unzip:
+                    r.zip_safe = not always_unzip
+                caches = r.eggs_caches[:]
+                if path:
+                    if not isinstance(path, str):
+                        caches.extend([ os.path.abspath(p) for p in path])
+                    else:
+                        caches.append(os.path.abspath(path))
+                caches = common.uniquify(caches)
+                for cache in caches:
+                    if not (cache in r.eggs_caches):
+                        r.eggs_caches.append(cache)
+                if not versions:
+                    versions = buildout.get('versions', {})
+                ## which python version are we using ?
+                #r.executable_version = os.popen(
+                #    '%s -c "%s"' % (
+                #        executable,
+                #        'import sys;print sys.version[:3]'
+                #    )
+                #).read().replace('\n', '')
+                if buildout.offline:
+                    allow_hosts = 'None'
+                try:
+                    r.inst = easy_install.Installer(
+                        dest=None,
+                        index=r.index,
+                        links=r.find_links,
+                        executable=r.executable,
+                        always_unzip=r.zip_safe,
+                        newest = newest,
+                        versions = versions,
+                        use_dependency_links = use_dependency_links,
+                        path=r.eggs_caches,
+                        allow_hosts=allow_hosts,
+                        include_site_packages=None,
+                        allowed_eggs_from_site_packages=None,
+                        prefer_final=None,
+                    )
+                except:
+                    # buildout < 1.5.0
+                    r.inst = easy_install.Installer(
+                        dest=None,
+                        index=r.index,
+                        links=r.find_links,
+                        executable=r.executable,
+                        always_unzip=r.zip_safe,
+                        newest = newest,
+                        versions = versions,
+                        use_dependency_links = use_dependency_links,
+                        path=r.eggs_caches,
+                        allow_hosts=allow_hosts,
+                    )
+                r.platform_scan()
+                reqs, working_set = r.working_set(working_set=working_set)
+                return working_set
+            from zc.buildout import easy_install
+            easy_install.install = install
+        
+        def monkey_patch_buildout_options(buildout):
+            __log__.info('Minitaging Buildout Options')
+            from zc.buildout.buildout import Options, _buildout_default_options
+            from zc.buildout.buildout import _install_and_load, _recipe
+        
+            def _initialize(self, *args, **kwargs):
+                """On intialization, install our recipe instead"""
+                Options._old_initialize(self, *args, **kwargs)
+                recipe = self.get('recipe')
+                if not recipe:
+                    return
+                name = self.name
+                reqs, entry = _recipe(self._data)
+                mappings = {
+                    ('zc.recipe.egg', 'default'): ('minitage.recipe.scripts', 'default'),
+                    ('zc.recipe.egg', 'script'): ('minitage.recipe.scripts', 'default'),
+                    ('zc.recipe.egg', 'scripts'): ('minitage.recipe.scripts', 'default'),
+                    ('zc.recipe.egg', 'Custom'): ('minitage.recipe.scripts', 'default'),
+                    ('zc.recipe.egg', 'Eggs'): ('minitage.recipe.egg', 'default'),
+                    ('zc.recipe.egg', 'eggs'): ('minitage.recipe.egg', 'default'),
+                    ('zc.recipe.cmmi', 'default'): ('minitage.recipe.cmmi', 'default'),
+                }
+                reqsa, entrya = mappings.get((reqs, entry), (None, None))
+                if reqsa:
+                    recipe_class = _install_and_load(reqsa, 'zc.buildout', entrya, self.buildout)
+                    self.recipe = recipe_class(buildout, name, self)
+                    self.recipe.logger.info(
+                        "Replaced %s with %s" % ((reqs, entry), (reqsa, entrya))
+                    )
+            Options._old_initialize = Options._initialize
+            Options._initialize = _initialize
+        
+            def _call(self, f):
+                """On call, verify that our recipes are used"""
+                initialization = True
+                monkey_patch_recipes(buildout)
+                Options._buildout = buildout
+                return Options._old_call(self, f)
+            Options._old_call = Options._call
+            Options._call = _call
+        
+        def monkey_patch_buildout_scripts(buildout):
+            __log__.info('Minitaging Buildout scripts')
+            def scripts(reqs,
+                        working_set,
+                        executable,
+                        dest,
+                        scripts=None,
+                        extra_paths=(),
+                        arguments='',
+                        interpreter='',
+                        initialization='',
+                        relative_paths=False,
+                       ):
+                if not '/' in executable:
+                    executable = common.which(executable)
+                if not scripts:
+                    scripts = []
+                if isinstance(scripts, dict):
+                    cscripts = deepcopy(scripts)
+                    scripts = []
+                    for item in cscripts:
+                        scripts.append('%s=%s' % (item, cscripts[item]))
+                if (not relative_paths) or (relative_paths == 'false'):
+                    relative_paths = 'false'
+                else:
+                    relative_paths = 'true'
+                if not interpreter:
+                    interpreter = ''
+                options = {}
+                options['generate_all_scripts'] = True
+                options['eggs'] = ''
+                options['entry-points'] = ''
+                options['executable'] = executable
+                if '\n'.join(scripts).strip():
+                    options['scripts'] = '\n'.join(scripts)
+                    options['generate_all_scripts'] = False
+                options['extra-paths'] = '\n'.join(extra_paths)
+                options['arguments'] = arguments
+                options['interpreter'] = interpreter
+                options['initialization'] = initialization
+                options['relative-paths'] = relative_paths
+                for req in reqs:
+                    if isinstance(req, str):
+                        if parse_entry_point(req):
+                            options['entry-points'] += '%s\n' % req
+                        else:
+                            # append it to eggs to be generated
+                            try:
+                                #if it is really an egg
+                                req = pkg_resources.Requirement.parse(req)
+                                # append it to eggs
+                                options['eggs'] += '\n%s' % req
+                            except Exception, e:
+                                #other wise, just add the dist to the scripts for later use
+                                options['scripts'] += '\n%s' % req
+                    elif isinstance(req, tuple):
+                        options['entry-points'] += '%s=%s:%s\n' % req
+                r = Script(buildout, 'foo', options)
+                if dest and options.get('bin-directory', False):
+                    if dest == options['bin-directory']:
+                        dest = buildout['buildout'].get('eggs-directory', 'eggs')
+        
+                r._dest = dest
+                res = r.install(working_set=working_set)
+                return res
+            from zc.buildout import easy_install
+            easy_install.scripts = scripts
+        
+        def set_minitage_env(buildout):
+            options = {}
+            r = Script(buildout, 'foo', options)
+            r._set_compilation_flags()
+            r._set_path()
+            r._set_py_path()
+            r._set_pkgconfigpath()
+        
+        def enable_dumping_picked_versions_req(old_working_set):
+            def working_set(self, extras=None, working_set=None, dest=None):
+                reqs, iws = old_working_set(self,
+                                           extras = extras,
+                                           working_set = working_set,
+                                           dest = dest)
+                ws = list(iws)
+                ws.sort()
+                from buildout.dumppickedversions import required_by
+                for req in self.dependency_tree:
+                    req_ = str(req.project_name)
+                    for mid in self.dependency_tree[req]:
+                        dist = self.dependency_tree[req][mid]
+                        dist_ = str(dist)
+                        if (req_ in required_by
+                            and dist_ not in required_by[req_]):
+                                required_by[req_].append(dist_)
+                        else:
+                            required_by[req_] = [dist_]
+                return reqs, iws
+            return working_set
+        
+        def enable_dumping_picked_versions(old_append):
+            def append(self, requirement, dist, dists):
+                dists = old_append(self, requirement, dist, dists)
+                if not (dist.precedence == pkg_resources.DEVELOP_DIST
+                        or (len(requirement.specs) == 1
+                            and requirement.specs[0][0] == '==')
+                       ):
+                    Installer.__picked_versions[dist.project_name] = dist.version
+                    return dist
+            return append
+        
+        def monkey_patch_buildout_dumppickedversion(buildout):
+            if 'buildout.dumppickedversions' in buildout['buildout']['extensions']:
+                if not getattr(Egg, 'append', None):
+                    msg = 'Please update to minitage.recipe.egg>=1.88 to use with buildout.dumppickedversions.\n'
+                    import minitage.recipe.egg
+                    msg += 'Its current location is %s.\n' % (os.path.dirname(minitage.recipe.egg.__file__))
+                    msg += 'Either fix your buildout version of minitage.recipe.egg or delete this egg.\n'
+                    __log__.error(msg)
+                    raise Exception(msg)
+                Egg.append = enable_dumping_picked_versions(Egg.append)
+                Egg.working_set = enable_dumping_picked_versions_req(Egg.working_set)
+        
+        def install(buildout=None):
+            # pre-initialize me, the hacky way !
+            monkey_patch_buildout_dumppickedversion(buildout)
+            monkey_patch_buildout_installer(buildout)
+            monkey_patch_buildout_scripts(buildout)
+            monkey_patch_buildout_options(buildout)
+            monkey_patch_recipes(buildout)
+            if 'minitage-globalenv' in buildout['buildout']:
+                set_minitage_env(buildout)
+        
+        # vim:set et sts=4 ts=4 tw=80:
+        
+        
+        
+        
+        
+        Tests for buildout.minitagificator buildout extension
+        -------------------------------------------------------
+        
+        Let's create a buildout configuration file::
+        
+            >>> data = """
+            ... [buildout]
+            ... parts =
+            ...     part
+            ... extensions = buildout.minitagificator
+            ... [part]
+            ... recipe=iw.recipe.cmd
+            ... on-install=true
+            ... on-update=true
+            ... cmds=ls
+            ... [egg]
+            ... recipe=zc.recipe.egg:eggs
+            ... eggs=zc.buildout
+            ... [script]
+            ... recipe=zc.recipe.egg:scripts
+            ... eggs=zc.buildout
+            ... scripts=buildout
+            ... """
+            >>> rmdir(tempdir, 'buildout.test')
+            >>> cd(tempdir)
+            >>> sh('mkdir buildout.test')
+            mkdir buildout.test
+            <BLANKLINE>
+            >>> cd('buildout.test')
+            >>> touch('buildout.cfg', data=data)
+            >>> ls('.')
+            buildout.cfg
+        
+        Run the buildout and see the patch in action :=)::
+        
+            >>> a= [mkdir(d) for d in ('eggs', 'develop-eggs', 'bin', 'src')]
+            >>> install_develop_eggs(['buildout.minitagificator'])
+            >>> install_eggs_from_pathes(['buildout.minitagificator'], sys.path)
+            >>> buildout('bootstrap')
+            Creating directory '/tmp/buildout.test/parts'.
+            Generated script '/tmp/buildout.test/bin/buildout'.
+            >>> sh('bin/buildout -vvvvv')
+            bin/buildout...
+            Installing part.
+            buildout.minitagificator: Minitaging some recipes
+            buildout.minitagificator: !!!! Can't patch zc.recipe.egg.(Scripts|Eggs): No module named recipe.egg
+            buildout.minitagificator: !!!! Can't patch zc.recipe.egg.custom.Custom.
+            buildout.minitagificator: !!!! Can't patch zc.recipe.cmmi
+            <BLANKLINE>
+        
+        We also monkey patch zc.recipe.egg stuff, to get our eggs happily installed with minitage recipes.::
+        
+            >>> sh('bin/buildout install egg')
+            bin/buildout install egg...
+            buildout.minitagificator: Minitaging Buildout Installer
+            buildout.minitagificator: Minitaging Buildout scripts
+            buildout.minitagificator: Minitaging Buildout Options
+            buildout.minitagificator: Minitaging some recipes...
+            minitage.recipe: Replaced ('zc.recipe.egg', 'eggs') with ('minitage.recipe.egg', 'default')...
+            Installing egg...
+            buildout.minitagificator: Minitaging some recipes...
+            <BLANKLINE>
+        
+            >>> sh('bin/buildout install script')
+            bin/buildout install script...
+            buildout.minitagificator: Minitaging Buildout Installer
+            buildout.minitagificator: Minitaging Buildout scripts
+            buildout.minitagificator: Minitaging Buildout Options
+            buildout.minitagificator: Minitaging some recipes...
+            minitage.recipe: Replaced ('zc.recipe.egg', 'scripts') with ('minitage.recipe.scripts', 'default')...
+            Installing script....
+            buildout.minitagificator: Minitaging some recipes
+            minitage.recipe: Installing console scripts.
+            minitage.recipe: Installing python egg(s).
+            minitage.recipe: Picked: zc.buildout ...
+            minitage.recipe: Picked: setuptools ...
+            minitage.recipe: Generated scripts: 'buildout'.
+            <BLANKLINE>
+        
+        
+        Changelog
+        =========
+        
+        2.4.22 (2012-09-02)
+        -------------------
+        
+        - add minitagificator section option reading
+        
+        
+        2.4.21 (2012-07-24)
+        -------------------
+        
+        - scripts bugfix
+        
+        
+        2.4.18 (2012-06-05)
+        -------------------
+        
+            - zc.buildout 1.5 support
+            - compatibility with buildout.dumppickedversions
+            - Drop unusued recipes dependency
+            - fix entry point parsing for scripts wrapper
+        
+        
+        2.4.9
+        ------
+        
+            - Snowleopard and crossplatform fix according to related 
+              minitage.recipe.egg improvments (r.platform_scan() adds)
+        
+        2.4.8
+        ------
+        
+            - more distribute friendly
+        
+        2.4.2
+        ---------
+        
+            - offline mode bugfix
+        
+        2.4.1
+        ------
+        
+            - up tests
+        
+        2.4.0
+        ------
+        
+            - more robust code for monkey patch
+        
+        2.3.9
+        -------
+        
+            - up to minitage.recipe.*
+        
+        -> 2.3.8
+        -----------
+        
+            - fix tests
+            - add minitage-globalenv
+        
+        2.3.3 -> 2.3.5
+        ------------------
+        
+            - filtration of scripts
+        
+        2.3
+        -----
+        
+            - fix buildout initialization problem
+        
+        2.1 -> 2.2
+        ---------------
+        
+            * fix tests (the only 2.2 change is in the test;)
+            * bugfix on egg cache searching
+            * bugfix on scripts filtering
+        
+        2.0
+        -----
+        
+            - 1.0 compatibility
+            - zc.recipe.cmmi is now wrapped
+        
+        1.6
+        -----
+        
+        * Get an absolute path for python!
+        
+        1.5
+        --------
+        
+        * Refactor code
+        * Add a wrapper to zc.buildout.easy_install.scripts
+        * Make it work with relative-paths
+        
+        1.4
+        ---------
+        
+        * code cometics
+        
+        1.1  -> 1.2
+        ------------
+        
+        * packaging
+        
+        1.0
+        ----------------
+        * Initial release
+        
+Platform: UNKNOWN
+Classifier: Framework :: Buildout
+Classifier: Framework :: Plone
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
