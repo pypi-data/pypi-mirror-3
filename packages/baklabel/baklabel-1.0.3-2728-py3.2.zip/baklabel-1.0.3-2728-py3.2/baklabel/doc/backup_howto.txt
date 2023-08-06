@@ -1,0 +1,495 @@
+Target Audience - baklabel
+==========================
+
+The 'baklabel' utility is intended for a system administrator to install and set up to suit the system owner. It is meant for small office or home networks which prefer to use high capacity portable disk drives rather than tapes.
+
+The instructions are intended to be more or less understandable by most users but the detailed sections will require some experience or at least moderate confidence.
+
+This document describes grandfathered backups. It then explains in overview how to install the necessary components to make a grandfathered backup system actually work. Finally, it contains the exact (five line) Python script needed to use baklabel and two example Windows batch files which employ xcopy in one and robocopy in the other to perform the backups.
+
+All Windows systems have xcopy and some also have robocopy. Robocopy is more reliable for larger backups.
+
+Linux or Mac based systems will require a bash script similar to the batch file. Also, the examples are based on Windows so drive letters will need to be replaced by network paths on non-Windows machines.
+
+
+Grandfathered Backups
+=====================
+
+In a small office or home office environment it is often quite economical to use a high capacity USB connected portable drive as backup media. They are large in the multiple terabyte range and inexpensive costing less than $500.
+
+With more than one portable drive, off-site backup is feasible.
+
+Grandfathered backups mean users can go back to almost any earlier time and retrieve information as it was then. Essentially it means that today's backup will never overwrite yesterday's backup.
+
+The secret of success is automatic creation and selection of the correct destination folder for the overnight backup. The Python program which nominates the folder name for the date of the backup is called baklabel.
+
+This program has a number of sensible defaults so it doesn't need tweaking. However tweaking is easy if necessary eg., without tweaking, if the backup kicks off between midnight and 4am it defaults to yesterday's backup label.
+
+This "how to" assumes you have a very large USB drive F: and a typical backup load of less than a 24th (4 percent) the size of the drive. Your media should be big enough to permit expected growth in the load over time. There will be up to 24 copies of the backup for all the grandfathering including one manual backup and one saved annual backup.
+
+The following pattern of 23 automatic grandfather folders and one manual folder would normally be entirely adequate because backups only get overwritten periodically rather than frequently.
+
+F:\backups\manual   (most recent manually initiated backup)
+F:\backups\mon      (most recent Monday backup)
+F:\backups\tue      (most recent Tuesday backup)
+F:\backups\wed      (most recent Wednesday backup)
+F:\backups\thu      (most recent Thursday backup)
+F:\backups\fri_1    (most recent 1st Friday of the month backup)
+F:\backups\fri_2    (most recent 2nd Friday of the month backup)
+F:\backups\fri_3    (most recent 3rd Friday of the month backup)
+F:\backups\fri_4    (most recent 4th Friday of the month backup)
+F:\backups\fri_5    (most recent 5th Friday of the month backup)
+F:\backups\sat      (most recent Saturday backup)
+F:\backups\sun      (most recent Sunday backup)
+F:\backups\jan      (most recent 31 January backup)
+F:\backups\feb      (most recent 28 (or 29) February backup)
+F:\backups\mar      (most recent 31 March backup)
+F:\backups\apr      (most recent 30 April backup)
+F:\backups\may      (most recent 31 May backup)
+F:\backups\jun      (most recent 30 June backup)
+F:\backups\jul      (most recent 31 July backup)
+F:\backups\aug      (most recent 31 August backup)
+F:\backups\sep      (most recent 30 September backup)
+F:\backups\oct      (most recent 31 October backup)
+F:\backups\nov      (most recent 30 October backup)
+F:\backups\dec_2010 (31 December 2010 backup)
+
+
+How to set up Grandfathered backups
+===================================
+
+- Install Python (see below) and baklabel
+
+- Write and test backup.bat (actually copy/paste and adjust) to copy files
+
+- Write a tiny Python program (actually copy/paste) to call backup.bat
+
+- Schedule the backup to run each day (or night)
+
+
+Preparations
+============
+
+Create an admin folder
+----------------------
+You need a folder set aside for managing backups. Let's assume you create C:\admin for this purpose.
+
+Put scripts into the admin folder
+---------------------------------
+This admin folder will contain backup.py, backup.bat and eventually all the log files written during both scheduled and manual backups. Log files will be named after the above directory names eg., log-wed.txt, log-manual.txt etc.
+
+Install Python
+--------------
+If you don't already have Python 2.x or 3.x on your machine, download and install Python 2.7 from http://www.python.org  It should all work fine with versions earlier than 2.7 and also Python 3.x but that hasn't been tested. There is a vast amount of software available for Python 2.x but not yet a lot for 3.x. Version 2.7 has been officially flagged as being the last 2.x and will be supported for a very long time.
+
+Install baklabel
+----------------
+With the userid 'public' and no password, download and install baklabel from
+http://svn.pczen.com.au/repos/pysrc/gpl3/baklabel/distrib/
+
+Install a large portable disk drive
+-----------------------------------
+Install a very large removable USB connected drive (eg drive F:) and, staying with the example above, create a root folder for the backups eg., F:\backups
+
+Schedule the nightly backup
+---------------------------
+Schedule the backup to run once daily some time after all activity ceases and in time to complete before the next day's activity commences. Perhaps 1 or 2 in the morning. As indicated above, if it starts before 4am it will automatically produce the correct label for the previous day. This is the command line to schedule ...
+
+python C:\admin\backup.py
+
+... with a start-in directory of C:\admin
+
+Now for the two backup components mentioned above which you must write.
+
+
+backup.py - Python script
+=========================
+
+Create a new C:\admin\backup.py file using Notepad (not Word) then copy
+and paste the following few lines (with or without the # lines):
+
+#########################################################
+import baklabel                                         # 1
+baklab = baklabel.Grandad()                             # 2
+baklabcmd = '%s %s' % ('backup.bat', baklab.label())    # 3
+import os                                               # 4
+os.system(baklabcmd)                                    # 5
+#########################################################
+
+Here are some numbered notes on backup.py. Skip them if you have no interest.
+
+# 1. import baklabel imports the baklabel module installed in the first preparation step and gives this backup.py script direct access to the python code which calculates the correct backup label.
+
+# 2. baklab = baklabel.Grandad() is python code which creates an object called baklab (it could be called anything) having all the capabilities set up in the Grandad() class inside the baklabel module installed earlier.
+
+# 3. baklabcmd = <some hieroglyphics> is just creating a command line to run the backup. The %s symbols get replaced with 'backup.bat' and whatever the label() method of baklab delivers - let's say 'mon' if today is Monday (after 4am of course). Then baklabcmd becomes "backup.bat mon".
+
+# 4. import os is python code which imports the os module. This is part of Python which figures out which operating system you are running (eg., Windows, Mac, Linux etc) so that the next line works properly.
+
+# 5. os.system(baklabcmd) is just like typing "backup.bat mon" at a command prompt. It calls the operating system to execute the command.
+
+
+Create your preferred backup.bat
+================================
+Here are two simple examples. One is for xcopy and the other uses robocopy. Both are designed to produce the same results. robocopy has sophisticated options to control logging and here, we choose to report only the directories copied. For xcopy, the logging is handled manually.
+
+Copy and paste whichever example you prefer into a separate batch file. The name of the batch file is assumed to be backup.bat in the above Python script so if you choose a different name make sure you update the Python script accordingly.
+
+Both examples are repeated at the end of this document with all the rem lines stripped out to provide a cleaner view.
+
+Execute either batch file at any time manually without any parameters to obtain a backup in the F:\backups\manual folder. Otherwise schedule it to run as described in Preparations above to get backups in (for example) F:\backups\mon and of course other baklabel'd directories.
+
+The xcopy and robocopy switches used are typical. See xcopy /? or robocopy /? for more detail.
+
+Each batch file begins with @echo off and ends with :end.
+
+-------------------------------------
+xcopy backup.bat - batch file example
+-------------------------------------
+@echo off
+rem - sample batch file backup.bat for scheduled backups
+
+rem - Using the xcopy options shown in this example, will copy all
+rem - specified files (*.* seen below specifies all files) to the
+rem - destination backup folder.
+
+rem - Never use xcopy's /a and /m switches. The consequence of doing so is
+rem - that your Tuesday backup will be missing files which were xcopy'd
+rem - on Monday and so on. It will be difficult to find a file afterwards.
+rem - For xcopy option details, enter 'xcopy /?' at a command prompt
+
+rem - cutoff=d:1-1-1980 collects files modified after 1 Jan 1980. This
+rem - ought to get all your files. For testing this batch file you could
+rem - temporarily choose a very recent date eg., cutoff=d:1-1-2011
+
+set cutoff=d:1-1-1980
+
+rem - If this backup.bat file is executed manually without a parameter
+rem - it will default to putting the backup in sub-directory 'manual'.
+rem - The baklabel output is otherwise the parameter which is handed
+rem - in and will become the sub-dir for the backup
+
+if %1xx==xx (
+set subdir=manual
+
+) else (
+
+set subdir=%1
+)
+
+rem establish a separate log file for each backup label
+set baklog=log-%subdir%.txt
+
+rem - This is the crux of grandfathered backups. dest says it all!
+set dest=\backups\%subdir%
+
+rem - In this example we choose to back up only 2 folders. Note that
+rem - we don't use drive letters. This is so we can prefix folder names
+rem - with the portable drive destination root directories. We use drive
+rem - letters to go with the folder names in the actual command lines
+rem - below so local network backups can be easily identified in any
+rem - complex network backup scenarios.
+
+set folder1=\work
+set folder2=\users\mike
+
+rem - collect date and time to write into the log
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+
+rem - Display on-screen a progress message and also log it.
+
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% ---
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% --- >> %baklog%
+echo --- creating directories on F: ---
+echo --- creating directories on F: --- >> %baklog%
+
+mkdir F:%dest%%folder1% 2>> %baklog%
+mkdir F:%dest%%folder2% 2>> %baklog%
+
+rem - Notice the "echo xcopy ..." line ahead of each xcopy line. This puts
+rem - the line into the log. We could achieve this automatically by not
+rem - using @echo off in the first line of the file but then the log file
+rem - would become messy and difficult to decipher. Copying and pasting
+rem - the actual command line into an echo line isn't too difficult
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+
+echo --- commence %subdir% copying --- %Now% ---
+echo --- commence %subdir% copying --- %Now% --- >>%baklog%
+
+echo xcopy C:%folder1%\*.* F:%dest%\%folder1% /%cutoff% /e /c /i /q /g /r /k /y /z >> %baklog%
+xcopy C:%folder1%\*.* F:%dest%\%folder1% /%cutoff% /e /c /i /q /g /r /k /y /z 2>> %baklog%
+
+echo xcopy C:%folder2%\*.* F:%dest%\%folder2% /%cutoff% /e /c /i /q /g /r /k /y /z >> %baklog%
+xcopy C:%folder2%\*.* F:%dest%\%folder2% /%cutoff% /e /c /i /q /g /r /k /y /z 2>> %baklog%
+
+rem - Check the date and time again for the log and write it out
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+
+echo --- finishing %subdir% backup --- %Now% --- >> %baklog%
+echo --- finishing %subdir% backup --- %Now% ---
+
+rem - Now clean up the environment variables set earlier. If you want
+rem - to examine them during testing, try copying them to the log first.
+rem - with ... set >> %baklog%
+
+rem - Here would be a good spot to add other commands for example to
+rem - launch notepad with the %baklog% file. Note also that it is likely
+rem - that after a while, the logs will grow large and need pruning.
+rem - notepad %baklog%
+
+set folder1=
+set folder2=
+set subdir=
+set dest=
+set baklog=
+set cutoff=
+set opts=
+:end
+
+----------------------------------------
+robocopy backup.bat - batch file example
+----------------------------------------
+@echo off
+rem - sample batch file backup.bat for scheduled backups
+
+rem - Using the robocopy options shown in this example, will copy all
+rem - specified directory contents (omitting listed exceptions) to the
+rem - destination backup
+
+rem - Never use robocopy's /A and /M switches. The consequence of doing
+rem - so is that your Tuesday backup will be missing files which were
+rem - robocopy'd on Monday and so on. It will be difficult to find a
+rem - backed-up file afterwards. For brief robocopy option details,
+rem - enter 'robocopy /?' at a command prompt
+
+rem - cutdate=19800101 collects files modified after 1 Jan 1980. This
+rem - ought to get all your files. For testing this batch file you could
+rem - temporarily choose a very recent date eg., cutdate=20110101 or
+rem - use the robocopy sensitivity to such a date format to nominate
+rem - a number of days - perhaps 30. Robocopy treats numbers greater
+rem - than 1900 as dates rather than a number of days.
+
+set cutdate=19800101
+
+rem - If this backup.bat file is executed manually without a parameter
+rem - it will default to putting the backup in sub-directory 'manual'.
+rem - The baklabel output is otherwise the parameter which is handed
+rem - in and will become the sub-dir for the backup
+
+if %1xx==xx (
+set subdir=manual
+
+rem - When doing a 'manual' backup the files always go to the same non-
+rem - grandfathered place. In that case overwriting the same files each
+rem - time makes little sense - just get new files. Here, cutoff=/M is
+rem - an exception to "Never use .." which proves the rule! In fact a
+rem - 'manual' backup always goes to the same place which is why it is OK.
+
+set cutoff=/M /MAXAGE:%cutdate%
+
+) else (
+
+rem - %1 is the result of the baklabel.label() calculation
+set subdir=%1
+set cutoff=/MAXAGE:%cutdate%
+)
+
+rem establish a separate log file for each backup label
+set baklog=log-%subdir%.txt
+
+rem - This is the crux of grandfathered backups. dest says it all!
+set dest=\backups\%subdir%
+
+rem - robocopy doesn't use *.* to represent all files. Instead it
+rem - assumes 'all files in the folder' and looks for flagged options to
+rem - to omit named files or named directories. Here we assemble flags
+rem - and their options into a single opts flag. Check the robocopy
+rem - documentation for detail.
+
+set opts1=/E /W:0 /R:0 /IPG:5 /NP /NC /NFL /NJH /LOG+:%baklog%
+
+rem - there are many files of no interest in a backup to be listed here
+set opts2=/XF .* *.*~ *.tmp *.svn *.pyc *.pyo *.chk NTUSER.DAT* *.lock
+
+rem - there are many directories we could exclude here
+set opts3=/XD .* Temporary Cookies Temp Tmp
+
+rem - combine all opts to make the command line easier to read
+set opts=%opts1% %opts2% %opts3%
+rem - these have all been replaced by opts so remove them
+set opts1=
+set opts2=
+set opts3=
+
+rem - In this example we choose to back up only 2 folders. Note that
+rem - we don't use drive letters. This is so we can prefix folder names
+rem - with the portable drive destination root directories. We use drive
+rem - letters to go with the folder names in the actual command lines
+rem - below so local network backups can be easily identified in any
+rem - complex network backup scenarios.
+
+set folder1=\work
+set folder2=\users\mike
+
+rem - collect date and time to write into the log
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+
+rem - Display on-screen a progress message and also log it.
+rem - Append (using ">>") a starting line to the backup log
+
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% ---
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% --- >> %baklog%
+echo --- creating directories on F: ---
+echo --- creating directories on F: --- >> %baklog%
+
+mkdir F:%dest%%folder1% 2>> %baklog%
+mkdir F:%dest%%folder2% 2>> %baklog%
+
+rem - This is where the backup actually begins.
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+
+echo --- commence %subdir% copying --- %Now% ---
+echo --- commence %subdir% copying --- %Now% --- >>%baklog%
+
+robocopy C:%folder1% F:%dest%\%folder1% %opts%
+robocopy C:%folder2% F:%dest%\%folder2% %opts%
+
+rem - Check the date and time again for the log and write it out
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+
+echo --- finishing %subdir% backup --- %Now% --- >> %baklog%
+echo --- finishing %subdir% backup --- %Now% ---
+
+rem - Now clean up the environment variables set earlier. If you want
+rem - to examine them during testing, try copying them to the log first.
+rem - with ... set >> %baklog%
+
+rem - Here would be a good spot to add other commands for example to
+rem - launch notepad with the %baklog% file. Note also that it is likely
+rem - after a while that the logs will grow large and need pruning.
+rem - Try ... notepad %baklog%
+
+set folder1=
+set folder2=
+set subdir=
+set dest=
+set baklog=
+set cutoff=
+set opts=
+:end
+
+
+-------------------------------
+xcopy backup.bat - no rem lines
+-------------------------------
+@echo off
+set cutoff=d:1-1-1980
+if %1xx==xx (
+set subdir=manual
+) else (
+set subdir=%1
+)
+set baklog=log-%subdir%.txt
+set dest=\backups\%subdir%
+
+set folder1=\work
+set folder2=\users\mike
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% ---
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% --- >> %baklog%
+echo --- creating directories on F: ---
+echo --- creating directories on F: --- >> %baklog%
+mkdir F:%dest%%folder1% 2>> %baklog%
+mkdir F:%dest%%folder2% 2>> %baklog%
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+echo --- commence %subdir% copying --- %Now% ---
+echo --- commence %subdir% copying --- %Now% --- >>%baklog%
+
+echo xcopy C:%folder1%\*.* F:%dest%\%folder1% /%cutoff% /e /c /i /q /g /r /k /y /z >> %baklog%
+xcopy C:%folder1%\*.* F:%dest%\%folder1% /%cutoff% /e /c /i /q /g /r /k /y /z 2>> %baklog%
+
+echo xcopy C:%folder2%\*.* F:%dest%\%folder2% /%cutoff% /e /c /i /q /g /r /k /y /z >> %baklog%
+xcopy C:%folder2%\*.* F:%dest%\%folder2% /%cutoff% /e /c /i /q /g /r /k /y /z 2>> %baklog%
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+echo --- finishing %subdir% backup --- %Now% --- >> %baklog%
+echo --- finishing %subdir% backup --- %Now% ---
+set folder1=
+set folder2=
+set subdir=
+set dest=
+set baklog=
+set cutoff=
+set opts=
+:end
+
+----------------------------------
+robocopy backup.bat - no rem lines
+----------------------------------
+@echo off
+set cutdate=19800101
+if %1xx==xx (
+set subdir=manual
+set cutoff=/M /MAXAGE:%cutdate%
+) else (
+set subdir=%1
+set cutoff=/MAXAGE:%cutdate%
+)
+set baklog=log-%subdir%.txt
+set dest=\backups\%subdir%
+set opts1=/E /W:0 /R:0 /IPG:5 /NP /NC /NFL /NJH /LOG+:%baklog%
+set opts2=/XF .* *.*~ *.tmp *.svn *.pyc *.pyo *.chk NTUSER.DAT* *.lock
+set opts3=/XD .* Temporary Cookies Temp Tmp
+set opts=%opts1% %opts2% %opts3%
+set opts1=
+set opts2=
+set opts3=
+
+set folder1=\work
+set folder2=\users\mike
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% ---
+echo --- starting subdir=%subdir% cutoff=%cutoff% --- %Now% --- >> %baklog%
+echo --- creating directories on F: ---
+echo --- creating directories on F: --- >> %baklog%
+mkdir F:%dest%%folder1% >> %baklog% 2>&1
+mkdir F:%dest%%folder2% >> %baklog% 2>&1
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+echo --- commence %subdir% copying --- %Now% ---
+echo --- commence %subdir% copying --- %Now% --- >>%baklog%
+
+robocopy C:%folder1% F:%dest%\%folder1% %opts%
+robocopy C:%folder2% F:%dest%\%folder2% %opts%
+
+for %%A in (%Date%) do set Today=%%A
+set Now=%Time% on %Today%
+echo --- finishing %subdir% backup --- %Now% --- >> %baklog%
+echo --- finishing %subdir% backup --- %Now% ---
+set folder1=
+set folder2=
+set subdir=
+set dest=
+set baklog=
+set cutoff=
+set opts=
+:end
+
