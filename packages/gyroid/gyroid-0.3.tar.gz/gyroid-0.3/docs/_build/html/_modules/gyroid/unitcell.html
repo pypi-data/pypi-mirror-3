@@ -1,0 +1,364 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>gyroid.unitcell &mdash; gyroid 0.3 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.3',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="gyroid 0.3 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body>
+  
+  
+
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">gyroid 0.3 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for gyroid.unitcell</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">gyroid.unitcell</span>
+<span class="sd">===============</span>
+
+<span class="sd">Define a standard unit cell and its (real space) lattice basis vectors according to the cystal system.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy.linalg</span> <span class="kn">import</span> <span class="n">inv</span>
+
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">BRAVAIS</span><span class="p">,</span><span class="n">CARTESIAN</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">CRYSTAL_SYSTEM1</span><span class="p">,</span><span class="n">CRYSTAL_SYSTEM2</span><span class="p">,</span><span class="n">CRYSTAL_SYSTEM3</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">LAMELLAR</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">SQUARE</span><span class="p">,</span><span class="n">RECTANGULAR</span><span class="p">,</span><span class="n">HEXAGONAL</span><span class="p">,</span><span class="n">OBLIQUE</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">CUBIC</span><span class="p">,</span><span class="n">TETRAGONAL</span><span class="p">,</span><span class="n">ORTHORHOMBIC</span><span class="p">,</span><span class="n">TRIGONAL</span><span class="p">,</span><span class="n">MONOCLINIC</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">TRICLINIC</span><span class="p">,</span><span class="n">DEFAULT</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;UnitCell&quot;</span><span class="p">,</span><span class="s">&quot;Shape&quot;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="UnitCell"><a class="viewcode-back" href="../../gyroid.html#gyroid.unitcell.UnitCell">[docs]</a><span class="k">class</span> <span class="nc">UnitCell</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; A :class:`UnitCell` object contains the shape information of a unit</span>
+<span class="sd">    cell.</span>
+
+<span class="sd">    All standard crystal systems in 1D, 2D and 3D spaces are supported.</span>
+
+<span class="sd">    To construct a unit cell of a standard crystal system, one should provide</span>
+<span class="sd">    the space dimension, the name of the standard crystal system, and the cell</span>
+<span class="sd">    parameters (the lengths of each unit vectors in the unit cell, and the angles</span>
+<span class="sd">    between the unit vectors).</span>
+
+
+<span class="sd">    The name of the standard crystal system is best given by first import the</span>
+<span class="sd">    gyroid.common module, and use the constant therein. However, you can also</span>
+<span class="sd">    input a string, such as &#39;Cubic&#39; for 3D cubic crystal systems. If the name of</span>
+<span class="sd">    the crystal system is not given, it will use the default crystal system for</span>
+<span class="sd">    each space dimension, and the cell parameters given by the user will be</span>
+<span class="sd">    discarded.</span>
+
+<span class="sd">    The default unit cell in 1D space is `LAMELLAR`, unit vector length is 1.0.</span>
+<span class="sd">    The default unit cell in 2D space is `SQUARE`, unit vector length is 1.0.</span>
+<span class="sd">    The default unit cell in 3D space is `CUBIC`, unit vector length is also</span>
+<span class="sd">    1.0.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">dim</span><span class="p">,</span><span class="n">cell_type</span><span class="o">=</span><span class="n">DEFAULT</span><span class="p">,</span><span class="n">cell_param</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; If cell_type is missing, cell_param has no effect!&#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
+        <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cell_type</span> <span class="ow">in</span> <span class="n">CRYSTAL_SYSTEM1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">cell_type</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__standard_cell_1D</span><span class="p">(</span><span class="n">cell_type</span><span class="p">,</span><span class="n">cell_param</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unkonw crystal system for 1D space.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cell_type</span> <span class="ow">in</span> <span class="n">CRYSTAL_SYSTEM2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">cell_type</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__standard_cell_2D</span><span class="p">(</span><span class="n">cell_type</span><span class="p">,</span><span class="n">cell_param</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unkonw crystal system for 2D space.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cell_type</span> <span class="ow">in</span> <span class="n">CRYSTAL_SYSTEM3</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">cell_type</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__standard_cell_3D</span><span class="p">(</span><span class="n">cell_type</span><span class="p">,</span><span class="n">cell_param</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unkonw crystal system for 3D space.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__create_shape</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__create_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        :var a: length of Bravais unit vector **a**</span>
+<span class="sd">        :var b: length of Bravais unit vector **b**</span>
+<span class="sd">        :var c: length of Bravais unit vector **c**</span>
+<span class="sd">        :var alpha: angle between vectors **b** and **c**</span>
+<span class="sd">        :var beta: angle between vectors **c** and **a**</span>
+<span class="sd">        :var gamma: angle between vectors **a** and **b**</span>
+<span class="sd">        :retrun: the shape of the unit cell</span>
+<span class="sd">        :rtype: :class:`Shape`</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Shape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma</span><span class="p">),</span>
+                          <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma</span><span class="p">)])</span>
+            <span class="k">return</span> <span class="n">Shape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma</span><span class="p">),</span>
+                          <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma</span><span class="p">),</span>
+                          <span class="mf">0.0</span><span class="p">])</span>
+            <span class="n">cx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">)</span>
+            <span class="n">cy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">)</span><span class="o">-</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma</span><span class="p">))</span>
+            <span class="n">cz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">-</span> <span class="n">cx</span><span class="o">*</span><span class="n">cx</span> <span class="o">-</span> <span class="n">cy</span><span class="o">*</span><span class="n">cy</span><span class="p">)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">cx</span><span class="p">,</span><span class="n">cy</span><span class="p">,</span><span class="n">cz</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">Shape</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__standard_cell_1D</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">cell_type</span><span class="p">,</span><span class="n">cp</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">LAMELLAR</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Lamellar crystal requires 1 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">DEFAULT</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unknow 1D crystal system.&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__standard_cell_2D</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">cell_type</span><span class="p">,</span><span class="n">cp</span><span class="p">):</span>
+        <span class="n">pi2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.0</span>
+        <span class="n">pi3</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">3.0</span>
+        <span class="k">if</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">SQUARE</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Square crystal requires 1 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">RECTANGULAR</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Rectangular crystal &#39;</span>
+                                 <span class="s">&#39;requires 2 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">HEXAGONAL</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Hexagonal crystal &#39;</span>
+                                 <span class="s">&#39;requires 1 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi3</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">OBLIQUE</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Oblique crystal &#39;</span>
+                                 <span class="s">&#39;requires 3 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">DEFAULT</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unknow 2D crystal system.&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__standard_cell_3D</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">cell_type</span><span class="p">,</span><span class="n">cp</span><span class="p">):</span>
+        <span class="n">pi2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.0</span>
+        <span class="n">pi3</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">3.0</span>
+        <span class="k">if</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">CUBIC</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Cubic crystal requires 1 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">TETRAGONAL</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Tetragonal crystal &#39;</span>
+                                 <span class="s">&#39;requires 2 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">ORTHORHOMBIC</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Orthorhombic crystal &#39;</span>
+                                 <span class="s">&#39;requires 3 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">HEXAGONAL</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Hexagonal crystal &#39;</span>
+                                 <span class="s">&#39;requires 3 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi3</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">TRIGONAL</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Trigonal crystal &#39;</span>
+                                 <span class="s">&#39;requires 3 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">MONOCLINIC</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Monoclinic crystal &#39;</span>
+                                 <span class="s">&#39;requires 3 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">cp</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">pi2</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">TRICLINIC</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">cp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Triclinic crystal &#39;</span>
+                                 <span class="s">&#39;requires 6 parameters.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">cp</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="n">DEFAULT</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span><span class="p">,</span> <span class="n">pi2</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unknown 3D crystal system.&#39;</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="Shape"><a class="viewcode-back" href="../../gyroid.html#gyroid.unitcell.Shape">[docs]</a><span class="k">class</span> <span class="nc">Shape</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; A :class:`Shape` object fully describes the shape of a unit cell.</span>
+
+<span class="sd">    The heart of a :class:`Shape` object is a shape matrix which can be</span>
+<span class="sd">    constructed from unit vectors of a unit cell in Cartesian Coordinate.</span>
+
+<span class="sd">    The Morse convention is used to construct the shape matrix. That is each row</span>
+<span class="sd">    in the shape matrix represents a unit vector, e.g.::</span>
+
+<span class="sd">       h = [a1 a2 a3</span>
+<span class="sd">            b1 b2 b3</span>
+<span class="sd">            c1 c2 c3]</span>
+
+<span class="sd">    where `a_i`, `b_i`, `c_i` are the *i* th elements of unit vectors **a**,</span>
+<span class="sd">    **b**, and **c** in the Bravis lattice in real space.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">dim</span><span class="p">,</span><span class="n">a1</span><span class="p">,</span><span class="n">a2</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span><span class="n">a3</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dim</span>
+        <span class="k">if</span> <span class="n">dim</span><span class="o">==</span><span class="mi">3</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">a1</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">a2</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">a3</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">a1</span><span class="p">,</span><span class="n">a2</span><span class="p">,</span><span class="n">a3</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">dim</span><span class="o">==</span><span class="mi">2</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">a1</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">a2</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">a1</span><span class="p">,</span><span class="n">a2</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">dim</span><span class="o">==</span><span class="mi">1</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">a1</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">a1</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Dimension and the number&#39;</span>
+                             <span class="s">&#39;of unit vector not match&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gg</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">inv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">m</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ll</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">m</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+
+<div class="viewcode-block" id="Shape.shift"><a class="viewcode-back" href="../../gyroid.html#gyroid.unitcell.Shape.shift">[docs]</a>    <span class="k">def</span> <span class="nf">shift</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">basis_type</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Shift position or translation vector so as to lie in the first unit</span>
+<span class="sd">        cell.</span>
+
+<span class="sd">        :param t: translational or positional vector to be shifted.</span>
+<span class="sd">        :type t: 1D `numpy.array`</span>
+<span class="sd">        :param basis_type: the type of the unit vector, can be either `BRAVAIS` or `CARTESIAN`</span>
+<span class="sd">        :type basis_type: string</span>
+<span class="sd">        :return: shifted translational or positional vector</span>
+<span class="sd">        :rtype: 1D `numpy.array`</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="n">BRAVAIS</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">t</span> <span class="o">%</span> <span class="mf">1.0</span>
+        <span class="k">elif</span> <span class="n">basis_type</span> <span class="o">==</span> <span class="n">CARTESIAN</span><span class="p">:</span>
+            <span class="n">cc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">g</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="n">cc</span> <span class="o">%</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unrecognized basis type when shift a vector.&#39;</span><span class="p">)</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Shape.l"><a class="viewcode-back" href="../../gyroid.html#gyroid.unitcell.Shape.l">[docs]</a>    <span class="k">def</span> <span class="nf">l</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; (a,b,c), the length vectors of each dimension. &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ll</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Shape.h"><a class="viewcode-back" href="../../gyroid.html#gyroid.unitcell.Shape.h">[docs]</a>    <span class="k">def</span> <span class="nf">h</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; The shape matrix in real space. &#39;&#39;&#39;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">m</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Shape.g"><a class="viewcode-back" href="../../gyroid.html#gyroid.unitcell.Shape.g">[docs]</a>    <span class="k">def</span> <span class="nf">g</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; The shape matrix in reciprocal space. &#39;&#39;&#39;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">gg</span>
+</pre></div></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012, Yi-Xin Liu.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>
