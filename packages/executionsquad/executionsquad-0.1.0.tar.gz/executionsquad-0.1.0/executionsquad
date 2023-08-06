@@ -1,0 +1,84 @@
+#! /usr/bin/python
+# -*- encoding: utf-8 -*-
+
+import sys
+from subprocess import Popen, PIPE
+from random import randint, seed
+from threading import Thread
+    
+def showhelp(error=None):
+    print 'Usage: %s AMOUNT COMMAND [ARG ...]' % sys.argv[0]
+    if not error:
+        print """\
+Asks AMOUNT times to press a key, executing COMMAND with the given ARGs at a
+randomly determined keypress. 
+The output is buffered and not displayed until the last keypress is finished.
+
+Arguments:
+    AMOUNT    amount of the keypresses that will be asked
+    COMMAND   the command to execute
+    ARG       the optional arguments for the command
+
+Options:
+  -h, --help  show this help message and exit""" 
+    else:
+        print 'error: ' + error
+    sys.exit()
+
+
+def copy_stream(instream, outstream):
+    """ reads lines from one stream and writes them into the other.
+    instream:
+        the stream to read from. must be iterable.
+    outstream:
+        the stream to write to. must respond to write(data).
+    """
+    for line in instream:
+        outstream.write(line)
+
+
+def main(args=sys.argv):
+    """ 
+    args:
+        the command line arguments. defaults to sys.argv
+    """
+    # exclude the scriptname
+    args = args[1:] 
+    
+    # parse args. optparse seems to be insufficient, because it cant "forward".
+    if not args or frozenset(['--help', '-h']) & frozenset(args[:2]):
+        showhelp()
+    if len(args) < 2:
+        showhelp(error='not enough arguments.')
+    try:
+        amount = int(args[0])        
+    except ValueError:
+        amount = -1
+    if amount < 0:
+        showhelp(error='AMOUNT must be a positive number.')
+    
+    # ask AMOUNT times for keypress, start subprocess at random keypress
+    committer = randint(0, amount - 1)
+    for i in range(amount):
+        raw_input("Please press return")
+        if i == committer:
+            command = ' '.join(args[1:])
+            process = Popen(command, shell=True, stdin=None, stdout=PIPE,   
+                                                                    stderr=PIPE)
+
+    # copy the streams, and return the same exitcode as the process
+    thread_std = Thread(target=copy_stream, args=[process.stdout, sys.stdout])
+    thread_std.start()
+    
+    thread_err = Thread(target=copy_stream, args=[process.stderr, sys.stderr])
+    thread_err.start()
+    
+    thread_std.join()
+    thread_err.join()
+    
+    sys.exit(process.returncode)
+    
+if __name__ == '__main__':    
+    seed()   
+    main()
+    
