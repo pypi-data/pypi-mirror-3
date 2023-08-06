@@ -1,0 +1,32 @@
+Changelog
+===================
+
+0.2 - 0.2.1
+---------------
+
+- Fixed changelog formatting now that PyPi README page is intact again 
+
+0.1.1 - 0.2
+---------------
+
+- ``pylint-command`` option added [miohtama]
+
+- Ghetto-CI continuous integration script [miohtama]
+
+- Configuration file reader refactored to something more beautiful [miohtama]
+
+- Now you can VVV individual files [miohtama]
+
+- VVV can walk up in the directory tree to find validation-options.yaml file [miohtama]
+
+- Set ``zip_safe = False`` on the egg just in case [miohtama]
+
+0.1 - 0.1.1
+--------------
+
+- Added Github links to README [miohtama]
+
+0.1
+----
+
+- Initial release
