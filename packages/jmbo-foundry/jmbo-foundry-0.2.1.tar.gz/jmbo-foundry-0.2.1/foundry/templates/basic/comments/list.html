@@ -1,0 +1,96 @@
+{% load pagination_tags jmbo_template_tags foundry_tags i18n %}
+
+{% if FOUNDRY.has_javascript %}
+<script type="text/javascript">
+$(document).ready(function(){
+    $('a.comment-reply').live('click', function(event){
+        event.preventDefault();
+        // Update hidden input, focus comment form
+        var form = $(this).parents('div.object-comments:first form');
+        $('input[name="in_reply_to"]', form).val($(this).attr('comment_id'));
+        var area = $('textarea', form);       
+        var creator = $(this).attr('creator');
+        if (creator)
+            area.val('@' + creator + ': ');
+        else
+            area.val('');
+        area.focus();
+    });
+});
+</script>
+{% endif %}
+
+{% if request.user.is_authenticated %}
+<div class="foundry-comments-messages-navbar">
+    <div class="items">
+        <div class="item first {% if not request.GET.my_messages %}active{% endif %}">
+            <a href=".">{% trans "All messages" %}</a>
+        </div>
+        <div class="item last {% if request.GET.my_messages %}active{% endif %}">
+            <a href="?my_messages=1">{% trans "My messages" %}</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% with request.GET.paginate_by|default:20|add:0 as paginate_by %}
+
+    <div class="foundry-comments-pages-navbar">
+        <div class="items">
+            <div class="item first">{% trans "Show" %}</div>
+            {% with '20 30 50'|as_list:'int' as li %}
+                {% for n in li %}
+                    <div class="item {% if paginate_by == n %}active{% endif %} {% if forloop.last %}last{% endif %}">
+                        <a href="?paginate_by={{ n }}{% if request.GET.my_messages %}&my_messages=1{% endif %}">{{ n }}</a>
+                    </div>
+                {% endfor %}
+            {% endwith %}
+        </div>
+    </div>
+
+    <div class="foundry-container foundry-comments-list">
+    
+        {% autopaginate comment_list paginate_by %}
+        <div class="items">
+            {% for comment in comment_list %}
+                <div id="c{{ comment.id }}" class="item">
+                    {% if comment.creator %}
+                    <div class="image">                        
+                        <a href="{% url user-detail comment.creator.username %}">
+                        {% if comment.creator.image %}
+                            <img src="{{ comment.creator.get_thumbnail_LAYER_url }}" />
+                        {% else %}
+                            <img src="{{ STATIC_URL }}/images/anonymous.png" />
+                        {% endif %}
+                        </a>
+                    </div>
+                    {% endif %}
+                    <div class="meta">
+                        <div class="byline">{% humanize_time_diff comment.submit_date _('ago') %}</div>
+                        <!-- todo: Need can comment test -->
+                        <a href="{% url comment-reply-form %}?content_type_id={{ comment.content_type_id }}&oid={{ comment.object_pk }}&path_info={{ request.META.PATH_INFO }}&my_messages={{ request.GET.my_messages }}&paginate_by={{ request.GET.paginate_by }}" 
+                           class="comment-reply" 
+                           comment_id="{{ comment.id }}" 
+                           creator="{{ comment.creator.username }}">{% trans "Reply" %}
+                        </a>
+                    </div>
+                    <div class="comment">
+                        {{ comment.user.username|default:comment.name }}: {{ comment.comment|urlize }}
+                    </div>
+                </div>
+            {% endfor %}
+            {% if FOUNDRY.has_ajax %}
+            <div 
+                class="comment-list-placeholder" 
+                content_type_id="{{ object.content_type_id }}" 
+                oid="{{ object.id }}"
+                last_comment_id="{{ foundry_last_comment_id }}">
+            </div>
+            {% endif %}
+        </div>
+
+        {% paginate %}
+
+    </div>
+
+{% endwith %}
