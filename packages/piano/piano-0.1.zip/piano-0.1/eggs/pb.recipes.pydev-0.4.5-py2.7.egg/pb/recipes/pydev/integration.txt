@@ -1,0 +1,40 @@
+Integration strategies (and Plone)
+----------------------------------
+
+Almost all options of this recipe for the buildout.cfg are optional. The only
+one required is the `eggs` option. A sample zope3 instance buildout, with the
+pydev recipe could be something like this::
+
+    [buildout]
+    develop = .
+    parts = instance pydev
+    
+    [sample-app]
+    recipe = zc.zope3recipes:app
+    eggs = something [app, third_party]
+    
+    [pydev]
+    recipe = pb.recipes.pydev
+    eggs = ${sample-app:eggs}
+
+To integrate with Plone, follow the example posted by Silvio in this post on 
+the Product-Developers mailing list: http://www.nabble.com/Re:--Product-Developers--buildout-and-eclipse-p16699863s20094.html::
+
+    [make_pydev_init_files]
+    # we need this (a Products directory with symlinks to all plone products)
+    # to have completion of code in the Products namespace
+    recipe = iw.recipe.cmd:py
+    on_install=true
+    cmds =  
+	  >>> dirs = """${instance:products}""".split("\n")
+	  >>> prodlinks = os.path.join("""${buildout:directory}""".strip() , 'prodlinks')
+	  >>> Products = os.path.join(prodlinks,'Products')
+	  >>> import os
+	  >>> if not os.path.isdir(prodlinks): os.mkdir(prodlinks)
+	  >>> if not os.path.isdir(Products): os.mkdir(Products)  
+	  >>> open(os.path.join(Products , '__init__.py'),'w').write('#')
+	  >>> for dir in dirs:
+	  >>>      if dir:
+	  >>>           for product in [os.path.join(dir,a) for a in os.listdir(dir) if os.path.isdir(os.path.join(dir,a))]:
+	  >>>               linkname = os.path.join(Products, os.path.basename(product))
+	  >>>               if not os.path.islink(linkname): os.symlink(product,linkname)
