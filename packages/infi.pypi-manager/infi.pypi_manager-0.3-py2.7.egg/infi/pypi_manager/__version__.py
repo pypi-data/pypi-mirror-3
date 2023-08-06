@@ -1,0 +1,10 @@
+__version__ = "0.3"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = '(Not currently on any branch)'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = 'f523e7fb3f2c2fed5cfcb0423398f95f82bd6d1c'
+__git_head_subject__ = 'Finished release v0.3.'
+__git_head_message__ = '* release/v0.3:\n  TRIVIAL README\n  TRIVIAL updating from skeleton\n  TRIVIAL renaming project to infi.pypi_manager\n  TRIVIAL renaming chishop to pypi\n  TRIVIAL Chiphop.__init__ must get server as an argument (no default)\n  TRIVIAL Chishop: files ending with bz2 are also source distributions\n  TRIVIAL descrtipion in buildout.cfg\n  empty commit after version 0.2'
+__git_dirty_diff__ = ''
