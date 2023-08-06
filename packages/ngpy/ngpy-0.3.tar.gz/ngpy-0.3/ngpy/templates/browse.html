@@ -1,0 +1,248 @@
+{% extends "layout.html" %}
+{% from "_parameters.html" import render_parameters %}
+{% block title %}Browse a Simulation{% endblock %}
+{% block ajax %}
+<script type=text/javascript>
+    $(function() {
+        var frame_max = $('#framemax').val();
+        var frame_interval = $('#frameinterval').val();
+        function render(frame_id){
+            $.getJSON($SCRIPT_ROOT+'/_browsefeed',{
+                    simid:$('#simid').val(),
+                    frame:frame_id //$('#selectframe').val()
+                    }, 
+                    function(data){
+                        $('#liveimg').attr("src",data.imgsrc);
+                        $('#curframe').val(data.frame);
+                    });
+        }
+        var sliderframe = $('#sliderframe').slider({
+            min:0,
+            max:frame_max,
+            step:frame_interval,
+            change:function(event,ui){ 
+                render(ui.value); 
+            }
+        });
+        var spinner = $('#selectframe').spinner({
+            min:0,
+            max:frame_max,
+            step:frame_interval,
+            spin:function(event,ui){
+                var fid = ui.value;
+                if(fid>frame_max){
+                    $(this).spinner("value",0);
+                    return false;
+                }
+                else if(fid<0){
+                    $(this).spinner("value",frame_max);
+                    return false;
+                }
+            },
+            // ui.value didn't work for change
+            change:function(event,ui){
+                sliderframe.slider("value",$(this).val());
+            },
+            stop:function(event,ui){
+                sliderframe.slider("value",$(this).val());
+            }
+        });
+        function psd(){
+            var frame_id = sliderframe.slider("value");
+            $.getJSON($SCRIPT_ROOT+'/_psdfeed',{
+                    simid:$('#simid').val(),
+                    frame:frame_id,
+                    psdtype:'number'
+                    }, 
+                    function(data){
+                        $('#curpsdimg').attr("src",data.imgsrc);
+                    });
+        }
+        function vol(){
+            var frame_id = sliderframe.slider("value");
+            $.getJSON($SCRIPT_ROOT+'/_volfeed',{
+                    simid:$('#simid').val(),
+                    frame:frame_id,
+                    }, 
+                    function(data){
+                        $('#curvolmres').val(data.volm);
+                        $('#curvolsres').val(data.vols);
+                        $('#curvoltres').val(data.volt);
+                    });
+        }
+        function nuc(){
+            var frame_id = sliderframe.slider("value");
+            $.getJSON($SCRIPT_ROOT+'/_nucfeed',{
+                    simid:$('#simid').val(),
+                    frame:frame_id,
+                    }, 
+                    function(data){
+                        $('#curnres').val(data.n);
+                    });
+        }
+        $('#curpsd').button();
+        $('#curpsd').click(function(){
+            $('#curpsdimg').removeAttr("src");
+            psd();
+        });
+        $('#curvol').button();
+        $('#curvol').click(function(){
+            vol();
+        });
+        $('#curn').button();
+        $('#curn').click(function(){
+            nuc();
+        });
+        $('#curall').button();
+        $('#curall').click(function(){
+            psd();
+            vol();
+            nuc();
+        });
+        var spinnersim = $('#spinnersim').spinner({
+            min:frame_interval,
+            max:frame_max,
+            step:frame_interval,
+            spin:function(event,ui){
+                var fid = ui.value;
+                if(fid>frame_max){
+                    $(this).spinner("value",frame_interval);
+                    return false;
+                }
+                else if(fid<frame_interval){
+                    $(this).spinner("value",frame_max);
+                    return false;
+                }
+            }
+        });
+        $('#spinnersim').val(frame_interval);
+        var slidersim = $('#slidersim').slider({
+            range:true,
+            min:0,
+            max:frame_max,
+            step:frame_interval,
+            values:[0,frame_max],
+            slide:function(event,ui){
+                    $("#framerange").val(ui.values[0]+"-"+ui.values[1]);
+            }
+        });
+        $("#framerange").val(slidersim.slider("values",0)+"-"+slidersim.slider("values",1));
+        function simvol(){
+            var frame_low = slidersim.slider("values",0);
+            var frame_high = slidersim.slider("values",1);
+            var frame_interval = $('#spinnersim').val();
+            $.getJSON($SCRIPT_ROOT+'/_simvolfeed',{
+                    simid:$('#simid').val(),
+                    framelow:frame_low,
+                    framehigh:frame_high,
+                    frameinterval:frame_interval
+                    }, 
+                    function(data){
+                        $('#simvolimg').attr("src",data.imgsrc);
+                        $('#voldata').attr("href",data.datahref);
+                    });
+        }
+        function simnuc(){
+            var frame_low = slidersim.slider("values",0);
+            var frame_high = slidersim.slider("values",1);
+            var frame_interval = $('#spinnersim').val();
+            $.getJSON($SCRIPT_ROOT+'/_simnucfeed',{
+                    simid:$('#simid').val(),
+                    ntype:'density',
+                    framelow:frame_low,
+                    framehigh:frame_high,
+                    frameinterval:frame_interval
+                    }, 
+                    function(data){
+                        $('#simnimg').attr("src",data.imgsrc);
+                        $('#nucdata').attr("href",data.datahref);
+                    });
+        }
+        $('#simvol').button();
+        $('#simvol').click(function(){
+            $('#simvolimg').removeAttr("src");
+            $('#voldata').attr("href","#").text("V(t) to be calculated");
+            simvol();
+        });
+        $('#simn').button();
+        $('#simn').click(function(){
+            $('#simnimg').removeAttr("src");
+            $('#nucdata').attr("href","#").text("N(t) to be calculated");
+            simnuc();
+        });
+        $('#simall').button();
+        $('#simall').click(function(){
+            $('#simvolimg').removeAttr("src");
+            $('#voldata').attr("href","#").text("V(t) to be calculated");
+            simvol();
+            $('#simnimg').removeAttr("src");
+            $('#nucdata').attr("href","#").text("N(t) to be calculated");
+            simnuc();
+        });
+        $.ajaxSetup( {cache:false} );
+    });
+</script>
+{% endblock %}
+{% block body %}
+  <h2>Browse a Simulation</h2>
+  <h3>Simulation {{ sim_id }}</h3>
+  <form id="browse">
+    <input id=simid type=hidden value={{ sim_id }} />
+    <input id=framemax type=hidden value={{ frame_max }} />
+    <input id=frameinterval type=hidden value={{ frame_interval }} />
+  </form>
+  <span>Select a frame to show </span>
+  <input id="selectframe" name="value" />
+  <div><p></p></div>
+  <div id="sliderframe"></div>
+  <div><p></p></div>
+  <p>
+    <label for="curframe">Current frame:</label>
+    <input type="text" id="curframe" style="border:0;color:#f6931f;font-weight:bold;">
+  </p>
+  <img id="liveimg" src="" alt="loading..." /> 
+  <h3>Analyze Current Frame</h3>
+  <img id="curpsdimg" src="" alt="PSD image to be calculated..." /> 
+  <p>
+    <label for="curvolmres">Volume of metastable phase:</label>
+    <input type="text" id="curvolmres" style="border:0;color:#f6931f;font-weight:bold;">
+  </p>
+  <p>
+    <label for="curvolsres">Volume of stable phase:</label>
+    <input type="text" id="curvolsres" style="border:0;color:#f6931f;font-weight:bold;">
+  </p>
+  <p>
+    <label for="curvoltres">Total volume:</label>
+    <input type="text" id="curvoltres" style="border:0;color:#f6931f;font-weight:bold;">
+  </p>
+  <p>
+    <label for="curnres">Number of nucleation events:</label>
+    <input type="text" id="curnres" style="border:0;color:#f6931f;font-weight:bold;">
+  </p>
+  <button id="curall">Calculate All</button>
+  <button id="curpsd">PSD</button>
+  <button id="curvol">Volume</button>
+  <button id="curn">Nucleation Events</button>
+  <h3>Analyze Simulation</h3>
+  <img id="simvolimg" src="" alt="V(t) to be calculated..." />
+  <br />
+  <img id="simnimg" src="" alt="N(t) to be calculated..." />
+  <br />
+  <span>Select an interval</span>
+  <input id="spinnersim" name="value" />
+  <p>
+    <label for="framerange">Frame range:</label>
+    <input type="text" id="framerange" style="border:0;color:#f6931f;font-weight:bold;">
+  </p>
+  <div id="slidersim"></div>
+  <p>
+    <label for="downvol">Download data source:</label>
+    <a id="voldata" href="#">V(t)</a>
+    <a id="nucdata" href="#">N(t)</a>
+  </p>
+  <button id="simall">Calculate All</button>
+  <button id="simvol">V(t)</button>
+  <button id="simn">N(t)</button>
+  {{ render_parameters(params) }}
+  {% if error %}<div class=error><strong>Error:</strong> {{ error }}</div>{% endif %}
+{% endblock %}
