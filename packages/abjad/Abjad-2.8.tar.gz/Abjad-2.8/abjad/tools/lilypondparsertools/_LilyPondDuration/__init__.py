@@ -1,0 +1,1 @@
+from _LilyPondDuration import _LilyPondDuration
