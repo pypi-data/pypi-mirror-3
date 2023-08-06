@@ -1,0 +1,283 @@
+Metadata-Version: 1.1
+Name: ttr.aws.utils.s3
+Version: 0.2.3
+Summary: Some command lines utilities to interact with files stored in AWS S3 incl. versioned ones.
+Home-page: https://bitbucket.org/vlcinsky/ttr.aws.utils.s3
+Author: Jan Vlcinsky
+Author-email: jan.vlcinsky@tamtamresearch.com
+License: BSD
+Description: ============
+        AWS Utils S3
+        ============
+        
+        If you use AWS_ S3_, then this can be handy tool for you.
+         
+        This package offers few command line utilities, which allow a bit more, then scripts provided by boto_.
+        
+        Some special features:
+        
+        * List versions in defined time period, see versioning_
+        * Fetch versions specified in CSV file (list-file)
+        
+        .. contents:: Table of Contents
+        
+        Installation
+        ============
+        Any of following methods shall work, pip being recommended one.
+        
+        by easy_install or pip
+        ----------------------
+        ::
+        
+          $ pip install ttr.aws.utils.s3
+         
+        or::
+        
+          $ easy_install ttr.aws.utils.s3
+        
+        
+        Using setup.py
+        --------------
+        #. Unpack the package
+        
+        #. go to directory where is setup.py located
+        
+        #. run: `python setup.py install`
+        
+        Resulting scripts are then located in Python Script directory.
+        
+        Using buildout
+        --------------
+        being in root of source directory::
+            
+            $ python bootstrap.py
+            
+            $ bin/buildout
+        
+        And you get your scripts in directory bin/    
+            
+        Quick start
+        ===========
+        We want to fetch versions of feed in bucket `mybucket` named `my/versioned/feed.xml`
+        
+        1. Be sure, you have your BOTO credentials configured. You shall have file in form::
+        
+              [Credentials]
+              aws_access_key_id = <your access key>
+              aws_secret_access_key = <your secret key>
+        
+           somewhere, and have set variable BOTO_CONFIG to value of complete path to this file. For more see BotoConfig_.
+         
+        2. create csv file for given feed and time period::
+        
+            $ s3lsvers -from 2012-05-24T00:15 -to 2012-05-24T01:15 -list-file list.csv mybucket my/versioned/feed.xml
+            
+           You shall then find file list.csv on your disk.    
+        
+        3. Review records in list.csv and delete all lines with version, which are not of your interest.
+        
+        4. Using list.csv, ask s3getvers to fetch all versions specified in the file. Be sure to run it on empty directory::
+        
+            $ s3getvers mybucket list.csv
+            
+           You will see, how is each version downloaded and saved to your current directory.    
+        
+        
+        Provided commands
+        ==================
+        
+        s3lsvers
+        --------
+        List versions of some feed. Could output into CSV file (-list-file) and/or html chart (-html-file).
+        ::
+        
+            $ s3lsvers.exe -h
+            usage: s3lsvers-script.py [-h] [-from None] [-to None] [-list-file None]
+                                      [-html-file None] [-version-id None]
+                                      bucket_name key_name
+        
+            Lists all versions of given key, possibly filtering by from - to range for version last_modified time.
+                Allows to put the listing into csv file and or into html chart.
+        
+                    Listing shows:
+                      key_name
+                        "file name". Can repeat if the file has more versions
+        
+                      version_id
+                        unique identifier for given version on given bucket. Has form of string and not a number. identifiers are "random", do not
+                        expect that they are sorten alphabetically.
+        
+                      size
+                        size of file in bytes
+        
+                      last_modified
+                        ISO 8601 formated time of file modification, e.g. `2011-06-22T03:05:09.000Z`
+        
+                      age
+                        difference between last_modified or given version and preceding version.
+                        It is sort of current update interval for that version.
+        
+                    Sample use:
+                    Lists to the screen all versions of file keynme in the bucketname bucket::
+        
+                        $ s3lsvers bucketname keyname
+        
+                    Lists all versions younger then given time (from given time till now)::
+        
+                        $ s3lsvers -from 2011-07-19T12:00:00 bucketname keyname
+        
+                    Lists all versions older then given time (from very first versin till given date)::
+        
+                        $ s3lsvers -to 2011-07-19T12:00:00 bucketname keyname
+        
+                    Lists all versions in period betwen from and to time::
+        
+                        $ s3lsvers -from 2010-01-01 -to 2011-07-19T12:00:00 bucketname keyname
+        
+                    Lists all versions and writes them into csv file named versions.csv::
+        
+                        $ s3lsvers -list-file versions.csv bucketname keyname
+        
+                    Lists all versions and writes them into html chart file named chart.html::
+        
+                        $ s3lsvers -html-file chart.html bucketname keyname
+        
+                    Prints to screen, writes to csv, creates html chart and this all for versions in given time period.::
+        
+                        $ s3lsvers -from 2010-01-01 -to 2011-07-19T12:00:00 -list-file versions.csv -html-file chart.html bucketname keyname
+        
+        
+        
+            positional arguments:
+              bucket_name           name of AWS S3 bucket, which is searched.
+              key_name              name of key to list. Typically it is complete name of
+                                    a key, but also truncated name can be set, in this
+                                    case all keys, sharing this prefix, will be listed.
+        
+            optional arguments:
+              -h, --help            show this help message and exit
+              -from None, --from-time None
+                                    Modification time of oldest expected version expressed
+                                    in ISO 8601 format. Can be truncated. (default: goes
+                                    to the oldest version)
+              -to None, --to-time None
+                                    Modification time of youngest expected version
+                                    expressed in ISO 8601 format. Can be truncated.
+                                    (default: goes to the latest version)
+              -list-file None       Name of file, where is result written in csv format.
+                                    If set, the file is always overwritten.
+              -html-file None       Name of file, where is result written in html format
+                                    (as a chart). If set, the file is always overwritten.
+              -version-id None      Optional version-id. If specified, listing does not
+                                    start from the freshest version, but starts searching
+                                    from given VERSION_ID and continues searching older
+                                    and older versions. This could speed up listng in
+                                    case, you need rather older files and you know
+                                    VERSION_ID which came somehow later then is the time
+                                    scope you are going to list.
+                                    
+        s3getvers
+        ---------
+        ::
+        
+            $ s3getvers -h
+            usage: s3getvers-script.py [-h] [-output-version-id-names] [-no-decompression]
+                                       bucket_name csv_version_file
+        
+            Fetch file versions as listed in provided csv file
+        
+                Typical csv file (as by default produced by s3lsvers) is:
+        
+                    my/versioned/feed.xml;OrUr6XO8KSKEHbd8mQ.MloGcGlsh7Sir;191345;2012-05-23T20:45:10.000Z;39
+                    my/versioned/feed.xml;xhkVOy.dJfjSfUwse8tsieqjDicp0owq;192790;2012-05-23T20:44:31.000Z;62
+                    my/versioned/feed.xml;oKneK.N2wS8pW8.EmLqjldYlgcFwxN3V;193912;2012-05-23T20:43:29.000Z;58
+        
+                and has columns:
+                :key_name: name of the feed (not containing the bucket name itself)
+                :version_id: string, identifying unique version. Any following columns can contain anything.
+                :size: size in bytes. This column is not used and can be missing.
+                :last_modified: date, when the version was posted. This column is not used and can be missing.
+        
+                Typical use (assuming, above csv file is available under name verlist.csv)::
+        
+                    $ s3getvers-script.py yourbucketname verlist.csv
+        
+                What will create following files in current directory:
+        
+                * my/versioned/feed.xml.2012-05-23T20_45_10.xml
+                * my/versioned/feed.xml.2012-05-23T20_44_31.xml
+                * my/versioned/feed.xml.2012-05-23T20_43_29.xml
+        
+                Even though these files are gzipped on server, they will be decompressed on local disk.
+        
+        
+        
+            positional arguments:
+              bucket_name           bucket name (default: None)
+              csv_version_file      name of CSV file with version_id
+        
+            optional arguments:
+              -h, --help            show this help message and exit
+              -output-version-id-names
+                                    Resulting file names shall use version_id to become
+                                    distinguished (default is to use timestamp of file
+                                    creation)
+              -no-decompression     Keeps the files as they come, do not decompress, if
+                                    they come compressed
+        
+        Configuring AWS S3 credentials
+        ==============================
+        Credentials for accessing AWS S3 must be set. Authorization is currently done by `boto` means as described 
+        in article BotoConfig_ incl. comment from  May 22, 2011.
+        
+        On Windows I recommend using BOTO_CONFIG variable pointing to the file with required credentials.
+          
+        Credits
+        =======
+        This work is built on top of boto_ module, great Python library for accessing AWS services created by `Mitch Garnaat`_ .
+        
+        .. _AWS: http://aws.amazon.com/
+        .. _S3: http://aws.amazon.com/s3/
+        .. _versioning: http://aws.amazon.com/about-aws/whats-new/2010/02/08/versioning-feature-for-amazon-s3-now-available/
+        .. _Buildout: http://www.buildout.org/
+        .. _Distribute: http://pypi.python.org/pypi/distribute
+        .. _`modern-package-template`: http://pypi.python.org/pypi/modern-package-template
+        .. _BotoConfig: http://code.google.com/p/boto/wiki/BotoConfig
+        .. _boto: http://code.google.com/p/boto/
+        .. _`Mitch Garnaat`: http://www.elastician.com/ 
+        .. _PyPi: http://pypi.python.org
+        
+        .. include:: <isonum.txt>
+        
+        Copyright |copy| 2011, Jan Vlcinsky
+        
+        Copyright |copy| 2012, TamTam Research s.r.o. http://www.tamtamresearch.com
+        
+        All rights reserved.
+        
+        
+        News
+        ====
+        
+        0.2.3
+        -----
+        
+        *Release date: 2012-05-28*
+        
+        * command s3lsvers - to list key versions
+        * command s3getvers - to fetch versions listed in csv file
+        
+Keywords: aws s3 boto
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Communications :: File Sharing
+Classifier: Topic :: System :: Archiving
+Classifier: Topic :: System :: Archiving :: Backup
+Classifier: Topic :: System :: Recovery Tools
+Classifier: Topic :: Utilities
