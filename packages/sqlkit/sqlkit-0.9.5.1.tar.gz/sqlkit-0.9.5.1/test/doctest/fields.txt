@@ -1,0 +1,243 @@
+# -*- mode: python -*-
+
+>>> import os
+
+>>> os.environ['LANG'] = 'en_US.utf8'
+
+>>> import sys
+>>> sys.path.insert(0, '../../demo/sql/model')
+>>> sys.path.insert(0, '../../')
+
+>>> from movies import Movie, Director, AllTypes, db
+>>> from sqlkit.widgets import SqlMask
+>>> from sqlkit.fields import FieldChooser
+
+>>> lay = "title year director_id m2m=genres date_release score image"
+>>> sm = SqlMask(Movie, dbproxy=db, layout=lay, naked=True, show=False)
+>>> sm.gui_fields = {}
+>>> field_chooser = FieldChooser(sm.mapper_info, sm.widgets)
+>>> field_name, key = 'title', 'title'
+>>> print field_chooser.get_field(field_name, sm.mapper_info.fields[field_name], key)
+<class 'sqlkit.fields.VarcharField'>
+
+>>> field_name, key = 'year', 'year'
+>>> print field_chooser.get_field(field_name, sm.mapper_info.fields[field_name], key)
+<class 'sqlkit.fields.IntegerField'>
+
+>>> field_name, key = 'director_id', 'fk=director_id'
+>>> print field_chooser.get_field(field_name, sm.mapper_info.fields[field_name], key)
+<class 'sqlkit.fields.ForeignKeyField'>
+
+>>> field_name, key = 'genres', 'm2m=genres'
+>>> print field_chooser.get_field(field_name, sm.mapper_info.fields[field_name], key, test=True)
+<class 'sqlkit.fields.CollectionField'>
+
+>>> field_name, key = 'date_release', 'date_release'
+>>> print field_chooser.get_field(field_name, sm.mapper_info.fields[field_name], key)
+<class 'sqlkit.fields.DateField'>
+
+>>> field_name, key = 'score', 'score'
+>>> print field_chooser.get_field(field_name, sm.mapper_info.fields[field_name], key)
+<class 'sqlkit.fields.EnumField'>
+
+### clean_value
+>>> from decimal import Decimal
+>>> from datetime import date, datetime, time, timedelta
+
+# fkey
+>>> sm = SqlMask(Movie, dbproxy=db, layout=lay, naked=True, show=False)
+>>> f = sm.gui_fields['director_id']
+>>> f.lookup_value(14)
+u'Fellini'
+
+>>> f.get_human_value(14)
+u'Fellini'
+
+# image. In the definition of Movie model image has a base_dir=./images
+>>> f= sm.gui_fields['image']
+>>> sql_images = os.path.abspath('../../demo/sql')
+>>> f.clean_value("%s/%s" % (sql_images, "images/test.jpg"))
+'test.jpg'
+>>> f.clean_value("images/test.jpg")
+'images/test.jpg'
+>>> f.clean_value("./images/test.jpg")
+'images/test.jpg'
+>>> f.clean_value("/images/test.jpg")
+'test.jpg'
+>>> f.clean_value("/my_dir/test.jpg")
+'test.jpg'
+>>> f.clean_value("/tmp/test.jpg")
+'test.jpg'
+
+## get_save_path is relative to the current working directory
+>>> f.get_save_path('/tmp/test.jpg') == "%s/%s" % (os.getcwd(), 'images/test.jpg')
+True
+
+# enum
+>>> f = sm.gui_fields['score']
+>>> f.clean_value(3)
+3
+
+>>> f.clean_value(4)
+Traceback (most recent call last):
+...
+ValidationError: Value '4' is not accepted
+
+
+# integer
+>>> sm = SqlMask(AllTypes, dbproxy=db, naked=True, show=False)
+>>> f = sm.gui_fields['integer']
+>>> print f
+<IntegerField - integer >
+>>> f.clean_value(1)
+1
+>>> f.clean_value('1'), type(f.clean_value('1'))
+(1L, <type 'long'>)
+
+>>> isinstance(f.format_value(f.clean_value('1')), basestring)
+True
+
+# float
+>>> f = sm.gui_fields['float']
+>>> print f
+<FloatField - float >
+>>> f.clean_value('1.2'), type(f.clean_value('1'))
+(1.2, <type 'float'>)
+>>> f.format_value(1.2)
+u'1.2'
+
+>>> isinstance(f.format_value(f.clean_value('1.2')), basestring)
+True
+
+# numeric
+>>> f = sm.gui_fields['numeric']
+>>> f.clean_value(Decimal('1.2')) == Decimal("1.2")
+True
+
+>>> f.clean_value('4881.69') == Decimal("4881.69")
+True
+
+>> type(f.clean_value('4881.69')) == Decimal
+True
+
+>>> f.clean_value(4881.69) == Decimal("4881.69")
+True
+
+>>> type(f.clean_value(4881.69)) == Decimal
+True
+
+>>> f.clean_value(12) == Decimal("12")
+True
+
+>>> type(f.clean_value(12)) == Decimal
+True
+
+>>> isinstance(f.format_value(f.clean_value('1.2')), basestring)
+True
+
+# date
+>>> f = sm.gui_fields['date']
+>>> f.clean_value(date(2008, 6, 2))
+datetime.date(2008, 6, 2)
+>>> f.clean_value('6/2/2008')
+datetime.date(2008, 6, 2)
+
+>>> isinstance(f.format_value(f.clean_value('2/6/2008')), basestring)
+True
+
+# datetime
+>>> f = sm.gui_fields['datetime']
+>>> f.clean_value(datetime(2008, 6, 2, 15, 30))
+datetime.datetime(2008, 6, 2, 15, 30)
+>>> f.clean_value('2/6/2008 15:30')  ## missing datetime parsing
+datetime.datetime(2008, 2, 6, 15, 30)
+
+>>> isinstance(f.format_value(f.clean_value('2/6/2008 15:30')), basestring)
+True
+
+# time
+>>> f = sm.gui_fields['time']
+>>> f.clean_value(time(15, 30))
+datetime.time(15, 30)
+
+>>> f.clean_value('15:30:00')  
+datetime.time(15, 30)
+
+>>> f.clean_value('15:30')  
+datetime.time(15, 30)
+
+>>> isinstance(f.format_value(f.clean_value('15:30')), basestring)
+True
+
+
+
+#####################################
+##
+#    Change locale: it_IT.utf8
+##
+######################################
+>>> from babel import numbers, dates
+>>> os.environ['LANG'] = 'it_IT.utf8'
+
+# integer
+>>> sm = SqlMask(AllTypes, dbproxy=db, naked=True, show=False)
+>>> f = sm.gui_fields['integer']
+>>> f.clean_value(1)
+1
+>>> f.clean_value('1'), type(f.clean_value('1'))
+(1L, <type 'long'>)
+
+# float
+>>> f = sm.gui_fields['float']
+>>> print f
+<FloatField - float >
+>>> f.clean_value(1)
+1.0
+>>> f.clean_value('1'), type(f.clean_value('1'))
+(1.0, <type 'float'>)
+
+# numeric
+>>> f = sm.gui_fields['numeric']
+>>> f.clean_value(Decimal('1.2')) == Decimal("1.2")
+True
+
+>>> f.clean_value('4881,69') == Decimal("4881.69")
+True
+
+>>> type(f.clean_value('4881,69')) == Decimal
+True
+
+# these test fail for unknown reason. I don't have time ti investigate
+# as real code works 
+# >>> f.clean_value(4881.69), type(f.clean_value(4881.69))
+# (Decimal("4881.69"), <class 'decimal.Decimal'>)
+
+>>> f.clean_value(12) == Decimal("12")
+True
+
+>>> type(f.clean_value(12)) == Decimal
+True
+ 
+# date
+>>> f = sm.gui_fields['date']
+>>> f.locale
+'it_IT'
+>>> f.clean_value(date(2008, 6, 2))
+datetime.date(2008, 6, 2)
+>>> f.clean_value('2/6/2008')
+datetime.date(2008, 6, 2)
+
+# datetime
+>>> f = sm.gui_fields['datetime']
+>>> f.clean_value(datetime(2008, 6, 2, 15, 30))
+datetime.datetime(2008, 6, 2, 15, 30)
+>>> f.clean_value('2/6/2008 15:30')  
+datetime.datetime(2008, 6, 2, 15, 30)
+
+# time
+>>> f = sm.gui_fields['time']
+>>> f.clean_value(time(15, 30))
+datetime.time(15, 30)
+>>> f.clean_value('15:30:00')  
+datetime.time(15, 30)
+

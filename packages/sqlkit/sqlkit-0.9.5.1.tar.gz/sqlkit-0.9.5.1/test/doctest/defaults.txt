@@ -1,0 +1,95 @@
+# -*- mode: python -*-
+
+>>> import os
+>>> import sys
+>>> import gtk
+>>> sys.path.insert(0, '../../demo/sql/model')
+>>> sys.path.insert(0, '../../')
+
+>>> os.environ['LANG'] = 'en_US.utf8'
+>>> from sqlkit.db import defaults
+>>> from movies import Movie, Director, db
+>>> from sqlkit.widgets import SqlMask, SqlTable
+
+>>> defaults.tables
+{}
+
+## A local default
+>>> def_local_director=defaults.Defaults('director', metadata=db.metadata, local=True)
+>>> def_local_director.tdict is defaults.tables
+False
+
+>>> def_local_director.set_default(last_name='Olmi')
+>>> defaults.tables
+{}
+>>> def_local_director.tdict
+{'last_name': 'Olmi'}
+
+>>> def_local_director.get('last_name')
+'Olmi'
+>>> defaults.get_default('director', 'last_name')
+
+# A global default
+>>> def_global_director=defaults.Defaults('director', metadata=db.metadata, local=False)
+>>> def_global_director.tdict is defaults.tables['director']
+True
+
+>>> def_global_director.set_default(last_name='Lautrec')
+>>> def_global_director.get('last_name')
+'Lautrec'
+
+>>> defaults.get_default('director', 'last_name')
+'Lautrec'
+
+## it doesn't hide local default
+>>> def_local_director.get('last_name')
+'Olmi'
+
+>>> sm = SqlMask(Movie, dbproxy=db, naked=True, show=False)
+>>> while gtk.events_pending():
+...   silent =  gtk.main_iteration()
+
+# default automatically generated are local
+>>> sm.defaults.local
+True
+
+>>> sm.defaults.set_default(title='a title please...', date_release=sm.defaults.today)
+>>> sm.gui_fields.title.get_default()
+'a title please...'
+
+>>> sm.defaults.get('director_id')
+
+>>> sm.defaults.fk('director_id', 'last_name', 'Donnersmak')
+>>> sm.gui_fields.director_id.get_human_value(sm.defaults.get('director_id'))
+u'Donnersmak'
+
+## and don't change global ones
+>>> defaults.get_default('movie', 'title')
+
+
+>>> sm = SqlMask(Director, dbproxy=db, naked=True, show=False)
+
+## no default, get the global one
+>>> sm.gui_fields.last_name.get_default()
+'Lautrec'
+
+>>> sm.defaults.set_default(last_name='Fellini')
+>>> sm.gui_fields.last_name.get_default()
+'Fellini'
+
+# global defaults is unchanged
+>>> def_global_director.get('last_name')
+'Lautrec'
+
+>>> def_local_director.get('last_name')
+'Olmi'
+
+
+>>> sm = SqlMask(Movie, dbproxy=db, naked=True, show=False)
+>>> sm.defaults.tdict
+{}
+
+>>> defaults.tables = {}
+>>> defaults.tables 
+{}
+

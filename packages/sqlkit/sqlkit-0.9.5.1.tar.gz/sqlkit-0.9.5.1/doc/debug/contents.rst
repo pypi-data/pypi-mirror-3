@@ -1,0 +1,7 @@
+=============
+Debug helpers
+=============
+
+.. toctree::
+
+   debug

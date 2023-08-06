@@ -1,0 +1,130 @@
+# -*- mode: python -*-
+
+>>> import os
+>>> import sys
+
+>>> os.environ['LANG'] = 'en_US.utf8'
+
+>>> sys.path.insert(0, '.')
+>>> from address_model import User, Address, Provider, Country, session
+>>> from sqlkit.db import django_syntax as djs
+>>> from sqlalchemy import and_, or_
+>>>
+>>> query = session.query(User)
+>>> def compare(q1, q2):
+...    res = str(q1) == str(q2)
+...    if not res:
+...        print "%s\n\n%s" % (q1, q2)
+...    else:
+...        return res
+
+>>> def test2(*args, **kw):
+...     sql, join = djs.django2sqlalchemy(User.__mapper__,  **kw)
+...     print sql, join
+
+#### components: path, str_op, col, op, value
+>>> djs.django2components(User.__table__, {'first_name' : 'ed'})
+([], '=', 'eq', 'ed', Column('first_name', String(length=50...), table=<user>), None)
+
+>>> djs.django2components(User.__table__, {'first_name__ilike' : 'ed'})
+([], 'ilike', 'ilike', 'ed', Column('first_name', String(length=50...), table=<user>), None)
+
+>>> djs.django2components(User.__table__, {'first_name__notilike' : 'ed'})
+([], 'not ilike', 'notilike', 'ed', Column('first_name', String(length=50...), table=<user>), None)
+
+>>> djs.django2components(User.__table__, {'id__in' : [3,4]})
+([], 'IN', 'in', [3, 4], Column('id', Integer(), table=<user>...), None)
+
+>>> djs.django2components(User.__table__, {'id__notin' : [3,4]})
+([], 'NOT IN', 'notin', [3, 4], Column('id', Integer(), table=<user>...), None)
+
+>>> djs.django2components(User.__mapper__, {'first_name' : 'ed'})
+([], '=', 'eq', 'ed', Column('first_name', String(length=50...), table=<user>), None)
+
+>>> djs.django2components(User.__mapper__, {'first_name__icontains' : 'ed'})
+([], 'icontains', 'icontains', 'ed', Column('first_name', String(length=50...), table=<user>), None)
+
+>>> djs.django2components(User.__mapper__, {'addresses__email__icontains' : 'e-den.it'})
+(['addresses'], 'icontains', 'icontains', 'e-den.it', Column('email', String(length=50...), table=<address>), False)
+
+>>> djs.django2components(User.__mapper__, {'addresses__email__in' : ['abc', 'def']})
+(['addresses'], 'IN', 'in', ['abc', 'def'], Column('email', String(length=50...), table=<address>), False)
+
+>>> djs.django2components(User.__mapper__, {'addresses__date_created__gte' : 'm'})
+(['addresses'], '>=', 'gte', 'm', Column('date_created', Date(), table=<address>), False)
+
+>>> djs.django2components(User.__mapper__, {'addresses__provider__provider' : 'e-den.it'})
+(['addresses', 'provider'], '=', 'eq', 'e-den.it', Column('provider', String(length=50...), table=<provider>), False)
+
+>>> djs.django2components(User.__mapper__, {'addresses__provider__provider__icontains' : 'e-den.it'})
+(['addresses', 'provider'], 'icontains', 'icontains', 'e-den.it', Column('provider', String(length=50...), table=<provider>), False)
+
+>>> djs.django2components(User.__mapper__, {'addresses__provider__country__country' : 'IT'})
+(['addresses', 'provider', 'country'], '=', 'eq', 'IT', Column('country', String(length=50...), table=<country>), False)
+
+## Foreign keys
+>>> djs.django2components(Address.__mapper__, {'user_id__first_name' : 'ed'})[:-1]
+(['user_id'], '=', 'eq', 'ed', Column('first_name', String(length=50...), table=<user>))
+
+>>> djs.django2components(Address.__mapper__, {'user_id__first_name' : 'ed'})[-1][0] == User.__table__
+True
+
+>>> binary_expr = Address.__table__.c['user_id'] == User.__table__.c['id']
+>>> print djs.django2components(Address.__mapper__, {'user_id__first_name' : 'ed'})[-1][1]
+address.user_id = ...user....id
+
+## shift one step ahead in the mapper chain
+>>> djs.django2components(Address.__mapper__, {'date_created__gte' : 'm'})
+([], '>=', 'gte', 'm', Column('date_created', Date(), table=<address>), None)
+
+## query + class
+>>> q = djs.django2query(query, User,  first_name='ed')
+>>> compare(q, query.filter(User.first_name == 'ed'))
+True
+
+## query + mapper
+>>> q = djs.django2query(query, User.__mapper__,  first_name='ed')
+>>> compare(q, query.filter(User.first_name == 'ed'))
+True
+
+>>> q = djs.django2query(query, User.__mapper__, first_name='ed',
+...                      addresses__email='me@google.com')
+>>> compare(q, query.filter(and_(User.first_name.op('=')('ed'),
+...                              Address.email.op('=')('me@google.com'))).join(Address))
+True
+
+# TODO  query + mapper + fk: it doesn't follow the relation (yet)
+## Error is commented as sqla 0.5 and 0.6 raise different errors 
+# >>> q = djs.django2query(query, Address.__mapper__, user_id__first_name='ed')
+# Traceback (most recent call last):
+#     ...
+# KeyError: 'user_id'
+
+>>> q = djs.django2query(query, User.__mapper__, first_name='ed',
+...                      addresses__provider__provider__icontains='google', OR=True)
+>>> compare(q, query.filter(or_(User.first_name.op('=')('ed'),
+...                              Provider.provider.ilike('%google.com%'))).join('addresses','provider'))
+True
+
+>>> q = djs.django2query(query, User.__mapper__, first_name='ed',
+...                      addresses__provider__country__country__icontains='ITA')
+>>> compare(q, query.filter(and_(User.first_name.op('=')('ed'),
+...           Country.country.ilike('%ITA%'))).join('addresses','provider','country'))
+True
+
+## django2sqlalchemy w/ mapper
+>>> clause_list, path = djs.django2sqlalchemy(User.__mapper__, first_name='ed')
+>>> compare(clause_list, and_(User.first_name == 'ed'))
+True
+
+## django2sqlalchemy w/ table
+>>> clause_list, path = djs.django2sqlalchemy(User.__table__, first_name='ed')
+>>> compare(clause_list, and_(User.first_name == 'ed'))
+True
+
+## dont't ask the moon: a table does not know anything about relationships
+>>> clause_list, path = djs.django2sqlalchemy(User.__table__, first_name__addresses__provider='google')
+Traceback (most recent call last):
+    ...
+NotImplementedError: Can't cross relationship if you don't provide a mapper
+
