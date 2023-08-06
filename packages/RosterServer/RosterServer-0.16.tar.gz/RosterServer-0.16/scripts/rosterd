@@ -1,0 +1,204 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2009, Purdue University
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice, this
+# list of conditions and the following disclaimer in the documentation and/or
+# other materials provided with the distribution.
+# 
+# Neither the name of the Purdue University nor the names of its contributors
+# may be used to endorse or promote products derived from this software without
+# specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+"""This daemon implements a standalone XMLRPC server, to export the core
+DnsMgmt API to networked clients.
+"""
+
+__copyright__ = 'Copyright (C) 2009, Purdue University'
+__license__ = 'BSD'
+__version__ = '0.16'
+
+
+from optparse import OptionParser
+from threading import Thread
+import sys
+import stat
+import time
+import os
+import pwd
+
+import roster_core
+import roster_server
+
+class ServerThread(Thread):
+  """Thread for Roster server to run"""
+  def __init__(self, config_instance, key_file, cert_file, host,
+      port, unit_test):
+    """Initialize ServerThread
+
+    Inputs:
+      config_file: string of config file location
+      key_file: string of ssl key file location
+      cert_file: string of ssl cert file location
+      host: string of server url, if using ssl it must start with 'https://'
+      unit_test: boolean indicating if this is a being run for a unit-test
+    """
+    self.config_instance = config_instance
+    self.key_file = key_file
+    self.cert_file = cert_file
+    self.host = host
+    self.port = port
+    self.unit_test = unit_test
+    Thread.__init__(self)
+
+  def run(self):
+    """Run Roster server"""
+    # Gotta work debuglevel into the config at some point.
+    daemon = roster_server.Server(self.config_instance, self.key_file,
+                                  self.cert_file, unit_test=self.unit_test)
+    # This should probably be wrapped in a try/except, to catch signals
+    daemon.Serve(server_name=self.host, port=int(self.port))
+
+def RemoveLockFile(lock_file):
+  """Removes lock file.
+
+  Inputs:
+    lock_file: string of lock file name
+  """
+  if( os.path.exists(lock_file) ):
+    os.remove(lock_file)
+
+def main(args):
+  """Make Roster server thread, watch lock file and stop if neccesarry."""
+  # Collect command-line args
+  parser = OptionParser()
+  parser.add_option('--lock-file', action='store', dest='lock_file',
+                    help='Lock file location.', default=None)
+  parser.add_option('-c', '--cert-file', action='store', dest='cert_file',
+                    help='SSL cert file path.', default=None)
+  parser.add_option('-k', '--key-file', action='store', dest='key_file',
+                    help='SSL key file path.', default=None)
+  parser.add_option('-d', '--debug', dest='debuglevel', metavar='<n>',
+                    help='Print debug messages, with <n> indicating level.',
+                    default=0)
+  parser.add_option('--config-file', dest='config_file', metavar='<file>',
+                    help='Use <file> as a config file, rather than default',
+                    default=roster_core.SERVER_CONFIG_FILE_LOCATION)
+  parser.add_option('-H', '--host', dest='host', metavar='<host>',
+                    help='Hostname of server to be created.',
+                    default=None)
+  parser.add_option('-p', '--port', dest='port', metavar='<port>',
+                    help='Port of server to be created.',
+                    default=None)
+  parser.add_option('--unit-test', dest='unit_test',
+                    help='Run as unit-test..',
+                    default=False, action='store_true')
+  parser.add_option('-s', '--stop', dest='stop', action='store_true',
+                    help='Stops rosterd. Will remove lockfile even if '
+                         'rosterd is not running.', default=False)
+  (globals()['options'], args) = parser.parse_args(args)
+
+
+
+  if( options.config_file is not None ):
+    if( not os.path.exists(options.config_file) ):
+      print 'ERROR: Config file "%s" does not exist.' % options.config_file
+      sys.exit(1)
+  if( options.cert_file is not None ):
+    if( not os.path.exists(options.cert_file) ):
+      print 'ERROR: Cert file "%s" does not exist.' % options.cert_file
+      sys.exit(1)
+  if( options.key_file is not None ):
+    if( not os.path.exists(options.key_file) ):
+      print 'ERROR: Key file "%s" does not exist.' % options.key_file
+      sys.exit(1)
+  config_instance = roster_core.Config(options.config_file)
+  if( not os.access(options.config_file, os.R_OK) ):
+    print ('ERROR: Could not access config file "%s", '
+           'Do you have permission?' % options.config_file)
+    sys.exit(1)
+  file_stats = os.stat(options.config_file)
+  mode = file_stats[stat.ST_MODE]
+  perms = oct(mode & 0777)
+  if( len(perms) != 4 ):
+    print 'WARNING: Could not determine config file permissions.'
+  if( perms[3] != '0' ):
+    print ('ERROR: Roster will not start if the config file is world '
+           'readable, world executable, or world writable. '
+           'Please change the permissions of "%s"' % options.config_file)
+    sys.exit(1)
+
+  if( options.lock_file is None ):
+    options.lock_file = config_instance.config_file['server']['lock_file']
+
+  if( not options.port and not config_instance.config_file['server']['port'] ):
+    options.port = u'8000'
+  elif( not options.port ):
+    options.port = config_instance.config_file['server']['port']
+  if( not options.host and not config_instance.config_file['server']['host'] ):
+    options.host = u'localhost'
+  elif( not options.host ):
+    options.host = config_instance.config_file['server']['host']
+
+  if( options.stop ):
+    if( os.path.exists(options.lock_file) ):
+      os.remove(options.lock_file)
+    else:
+      print 'ERROR: Lock file "%s" not found, is rosterd running?' % (
+          options.lock_file)
+      sys.exit(1)
+
+  else:
+
+    if( os.access('/'.join(options.lock_file.rstrip('/').split('/')[:-1]),
+                  os.W_OK) ):
+      if( os.path.exists(options.lock_file) ):
+        print 'ERROR: Lockfile exists. Is rosterd running?'
+        sys.exit(1)
+      open(options.lock_file, 'w').close()
+      username = config_instance.config_file['server']['run_as_username']
+      if( os.getuid() == 0 ):
+        pw = pwd.getpwnam(username)
+        os.setuid(pw.pw_uid)
+      server = ServerThread(config_instance, options.key_file,
+                            options.cert_file, options.host,
+                            options.port,options.unit_test)
+      server.daemon = True
+      server.start()
+    else:
+      print ('ERROR: Could not access lock file "%s". '
+          'Do you have permission?' % (
+          options.lock_file))
+      sys.exit(1)
+
+    try:
+      while( True ):
+        if( os.path.exists(options.lock_file) ):
+          time.sleep(1)
+        else:
+          break
+    finally: # Make sure all threads are killed.
+      sys.exit(0)
+
+if __name__ == "__main__":
+  main(sys.argv[1:])
+
+# vi: set ai aw sw=2:
