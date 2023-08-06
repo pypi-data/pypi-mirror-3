@@ -1,0 +1,470 @@
+
+===============================
+Making arithmetic Ops on double
+===============================
+
+Now that we have a ``double`` type, we have yet to use it to perform
+computations. We'll start by defining multiplication.
+
+
+.. _op_contract:
+
+Op's contract
+=============
+
+An Op (:class:`gof.Op`) is any object which defines the
+following methods:
+
+
+.. function:: make_node(*inputs)
+
+  This method is responsible for creating output Variables of a
+  suitable Type to serve as the outputs of this Op's application.
+  This method should put these outputs into an Apply instance, and
+  return the Apply instance.
+
+  This method creates an Apply node representing the application of
+  the Op on the inputs provided. If the Op cannot be applied on
+  these inputs, it must raise an appropriate exception.
+
+  The inputs of the Apply instance returned by this call must be
+  ordered correctly: a subsequent ``self.make_node(*apply.inputs)``
+  must produce something equivalent to the first ``apply``.
+
+.. function:: perform(node, inputs, output_storage)
+
+  This method computes the function associated to this Op. The
+  ``node`` is an Apply node created by the Op's ``make_node``
+  method, ``inputs`` is a list of references to data to operate on,
+  and ``output_storage`` is a list of storage cells where the
+  variables of the computation must be put. More specifically:
+
+    - ``node``: This is a reference to an Apply node which was previously
+      obtained via the ``Op``'s ``make_node`` method. It is typically not
+      used in simple Ops, but it contains symbolic information that
+      could be required for complex Ops.
+
+    - ``inputs``: This is a list of data.
+
+    - ``output_storage``: This is a list of storage cells.
+      A storage cell is a one-element list. It is forbidden to change
+      the length of the list(s) contained in ``output_storage``.  There is
+      one storage cell for each output of the Op.
+
+      The data you put in ``output_storage`` must match the type of the
+      symbolic output. This is a situation where the ``node`` argument
+      can come in handy.
+
+      A function Mode may allow ``output_storage`` elements to persist between
+      evaluations, or it may reset ``output_storage`` cells to hold a value of
+      ``None``.  It can also pre-allocate some memory for the Op to use.
+      This feature can allow ``perform`` to reuse memory between
+      calls, for example. If there is something  preallocated in the
+      ``output_storage``, it will be of the good dtype, but can have
+      the wrong shape and have any stride pattern.
+
+  This method must be determined by the inputs. That is to say, if
+  it is evaluated once on inputs A and returned B, then if ever
+  inputs C, equal to A, are presented again, then outputs equal to
+  B must be returned again.
+
+  You must be careful about aliasing outputs to inputs, and making
+  modifications to any of the inputs. See :ref:`Views and inplace
+  operations <views_and_inplace>` before writing a ``perform``
+  implementation that does either of these things.
+
+.. function:: __eq__(other)
+
+  ``other`` is also an Op.
+
+  Returning ``True`` here is a promise to the optimization system
+  that the other Op will produce exactly the same graph effects
+  (from perform) as this one, given identical inputs. This means it
+  will produce the same output values, it will destroy the same
+  inputs (same destroy_map), and will alias outputs to the same
+  inputs (same view_map). For more details, see
+  :ref:`views_and_inplace`.
+
+.. function:: __hash__()
+
+  If two Op instances compare equal, then they **must** return the
+  same hash value.
+
+  Equally important, this hash value must not change during the
+  lifetime of self.  Op instances should be immutable in this
+  sense.
+
+.. function:: grad(inputs, output_gradients)
+
+  Optional (but needed if you want to have it work with {tensor,sparse}.grad())
+
+  If the Op you are defining is differentiable, you can define its
+  gradient symbolically in this method.
+
+  Both the ``inputs`` and ``output_gradients`` will be list of Theano
+  Variables. This method must return a list containing one Variable
+  (or ``None``) for each input. Each returned Variable represents the
+  gradient with respect to that input given the symbolic gradients
+  with respect to each output.
+
+  If the output is not differentiable with respect to any inputs,
+  then this method should be defined to return ``[None for i in
+  inputs]``.
+
+  If this method is not defined, then Theano assumes it has been
+  forgotten.  Symbolic differentiation will fail on a graph that
+  includes this Op.
+
+  It is important to understand that this is not meant to return
+  the gradient of the Op's output but rather the gradient of some
+  other criterion C with respect to the Op's input.
+
+  If the outputs of your op are :math:`[ f_1, ... f_n]`, then
+  ``output_gradients`` is
+  :math:`[ grad_{f_1}(C), grad_{f_2}(C), ... , grad_{f_n}(C) ]`.
+  If the inputs of your op are :math:`[x_1, ..., x_m]`, then your Op.grad
+  should return :math:`[ grad_{x_1}(C), grad_{x_2}(C), ..., grad_{x_m}(C) ]`,
+  where :math:`(grad_{y} z)_i = \frac{\partial z}{\partial y_i}`
+  (and :math:`i` can have any number of dimensions).
+  (Note: in the case where i is 2 dimensional, this definition of grad
+  is different from the standard mathematical definition of the gradient
+  of a scalar with respect to a matrix, where you transpose the indices.)
+
+  In other words, :func:`grad` does not return
+  :math:`\frac{\partial f_i}{\partial x_j}`, but
+  :math:`\frac{\partial C}{\partial x_j} =
+  \frac{\partial C}{\partial f_i} \cdot \frac{\partial f_i}{\partial x_j}`.
+  Both the partial derivation and that multiplication have to be done by
+  :func:`grad`.
+
+.. function:: infer_shape(node, shapes)
+
+   Optional.
+
+   This function is needed for shape optimization. ``shapes`` is a
+   list with one tuple for each input of the Apply node (which corresponds
+   to the inputs of the op).  Each tuple contains as many elements as the
+   number of dimensions of the corresponding input. The value of each element
+   is the shape (number of items) along the corresponding dimension of that
+   specific input.
+
+   While this might sound complicated, it is nothing more than the shape
+   of each input as symbolic variables (one per dimension).
+
+   The function should return a list with one tuple for each output.
+   Each tuple should contain the corresponding output's computed shape.
+
+   Implementing this method will allow Theano to compute the output's
+   shape without computing the output itself, potentially sparing you
+   a costly recomputation.
+
+.. function:: make_thunk(node, storage_map, compute_map, no_recycling)
+
+   TODO
+
+.. function:: R_op(inputs, eval_points)
+
+   Optional.
+
+   This function implements the application of the R-operator on the
+   function represented by your op. Let assume that function is :math:`f`,
+   with input :math:`x`, applying the R-operator means computing the 
+   Jacobian of :math:`f` and right-multiplying it by :math:`v`, the evaluation 
+   point, namely: :math:`\frac{\partial f}{\partial x} v`. 
+
+   ``inputs`` are the symbolic variables corresponding to the value of 
+   the input where you want to evaluate the jacobian, and ``eval_points``
+   are the symbolic variables corresponding to the value you want to
+   right multiply the jacobian with. 
+
+   Same conventions as for the grad method hold. If your op is not
+   differentiable, you can return None. Note that in contrast to 
+   the method :func:`grad`, for :func:`R_op` you need to return the
+   same number of outputs as there are ouputs of the op. You can think
+   of it in the following terms. You have all your inputs concatenated
+   into a single vector :math:`x`. You do the same with the evaluation 
+   points (which are as many as inputs and of the shame shape) and obtain
+   another vector :math:`v`. For each output, you reshape it into a vector, 
+   compute the jacobian of that vector with respect to :math:`x` and 
+   multiply it by :math:`v`. As a last step you reshape each of these
+   vectors you obtained for each outputs (that have the same shape as 
+   the outputs) back to their corresponding shapes and return them as the 
+   output of the :func:`R_op` method.
+
+.. attribute:: default_output
+
+  *Default:* None
+
+  If this member variable is an integer, then the default
+  implementation of ``__call__`` will return
+  ``node.outputs[self.default_output]``, where ``node`` was returned
+  by ``make_node``.  Otherwise, the entire list of outputs will be
+  returned.
+
+.. function:: __call__(*inputs)
+
+  Syntactic shortcut to make_node which returns the output
+  Variables of the Op.
+
+  *Default:* this is implemented in the parent class and you do not need to change it.
+
+.. function:: __str__()
+
+   *Default:* python default: module_path_to_your_class.CLASSNAME
+
+   This allows you to specify a more informative string representation of your
+   Op. If an Op has parameters, it is highly recommended to have the
+   ``__str__`` method include the name of the op and the Op's parameters'
+   values.
+
+At a bare minimum, a new Op must define ``make_node`` and ``perform``, which
+have no defaults.
+
+You can also provide a :ref:`C implementation <cop>` of
+``perform()``. For more details, refer to the documentation for
+:ref:`op`.
+
+
+Defining an Op: ``mul``
+=======================
+
+We'll define multiplication as a *binary* operation, even though a
+multiplication Op could take an arbitrary number of arguments.
+
+First, we'll instantiate a ``mul`` Op:
+
+.. If you modify this code, also change :
+.. theano/tests/test_tutorial.py:T_extending.test_extending_1
+
+.. code-block:: python
+
+   from theano import gof
+   mul = gof.Op()
+
+
+**make_node**
+
+This function must take as many arguments as the operation we are
+defining is supposed to take as inputs---in this example that would be
+two.
+This function ensures that both inputs have the ``double``
+type.
+Since multiplying two doubles yields a double,
+this function makes an Apply node with an output Variable of type
+``double``.
+
+.. If you modify this code, also change :
+.. theano/tests/test_tutorial.py:T_extending.test_extending_1
+
+.. code-block:: python
+
+   def make_node(x, y):
+       if x.type != double or y.type != double:
+           raise TypeError('mul only works on doubles')
+       return gof.Apply(mul, [x, y], [double()])
+   mul.make_node = make_node
+
+
+The first two lines make sure that both inputs are Variables of the
+``double`` type that we created in the previous section. We would not
+want to multiply two arbitrary types, it would not make much sense
+(and we'd be screwed when we implement this in C!)
+
+The last line is the meat of the definition. There we create an Apply
+node representing the application of Op ``mul`` to inputs ``x`` and
+``y``, giving a Variable instance of type ``double`` as the output.
+
+.. note::
+   Theano relies on the fact that if you call the ``make_node`` method
+   of Apply's first argument on the inputs passed as the Apply's
+   second argument, the call will not fail and the returned Apply
+   instance will be equivalent.  This is how graphs are copied.
+
+**perform**
+
+This code actually computes the function.
+In our example, the data in ``inputs`` will be instances of Python's
+built-in type ``float`` because this is the type that ``double.filter()``
+will always return, per our own definition. ``output_storage`` will
+contain a single storage cell for the multiplication's variable.
+
+.. If you modify this code, also change :
+.. theano/tests/test_tutorial.py:T_extending.test_extending_1
+.. code-block:: python
+
+   def perform(node, inputs, output_storage):
+       x, y = inputs[0], inputs[1]
+       z = output_storage[0]
+       z[0] = x * y
+   mul.perform = perform
+
+Here, ``z`` is a list of one element. By default, ``z == [None]``.
+
+.. note::
+   It is possible that ``z`` does not contain ``None``. If it contains
+   anything else, Theano guarantees that whatever it contains is what
+   ``perform`` put there the last time it was called with this
+   particular storage. Furthermore, Theano gives you permission to do
+   whatever you want with ``z``'s contents, chiefly reusing it or the
+   memory allocated for it. More information can be found in the
+   :ref:`op` documentation.
+
+.. warning::
+   We gave ``z`` the Theano type ``double`` in ``make_node``, which means
+   that a Python ``float`` must be put there. You should not put, say, an
+   ``int`` in ``z[0]`` because Theano assumes Ops handle typing properly.
+
+
+Trying out our new Op
+=====================
+
+.. If you modify this code, also change :
+.. theano/tests/test_tutorial.py:T_extending.test_extending_1
+
+In the following code, we use our new Op:
+
+>>> x, y = double('x'), double('y')
+>>> z = mul(x, y)
+>>> f = theano.function([x, y], z)
+>>> f(5, 6)
+30.0
+>>> f(5.6, 6.7)
+37.519999999999996
+
+Note that there is an implicit call to
+``double.filter()`` on each argument, so if we give integers as inputs
+they are magically cast to the right type. Now, what if we try this?
+
+>>> x = double('x')
+>>> z = mul(x, 2)
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/u/breuleuo/hg/theano/theano/gof/op.py", line 207, in __call__
+  File "<stdin>", line 2, in make_node
+AttributeError: 'int' object has no attribute 'type'
+
+Automatic Constant Wrapping
+---------------------------
+
+Well, OK. We'd like our Op to be a bit more flexible. This can be done
+by modifying ``make_node`` to accept Python ``int`` or ``float`` as
+``x`` and/or ``y``:
+
+.. If you modify this code, also change :
+.. theano/tests/test_tutorial.py:T_extending.test_extending_1
+.. code-block:: python
+
+   def make_node(x, y):
+       if isinstance(x, (int, float)):
+           x = gof.Constant(double, x)
+       if isinstance(y, (int, float)):
+           y = gof.Constant(double, y)
+       if x.type != double or y.type != double:
+           raise TypeError('mul only works on doubles')
+       return gof.Apply(mul, [x, y], [double()])
+   mul.make_node = make_node
+
+Whenever we pass a Python int or float instead of a Variable as ``x`` or
+``y``, ``make_node`` will convert it to :ref:`constant` for us. ``gof.Constant``
+is a :ref:`variable` we statically know the value of.
+
+.. If you modify this code, also change :
+.. theano/tests/test_tutorial.py:T_op.test_op_1
+
+>>> x = double('x')
+>>> z = mul(x, 2)
+>>> f = theano.function([x], z)
+>>> f(10)
+20.0
+>>> f(3.4)
+6.7999999999999998
+
+Now the code works the way we want it to.
+
+.. note::
+   Most Theano Ops follow this convention of up-casting literal
+   make_node arguments to Constants.
+   This makes typing expressions more natural.  If you do
+   not want a constant somewhere in your graph, you have to pass a Variable
+   (like ``double('x')`` here).
+
+
+
+Final version
+=============
+
+The above example is pedagogical.  When you define other basic arithmetic
+operations ``add``, ``sub`` and ``div``, code for ``make_node`` can be
+shared between these Ops. Here is revised implementation of these four
+arithmetic operators:
+
+.. If you modify this code, also change :
+.. theano/tests/test_tutorial.py:T_extending.test_extending_1
+
+.. code-block:: python
+
+   from theano import gof
+
+   class BinaryDoubleOp(gof.Op):
+
+       def __init__(self, name, fn):
+           self.name = name
+           self.fn = fn
+
+       def __eq__(self, other):
+           return type(self) == type(other) and (self.name == other.name) and (self.fn == other.fn)
+
+       def __hash__(self):
+           return hash(type(self)) ^ hash(self.name) ^ hash(self.fn)
+
+       def make_node(self, x, y):
+           if isinstance(x, (int, float)):
+               x = gof.Constant(double, x)
+           if isinstance(y, (int, float)):
+               y = gof.Constant(double, y)
+           if x.type != double or y.type != double:
+               raise TypeError('%s only works on doubles' % self.name)
+           return gof.Apply(self, [x, y], [double()])
+
+       def perform(self, node, inp, out):
+           x, y = inp
+           z, = out
+           z[0] = self.fn(x, y)
+
+       def __str__(self):
+           return self.name
+
+   add = BinaryDoubleOp(name = 'add',
+                        fn = lambda x, y: x + y)
+
+   sub = BinaryDoubleOp(name = 'sub',
+                        fn = lambda x, y: x - y)
+
+   mul = BinaryDoubleOp(name = 'mul',
+                        fn = lambda x, y: x * y)
+
+   div = BinaryDoubleOp(name = 'div',
+                        fn = lambda x, y: x / y)
+
+Instead of working directly on an instance of Op, we create a subclass of
+Op that we can parametrize. All the operations we define are binary. They
+all work on two inputs with type ``double``. They all return a single
+Variable of type ``double``. Therefore, ``make_node`` does the same thing
+for all these operations, except for the Op reference ``self`` passed
+as first argument to Apply.  We define ``perform`` using the function
+``fn`` passed in the constructor.
+
+This design is a flexible way to define basic operations without
+duplicating code. The same way a Type subclass represents a set of
+structurally similar types (see previous section), an Op subclass
+represents a set of structurally similar operations: operations that
+have the same input/output types, operations that only differ in one
+small detail, etc. If you see common patterns in several Ops that you
+want to define, it can be a good idea to abstract out what you can.
+Remember that an Op is just an object which satisfies the contract
+described above on this page and that you should use all the tools at
+your disposal to create these objects as efficiently as possible.
+
+**Exercise**: Make a generic DoubleOp, where the number of
+arguments can also be given as a parameter.
+
