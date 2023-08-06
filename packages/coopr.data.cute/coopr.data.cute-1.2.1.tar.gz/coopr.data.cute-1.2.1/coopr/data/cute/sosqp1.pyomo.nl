@@ -1,0 +1,191 @@
+g3 1 1 0	# problem unknown
+ 20 11 1 0 11 	# vars, constraints, objectives, general inequalities, equalities  
+ 0 1 	# nonlinear constraints, objectives
+ 0 0	# network constraints: nonlinear, linear
+ 0 20 0 	# nonlinear vars in constraints, objectives, both
+ 0 0 0 1	# linear network variables; functions; arith, flags
+ 0 0 0 0 0 	# discrete variables: binary, integer, nonlinear (b,c,o)
+ 40 20 	# nonzeros in Jacobian, obj. gradient
+ 0 0	# max name lengths: constraints, variables
+ 0 0 0 0 0	# common exprs: b,c,o,c1,o1
+C0
+n0
+C1
+n0
+C2
+n0
+C3
+n0
+C4
+n0
+C5
+n0
+C6
+n0
+C7
+n0
+C8
+n0
+C9
+n0
+C10
+n0
+O0 0
+o54
+10
+o2
+v1
+v11
+o2
+v2
+v12
+o2
+v3
+v13
+o2
+v4
+v14
+o2
+v5
+v15
+o2
+v6
+v16
+o2
+v7
+v17
+o2
+v8
+v18
+o2
+v9
+v19
+o2
+v0
+v10
+x0
+r
+4 1 
+4 1 
+4 1 
+4 1 
+4 1 
+4 1 
+4 1 
+4 1 
+4 1 
+4 1 
+4 10 
+b
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+0 -1 1
+k19
+2
+4
+6
+8
+10
+12
+14
+16
+18
+20
+22
+24
+26
+28
+30
+32
+34
+36
+38
+J0 2
+1 1.0
+11 -1.0
+J1 2
+2 1.0
+12 -1.0
+J2 2
+3 1.0
+13 -1.0
+J3 2
+4 1.0
+14 -1.0
+J4 2
+5 1.0
+15 -1.0
+J5 2
+6 1.0
+16 -1.0
+J6 2
+7 1.0
+17 -1.0
+J7 2
+8 1.0
+18 -1.0
+J8 2
+9 1.0
+19 -1.0
+J9 2
+0 1.0
+10 -1.0
+J10 20
+0 1.0
+1 1.0
+2 1.0
+3 1.0
+4 1.0
+5 1.0
+6 1.0
+7 1.0
+8 1.0
+9 1.0
+10 1.0
+11 1.0
+12 1.0
+13 1.0
+14 1.0
+15 1.0
+16 1.0
+17 1.0
+18 1.0
+19 1.0
+G0 20
+0 0
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+10 0
+11 0
+12 0
+13 0
+14 0
+15 0
+16 0
+17 0
+18 0
+19 0
