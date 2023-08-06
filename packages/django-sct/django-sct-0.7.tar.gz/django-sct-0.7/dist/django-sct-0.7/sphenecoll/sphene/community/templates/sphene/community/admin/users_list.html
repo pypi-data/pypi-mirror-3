@@ -1,0 +1,76 @@
+{% extends "sphene/community/admin/base.html" %}
+{% load i18n %}
+{% load sph_extras %}
+{% load sph_pagination %}
+
+{% block head %}
+  {{ block.super }}
+  <script type="text/javascript" src="{{ STATIC_URL }}sphene/community/jquery-1.2.3.min.js"></script>
+
+  <script type="text/javascript">
+
+      function success_handler(data, self){
+          self.parent().parent().children('.user-activity-status').html(data.user_status);
+          self.html(data.button_label);
+      }
+
+      $(document).ready(function(){
+          $('a.user-activity-switch').click(function(){
+              var url = $(this).attr('href');
+              var self = $(this);
+              $.ajax({url:url,
+                      success: function(data){success_handler(data, self)},
+                      dataType:'json'})
+              return false;
+          })
+      })
+  </script>
+
+
+{% endblock %}
+
+{% block content %}
+
+<form action="" method="get">
+    <fieldset>
+        <legend>{% trans "Filter users" %}</legend>
+        {{ search_form.username.label }}: {{ search_form.username }}
+        <input type="submit" name="search" value="{% trans "Search" %}" />
+    </fieldset>
+</form>
+
+<table>
+  <tr>
+    <th><a href="?orderby={% get_orderby orderby "username" %}{% if search_qs %}&amp;{{ search_qs|safe }}&amp;search=1{% endif %}">{% trans "Username" %}</a></th>
+    <th>{% trans "Full name" %}</th>
+    <th>{% trans "E-mail" %}</th>
+    {% if is_sphboard %}
+        <th>{% trans "Board posts" %}</th>
+    {% endif %}
+    <th><a href="?orderby={% get_orderby orderby "is_active" %}{% if search_qs %}&amp;{{ search_qs|safe }}&amp;search=1{% endif %}">{% trans "Is active" %}</a></th>
+    <th>{% trans "Actions" %}</th>
+  </tr>
+  {% for usr in sphuser_list %}
+    <tr>
+      <td><a href="{{ usr|sph_user_profile_link }}">{{ usr.username }}</a></td>
+      <td>{{ usr.get_full_name }}</td>
+      <td>{{ usr.email }}</td>
+      {% if is_sphboard %}
+          {%  load sphboard_extras %}
+          <td>
+              <a href="{% sph_url2 sphboard_admin_user_posts usr.pk %}">{% user_posts_count usr %}</a>
+          </td>
+      {% endif %}
+      <td class="user-activity-status">{{ usr.is_active|yesno }}</td>
+      <td>
+          <a class="user-activity-switch" href="{% sph_url2 sph_admin_user_switch_active usr.pk %}">{% if usr.is_active %}{% trans "Disable" %}{% else %}{% trans "Enable" %}{% endif %}</a>
+      </td>
+    </tr>
+  {% endfor %}
+  {% if not sphuser_list %}
+      <tr><td colspan="{% if is_sphboard %}6{% else %}5{% endif %}">{% trans "No users to display" %}</td></tr>
+  {% endif %}
+</table>
+
+<p class="sphboard_pagination">{% sph_pagination pages page '' 'page' 1 %}</p>
+{% endblock %}
