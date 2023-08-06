@@ -1,0 +1,73 @@
+Time takes my time
+==================
+
+Stories have a rough estimate in days.  Tasks have an estimate in
+hours.  Bookings have hours and minutes.  Bookings can be added to
+tasks, which means that the actual hours of that task are now
+increased.  Also the difference between a Task estimate and its actual
+hours changes then.  This can all be very complicated and
+frustrating.  So it needs good tests.  We probably want to refactor
+some things here, so then tests become even more important.  And we
+are starting to use events so then it is best to test things with the
+zope testbrowser.
+
+    >>> from Products.Five.testbrowser import Browser
+    >>> browser = Browser()
+    >>> browser.handleErrors = False
+    >>> browser.addHeader('Accept-Language', 'en-US')
+
+Let us log all exceptions, which is useful for debugging.
+
+    >>> self.portal.error_log._ignored_exceptions = ()
+
+Log in to the portal as the test user.
+
+    >>> def login(username):
+    ...     browser.open(self.portal.absolute_url() + '/login_form')
+    ...     browser.getLink('Log in').click()
+    ...     browser.getControl(name='__ac_name').value = username
+    ...     browser.getControl(name='__ac_password').value = 'secret'
+    ...     browser.getControl(name='submit').click()
+    ...     return 'Login failed' not in browser.contents
+    >>> from Products.PloneTestCase.setup import default_user
+    >>> login(default_user)
+    True
+
+We already have a story with rough estimate 1.5 days, which would be
+roughly 12 hours.  we can use the edit form to check for some values.
+
+    >>> story = self.portal.project.iteration.story
+    >>> browser.open(story.absolute_url() + '/base_edit')
+    >>> browser.getControl(name='roughEstimate').value
+    '1.5'
+    >>> story.getRoughEstimate()
+    1.5
+
+We also have a task with an estimate of 5 and one half hours.
+
+    >>> task = self.portal.project.iteration.story.task
+    >>> browser.open(task.absolute_url() + '/base_edit')
+    >>> browser.getControl(name='hours').value
+    '5'
+    >>> browser.getControl(name='minutes').value
+    ['30']
+    >>> from xm.booking.timing.interfaces import IEstimate
+    >>> estimate = IEstimate(task)
+    >>> estimate.estimate
+    5.5
+
+We also want to make sure that the correct rawEstimate value is stored
+in the catalog.  We have made a test function for that.
+
+    >>> self.assertAnnotationTaskBrainEstimateEquality(task, 5.5)
+
+Once a story has a task with an estimate in it, its rough estimate
+mostly gets ignored in favour of the combined estimates of its tasks.
+
+    >>> estimate = IEstimate(story)
+    >>> estimate.estimate
+    5.5
+
+Make sure rawActualHours returns the expected value.
+Also make sure the same value is stored in the catalog.
+
