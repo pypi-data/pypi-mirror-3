@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (C) 2011-2012 CRS4.
+
+This file is part of Seal.
+
+Seal is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
+any later version.
+
+Seal is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received a copy of the GNU General Public License along
+with Seal.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
+<project name="seal" default="package" basedir=".">
+	<!-- user directories -->
+	<property name="src.dir" value="src" />
+	<property name="test.dir" value="tests" />
+	<property name="lib.dir" value="lib" />
+	<property name="build.dir" value="build" />
+	<property name="class.dir" value="classes" />
+	<property name="test.class.dir" value="test-${class.dir}" />
+	<property name="jar.file" value="${ant.project.name}.jar" />
+
+	<!-- set to true to ignore Ant/Java version -->
+	<property name="override_version_check" value="false" />
+
+	<tstamp>
+		<format property="time.now" pattern="yyyy/MM/dd HH:mm:ss" />
+	</tstamp>
+
+	<!-- override the version property for a release -->
+	<property name="version" value="devel - ${time.now}" />
+
+	<property name="debug.build" value="false" />
+	<echo message="debug.build: ${debug.build}" />
+
+	<!-- extra properties -->
+	<property environment="env"/>
+
+	<property name="jars.override" value="" />
+
+	<fileset id="junit_jars_ubuntu" dir="/usr/share/java">
+		<include name="junit4.jar"/>
+		<include name="hamcrest-*.jar"/>
+	</fileset>
+
+	<fileset id="junit_jars_gentoo" dir="/usr/share">
+		<include name="junit-4/lib/*.jar"/>
+		<include name="hamcrest-core/lib/*.jar" />
+	</fileset>
+
+	<fileset id="junit_jars_scientific_linux" dir="/usr/share/java/">
+		<include name="ant/*junit*.jar" />
+		<include name="junit4.jar" />
+		<include name="hamcrest/*.jar" />
+	</fileset>
+
+	<fileset id="jars_override" dir="/">
+		<include name="${jars.override}" />
+	</fileset>
+
+	<!-- tasks -->
+	<target name="find_hadoop">
+		<exec executable="python" outputproperty="hadoop.dir" failonerror="true">
+			<arg value="-c" />
+			<arg value="import pydoop,sys; sys.stdout.write(pydoop.hadoop_home())" />
+		</exec>
+
+		<fileset id="hadoop_jars" dir="${hadoop.dir}">
+			<include name="hadoop-*.jar"/>
+			<include name="lib/*.jar"/>
+		</fileset>
+	</target>
+
+	<target name="clean">
+		<delete failonerror="false" dir="${build.dir}"/>
+		<delete failonerror="false" dir="${class.dir}"/>
+		<delete failonerror="false" dir="${test.class.dir}"/>
+	</target>
+
+	<target name="version_check">
+		<fail message="Please use ant version 1.7 and Java 1.6 or newer (using ${ant.version} and Java ${ant.java.version}).  To override this check use override_version_check=true">
+			<condition>
+				<not>
+					<or>
+						<istrue value="${override_version_check}" />
+						<and>
+							<antversion atleast="1.7"/>
+							<matches string="${ant.java.version}" pattern="1\.[6-9]" />
+						</and>
+					</or>
+				</not>
+			</condition>
+		</fail>
+	</target>
+
+	<target name="compile" depends="version_check,find_hadoop">
+		<mkdir dir="${class.dir}"/>
+		<mkdir dir="${build.dir}"/>
+		<javac srcdir="${src.dir}" destdir="${class.dir}" includeAntRuntime="false" debug="${debug.build}">
+			<classpath>
+				<fileset refid="hadoop_jars"/>
+			</classpath>
+
+			<!--
+				We suppress deprecation warnings to avoid lots of warnings on the
+				mapred classes, which have been "undeprecated" in newer releases
+				of Hadoop (since 0.20.203).
+				-->
+			<compilerarg value="-Xlint"/>
+			<compilerarg value="-Xlint:-deprecation"/>
+		</javac>
+
+		<manifest file="${build.dir}/MANIFEST.MF">
+			<attribute name="Built-By" value="${user.name}"/>
+			<attribute name="Specification-Title" value="Seal"/>
+			<attribute name="Specification-Version" value="${version}"/>
+			<attribute name="Implementation-Title" value="Seal"/>
+			<attribute name="Implementation-Version" value="${version}"/>
+		</manifest>
+	</target>
+
+	<target name="package" depends="compile">
+		<mkdir dir="${build.dir}"/>
+		<jar destfile="${build.dir}/${jar.file}" basedir="${class.dir}" manifest="${build.dir}/MANIFEST.MF" />
+	</target>
+
+	<target name="build-tests" depends="compile">
+		<mkdir dir="${test.class.dir}"/>
+		<javac srcdir="${test.dir}" destdir="${test.class.dir}" includeAntRuntime="false" debug="true">
+			<classpath>
+				<pathelement path="${class.dir}"/>
+				<fileset refid="hadoop_jars"/>
+				<fileset refid="jars_override" />
+				<fileset refid="junit_jars_ubuntu" />
+				<fileset refid="junit_jars_gentoo" />
+				<fileset refid="junit_jars_scientific_linux" />
+			</classpath>
+
+			<!--
+				We suppress deprecation warnings to avoid lots of warnings on the
+				mapred classes, which have been "undeprecated" in newer releases
+				of Hadoop (since 0.20.203).
+				-->
+			<compilerarg value="-Xlint"/>
+			<compilerarg value="-Xlint:-deprecation"/>
+		</javac>
+	</target>
+
+	<target name="run-tests" depends="build-tests">
+		<junit showoutput="true">
+			<classpath>
+				<pathelement path="${class.dir}"/>
+				<pathelement path="${test.class.dir}"/>
+				<fileset refid="hadoop_jars"/>
+				<fileset refid="jars_override" />
+				<fileset refid="junit_jars_ubuntu" />
+				<fileset refid="junit_jars_gentoo" />
+				<fileset refid="junit_jars_scientific_linux" />
+			</classpath>
+			<formatter type="brief" usefile="false"/>
+			<batchtest>
+				<fileset dir="${test.class.dir}">
+					 <include name="**/Test*.class" />
+					 <exclude name="**/Test*$*.class" />  <!-- exclude inner classes -->
+				</fileset>
+			</batchtest>
+		</junit>
+	</target>
+
+	<target name="run-one-test" depends="build-tests">
+		<fail unless="run.class" message="You must set the class to run with -Drun.class=&lt;your class&gt;" />
+		<echo message="Running class ${run.class}" />
+		<java classname="${run.class}">
+			<classpath>
+				<pathelement path="${class.dir}"/>
+				<pathelement path="${test.class.dir}"/>
+				<fileset refid="hadoop_jars"/>
+				<fileset refid="jars_override" />
+				<fileset refid="junit_jars_ubuntu" />
+				<fileset refid="junit_jars_gentoo" />
+				<fileset refid="junit_jars_scientific_linux" />
+			</classpath>
+		</java>
+	</target>
+
+  <target name="prq_integration_tests" depends="package">
+    <exec executable="tests/prq_integration_tests/run.sh" />
+  </target>
+
+	<target name="all" depends="clean,package,run-tests" />
+</project>
