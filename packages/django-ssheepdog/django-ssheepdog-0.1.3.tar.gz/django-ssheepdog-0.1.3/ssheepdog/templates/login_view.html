@@ -1,0 +1,77 @@
+{% block content %}
+{% if perms.ssheepdog.change_login %}
+<a class="admin" href="{{login.get_change_url }}">edit login</a>
+{% endif %}
+
+<div class="username_div">
+    <div>Username: {{ login.username }}</div>
+</div>
+<div class="machine_div">
+    <div>Machine: {{ login.machine }}
+      {% if perms.ssheepdog.change_machine %}
+      <a class="admin" href="{{login.machine.get_change_url }}">edit machine</a>
+      {% endif %}
+   </div>
+</div>
+{% with login.get_client as client %}
+{% if client %}
+<div>Client:
+  {{ client }}
+  {% if client.description %}
+  ({{ client.description }})
+  {% endif %}
+  {% if perms.ssheepdog.change_client %}
+  <a class="admin" href="{{client.get_change_url }}">edit client</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endwith %}
+</div></br>
+<div class="app_key_div">
+  <div>&gt;&nbsp;<code>ssh {{ login.get_address }} -p {{ login.machine.port }}</code>
+    <br/>
+    <div class="ssh textareas">
+      <div>
+        <label>SSHeepdog's public SSH key:</label>
+        <textarea>{{ login.formatted_public_key }}</textarea>
+      </div>
+      <div>
+        <label>bash command to deploy key:</label>
+        <textarea>ssh {{ login.get_address }} -p {{ login.machine.port }} "(echo ; echo {{ login.formatted_public_key }}) >> .ssh/authorized_keys"</textarea>
+      </div>
+      <div>
+        <label>All keys for manual deployment:</label>
+        <textarea>{{ login.formatted_keys }}</textarea>
+      </div>
+    </div>
+    <br/>
+ </div>
+</div>
+{% if login.machine.manual and perms.ssheepdog.can_sync and login.is_dirty %}
+<div class="manual-form section">
+  <form class="sync_form" action="{% url ssheepdog.views.manual_sync login.pk %}" method="post">
+  {% csrf_token %}
+  <input class="sync_all btn  btn-primary" type="submit" value="Flag as manually synced" />
+  </form>
+</div>
+{% endif %}
+<br/>
+{% with log=login.get_last_log %}
+{% if log %}
+<div class="log section">
+<hr/>
+ Last activity {{ log.date }}<br/>{{ log.message }}
+  {% if log.stderr %}
+  <div class="stderr">
+    {{ log.stderr|linebreaks }}
+  </div>
+  {% endif %}
+  {% if log.stdout %}
+  <div class="stdout">
+    {{ log.stdout|linebreaks }}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endwith %}
+{% endblock %}
