@@ -1,0 +1,126 @@
+Metadata-Version: 1.0
+Name: django-sprites
+Version: 0.1.0
+Summary: Django app models to handle image sprites to speed up page loads with multiple small images.
+Home-page: https://github.com/johnfink8/django-sprites
+Author: John Fink
+Author-email: johnfink8@gmail.com
+License: MIT
+Description: django-sprites is a Django app with two bundled models that handle 
+        Sprites and their associated SpriteItems.  
+        
+            * A Sprite is a combined image, consisting of one or more 
+              SpriteItems, each of which is an image intended to be used as an 
+              image background for an HTML element.
+            
+            * Combining these background images into a single image can 
+              enormously save on load times.  There is a lot of time loss in 
+              sequentially requesting multiple images from the same server, and 
+              only 2-4 can be requested simultaneously.  So if you have 20 or 
+              30, that could add hundreds or thousands of milliseconds to your 
+              overall page load.
+            
+            * Each SpriteItem contains the info actually relevant to your site 
+              design, like the image itself, dimensions (which are calculated),
+              HTML attributes like class and id, and these are used by the 
+              model methods to generate styling, full CSS lines, and/or an HTML
+              tag source with the relevant image behind it and any input HTML 
+              inside.
+        
+        Requirements:
+        
+            *  PIL, with libjpeg support
+            
+            *  Django (obviously)
+            
+            *  Uuid
+            
+            *  urllib2
+            
+        Setup:
+        
+            *  Add to your settings.py INSTALLED_APPS:
+                'sprites',
+            
+            *  Also in settings.py:
+                MEDIA_ROOT = 'path/to/your/actual/intended/media/root'
+                
+                This will be used along with the relative paths in the next 
+                config items to determine save locations for images.
+                
+                
+                MEDIA_URL = 'http://myserver.mydomain.com/media'
+                
+                This is used by Django to generate URLs for ImageFiles, in
+                addition to the relative paths below.  Fully-qualified path is
+                not actually required, but it's better to make it fully-
+                qualified here so that you can use the HTML on any domain, not
+                just the same as your Django app.
+            
+            *  Also in settings.py (optional):
+                SPRITE_PATH = '<some relative path to store sprites>'
+                SPRITE_ITEM_PATH = '<another relative path>'
+                
+                These default to 'sprites' and 'sprite_items', respectively.
+            
+            *  Bulk load images into a sprite by calling:
+                  
+                  sprite=Sprite.create_from_urls(['http://path.to/first.jpg',
+                      'http://path.to/second.jpg'...])
+                  # or...
+                  sprite=Sprite.create_from_local_files(['/path/to/first/file',
+                      '/path/to/second/file'])
+                  
+                  for spriteitem in sprite.spriteitem_set.all():
+                      # each spriteitem should get a (unique) css_id at least, 
+                      # and a css_class if you intend to do any further styling
+                      pass
+            
+            *  SpriteItem properties
+                   spriteitem.style - outputs CSS style directives, without 
+                    specifying it with a selector
+                    i.e.: "display:block; background: url(whatever); etc.;"
+                   
+                   spriteitem.css - outputs the same style directives, with a 
+                    selector based on spriteitem.css_id
+                    i.e.: "#myimage {display:block; etc.;}"
+                   
+                   spriteitem.tag_with_style - ouputs a safe-marked (ready to 
+                    use in a template) HTML span tag with embedded style attrib,
+                    including any internal HTML given by spriteitem.internal_html
+                     
+            *  Note:  This isn't really meant to be used by itself.  Ideally, 
+                you'll have some kind of model that you'll ForeignKey relate to 
+                SpriteItem, like:
+                
+                class SiteElement(models.Model):
+                    spriteitem=models.ForeignKey(SpriteItem)
+                    link=models.CharField(max_length=255,null=True,blank=True)
+                    
+                    def get_tag(self):
+                        if self.link is not None:
+                            return '<a href="%s">%s</a>'%(
+                                self.link,self.spriteitem.tag_with_style)
+                        return self.spriteitem.tag_with_style
+        
+        
+        ToDo:  
+        
+            *  Further refinements for storage, including S3 storage and hooks
+               to make it user-extendable
+            
+            *  Add a thumbnail generator
+            
+            *  Add PNG option, or better yet, detection
+            
+            *  Finish ToDo list
+            
+            
+        
+Keywords: django sprite image
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: Django
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
