@@ -1,0 +1,132 @@
+{% extends "locksmith/base.html" %}
+{% load humanize %}
+{% load charthelpers %}
+
+{% block bodyclass %}analytics{% endblock %}
+
+{% block content %}
+<h2>Statistics for {{api.name}}
+    {% if month %} for {{month}}/{{year}} 
+    {% else %} {% if year %} for {{year}} {% endif %} {% endif %}
+</h2>
+
+{% if not month %}
+<table id="monthly">
+<thead>
+    <tr> <th> Month </th> <th> Calls </th> </tr>
+</thead>
+<tbody>
+{% for m in monthlies %}
+<tr class="{% cycle "even" "odd" %}"> <td><a href="{% url api_analytics_month api.name m.date.year m.date.month %}">{{m.date|date:"b 'y"}}</a></td><td>{{m.calls|intcomma}}</td> </tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+
+<div id="timeline" style="height:500px;">
+</div>
+
+<div id="endpoints" style="width: 800px;">
+</div>
+
+<div id="users" style="width:800px;">
+    <table>
+        <tr><th>User</th><th>Calls</th></tr>
+        {% for uc in user_calls %}
+        <tr><td>{{uc.key__email}}</td><td>{{uc.calls}}</td>
+        {% endfor %}
+    </table>
+</div>
+
+<script>
+var chart = new Highcharts.Chart({
+   chart: {
+      renderTo: 'endpoints',
+      defaultSeriesType: 'bar'
+   },
+   title: {
+      text: 'API Calls by Method'
+   },
+   xAxis: {
+      categories: {{endpoints|safe}},
+      title: {
+         text: null
+      },
+     labels: {enabled: true}
+   },
+   yAxis: { min: 0, title: { text: null },
+   },
+   tooltip: {
+      formatter: function() {
+         return '<b>'+ this.x +'</b><br/>'+ this.y;
+      }
+   },
+   legend: { enabled: false },
+   credits: { enabled: false },
+   series: [{
+       data: {{endpoint_calls|safe}}
+   }]
+});
+
+var chart = new Highcharts.Chart({
+   chart: {
+      renderTo: 'timeline',
+   },
+   title: { text: 'API Calls' },
+   xAxis: {
+      type: 'datetime',
+      title: {
+         text: null
+     },
+     showFirstLabel: false
+   },
+   yAxis: { title: { text: null }, min: 0,
+      showFirstLabel: false
+   },
+   tooltip: {
+      formatter: function() {
+         return '<b>'+ (this.point.name || this.series.name) +'</b><br/>'+ Highcharts.dateFormat('%Y-%m-%d', this.x) + ': ' + this.y + ' calls';
+      }
+   },
+   legend: { enabled: false },
+   plotOptions: {
+      area: {
+         fillColor: {
+            linearGradient: [0, 0, 0, 300],
+            stops: [
+               [0, 'rgba(0,0,255,255)'],
+               [1, 'rgba(0,0,0,0)']
+            ]
+         },
+         lineWidth: 1,
+         marker: {
+            enabled: false,
+            states: {
+               hover: {
+                  enabled: true,
+                  radius: 3
+               }
+            }
+         },
+         shadow: false,
+         states: {
+            hover: {
+               lineWidth: 1
+            }
+         }
+      }
+  },
+  credits: {enabled: false},
+   series: [{
+      type: 'area',
+      name: 'calls',
+      data: [
+      {% for o in timeline %}
+      [{{o.date|jsdate}}, {{o.calls}}]
+      {% if not forloop.last %} , {% endif %}
+      {% endfor %}
+      ]
+   }]
+});
+</script>
+{% endblock %}
