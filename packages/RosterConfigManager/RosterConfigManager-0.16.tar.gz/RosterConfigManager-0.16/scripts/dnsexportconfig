@@ -1,0 +1,225 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2009, Purdue University
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice, this
+# list of conditions and the following disclaimer in the documentation and/or
+# other materials provided with the distribution.
+# 
+# Neither the name of the Purdue University nor the names of its contributors
+# may be used to endorse or promote products derived from this software without
+# specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+"""Config export tool for Roster"""
+
+
+__copyright__ = 'Copyright (C) 2009, Purdue University'
+__license__ = 'BSD'
+__version__ = '0.16'
+
+
+import sys
+import os
+import shutil
+
+from optparse import OptionParser
+import ConfigParser
+
+
+def RunCommand(command):
+  """Runs a command and returns proper return code
+
+  Inputs:
+    command: string of command to run
+  Outputs:
+    int: standard return code of command
+  """
+  return_code = os.system(command)
+  if( return_code is None ):
+    return_code = 0
+  return os.WEXITSTATUS(return_code)
+
+
+def main(args):
+  """Collects command line arguments. Exports configs.
+
+  Inputs:
+    args: list of arguments from the command line
+  """
+  usage = ('\n'
+           '\n'
+           'To export database to config files:\n'
+           '\t%s [-d <output-directory>] [-f] '
+           '\t[--config-file <config-file>] [-t <tree-exporter-executable>]\n'
+           '\t[-c <check-config-executable>] [-s <config-sync-excutable>]\n'
+           '\t[--named-checkzone <named-checkzone-executable>\n'
+           '\t[--named-checkconf <named-checkconf-executable>\n' % sys.argv[0])
+
+  parser = OptionParser(version='%%prog (Roster %s)' % __version__, usage=usage)
+
+  parser.add_option('-i', '--id', dest='id',
+                    help='ID of tarfile output from Roster tree export.',
+                    metavar='<id>', default=None)
+  parser.add_option('-d', '--directory', action='store', dest='directory',
+                    help='Backup directory to scan.', metavar='<directory>',
+                    default=None)
+  parser.add_option('-t', '--tree-exporter', action='store', dest='tree_export',
+                    help='Location of "dnstreeexport" binary.',
+                    default='dnstreeexport')
+  parser.add_option('-c', '--check-config', action='store', dest='check_config',
+                    help='Location of "dnscheckconfig" binary.',
+                    default='dnscheckconfig')
+  parser.add_option('-s', '--config-sync', action='store', dest='config_sync',
+                    help='Location of "dnsconfigsync" binary.',
+                    default='dnsconfigsync')
+  parser.add_option('--named-checkzone', action='store',
+                    dest='named_checkzone',
+                    help='Location of named_checkzone binary.',
+                    default=None)
+  parser.add_option('--named-checkconf', action='store',
+                    dest='named_checkconf',
+                    help='Location of named_checkconf binary.',
+                    default=None)
+  parser.add_option('--config-file', action='store', dest='config_file',
+                    help='Roster config file location.',
+                    default='/etc/roster/roster_server.conf')
+  parser.add_option('--destination-directory',
+                    dest='destination_directory',
+                    help='(dnsconfigsync)Destination directory on dns servers.',
+                    metavar='<destination-directory>',
+                    default=None)
+  parser.add_option('-u', '--user-name', action='store', dest='user_name',
+                    help='(dnsconfigsync)Rsync username.',
+                    metavar='<user-name>', default=None)
+  parser.add_option('--rsync-port', action='store', dest='rsync_port',
+                    help='(dnsconfigsync)Rsync port number.', metavar='<port>',
+                    default=None)
+  parser.add_option('--ssh-port', action='store', dest='ssh_port',
+                    help='(dnsconfigsync)SSH port number.',
+                    metavar='<ssh-port>', default=None)
+  parser.add_option('--ssh-id', action='store', dest='ssh_id',
+                    help='(dnsconfigsync)SSH id file.', metavar='<ssh-id>',
+                    default=None)
+  parser.add_option('-r', '--rsync-exec', action='store', dest='rsync_exec',
+                    help='(dnsconfigsync)Rsync executable location.',
+                    metavar='<rsync-exec>', default=None)
+  parser.add_option('--rndc-exec', action='store', dest='rndc_exec',
+                    help='(dnsconfigsync)Rndc executable location.',
+                    metavar='<rndc-exec>', default=None)
+  parser.add_option('--rndc-key', action='store', dest='rndc_key',
+                    help='(dnsconfigsync)Rndc key file.', metavar='<rndc-key>',
+                    default=None)
+  parser.add_option('--rndc-conf', action='store', dest='rndc_conf',
+                    help='(dnsconfigsync)Rndc conf file.',
+                    metavar='<rndc-conf>', default=None)
+  parser.add_option('--ssh-exec', action='store', dest='ssh_exec',
+                    help='(dnsconfigsync)SSH executable location.',
+                    metavar='<ssh-exec>', default=None)
+  parser.add_option('-o', '--output-directory', action='store',
+                    dest='output_directory',
+                    help='(dnscheckconfig)Directory to temporarily output '
+                         'files to. Must be same in named.conf.',
+                         default=None)
+  parser.add_option('-v', '--verbose', dest='verbose', action='store_true',
+                    help='(dnscheckconfig)Make command verbose.', default=False)
+  parser.add_option('-f', '--force', action='store_true', dest='force',
+                    help='(dnstreeexport)Export trees even if nothing has '
+                         'changed in the database.', default=False)
+  parser.add_option('-q', '--quiet', action='store_true', dest='quiet',
+                    help='(dnstreeexport)Suppress program output.',
+                    default=False)
+
+
+  (globals()['options'], args) = parser.parse_args(args)
+
+  if( options.directory ):
+    if( os.path.exists(options.directory) and not options.force ):
+      print 'ERROR: Directory "%s" exists, use -f flag to overwrite.' % (
+          options.directory)
+      sys.exit(1)
+    elif( os.path.exists(options.directory) and options.force ):
+      shutil.rmtree(options.directory)
+  else:
+    server_config_file = ConfigParser.SafeConfigParser()
+    server_config_file.read(options.config_file)
+    options.directory = server_config_file.get('exporter',
+                                               'backup_dir'.rstrip('/'))
+
+
+  dnstreeexport_array = [options.tree_export]
+  if( options.config_file ):
+    dnstreeexport_array.extend(['-c', options.config_file])
+  if( options.force ):
+    dnstreeexport_array.append('--force')
+  if( options.quiet ):
+    dnstreeexport_array.append('--quiet')
+  tree_return = RunCommand(' '.join(dnstreeexport_array))
+
+  if( tree_return != 0 ):
+    sys.exit(tree_return)
+
+  dnscheckconfig_array = [options.check_config]
+  if( options.config_file ):
+    dnscheckconfig_array.extend(['--config-file', options.config_file])
+  if( options.directory ):
+    dnscheckconfig_array.extend(['-d', options.directory])
+  if( options.output_directory ):
+    dnscheckconfig_array.extend('-o', options.output_directory)
+  if( options.named_checkzone ):
+    dnscheckconfig_array.extend(['-z', options.named_checkzone])
+  if( options.named_checkconf ):
+    dnscheckconfig_array.extend(['-c', options.named_checkconf])
+  if( options.verbose ):
+    dnscheckconfig_array.append('-v')
+  if( options.id ):
+    dnscheckconfig_array.extend(['-i', options.id])
+  config_return = RunCommand(' '.join(dnscheckconfig_array))
+  if( config_return != 0 ):
+    sys.exit(config_return)
+  
+  dnsconfigsync_array = [options.config_sync]
+  if( options.config_file ):
+    dnsconfigsync_array.extend(['--config-file', options.config_file])
+  if( options.destination_directory ):
+    dnsconfigsync_array.extend(['-d', options.destination_directory])
+  if( options.id ):
+    dnsconfigsync_array.extend(['-i', options.id])
+  if( options.user_name ):
+    dnsconfigsync_array.extend(['-u', options.user_name])
+  if( options.rsync_port ):
+    dnsconfigsync_array.extend(['--rsync-port', options.rsync_port])
+  if( options.ssh_port ):
+    dnsconfigsync_array.extend(['--ssh-port', options.ssh_port])
+  if( options.ssh_id ):
+    dnsconfigsync_array.extend(['--ssh-id', options.ssh_id])
+  if( options.rsync_exec ):
+    dnsconfigsync_array.extend(['--rsync-exec', options.rsync_exec])
+  if( options.rndc_key ):
+    dnsconfigsync_array.extend(['--rndc-key', options.rndc_key])
+  if( options.rndc_conf ):
+    dnsconfigsync_array.extend(['--rndc-conf', options.rndc_conf])
+  if( options.ssh_exec ):
+    dnsconfigsync_array.extend(['--ssh-exec', options.ssh_exec])
+  sys.exit(RunCommand(' '.join(dnsconfigsync_array)))
+
+
+if __name__ == '__main__':
+  main(sys.argv[1:])

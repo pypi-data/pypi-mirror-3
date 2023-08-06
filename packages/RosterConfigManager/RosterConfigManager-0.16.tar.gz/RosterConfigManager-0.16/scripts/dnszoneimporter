@@ -1,0 +1,150 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2009, Purdue University
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice, this
+# list of conditions and the following disclaimer in the documentation and/or
+# other materials provided with the distribution.
+# 
+# Neither the name of the Purdue University nor the names of its contributors
+# may be used to endorse or promote products derived from this software without
+# specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+"""This script is used for importing zone files into the database."""
+
+__copyright__ = 'Copyright (C) 2009, Purdue University'
+__license__ = 'BSD'
+__version__ = '0.16'
+
+
+import getpass
+import os
+import sys
+from optparse import OptionParser
+
+from roster_config_manager import zone_importer_lib
+
+
+def main(args):
+  usage = ('\n'
+           '\n'
+           'To import zone files:\n'
+           '\t%s -c <config-file> -z <zone-view>\n'
+           '\t(-d <directory> | -f <file>)\n'
+           '\t[-v <records-view>] [-z <zone-view>] [-u <username>]\n' % (
+               sys.argv[0]))
+
+  parser = OptionParser(version='%%prog (Roster %s)' % __version__, usage=usage)
+
+  parser.add_option('-c', '--config-file', action='store', dest='config',
+                    help='Database config file.', metavar='<config-file>',
+                    default='/etc/roster/roster_server.conf')
+  parser.add_option('-d', '--directory', action='store', dest='directory',
+                    help='Directory of zone files to load in. Mutually '
+                         'exclusive from -f/--file', metavar='<directory>',
+                    default=None)
+  parser.add_option('-f', '--file', action='store', dest='file',
+                    help='Zone file to load in. Mutually exclusive from '
+                         '-d/--directory.', metavar='<file>',
+                    default=None)
+  parser.add_option('-v', '--view', action='store', dest='view',
+                    help='View to assign zone to. '
+                         '(This cannot be the any view)',
+                    metavar='<view>', default=None)
+  parser.add_option('--use-specific-view', action='store_true',
+                    dest='use_specific_view',
+                    help='Records will be put in the any view unless this '
+                         'flag is used. If the flag is set records will go to '
+                         'the view specified with the -v flag.',
+                    default=False)
+  parser.add_option('-u', '--username', action='store', dest='user_name',
+                    help='Override default username.', metavar='<user_name>',
+                    default=None)
+  parser.add_option('-z', '--zone', action='store', dest='zone',
+                    help='Zone to put records in.', metavar='<zone>',
+                    default=None)
+
+  (globals()["options"], args) = parser.parse_args(args)
+
+  user = unicode(getpass.getuser())
+  if( options.user_name ):
+    user = unicode(options.user_name)
+
+  if( options.config is None ):
+    print "Must specify --config flag."
+    parser.print_help()
+    sys.exit(1)
+
+  if( options.file is None and options.directory is None):
+    print "Must specify --file or --directory flag."
+    parser.print_help()
+    sys.exit(1)
+
+  if( options.file is not None and options.directory is not None):
+    print "Must specify --file or --directory flag but not both."
+    parser.print_help()
+    sys.exit(1)
+
+  if( options.view is None ):
+    print "Must specify --view flag."
+    parser.print_help()
+    sys.exit(1)
+
+  if( options.zone is None ):
+    print "Must specify --zone flag."
+    parser.print_help()
+    sys.exit(1)
+
+  if( options.view == u'any' ):
+    print "View cannot be any."
+    parser.print_help()
+    sys.exit(1)
+
+  if( options.use_specific_view ):
+    records_view = options.view
+  else:
+    records_view = u'any'
+
+  if( options.directory is not None ):
+    zone_list = os.listdir(options.directory)
+  else:
+    zone_list = [options.file]
+  total_record_count = 0
+  for options.file in zone_list:
+    if( options.directory is not None ):
+      options.file = '%s/%s' % (options.directory, options.file)
+    print 'Loading in %s' % options.file
+    importer = zone_importer_lib.ZoneImport(options.file, options.config,
+                                            user, unicode(options.view),
+                                            unicode(options.zone),
+                                            records_view=records_view)
+
+    record_count = importer.MakeRecordsFromZone()
+    print '%s records loaded from zone %s' % (record_count, options.file)
+
+    total_record_count += record_count
+
+  print '%s total records added' % total_record_count
+
+
+if( __name__ == "__main__" ):
+  main(sys.argv[1:])
+  
