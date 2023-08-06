@@ -1,0 +1,170 @@
+{% load url from future %}
+
+{% block 'codemirror_init' %}
+    <script type="text/javascript">
+    {% block 'functions' %}{% endblock %}
+
+    (function($) {
+        $(function() {
+            var codemirror_added = {};
+
+            function feincms_markdown_remove_codemirror(field) {
+                var id = field ? field.id : this.id;
+                if(codemirror_added[id]) {
+                    CodeMirror.toTextArea(field);
+                    codemirror_added[id] = false;
+                }
+            }
+
+            function feincms_markdown_add_codemirror(field) {
+                var id = field ? field.id : this.id;
+                var $textarea = $(field);
+
+                if(!codemirror_added[id]) {
+                    // handler to update preview on change
+                    var preview_delay;
+
+                    function update_preview(editor) {
+                        var $textarea = $(editor.getTextArea()),
+                            $codemirror = $textarea.next('.CodeMirror'),
+                            $iframe = $codemirror.children('iframe');
+
+                        var url = '{% url 'markupmirror:preview' markup_type='plain' %}';
+                        url = url.replace(
+                            'plain', $textarea.attr('data-markuptype'));
+
+                        $.post(url, {
+                                csrfmiddlewaretoken: '{{ csrf_token }}',
+                                text: editor.getValue()
+                            },
+                            function(data, textStatus, jqXHR) {
+                                $iframe.trigger('_resize');
+
+                                if( $iframe.data('load') === true ) {
+                                    $iframe.trigger('_update',
+                                                    {html: data});
+                                } else {
+                                    $iframe.data('replace', data);
+                                }
+                            }
+                        );
+                    }
+
+                    // create editor
+                    var editor = CodeMirror.fromTextArea(field, {
+                        mode: $textarea.attr('data-mode'),
+                        width: '{{ CODEMIRROR_WIDTH }}',
+                        height: '{{ CODEMIRROR_HEIGHT }}',
+                        indentUnit: 4,
+                        lineNumbers: true,
+                        lineWrapping: true,
+                        path: '{{ CODEMIRROR_PATH }}',
+                        content: field.value,
+                        onChange: function() {
+                            clearTimeout(preview_delay);
+                            preview_delay = setTimeout(function() {
+                                update_preview(editor);
+                            }, 500);
+
+
+                        }
+                    });
+                    codemirror_added[id] = true;
+
+                    var $codemirror = $textarea.next('.CodeMirror');
+
+                    $codemirror
+                        .append('<iframe>')
+                        .children(':last')
+                        .addClass('CodeMirror-preview')
+                        .attr('src', '{% url "markupmirror:base" %}');
+
+                    $codemirror
+                        .children('iframe')
+                            .on({
+                                'load': function() {
+                                    var $this = $(this);
+                                    $this.data('load', true);
+
+                                    if( $this.data('replace') !== undefined ) {
+                                        $this.trigger(
+                                            '_update',
+                                            {html: $this.data('replace')});
+                                    }
+                                },
+                                '_resize': function() {
+                                    $(this).css({'height':
+                                        $(this).prev().outerHeight()});
+                                },
+                                '_update': function( e, data ) {
+                                    $(this)
+                                        .contents()
+                                        .find('body')
+                                        .html(data.html);
+                                }
+                            })
+                            .trigger('_resize');
+
+                    update_preview(editor);
+
+                    // refresh when visible
+                    var fieldset = $textarea.closest('fieldset');
+                    var check_count = 0;
+
+                    function check_fieldset_visible() {
+                        check_count += 1;
+                        if (fieldset.is(':visible')) {
+                            editor.refresh();
+                        }
+                        else if (check_count < 100) {
+                            setTimeout(function() {
+                                check_fieldset_visible();
+                            }, 100);
+                        }
+                    }
+
+                    check_fieldset_visible();
+                }
+            }
+
+            var markdown_init_fn = function(){
+                $('{% block selectors %}.order-machine textarea.item-markupmirror, #frontend_editor textarea.item-markupmirror{% endblock %}').each(function(){
+                    feincms_markdown_add_codemirror(this);
+                });
+            }
+
+            {% block enable %}
+                contentblock_init_handlers.push(markdown_init_fn);
+                contentblock_move_handlers.poorify.push(function(item) {
+                    item.find('textarea.item-markupmirror').each(
+                        feincms_markdown_remove_codemirror);
+                });
+                contentblock_move_handlers.richify.push(function(item) {
+                    item.find('textarea.item-markupmirror').each(
+                        feincms_markdown_add_codemirror);
+                });
+
+                // add refresh handler for tab switching
+                $('#main_wrapper')
+                    .children('.navi_tab')
+                    .click(
+                        function(event) {
+                            var id = $(event.target).attr('id');
+                            var panel_id = id.substr(0, id.length - 4);
+                            var $codemirror = $('#' + panel_id + '_body')
+                                .find('.CodeMirror');
+
+                            $codemirror.get(0)
+                                .CodeMirror
+                                    .refresh();
+
+                            $codemirror
+                                .children('iframe')
+                                    .trigger('_resize');
+                        }
+                );
+            {% endblock %}
+        });
+    })(feincms.jQuery);
+    </script>
+{% endblock %}
