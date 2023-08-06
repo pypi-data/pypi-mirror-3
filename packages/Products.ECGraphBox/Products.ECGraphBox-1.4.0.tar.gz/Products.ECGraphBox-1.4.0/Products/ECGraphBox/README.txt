@@ -1,0 +1,105 @@
+Overview
+========
+
+ECGraphBox is a Plone product derived from ECAssignmentBox and provides
+special support for assignments which task is graph based.  
+
+ECGraphBox supports students with tools for drawing and editing graphs
+as well as teachers in reviewing students' assignments. 
+
+Features:
+
+- weighted/unweighted graphs
+
+- directed/undirected graphs
+
+- highlight groups of knots and edges in different colors
+
+- rename knots 
+
+- undo and redo
+
+- a note field for comments 
+
+
+Download
+========
+
+`plone.org products page`_
+
+.. _plone.org products page: http://plone.org/products/ecgraphbox/
+
+
+Prerequisites
+=============
+
+#. To use ECGraphBox you need a current Plone installation, 
+   specifically Plone 4.x.  Check `plone.org`_ for Plone's
+   prerequisites.
+
+#. The `ECAssignmentBox`_ product.
+
+#. Your Web browser needs to support HTML5 canvas and JavaScript.   
+
+.. _plone.org: http://plone.org/products/plone
+.. _ECAssignmentBox: http://plone.org/products/ecassignmentbox/
+
+
+Installation
+============
+
+See the `Installing an Add-on Product`_ tutorial for more detailed 
+product installation instructions.
+        
+.. _Installing an Add-on Product: http://plone.org/documentation/tutorial/third-party-products/installing
+
+
+Installing with buildout
+------------------------
+
+If you are using `buildout`_ to manage your instance installing 
+ECGraphBox is very simple.  You can install it by adding it 
+to the eggs line for your instance::
+
+  [instance]
+  eggs =
+      ... 
+      Products.ECGraphBox
+
+After updating the configuration you need to run ``bin/buildout``, 
+which will take care of updating your system.
+
+Then restart your zope instance and use the Add/Remove products page
+in Site Setup to install ECGraphBox.
+
+.. _buildout: http://pypi.python.org/pypi/zc.buildout
+
+
+Installing without buildout
+---------------------------
+
+Move (or symlink) the ``ECGraphBox`` folder of this project
+(``Products.ECGraphBox/Products/ECGraphBox``) into 
+the ``Products`` directory of the Zope instance it has to be installed 
+for, and restart the server.  Use the Add/Remove products page in 
+Site Setup to install ECGraphBox.
+
+
+Support
+=======
+
+For questions and discussions about ECGraphBox, please join the
+`eduComponents mailing list`_.
+
+.. _eduComponents mailing list: https://listserv.uni-magdeburg.de/mailman/listinfo/educomponents
+
+
+Credits
+=======
+
+ECGraphBox was written by `Gino Gulamhussene`_ and 
+`Fabian Fett`_.
+
+.. _Gino Gulamhussene: ginogulamhussene@gmx.de
+.. _Fabian Fett: fett@st.ovgu.de
+

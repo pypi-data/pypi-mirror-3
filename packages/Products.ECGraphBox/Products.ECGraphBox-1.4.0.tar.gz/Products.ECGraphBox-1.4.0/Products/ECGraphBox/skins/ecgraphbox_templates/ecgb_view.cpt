@@ -1,0 +1,1002 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+                      "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      lang="en" xml:lang="en"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="eduComponents">
+  
+  <body>
+    <metal:block fill-slot="css_slot">
+      <style type="text/css" media="screen" 
+             tal:content="string: @import url($portal_url/ecabstyles.css);" />
+    </metal:block>
+
+    <metal:main fill-slot="main">
+      <tal:main-macro metal:define-macro="main"
+          tal:define="template_id   template/getId;
+                      member        context/@@plone_portal_state/member;
+                      user_id       python: member.getId();
+                      wtool         context/portal_workflow;
+                      item_wf_state here/review_state | python: wtool.getInfoFor(here, 'review_state', '');
+                      hasExpired    here/hasExpired;
+                      isEffective   here/isEffective;
+                      isPublished   python: item_wf_state == 'published';
+                      isOwner       python: user.has_role(['Owner', 'Reviewer', 'Manager'], here);
+                      canSupersed   python: here.canSupersed();
+                      canRetry      python: here.canRetry();
+		              tries_left    python: here.getMaxTries() - here.getTries();
+		              reference     python: here.getReference();
+                      needRegistration python: (hasattr(here, 'associatedGroup') and (here.getAssociatedGroup() != ''));
+                      canParticipate python: (needRegistration and here.isParticipant(user_id)) or (not needRegistration);">
+                      
+        <!-- debug -->
+        <!--
+        <div tal:content="string:hasExpired:$hasExpired" />
+        <div tal:content="string:isEffective:$isEffective" />
+        <div tal:content="string:isPublished:$isPublished" />
+        <div tal:content="string:isOwner:$isOwner" />
+        <div tal:content="string:canSupersed:$canSupersed" />
+        <div tal:content="string:canRetry:$canRetry" />
+        <div tal:content="string:needRegistration:$needRegistration" />
+        <div tal:content="string:canParticipate:$canParticipate" />
+        -->
+        
+        <div tal:replace="structure provider:plone.documentactions" />
+      
+        <h1 class="documentFirstHeading">
+          <metal:field use-macro="python:here.widget('title', mode='view')" />
+        </h1>
+
+        <!--   
+        <div tal:replace="structure provider:plone.belowcontenttitle" />
+        -->
+ 
+        <div class="documentByLine"
+            tal:condition="python: here.submission_period_end and isEffective and not hasExpired">
+  
+          <span i18n:translate="submission_period_ends">
+            Submission period ends: 
+          </span>
+          <span tal:content="python: here.toLocalizedTime(here.getSubmission_period_end(), True)"/>
+        </div>
+
+        <div class="documentByLine"
+            tal:condition="python: here.submission_period_end and isEffective and hasExpired">
+
+          <span i18n:translate="submission_period_ended">
+            Submission period ended: 
+          </span>
+          <span tal:content="python: here.toLocalizedTime(here.getSubmission_period_end(), True)"/>
+        </div>
+
+        <div class="documentByLine"
+          tal:condition="python: isEffective and not hasExpired and here.getMaxTries()">
+          <span i18n:translate="tries_info">
+            You have <b i18n:name="count" tal:content="tries_left"/> attempts left.
+          </span>
+        </div>
+    
+        <a class="link-parent visualNoPrint"
+           href=""
+           tal:define="parent_url python:here.navigationParent(here, template_id)"
+           tal:condition="parent_url"
+           tal:attributes="href parent_url"
+           i18n:domain="plone"
+           i18n:translate="go_to_parent_url">
+          Up one level
+        </a>
+
+        <!-- show a collapsible box with the directions text from ecfolder -->
+        <dl class="collapsible inline collapsedOnLoad"
+            tal:define="parent nocall:here/aq_parent;"
+            tal:condition="python: hasattr(parent, 'directions') and parent.directions">
+
+          <dt class="collapsibleHeader"
+              i18n:translate="label_directions">
+            Directions
+          </dt>
+
+          <dd class="collapsibleContent">
+            <div tal:replace="structure parent/getDirections" />
+          </dd>
+
+        </dl>
+  
+        <p/>
+    
+        <div class="documentDescription" tal:condition="reference"
+             tal:content="structure reference/Description" />
+
+        <div class="documentDescription" tal:condition="not:reference">
+            <metal:field use-macro="python:here.widget('description', mode='view')">
+            Description
+            </metal:field>
+        </div>
+
+        <div class="field" tal:condition="reference">
+			<div tal:replace="structure reference/getAssignment_text" />
+        </div>
+        <div class="field" tal:condition="not:reference">
+            <metal:field use-macro="python:here.widget('assignment_text', mode='view')" />
+        </div>
+      
+        <a href="" 
+          tal:attributes="href string:${here/absolute_url}/downloadAnswerTemplate"
+          i18n:translate="label_download_answer_template"
+		  tal:condition="reference/getAnswerTemplate | here/getAnswerTemplate">
+          Download answer template
+        </a>
+      
+        <!-- <hr class="visualNoPrint" /> -->
+
+        <!-- input field and upload field -->
+
+
+<!-- canvas kram -->
+    <div class="field visualNoPrint">
+        <label for="answer" i18n:translate="label_submit_answer">Answer</label>
+        <div class="formHelp" i18n:translate="help_submit_graph">
+          Plot your graph for this assignment
+        </div>
+    </div>
+    
+	<div id="ecgb_tools">
+		<!-- Graph Settings -->
+		<div id="graphSettings" class="ecgb_toolbar" style="border-left: 0; padding-left: 10px;">
+			<div class="ecgb_toolbar_caption">
+				Graph
+			</div>
+			<div class="ecgb_button_div">
+				<button id="buttonDirected" title="directed"><img id="buttonDirectedImg" src="icons/directedEdge_normal.png" /></button>					
+			</div>
+			
+			<div class="ecgb_button_div">
+				<button id="buttonWeighted" title="weighted"><img id="buttonWeightedImg" src="icons/weightedEdge_normal.png" /></button>					
+			</div>
+		</div>
+	
+		<!-- Tools -->
+		<div id="toolBoxHolderDiv" class="ecgb_toolbar">
+			<div class="ecgb_toolbar_caption" i18n:translate="tools_head">
+				Tools
+			</div>	
+			
+			<div class="ecgb_button_div">
+				<button id="buttonMulti" title="Multitool" i18n:attributes="title;"><img id="buttonMultiImg" src="icons/tool_multi_selected.png" /></button>							
+			</div>
+			
+			<div class="ecgb_button_div">
+				<button id="buttonAddKnot" title="Add Knot" i18n:attributes="title;" type="button" onclick="changeToolByName(0,true);" title="Knoten hinzuf&uuml;gen"><img id="buttonAddKnotImg" src="icons/tool_addKnot_normal.png" /></button>					
+			</div>
+			
+			<div class="ecgb_button_div">
+				<button id="buttonAddEdge" title="Add Edge" i18n:attributes="title;" type="button" onclick="changeToolByName(1,true);" title="Kanten hinzuf&uuml;gen"><img id="buttonAddEdgeImg" src="icons/tool_addEdge_normal.png" /></button>
+			</div>
+			
+			<div class="ecgb_button_div">
+				<button id="buttonSelect" title="Select" i18n:attributes="title;"><img id="buttonSelectImg" src="icons/tool_select_normal.png" /></button>				
+				<div id="alternativSelect" style=" visibility:hidden">
+					<button id="buttonSelectPlus" title="Add to Selection" i18n:attributes="title;"><img id="buttonSelectPlusImg" src="icons/tool_selectplus_normal.png" /></button>
+					<button id="buttonSelectMinus" title="Remove from Selection" i18n:attributes="title;"><img id="buttonSelectMinusImg" src="icons/tool_selectminus_normal.png" /></button>
+				</div>
+			</div>
+		
+			<div class="ecgb_button_div">
+				<button id="buttonDrag" title="Drag" i18n:attributes="title;"><img id="buttonDragImg" src="icons/tool_drag_normal.png" /></button>					
+				<div id="alternativDrag" style=" visibility:hidden">
+					<button id="buttonMove" title="Move" i18n:attributes="title;"><img id="buttonMoveImg" src="icons/tool_move_normal.png" /></button>
+				</div>
+			</div>				
+		</div>
+		
+		<!-- Undo/Redo -->
+		<div id="toolBoxHolderDiv" class="ecgb_toolbar">
+			<div class="ecgb_toolbar_caption"  i18n:translate="undo_redo_head">
+				Undo/Redo
+			</div>	
+			<div class="ecgb_button_div">
+				<button id="pred" type="button" onclick="protPred()" title="Undo" i18n:attributes="title;"><img src="icons/tool_pred_normal.png" /></button>
+			</div>
+			
+			<div class="ecgb_button_div">
+				<button id="succ" type="button" onclick="protSucc()" title="Redo" i18n:attributes="title;"><img src="icons/tool_succ_normal.png" /></button>
+			</div>					
+		</div>					
+		
+		<!-- Node Settings -->
+		<div class="ecgb_toolbar">
+			<div class="ecgb_toolbar_caption" i18n:translate="node_settings">
+				Node Settings
+			</div>
+			<div id="nodeSettings" style="visibility: hidden;">
+				<div class="ecgb_input_div">
+					Name
+					<input class="ecgb_input" id="knotenNameTextfeld" type="text" name="knot_name" value="knotName" maxlength="6" onkeydown="getKeyCode(e)" />
+					<div style="clear: both;"></div>
+				</div>
+				<div class="ecgb_input_div">
+					<span  i18n:translate="settings_color">Color</span>
+					<div class="ecgb_color_picker">
+						<button class="color_button" id="knotWhite" 	onclick="writeToProtocol(); graph.changeKnotColorBySelection('#FFFFFF'); update();"></button>
+						<button class="color_button" id="knotGrey" 		onclick="writeToProtocol(); graph.changeKnotColorBySelection('#d5d5d5'); update();"></button>
+						<button class="color_button" id="knotYellow"	onclick="writeToProtocol(); graph.changeKnotColorBySelection('#fbff96'); update();"></button>
+						<button class="color_button" id="knotGreen" 	onclick="writeToProtocol(); graph.changeKnotColorBySelection('#bbff96'); update();"></button>
+						<button class="color_button" id="knotBlue" 		onclick="writeToProtocol(); graph.changeKnotColorBySelection('#4393dd'); update();"></button>
+						<button class="color_button" id="knotPurple" 	onclick="writeToProtocol(); graph.changeKnotColorBySelection('#eb9dfe'); update();"></button>
+						<button class="color_button" id="knotRed" 		onclick="writeToProtocol(); graph.changeKnotColorBySelection('#fb5555'); update();"></button>
+					</div> 
+					<div style="clear: both;"></div>
+				</div>
+				<div class="ecgb_input_div">
+					<span  i18n:translate="settings_own_color">Own Color</span>
+					<input class="ecgb_input" id="knotenFarbeTextfeld" type="text" name="knot_color" value="ffffff" maxlength="6" onkeydown="getKeyCode(e)" />					
+					<div style="clear: both;"></div>
+				</div>
+				<!-- 
+				<div class="ecgb_input_div">
+					Radius	
+						<input class="ecgb_input" id="knotenGroeßeTextfeld" type="text" name="knot_radius" value="knotRadius" maxlength="100" onkeydown="getKeyCode(e)" />
+						<div style="clear: both;"></div>
+					 		
+				</div>
+				-->
+			</div>
+		</div>
+		
+		<!-- Edge Settings -->
+		<div class="ecgb_toolbar">
+			<div class="ecgb_toolbar_caption" i18n:translate="edge_settings">
+				Edge Settings
+			</div>	
+			
+			<div id="edgeSettings" style="visibility: hidden;">
+				<div class="ecgb_input_div" id="edgeWeightSetter" style="overflow: hidden; width: 0px;">
+					<span  i18n:translate="settings_weight">Weight</span>
+					<input class="ecgb_input" id="kantenGewichtTextfeld" type="text" name="edge_weight" value="0" maxlength="5" onkeydown="getKeyCode(e)" />
+				</div>
+				
+				<div class="ecgb_input_div">
+					<span  i18n:translate="settings_color">Color</span>
+					<div class="ecgb_color_picker">
+						<button class="color_button" id="edgeBlack" 	onclick="writeToProtocol(); graph.changeEdgeColorBySelection('#000'); update();"></button>
+						<button class="color_button" id="edgeGrey" 		onclick="writeToProtocol(); graph.changeEdgeColorBySelection('#909090'); update();"></button>
+						<button class="color_button" id="edgeYellow" 	onclick="writeToProtocol(); graph.changeEdgeColorBySelection('#b8bf00'); update();"></button>
+						<button class="color_button" id="edgeGreen" 	onclick="writeToProtocol(); graph.changeEdgeColorBySelection('#339000'); update();"></button>
+						<button class="color_button" id="edgeBlue"	 	onclick="writeToProtocol(); graph.changeEdgeColorBySelection('#295985'); update();"></button>
+						<button class="color_button" id="edgePurple" 	onclick="writeToProtocol(); graph.changeEdgeColorBySelection('#8e00b1'); update();"></button>
+						<button class="color_button" id="edgeRed" 		onclick="writeToProtocol(); graph.changeEdgeColorBySelection('#b60000'); update();"></button>
+					</div> 
+					<div style="clear: both;"></div>
+				</div>
+				<div class="ecgb_input_div">
+					<span  i18n:translate="settings_own_color">Own Color</span>
+					<input class="ecgb_input" id="kantenFarbeTextfeld" type="text" name="edge_color" value="000000" maxlength="100" onkeydown="getKeyCode(e)" />					
+					<div style="clear: both;"></div>
+				</div>
+			</div>
+		</div>
+		
+		<div style="clear: both;"></div>
+	</div>
+	<canvas id="canvas"  width="913" height="600" oncontextmenu="return false;">
+		<div id="canvas_error">
+			Your browser does not support the HTML5 canvas object, which is required to create a Graph.
+			Please use on of the following browsers: Google Chrome, Mozilla Firefox, Opera, Safari
+		</div>
+	</canvas>
+	
+	<div class="field visualNoPrint">
+        <label for="answer" i18n:translate="label_submit_notes">Notes</label>
+        <div class="formHelp" i18n:translate="help_submit_notes">
+           Plot your notes for this assignment here
+        </div> 
+        <textarea id="ecgb_note" name='ecgb_note'></textarea>
+    </div>
+
+	
+	
+<!-- Formular original -->	
+	<form action=""
+            name="eca_add"
+            method="post"
+            enctype="multipart/form-data"
+            tal:attributes="action string:${here/absolute_url}/${template/getId}"
+            tal:condition="python: isOwner or (canParticipate and not hasExpired 
+                           and isEffective and canSupersed and canRetry and 
+                           isPublished)">
+  
+        <!-- text field -->
+        <div class="field visualNoPrint">
+            <textarea cols="30"
+              id="answer"
+              rows="15"
+              wrap="off"
+              name="answer"
+              style="display: none;"
+              tal:attributes="wrap python:('off', 'on')[here.getWrapAnswer()]"
+              tal:content="reference/getAnswerTemplate | here/getAnswerTemplate | nothing"></textarea>
+        </div>
+<!-- Formular original ende -->				
+		
+	<script>
+		//Für richtige anzeige wichtig.
+		$(document).ready(function(){var a=navigator.userAgent.toLowerCase();$.browser.chrome=/chrome/.test(navigator.userAgent.toLowerCase());if($.browser.msie){$('body').addClass('browserIE');$('body').addClass('browserIE'+$.browser.version.substring(0,1))}if($.browser.chrome){$('body').addClass('browserChrome');a=a.substring(a.indexOf('chrome/')+7);a=a.substring(0,1);$('body').addClass('browserChrome'+a);$.browser.safari=false}if($.browser.safari){$('body').addClass('browserSafari');a=a.substring(a.indexOf('version/')+8);a=a.substring(0,1);$('body').addClass('browserSafari'+a)}if($.browser.mozilla){if(navigator.userAgent.toLowerCase().indexOf('firefox')!=-1){$('body').addClass('browserFirefox');a=a.substring(a.indexOf('firefox/')+8);a=a.substring(0,1);$('body').addClass('browserFirefox'+a)}else{$('body').addClass('browserMozilla')}}if($.browser.opera){$('body').addClass('browserOpera')}});
+	
+		var canvas = document.getElementById('canvas');
+		var headDiv = document.getElementById('head');
+		var leftDiv = document.getElementById('left');
+		var rightDiv = document.getElementById('right');
+		
+		var canvaslayer = document.getElementById('canvasLayer');
+		var textfield_knotName = document.getElementById('knotenNameTextfeld');
+		var textfield_knotColor = document.getElementById('knotenFarbeTextfeld');
+		var textfield_edgeWeight = document.getElementById('kantenGewichtTextfeld');
+		var textfield_edgeColor = document.getElementById('kantenFarbeTextfeld');
+		var textarea = document.getElementById('answer');
+		var ecgb_noteTextarea = document.getElementById('ecgb_note');
+		var debugarea = document.getElementById('debug');
+		var toolBoxHolderDiv = document.getElementById('toolBoxHolderDiv');
+		var tx = toolBoxHolderDiv.style.left;
+		var ty = toolBoxHolderDiv.style.top;
+		var tw = toolBoxHolderDiv.style.width;
+		var th = toolBoxHolderDiv.style.height;
+
+		var nodeSettings = document.getElementById('nodeSettings');
+		var edgeSettings = document.getElementById('edgeSettings');
+		var graphSettings = document.getElementById('graphSettings');
+		var edgeWeightSetter = document.getElementById('edgeWeightSetter');
+
+		var buttonDirected = document.getElementById('buttonDirected');
+		var buttonDirectedImg = document.getElementById('buttonDirectedImg');
+
+		var buttonWeighted = document.getElementById('buttonWeighted');
+		var buttonWeightedImg = document.getElementById('buttonWeightedImg');
+		
+		var buttonSelect = document.getElementById('buttonSelect');
+		var buttonSelectImg = document.getElementById('buttonSelectImg');
+		var alternativSelect = document.getElementById('alternativSelect');
+		var buttonSelectPlus = document.getElementById('buttonSelectPlus');
+		var buttonSelectPlusImg = document.getElementById('buttonSelectPlusImg');
+		var buttonSelectMinus = document.getElementById('buttonSelectMinus');
+		var buttonSelectMinusImg = document.getElementById('buttonSelectMinusImg');
+
+		var buttonAddKnot = document.getElementById('buttonAddKnot');
+		var buttonAddKnotImg = document.getElementById('buttonAddKnotImg');
+		var buttonAddEdge = document.getElementById('buttonAddEdge');
+		var buttonAddEdgeImg = document.getElementById('buttonAddEdgeImg');
+		
+		var buttonDrag = document.getElementById('buttonDrag');
+		var buttonDragImg = document.getElementById('buttonDragImg');
+		var alternativDrag = document.getElementById('alternativDrag');
+		var buttonMove = document.getElementById('buttonMove');
+		var buttonMoveImg = document.getElementById('buttonMoveImg');
+
+		var buttonMulti = document.getElementById('buttonMulti');
+		var buttonMultiImg = document.getElementById('buttonMultiImg');
+		
+		
+		var mouseX;
+		var mouseY;
+		var absX;
+		var absY;
+		var dx = 0;
+		var dy = 0;
+		var mouseDown = false;
+		var toolboxdrag = false;
+		var holdTime = 0;
+
+		init(false);
+
+
+
+
+
+		//-----------------------------------------------------test dropdownbutton begin
+		
+		function deselectToolButtons(){
+			buttonAddKnotImg.src = "icons/tool_addKnot_normal.png";
+			buttonAddEdgeImg.src = "icons/tool_addEdge_normal.png";
+			buttonSelectImg.src = "icons/tool_select_normal.png";
+			buttonSelectPlusImg.src = "icons/tool_selectplus_normal.png";
+			buttonSelectMinusImg.src = "icons/tool_selectminus_normal.png";
+			buttonDragImg.src = "icons/tool_drag_normal.png";
+			buttonMoveImg.src = "icons/tool_move_normal.png";
+			buttonMultiImg.src = "icons/tool_multi_normal.png";
+			alternativDrag.style.visibility = 'hidden';
+			alternativSelect.style.visibility = 'hidden';
+			
+		}
+		
+		buttonDirected.onclick = function(e){
+			if(graphIsDirected == false){
+				graph.setDirected(true);
+				graphIsDirected = true;
+				buttonDirectedImg.src = "icons/directedEdge_selected.png";
+			}
+			else{
+				graph.setDirected(false);
+				graphIsDirected = false;
+				buttonDirectedImg.src = "icons/directedEdge_normal.png";
+			}
+			update();
+		};
+		
+
+		
+
+		//##############################################ä
+		
+		
+		buttonWeighted.onclick = function(e){
+			if(graphIsWeighted == false){
+				graph.setWeighted(true);
+				graphIsWeighted = true;
+				buttonWeightedImg.src = "icons/weightedEdge_selected.png";
+			//	edgeWeightSetter.style.visibility = 'visible';
+				edgeWeightSetter.style.width = '180px';
+				
+			}
+			else{
+				graph.setWeighted(false);
+				graphIsWeighted = false;
+				buttonWeightedImg.src = "icons/weightedEdge_normal.png";
+				//edgeWeightSetter.style.visibility = 'collapse';
+				edgeWeightSetter.style.width = 0;
+			}
+			update();
+		};
+
+
+		//##############################################ä
+		
+	
+		
+		buttonSelect.onclick = function(e){
+				changeToolByName(2,true);
+				deselectToolButtons();
+				buttonSelectImg.src = "icons/tool_select_selected.png";
+		};			
+		
+		buttonSelect.onmouseup = function(e){
+			changeToolByName(2,true);
+			alternativSelect.style.visibility = 'hidden';
+		};
+		
+		buttonSelect.oncontextmenu = function(e){
+			changeToolByName(2,true);
+			deselectToolButtons();
+			buttonSelectImg.src = "icons/tool_select_selected.png";
+			alternativSelect.style.visibility = 'visible';
+			return false;
+		};
+		
+		buttonSelectPlus.onmouseup = function(e){
+			changeToolByName(9,true);
+			deselectToolButtons();
+			buttonSelectPlusImg.src = "icons/tool_selectplus_selected.png";
+			alternativSelect.style.visibility = 'visible';
+		};
+
+		
+		buttonSelectMinus.onmouseup = function(e){
+			changeToolByName(10,true);
+			deselectToolButtons();
+			buttonSelectMinusImg.src = "icons/tool_selectminus_selected.png";
+			alternativSelect.style.visibility = 'visible';
+		};	
+				
+		//##############################################ä
+
+		buttonAddKnot.onclick= function(e){
+			changeToolByName(0,true);
+			deselectToolButtons();
+			buttonAddKnotImg.src = "icons/tool_addKnot_selected.png";
+		};			
+
+		buttonAddKnot.onmouseup = function(e){
+			changeToolByName(0,true);
+		};			
+
+		buttonAddKnot.oncontextmenu = function(e){
+			changeToolByName(0,true);
+			deselectToolButtons();
+			buttonAddKnotImg.src = "icons/tool_addKnot_selected.png";
+			return false;
+		};
+		
+		buttonAddEdge.onmouseup = function(e){
+			changeToolByName(1,true);
+			deselectToolButtons();
+			buttonAddEdgeImg.src = "icons/tool_addEdge_selected.png";
+		};
+
+		document.oncontextmenu = function(e){
+			return false;
+		};	
+		//##############################################ä
+
+		
+		buttonDrag.onclick = function(e){
+			changeToolByName(4,true);			
+			deselectToolButtons();
+			buttonDragImg.src = "icons/tool_drag_selected.png";		
+		};			
+
+		buttonDrag.onmouseup = function(e){
+			changeToolByName(4,true);
+			alternativDrag.style.visibility = 'hidden';
+		};
+		
+		buttonDrag.oncontextmenu = function(e){
+			changeToolByName(4,true);			
+			deselectToolButtons();
+			buttonDragImg.src = "icons/tool_drag_selected.png";	
+			alternativDrag.style.visibility = 'visible';
+		};				
+		
+		buttonMove.onmouseup = function(e){
+			changeToolByName(3,true);
+			deselectToolButtons();
+			buttonMoveImg.src = "icons/tool_move_selected.png";
+			alternativDrag.style.visibility = 'visible';
+		};
+
+
+		//##############################################ä
+
+		buttonMulti.onclick = function(e){
+			changeToolByName(11,true);
+			deselectToolButtons();
+			buttonMultiImg.src = "icons/tool_multi_selected.png";
+		};			
+		
+		buttonMulti.oncontextmenu= function(e){
+			changeToolByName(11,true);
+			deselectToolButtons();
+			buttonMultiImg.src = "icons/tool_multi_selected.png";
+		};
+		//-----------------------------------------------------test dropdownbutton end
+
+
+
+
+
+		
+		//---------------------------- xml parsen begin	
+		text = textarea.value;
+		if(text != undefined){
+			xmlDoc = loadXMLString(text);
+		};	
+
+		//-----------------------------xml parsen end
+		toolBoxHolderDiv.onmousedown = function(e){
+			toolboxdrag = true;
+		};
+		
+		document.onmousedown = function(e){
+			absX = e.pageX; 
+			absY = e.pageY; 
+			mouseDown = true;
+		};	
+
+		document.onmouseup = function(e){
+			mouseDown = false;
+			toolboxdrag = false;
+		};	
+		
+		document.onmousemove = function(e){
+			if(mouseDown){
+				dx = e.pageX - absX;
+				dy = e.pageY - absY;
+
+				absX = e.pageX;
+				absY = e.pageY;
+			
+				
+				/*
+				if(toolboxdrag){
+					toolbox.x += dx;
+					toolbox.y += dy;
+					
+					toolBoxHolderDiv.style.left = toolbox.x;
+					toolBoxHolderDiv.style.top = toolbox.y;	
+				}*/		
+			//	debugarea.childNodes[0].nodeValue = "toolbox.x: " + toolbox.x + "; toolbox.y: " + toolbox.y;
+			//	debugarea.childNodes[0].nodeValue = "absX: " + absX + "; absY: " + absY + " dx: " + dx + "; dy: " + dy;	
+			}
+		};
+
+		//####################################################################################
+		//canvas BEGIN
+		//####################################################################################
+		
+		canvas.onmousedown = function(e){
+			mouseDown = true;
+		/*	mouseX = getRelativXPos(e);
+			mouseY = getRelativYPos(e);
+			if(mouseX == undefined){
+				mouseX = 0;					
+			}
+			if(mouseY == undefined){
+				mouseY = 0;
+			}
+			onMouseDown(mouseX, mouseY);*/
+
+			var obj = canvas;
+		    var obj_left = 0;
+		    var obj_top = 0;
+		    
+		    while (obj.offsetParent)
+		    {
+		        obj_left += obj.offsetLeft;
+		        obj_top += obj.offsetTop;
+		        obj = obj.offsetParent;
+		    }
+		    
+		    if (e)
+		    {
+		        //FireFox
+		        mouseX = e.pageX;
+		        mouseY = e.pageY;
+		    }
+		    
+		    mouseX -= obj_left;
+		    mouseY -= obj_top;
+			onMouseDown(mouseX, mouseY);
+		};
+	
+		
+		canvas.ondblclick = function(e){
+		/*	mouseX = getRelativXPos(e);
+			mouseY = getRelativYPos(e);
+			if(mouseX == undefined){
+				mouseX = 0;					
+			}
+			if(mouseY == undefined){
+				mouseY = 0;
+			}*/
+			
+			var obj = canvas;
+		    var obj_left = 0;
+		    var obj_top = 0;
+		    
+		    while (obj.offsetParent)
+		    {
+		        obj_left += obj.offsetLeft;
+		        obj_top += obj.offsetTop;
+		        obj = obj.offsetParent;
+		    }
+		    
+		    if (e)
+		    {
+		        //FireFox
+		        mouseX = e.pageX;
+		        mouseY = e.pageY;
+		    }
+		    
+		    mouseX -= obj_left;
+		    mouseY -= obj_top;
+			onDblClick(mouseX, mouseY);
+		};	
+
+		canvas.onmousemove = function(e){			
+		/*	if(getRelativXPos(e) == undefined){
+				dx = 0 - mouseX;	
+				mouseX = 0;
+			} else {
+				dx = getRelativXPos(e) - mouseX;
+				mouseX = getRelativXPos(e);	
+			}
+			if(getRelativYPos(e) == undefined){
+				dy = 0 - mouseY;
+				mouseY = 0;
+			} else {
+				dy = getRelativYPos(e) - mouseY;
+				mouseY = getRelativYPos(e);
+			}	*/
+
+			var obj = canvas;
+		    var obj_left = 0;
+		    var obj_top = 0;
+		    
+		    while (obj.offsetParent)
+		    {
+		        obj_left += obj.offsetLeft;
+		        obj_top += obj.offsetTop;
+		        obj = obj.offsetParent;
+		    }
+		    
+		    if (e)
+		    {
+		        //FireFox
+		        var newMouseX = e.pageX;
+		        var newMouseY = e.pageY;
+		    }
+		    
+		    newMouseX -= obj_left;
+		    newMouseY -= obj_top;
+		    
+			dx 		= newMouseX - mouseX;
+			mouseX 	= newMouseX;
+			
+			dy 		= newMouseY - mouseY;
+			mouseY 	= newMouseY;
+			
+			if(mouseDown){
+				onDrag(mouseX, mouseY, dx, dy, e);
+			} else {					
+				onMouseMove(mouseX, mouseY, dx, dy);
+			}
+		};
+
+		canvas.onmouseup = function(e){
+			/*mouseX = getRelativXPos(e);
+			mouseY = getRelativYPos(e);	
+			if(mouseX == undefined){
+			mouseX = 0;					
+			}
+			if(mouseY == undefined){
+				mouseY = 0;
+			}	
+				*/
+
+			var obj = canvas;
+		    var obj_left = 0;
+		    var obj_top = 0;
+		    
+		    while (obj.offsetParent)
+		    {
+		        obj_left += obj.offsetLeft;
+		        obj_top += obj.offsetTop;
+		        obj = obj.offsetParent;
+		    }
+		    
+		    if (e)
+		    {
+		        //FireFox
+		        mouseX = e.pageX;
+		        mouseY = e.pageY;
+		    }
+		    
+		    mouseX -= obj_left;
+		    mouseY -= obj_top;
+			mouseDown = false;
+			onMouseUp(mouseX,mouseY);
+		};
+
+
+		//####################################################################################
+		//canvas END
+		//####################################################################################
+
+		document.onkeydown = function(event) {
+			var evt = event || window.event;
+			keyDown(evt);
+		};
+		 
+		document.onkeyup = function(event) {
+			var evt = event || window.event;
+			keyUp(evt);
+		};
+		
+		//KnotName
+		textfield_knotName.onfocus = function(event) {
+			textFieldHasFocus = true;
+		}; 
+
+		textfield_knotName.onblur = function(event) {
+			textFieldHasFocus = false;
+		}; 
+		
+		textfield_knotName.onkeyup = function(event) {
+			var evt = event || window.event;
+			writeToProtocol(); 
+			graph.changeKnotNameBySelection(textfield_knotName.value);
+		}; 
+
+		//KnotColor
+		textfield_knotColor.onfocus = function(event) {
+			textFieldHasFocus = true;
+		}; 
+
+		textfield_knotColor.onblur = function(event) {
+			textFieldHasFocus = false;
+		}; 
+		
+		textfield_knotColor.onkeyup = function(event) {
+			var evt = event || window.event;
+			if(evt.keyCode == 13){
+				var pred1 = textfield_knotColor.value.length == 6;
+				var pred2 = true;
+				if(pred1){
+					var c = 0;
+					while(c < textfield_knotColor.value.length && pred2){
+						var t = textfield_knotColor.value.charAt(c);
+						if(!(((t >= '0') && (t <= '9')) || ((t >= 'A') && (t <= 'F')) || ((t >= 'a') && (t <= 'f')))){
+							pred2 = false;
+						}
+						c++;
+					}
+					if(pred2){
+						writeToProtocol(); 
+						graph.changeKnotColorBySelection(textfield_knotColor.value);
+					} else {
+						alert('Fehler in der Eingabe (Zeichen:' + t + ' an der Stelle:' + c + ') Sie m�ssen eine Hex-Zahl der Form FFFFFF eingeben');
+					}
+				} else {
+					alert('Sie m�ssen eine Hex-Zahl der Form FFFFFF eingeben');
+				}
+			}
+		};
+
+		//KnotRadius
+	/*	textfield_knotRadius.onfocus = function(event) {
+			textFieldHasFocus = true;
+		} 
+
+		textfield_knotRadius.onblur = function(event) {
+			textFieldHasFocus = false;
+		} 
+		
+		textfield_knotRadius.onkeyup = function(event) {
+			var evt = event || window.event;
+			graph.changeKnotRadiusBySelection(textfield_knotRadius.value);	
+			writeToProtocol(); 
+		} */
+
+		//EdgeWeight
+		textfield_edgeWeight.onfocus = function(event) {
+			textFieldHasFocus = true;
+		}; 
+
+		textfield_edgeWeight.onblur = function(event) {
+			textFieldHasFocus = false;
+		}; 
+		
+		textfield_edgeWeight.onkeyup = function(event) {
+			var evt = event || window.event;
+			writeToProtocol(); 
+			graph.changeEdgeWeightBySelection(textfield_edgeWeight.value);
+		}; 
+
+
+		//EdgeColor
+		textfield_edgeColor.onfocus = function(event) {
+			textFieldHasFocus = true;
+		};
+
+		textfield_edgeColor.onblur = function(event) {
+			textFieldHasFocus = false;
+		}; 
+				
+		textfield_edgeColor.onkeyup = function(event) {
+			var evt = event || window.event;
+			if(evt.keyCode == 13){	
+				var pred1 = textfield_edgeColor.value.length == 6;
+				var pred2 = true;
+				if(pred1){
+					var c = 0;
+					while(c < textfield_edgeColor.value.length && pred2){
+						var t = textfield_edgeColor.value.charAt(c);
+						if(!(((t >= '0') && (t <= '9')) || ((t >= 'A') && (t <= 'F')) || ((t >= 'a') && (t <= 'f')))){
+							pred2 = false;
+						}
+						c++;
+					}
+					if(pred2){
+						writeToProtocol(); 
+						graph.changeEdgeColorBySelection(textfield_edgeColor.value);
+					} else {
+						alert('Fehler in der Eingabe (Zeichen:' + t + ' an der Stelle:' + c + ') Sie m�ssen eine Hex-Zahl der Form FFFFFF eingeben');
+					}
+				} else {
+					alert('Sie m�ssen eine Hex-Zahl der Form FFFFFF eingeben');
+				}
+			}
+		}; 
+		
+		getRelativXPos = function(e){			
+		   if(e.offsetX) {
+		        return e.offsetX;
+		    }
+		    else if(e.layerX) {
+			    return e.layerX;
+			}
+		};
+
+		getRelativYPos = function(e){			
+		   if(e.offsetY) {
+		        return e.offsetY;
+		    }
+		    else if(e.layerY) {
+			    return e.layerY;
+			}
+		};
+	</script>
+  
+  
+  
+<!-- canvas ende -->  
+        <!-- upload file button -->
+         <!--
+         <div class="field visualNoPrint">
+           <label for="file" i18n:translate="upload_file_label">File</label>
+           <div class="formHelp" i18n:translate="help_upload_file">
+             or upload a file (existing content will be replaced).
+           </div>
+           <input type="file"
+             name="file"
+             size="25" />
+         </div>
+         -->
+  
+         <!-- submit button -->
+         <div class="formControls visualNoPrint">
+           <input class="context"
+               type="submit"
+               onclick="ecgb_submit();"
+               name="form.button.Submit"
+               value="Submit"
+               i18n:domain="plone"
+               i18n:attributes="value" />
+  
+           <input class="standalone"
+               type="submit"
+               name="form.button.Cancel"
+               i18n:domain="plone"
+               value="Cancel"
+               i18n:attributes="value" />
+          </div>
+  
+          <!-- hidden fields -->
+          <!-- 
+          <input type="hidden" name="user_id" tal:attributes="value user_id"/>          
+          -->
+          <input type="hidden" name="form.submitted" value="1" />
+        </form>
+      
+        <div class="field visualNoPrint">
+          <i tal:condition="python: not canParticipate"
+             i18n:translate="submission_cannot_participate">
+            Submission not permitted: You are not enrolled in this course.
+          </i>
+        </div> 
+           
+        <div class="field visualNoPrint">
+          <i tal:condition="python: not isPublished or not isEffective"
+             i18n:translate="submission_period_not_effective">
+            Submissions are not yet allowed.</i>
+
+          <i tal:condition="python: isPublished and hasExpired"
+             i18n:translate="submission_period_expired">
+            The submission period has expired.</i>
+        
+          <i tal:condition="python: isPublished and (not hasExpired) and (not canSupersed)"
+             i18n:translate="submission_cannot_resubmit">
+            Submission not permitted: An earlier submission is under review or has already been accepted.</i>
+
+          <i tal:condition="python: isPublished and (not hasExpired) and canSupersed and not canRetry"
+             i18n:translate="submission_max_tries_reached">
+            Submission not permitted: You have reached the maximum number of attempts.</i>
+        </div>
+  
+        <div tal:replace="structure provider:plone.belowcontenttitle" />
+
+      </tal:main-macro>
+    </metal:main>
+  </body>
+</html>
+<!-- Keep this comment at the end of the file
+Local variables:
+mode:xml
+sgml-local-catalogs:("/usr/local/lib/sgml/XHTML11.cat")
+sgml-validate-command:"xmllint \\-\\-valid \\-\\-noout %s %s"
+sgml-indent-step:2
+sgml-indent-data:t
+fill-column:79
+End:
+-->
