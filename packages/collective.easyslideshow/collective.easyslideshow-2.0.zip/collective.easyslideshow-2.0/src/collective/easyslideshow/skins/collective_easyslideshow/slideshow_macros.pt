@@ -1,0 +1,97 @@
+<html xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal">
+<body>
+
+<metal:ad define-macro="slideshow"
+          tal:define="view context/@@easyslideshow_view;
+                      slideshowfolderid slideshowfolderid|string:slideshow-folder;
+                      props view/getSlideshowAllProperties;
+                      pause python:props['pause_hover'] and '1' or '0';
+                      slideHeight python:props['slideshow_height'];
+                      slideWidth python:props['slideshow_width'];
+                      navDisplay python:props['display_nav'];
+                      random python:props['random_order'];
+                      images python:view.getImages(slideshowfolderid, randomize=random);">
+  <tal:cond tal:condition="images">
+  
+    <tal:block tal:replace='structure string:&lt;script type="text/javascript" charset="utf-8"&gt;'></tal:block>
+      <tal:translate i18n:translate="">
+      var jq = jQuery;
+      jq(document).ready(function(){
+            jq('#slideshow').cycle({
+                fx: '<span tal:replace="python:props['transition']" />',
+                pause: <span tal:replace="pause" />,
+                timeout: <span tal:replace="python:props['slide_timeout']" />,
+                speed: <span tal:replace="python:props['transition_speed']" />,
+                pager:  '#navNumbers',
+                next: '#next',
+                prev: '#prev'
+                <tal:thumbs condition="python:navDisplay == 'Thumbnails'">
+                ,pagerAnchorBuilder: function(idx, slide) { 
+                    // return selector string for existing anchor 
+                    return '#navNumbers a:eq(' + idx + ')'; 
+                }
+                </tal:thumbs>
+            });
+            
+            slidewidth = <span tal:replace="slideWidth" />;
+            slideheight = <span tal:replace="slideHeight" />;
+            
+            jq("#slideshow .imageCaption").css({"width":slidewidth, "margin-top":slideheight-75});
+        });
+      </tal:translate>
+    <tal:block tal:replace='structure string:&lt;/script&gt;'></tal:block>
+  
+    <div id="nav" tal:condition="python:navDisplay == 'Numbers'"
+         tal:attributes="style python:'width:%spx' %(slideWidth)">
+        <a id="prev" href="#">&laquo;</a>
+        <span id="navNumbers"></span>
+        <a id="next" href="#">&raquo;</a>
+    </div>
+  
+    <div id="slideshow" class="pics"
+         tal:attributes="style python:('width:%spx;;height:%spx'%(slideWidth,slideHeight))"> 
+        <tal:rep repeat="image images">
+          <div class="slideContainer"
+               tal:attributes="style python:('width:%spx;;height:%spx'%(slideWidth,slideHeight))">
+              <tal:def define="title image/Title;
+                               description image/Description;
+                               url image/getURL;
+                               link_path image/getRelatedLink">
+                <div class="imageCaption" tal:condition="python:props['display_caption']" i18n:translate="">
+                    <span class="imageTitle" tal:content="title" i18n:name="slide_title" />
+                    <span class="imageDescrip" tal:content="description" i18n:name="slide_description" />
+                </div>
+                <a tal:attributes="href string:${context/portal_url}/$link_path"
+                   tal:omit-tag="not:link_path">
+                    <img tal:define="obj image/getObject;
+                                     scales obj/@@images; 
+                                     preview python:scales.scale('image', width=int(slideWidth), height=int(slideHeight))"
+                         tal:attributes="src preview/url; 
+                                         alt title" />
+                    
+                </a>
+              </tal:def>
+          </div>
+        </tal:rep>
+    </div>
+    
+    <div id="nav" class="thumbnails"
+         tal:condition="python:navDisplay == 'Thumbnails'"
+         tal:attributes="style python:'width:%spx' %(slideWidth)">
+        <a id="prev" href="#">&laquo;</a>
+        <span id="navNumbers">
+            <a href="#" tal:repeat="image images">
+                <img tal:define="obj image/getObject;
+                                 scales obj/@@images; 
+                                 preview python:scales.scale('image', width=50, height=50, direction='down')"
+                     tal:attributes="src preview/url" />
+            </a>
+        </span>
+        <a id="next" href="#">&raquo;</a>
+    </div>
+    
+  </tal:cond>
+</metal:ad>
+</body>
+</html>
