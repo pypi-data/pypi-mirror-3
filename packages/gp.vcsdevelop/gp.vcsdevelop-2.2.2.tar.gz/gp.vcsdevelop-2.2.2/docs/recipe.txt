@@ -1,0 +1,168 @@
+What is gp.vcsdevelop ?
+=======================
+
+This package allow you to checkout some package and use them as developed
+eggs with ``zc.buildout``.
+
+Available options
+=================
+
+- `develop-dir`: a directory to checkout packages in
+
+- `vcs-extend-develop`: A list of vcs url. See `pip
+  <http://pip.openplans.org/#requirements-files>`_'s editable parameter.
+  Available schemes are ssh, svn, git, hg, bzr, sftp.
+
+- `vcs-update`:
+  
+  If ``true`` on every run buildout try updating
+  egg. As example for hg+https run hg pull -u
+
+  If ``always`` then remove existing code from filesystem and get a fresh checkout
+
+- `requirements`:
+
+  A path to a pip requirement file.
+
+Usage
+=====
+
+Basic usage
+-----------
+
+Use this package as a ``zc.buildout`` extension and provide
+some vcs urls in the ``vcs-extend-develop`` option::
+
+  >>> write('buildout.cfg','''
+  ... [buildout]
+  ... extensions=gp.vcsdevelop
+  ... vcs-extend-develop=hg+https://gawel@bitbucket.org/ianb/pip/@tip#egg=pip
+  ... parts=
+  ... ''')
+
+Then if you run ``buildout``, the package will be checkout from the
+repository::
+
+  >>> print 'Start', system(buildout)
+  Start...
+  Cloning hg https://gawel@bitbucket.org/ianb/pip/ (to revision tip) to ./pip
+  Found command 'hg' at '...'
+  Develop: '/...buildout/pip'
+  ...
+
+Packages can be found in the ``develop-dir`` (default to .). You can override this::
+
+  >>> write('buildout.cfg','''
+  ... [buildout]
+  ... extensions=gp.vcsdevelop
+  ... develop-dir=./src
+  ... vcs-extend-develop=hg+https://gawel@bitbucket.org/ianb/pip/@tip#egg=pip
+  ... parts=
+  ... ''')
+
+  >>> print 'Start', system(buildout)
+  Start...
+  Cloning hg https://gawel@bitbucket.org/ianb/pip/ (to revision tip) to ./src/pip
+  Found command 'hg' at '...'
+  Develop: '/...buildout/./src/pip'
+  ...
+
+Non-python packages
+-------------------
+
+You can also checkout non-python packages but you'll get a warning::
+
+  >>> write('buildout.cfg','''
+  ... [buildout]
+  ... extensions=gp.vcsdevelop
+  ... develop-dir=./src
+  ... vcs-extend-develop=git+git://github.com/benoitc/couchbeam.git#egg=couchbeam
+  ... parts=
+  ... ''')
+
+  >>> print 'Start', system(buildout).strip()
+  Start...
+  Cloning git://github.com/benoitc/couchbeam.git to ./src/couchbeam
+  Found command 'git' at '...'
+  Warning: ./src/couchbeam is not a python package
+  
+Git submodules
+--------------
+
+``gp.vcsdevelop`` is aware of Git's submodules at the first level::
+
+  >>> write('buildout.cfg','''
+  ... [buildout]
+  ... extensions=gp.vcsdevelop
+  ... develop-dir=./src
+  ... vcs-extend-develop=git+git://github.com/bearstech/PloneTerminal.git#egg=PloneTerminal
+  ... parts=
+  ... ''')
+
+  >>> print 'Start', system(buildout).strip()
+  Start...
+  Cloning git://github.com/bearstech/PloneTerminal.git to ./src/PloneTerminal
+  Found command 'git' at '...'
+  Submodule 'jquery.terminal' (git://github.com/jcubic/jquery.terminal.git) registered for path 'ploneterminal/statics/jquery.terminal'
+  <BLANKLINE>
+  Cloning into ploneterminal/statics/jquery.terminal...
+  Submodule path 'ploneterminal/statics/jquery.terminal': checked out '...'
+  <BLANKLINE>
+  Develop: '/...buildout/./src/PloneTerminal'
+  ...
+  
+  >>> ls('src', 'PloneTerminal', 'ploneterminal', 'statics', 'jquery.terminal')
+  d  .git
+  -  CHANGELOG
+  -  README
+  d  css
+  d  examples
+  d  js
+  d  trypython
+
+pip requirements file
+---------------------
+
+``gp.vcsdevelop`` can take care of your requirements file. All packages names
+contained by the requirements file can be found in a var named
+``${buildout:requirements-eggs}``::
+
+  >>> write('buildout.cfg','''
+  ... [buildout]
+  ... extensions=gp.vcsdevelop
+  ... develop-dir=./requirements
+  ... requirements = requirements.txt
+  ... parts= eggs
+  ...
+  ... [eggs]
+  ... recipe = zc.recipe.egg
+  ... eggs = ${buildout:requirements-eggs}
+  ... interpreter = python
+  ... ''')
+
+  >>> write('requirements.txt', '''
+  ... ConfigObject>=1.0
+  ... -e git+git://github.com/bearstech/PloneTerminal.git#egg=PloneTerminal
+  ... ''')
+
+  >>> print 'Start', system(buildout).strip()
+  Start...
+  Cloning git://github.com/bearstech/PloneTerminal.git to ./requirements/PloneTerminal
+  Found command 'git' at '...'
+  ...
+  Develop: '/...buildout/./requirements/PloneTerminal'
+  ...
+  Generated interpreter '/...buildout/bin/python'.
+  
+  >>> print 'File', cat('bin', 'python')
+  File...
+  sys.path[0:0] = [
+      '.../ConfigObject-....egg',
+      '/...buildout/requirements/PloneTerminal',
+  ...
+
+Bugs
+====
+
+Use the `bitbucket <http://bitbucket.org/gawel/gpvcsdevelop/issues/?status=new>`_ tracker.
+
