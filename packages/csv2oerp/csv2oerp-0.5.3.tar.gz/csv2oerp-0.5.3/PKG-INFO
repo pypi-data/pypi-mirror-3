@@ -1,0 +1,127 @@
+Metadata-Version: 1.1
+Name: csv2oerp
+Version: 0.5.3
+Summary: Python CSV to OpenERP importation library
+Home-page: https://bitbucket.org/StefMangin/python-csv2oerp-0.5
+Author: Stéphane Mangin
+Author-email: stephane.mangin@freesbee.fr
+License: LGPLv3+
+Description: ********
+        csv2oerp
+        ********
+        
+        `csv2oerp` is a convenient library to import data from CSV format to an `OpenERP`
+        instance.
+        
+        `csv2oerp` is a simple and rapid method to perform an import. Through a
+        dictionary (`dict-mapping`) consisting of OpenERP fields bound to a column of
+        the csv file and includes a search option, you can easily ordered your data
+        before coding any lines as the manner of `OpenERP`.
+        The structure of this dictionary is simple and intuitive. You can perform
+        processing on a post-import field in particular, omit or modify it.
+        You can also according to criterias, skip a line or do not decide to create
+        an object being processed.
+        
+        Quick start
+        ===========
+        
+        Import csv2oerp and some callbacks::
+        
+            >>> from csv2oerp import Import
+            >>> from csv2oerp.fields import Column, Custom, Relation
+            >>> from csv2oerp.callbacks import get_id, get_ids
+        
+        Configure OpenERP connection::
+        
+            >>> host = '198.168.0.1'
+            >>> port = 8069
+            >>> dbname = 'database'
+            >>> user = 'admin'
+            >>> pwd = 'admin'
+            >>> csv2oerp.connect(host, port, user, pwd, dbname)
+        
+        Create a new importation instance::
+        
+            >>> example_file = Import()
+        
+        Set the CSV file to use::
+        
+            >>> example_file.set_input_file('example_file.csv', ',', '"', 'utf-8')
+        
+        Define a custom callback::
+        
+            >>> def country_code(self, model, field, value, line):
+            ...     """Return the first two uppered characters
+            ...     """
+            ...     return value[:2].upper()
+        
+        Define your mapping to link both csv and OpenERP::
+        
+            >>> example_file.set_mapping({
+        
+            ...     # Define a base model (Always in list form)
+            ...     'res.partner.address': [{
+            ... 
+            ...         # Custom field's value
+            ...         'type':         Custom('default', search=True),
+        
+            ...         # Concatenated columns fields
+            ...         'street':       Column([7, 6]),
+            ...         'street2':      Column([8, 5]),
+        
+            ...         # Simple fields
+            ...         'zip':          Column(9),
+            ...         'city':         Column(10),
+            ...         'cedex':        Column(68),
+            ...         'phone':        Column(14),
+            ...         'fax':          Column(15),
+            ...         'email':        Column(17),
+            
+            ...         # Model's relation with dynamic insertion from OpenERP database
+            ...         # Not native object from OpenERP framework
+            ...         'region_id':    Custom(11, get_id('res.region', 'name'))
+            ...         'dep_id':       Custom(12, get_id('res.dep', 'name'))
+        
+            ...         # Model's relations not updated if exists
+            ...         'country_id':   Relation('REL_res_partner_address,NO_UPDATE::res.country'),
+        
+            ...         # Model's relations with unique value between objects
+            ...         'partner_id':   Relation('REL_res_partner_address::res.partner', search=True),
+        
+            ...         },
+            ...     ],
+        
+            ...     # Define relations between models
+            ...     'REL_res_partner_address::res.partner': {
+            ...         'name':         Column(1),
+            ...         'siren':        Column(2),
+            ...         'website':      Column(16),
+            ...         'comment':      Column(56),
+            ...         },
+        
+            ...     # Relation without write if exists
+            ...     'REL_res_partner_address,NO_UPDATE::res.country':  {
+            ...         'code':         Column(13, callback=_country_code, search=True),
+            ...         'name':         Column(13, search=True),
+            ...         },
+            ...     })
+        
+        Finally start the import process::
+        
+            >>> example_file.start()
+        
+        And show statistics of objects's activities during the importation process::
+        
+            >>> csv2oerp.show_stats()
+        
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Database
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
