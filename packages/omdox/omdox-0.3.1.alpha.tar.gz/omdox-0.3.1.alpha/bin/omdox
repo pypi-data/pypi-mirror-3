@@ -1,0 +1,76 @@
+#!/usr/bin/env python
+import os
+import sys
+import shutil
+import time
+import argparse
+from omdox import settings
+from omdox import feedback
+from omdox.render import render
+from omdox.builder import get_contents_dict, clean, build, get_hexdigest
+
+
+
+# set working directory
+cwd = os.getcwd()
+# if there is no layout.html in this directory then fail
+if not os.path.exists('./layout.html'):
+    print_error('layout.html not found, are you in the right directory?')
+    sys.exit()
+
+# if we're watching enter the loop
+if set(sys.argv).intersection(['-w', '--watch']):
+    feedback.header('Watching %s for changes to documents' % cwd, indent=False)
+    contents_dict = get_contents_dict(cwd)
+    while True:
+        for directory, contents_list in contents_dict.items():
+            # most of the below is copied verbatim from builder.py
+            build_dir = os.path.join(cwd, '_build', directory)
+            source_dir = os.path.join(cwd, directory)
+            loop_contents_list= []
+            for f in os.listdir(os.path.join(cwd, directory)):
+                if f in settings.EXCLUDED or os.path.isdir(f):
+                    continue
+                # get the hexdigest and append
+                path = os.path.join(cwd, directory, f)
+                hexdigest = get_hexdigest(path)
+                loop_contents_list.append((f,hexdigest))
+            # now iterate over the list and detect changes
+            for i, contents in enumerate(loop_contents_list):
+                if contents[1] != contents_list[i][1]:
+                    feedback.info('[changed] %s' % contents[0])
+                    # most of the below is copied verbatim from builder.py
+                    # render if a doc, move if not
+                    source_path = os.path.join(source_dir, contents[0])
+                    build_path = os.path.join(build_dir, contents[0])
+                    # get the extention
+                    ext = os.path.splitext(source_path)[1]
+                    # try for the . extention
+                    # if this is not a render extention, copy it to new path
+                    if ext in settings.EXTENTIONS:
+                        render(source_path, build_path)
+                        feedback.info('[rendered] %s' % build_path)
+                    else:
+                        shutil.copyfile(source_path, build_path)
+                        feedback.info('[copied] %s' % build_path)
+
+                    # now update the hash
+                    contents_list[i] = contents
+        time.sleep(0.5)
+
+# we're not watching so just render it out
+else:
+    feedback.header('Rendering starting', indent=False)
+    # clean up
+    feedback.info('Cleaning old builds')
+    clean(cwd)
+    # get the contents
+    contents_dict = get_contents_dict(cwd)
+    # now build
+    for directory, contents_list in contents_dict.items():
+        build(cwd, directory, contents_list)
+    # now feedback
+    for error in feedback.errors:
+        feedback.error(error)
+    feedback.header('Rendering complete', indent=False)
+
