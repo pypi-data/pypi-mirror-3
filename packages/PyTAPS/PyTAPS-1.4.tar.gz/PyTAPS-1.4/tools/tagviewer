@@ -1,0 +1,109 @@
+#!/usr/bin/python
+# -*- python -*-
+
+from collections import defaultdict
+from optparse import OptionParser
+
+from itaps import iBase
+
+try: from itaps import iMesh
+except: iMesh = None
+
+try: from itaps import iMeshExtensions
+except: pass
+
+try: from itaps import iGeom
+except: iGeom = None
+
+##### Set up/read in command-line options
+
+usage = 'usage: %prog [options] filename'
+parser = OptionParser(usage=usage)
+if iMesh:
+    parser.add_option('-m', '--mesh',
+                      action='store_true', dest='mesh', default=True,
+                      help='use iMesh interface')
+if iGeom:
+    parser.add_option('-g', '--geom',
+                      action='store_true', dest='geom', default=True,
+                      help='use iGeom interface')
+
+parser.add_option('-l', '--long',
+                  action='store_true', dest='long', default=False,
+                  help='use long listing format')
+    
+(options, args) = parser.parse_args()
+if len(args) != 1:
+    print parser.get_usage()
+    exit(1)
+
+##### Try to load the mesh/geometry
+
+iface = None
+if iMesh and options.mesh:
+    try:
+        iface = iMesh.Mesh()
+        iface.rootSet.load(args[0])
+    except:
+        pass
+if iGeom and options.geom and iface is None:
+    try:
+        iface = iGeom.Geom()
+        iface.load(args[0])
+    except:
+        pass   
+
+if iface is None:
+    print "Couldn't load file '%s'" % args[0]
+    exit(1)
+
+##### Print out the tag info
+
+if not options.long:
+    try:
+        tags = iface.getAllTags()
+        for t in tags:
+            print t.name
+        exit()
+    except Exception:
+        pass
+
+def merge(d, arr, j):
+    for i in arr:
+        d[i][j] += 1
+
+tags = defaultdict(lambda: [0,0])
+
+for i in iface.rootSet:
+    merge(tags, iface.getAllTags(i), 0)
+
+merge(tags, iface.getAllTags(iface.rootSet), 1)
+for i in iface.getEntSets():
+    merge(tags, iface.getAllTags(i), 1)
+
+if options.long:
+    namelen  = max( max([len(i.name) for i in tags]), 8 )
+    sizelen  = max( max([len(str(i.sizeValues)) for i in tags]), 4 )
+    totallen = max( max([len(str(sum(i))) for i in tags.itervalues()]), 7)
+    entlen   = max( max([len(str(i[0])) for i in tags.itervalues()]), 6)
+    setlen   = max( max([len(str(i[1])) for i in tags.itervalues()]), 6)
+    types = {'i': 'int', 'd': 'double', 'E': 'entity', 'b': 'byte', 'S': 'entset'}
+
+    print "%-*s  %-6s  %*s  %*s  %*s  %*s" % \
+        (namelen, "Tag name",
+         "Type",
+         sizelen, "Size",
+         totallen, "# Total",
+         entlen,   "# Ents",
+         setlen,   "# Sets")
+    for k, v in tags.iteritems():
+        print "%-*s  %-6s  %*d  %*d  %*d  %*d" % \
+            (namelen,  k.name,
+             types[k.type],
+             sizelen,  k.sizeValues,
+             totallen, sum(v),
+             entlen,   v[0],
+             setlen,   v[1])
+else:
+    for t in tags:
+        print t.name
