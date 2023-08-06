@@ -1,0 +1,4 @@
+A simple product that patches the standard NewsItem type so that it
+makes use of blob storage instead of pickles.
+
+Makes use of code from ATContentTypes/newsitem
