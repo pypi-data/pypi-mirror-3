@@ -1,0 +1,27 @@
+Introduction
+============
+
+This package adds a new import step for GenericSetup to allow a profile to
+update an existing PAS plugin registry.
+It works with pas_plugins.xml file in the format of PluginRegistry xml export
+file, augmented with insert-after, insert-before and remove directives.
+The step allow also a acl_users directory in a profile which will be imported
+with a IFileSystemImporter. This is quite useful with the use of a .preserve
+file to update content of PAS.
+
+Examples of profiles using this step can be found in the
+pas.plugins.external_auth package.
+
+TODO
+====
+
+* Correct the name of package, cmfextensions is tedious because the package
+  doesn't require cmf at all and could be used with PAS on empty Folder.
+* Unit tests and more documentation
+* Fix or remove the uninstall helper for cmfquickinstaller
+
+COPYLEFT
+========
+Copyright (C) 2012 Smile Suisse
+See COPYING for copyright informations and LICENSE.txt for a copy of GPLv3
+license in source package "docs" directory.
