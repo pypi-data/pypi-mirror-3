@@ -1,0 +1,43 @@
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.sites.models import Site
+from django.core.urlresolvers import reverse, get_callable
+from django.views.generic import TemplateView, UpdateView
+
+from profiles.models import Profile
+from profiles.utils import class_view_decorator
+
+try:
+    ProfileForm = get_callable(settings.PROFILE_FORM_CLASS)
+except AttributeError:
+    from forms import ProfileForm
+
+
+@class_view_decorator(login_required)
+class ProfileView(TemplateView):
+    template_name = 'profiles/profile.html'
+
+
+@class_view_decorator(login_required)
+class ProfileEdit(UpdateView):
+    form_class = ProfileForm
+
+    def form_valid(self, form):
+        response = super(ProfileEdit, self).form_valid(form)
+        messages.info(self.request, 'Your profile has been updated.')
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super(ProfileEdit, self).get_context_data(**kwargs)
+        context['site'] = Site.objects.get_current()
+        return context
+
+    def get_object(self):
+        if isinstance(self.request.user, Profile):
+            return self.request.user
+        return self.request.user.profile
+
+    def get_success_url(self):
+        return self.request.GET.get('next', self.success_url or reverse('profile'))
+
