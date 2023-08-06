@@ -1,0 +1,334 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2009, Purdue University
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice, this
+# list of conditions and the following disclaimer in the documentation and/or
+# other materials provided with the distribution.
+# 
+# Neither the name of the Purdue University nor the names of its contributors
+# may be used to endorse or promote products derived from this software without
+# specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+"""This script bootstraps the database so that the Roster core APIs can be used.
+"""
+
+__copyright__ = 'Copyright (C) 2009, Purdue University'
+__license__ = 'BSD'
+__version__ = '0.16'
+
+
+import sys
+import os
+from optparse import OptionParser
+import ConfigParser
+import getpass
+import roster_core
+import roster_server
+
+
+def main(args):
+  """Collects command line arguments. Sets up initial parameters.
+
+  Inputs:
+    args: arguments from the command line
+  """
+  usage = ('\n'
+           '\n'
+           'To bootstrap the database:\n'
+           '\t%s -c <config-file> -u <new-mysql-user> -U <new-roster-user>\n'
+           '\t-d <database-name> -n <database-hostname>\n'
+           '\n'
+           'There are many other optional flags that can be configured.')
+
+  parser = OptionParser(version='%%prog (Roster %s)' % __version__, usage=usage)
+
+  parser.add_option('-c', '--config-file', action='store', dest='config_file',
+                    help='Location of the new config file.',
+                    metavar='<config-file>',
+                    default=roster_core.SERVER_CONFIG_FILE_LOCATION)
+  parser.add_option('-i', '--init-file', action='store', dest='init_file',
+                    help='Location of the init file, default is reccommended.',
+                    metavar='<init-file>', default='/etc/init.d/rosterd')
+  parser.add_option('-u', '--user-name', action='store', dest='user_name',
+                    help='MySQL username.', metavar='<user-name>',
+                    default=None)
+  parser.add_option('-U', '--roster-user-name', action='store',
+                    dest='roster_user_name',
+                    help='Initial admin username for roster.',
+                    default=None)
+  parser.add_option('--run-as-username', action='store', dest='run_as_username',
+                    help='Username roster server should run as.',
+                    default='nobody')
+  parser.add_option('--lock-file', action='store', dest='lock_file',
+                    help='Location of roster server lock file.',
+                    default='/var/lock/roster')
+  parser.add_option('--infinite-renew-time', action='store',
+                    dest='infinite_renew_time', metavar='<time>',
+                    help='Time in seconds to renew infinite credentials.',
+                    default='43200')
+  parser.add_option('--core-die-time', action='store', dest='core_die_time',
+                    help='Time in seconds that a core instance will die.',
+                    metavar='<time>', default='1200')
+  parser.add_option('--get-credentials-wait-increment', action='store',
+                    dest='get_credentials_wait_increment', metavar='<int>',
+                    help='Seconds to add wait with incorrect password.',
+                    default='1')
+  parser.add_option('--credential-expiry-time', action='store',
+                    dest='credential_expiry_time', metavar='<time>',
+                    help='Time in seconds for credentials to expire.',
+                    default='3600')
+  parser.add_option('-d', '--database', action='store', dest='database',
+                    help='MySQL database name.', metavar='<database>',
+                    default=None)
+  parser.add_option('-n', '--hostname', action='store', dest='hostname',
+                    help='MySQL database hostname.', metavar='<hostname>',
+                    default='localhost')
+  parser.add_option('--big-lock-timeout', action='store',
+                    dest='big_lock_timeout', metavar='<seconds>',
+                    help='Timeout for big database lock.', default='90')
+  parser.add_option('--big-lock-wait', action='store',
+                    dest='big_lock_wait', metavar='<seconds>',
+                    help='Wait for big database lock.', default='5')
+  parser.add_option('--force', action='store_true', dest='force',
+                    help='Force overwriting a database.', default=False)
+  parser.add_option('--ssl-cert', action='store', dest='ssl_cert',
+                    help='SSL Cert file for XML-RPC.',
+                    default=None)
+  parser.add_option('--ssl-key', action='store', dest='ssl_key',
+                    help='SSL Key file for XML-RPC.',
+                    default=None)
+  parser.add_option('--db-ssl', action='store_true', dest='db_ssl',
+                    help='Enable SSL for database.',
+                    default=False)
+  parser.add_option('--db-ssl-ca', action='store', dest='db_ssl_ca',
+                    help='SSL Certificate Authority file for database.',
+                    default='')
+  parser.add_option('--server-log-file', action='store', dest='server_log_file',
+                    help='Server log file location',
+                    default='/var/log/rosterd')
+  parser.add_option('--backup-dir', action='store', dest='backup_dir',
+                    help='Directory where backups will be put.',
+                    default='/opt/roster/backups')
+  parser.add_option('--root-config-dir', action='store', dest='root_config_dir',
+                    help='Directory where bind config files will be dumped.',
+                    default='/opt/roster/tmp')
+  parser.add_option('--run-as', action='store', dest='run_as',
+                    help='Run as uid', type='int',
+                    default=0)
+  parser.add_option('-p', '--db-password', action='store', dest='password',
+                    help='Password for the database user. Do not use this '
+                    'flag unless you need to. If not used a password prompt '
+                    'will be presented.',
+                    default='', metavar='<password>')
+  parser.add_option('--named-dir', action='store', dest='named_dir',
+                    help='Directory where named files will live.',
+                    default='/etc/named')
+  parser.add_option('--server-port', action='store', dest='port',
+                    help='Port server will start with.',
+                    default='8000')
+  parser.add_option('--server-host', action='store', dest='host',
+                    help='Host server will start with.',
+                    default='localhost')
+
+  (globals()["options"], args) = parser.parse_args(args)
+
+  if( not os.path.exists(options.backup_dir) ):
+    os.makedirs(options.backup_dir)
+  if( not os.path.exists(options.root_config_dir) ):
+    os.makedirs(options.root_config_dir)
+
+  if( os.getuid() != options.run_as ):
+    if( options.run_as == 0 ):
+      print '%s: Need to be root.' % sys.argv[0]
+    else:
+      print '%s: Need to be uid %s.' % (sys.argv[0], options.run_as)
+      sys.exit(1)
+
+  args_dict = {'-c/--config-file': options.config_file,
+               '-u/--user-name': options.user_name,
+               '-U/--roster-user-name': options.roster_user_name,
+               '-d/--database': options.database,
+               '-n/--hostname': options.hostname}
+
+  # START CONFIG
+  write_config = False
+  config_instance = None
+  if( os.path.exists(options.config_file) ):
+    valid_response_given = False
+    while not valid_response_given:
+      response = raw_input('Config file %s exists, use it? (Y/n): ' %
+                           options.config_file)
+      if( response.lower() in ['n', 'no'] ):
+        valid_response_given = True
+        write_config = True
+      elif( response.lower() in ['y', 'yes'] ):
+        valid_response_given = True
+        try:
+          config_instance = roster_core.Config(options.config_file)
+        except roster_core.errors.ConfigError as error_info:
+          print error_info
+          sys.exit(1)
+      else:
+        print 'Please enter response as either \"yes\" or \"no\"'
+  else:
+    write_config = True
+
+  if( not write_config ):
+    config_file_instance = config_instance.config_file
+    if( args_dict['-u/--user-name'] is None ):
+      args_dict['-u/--user-name'] = config_file_instance['database']['login']
+    if( args_dict['-d/--database'] is None ):
+      args_dict['-d/--database'] = config_file_instance['database']['database']
+    if( args_dict['-n/--hostname'] is None ):
+      args_dict['-n/--hostname'] = config_file_instance['server']['host']
+    if( not options.password ):
+      options.password = config_file_instance['database']['passwd']
+
+  error = False
+  for arg in args_dict:
+    if( args_dict[arg] is None ):
+      print 'ERROR: %s must be specified.' % arg
+      error = True
+  if( error ):
+    parser.print_help()
+    sys.exit(1)
+
+  if( not options.password ):
+    options.password = getpass.getpass(
+        'Enter database password for %s: ' % options.user_name)
+
+  module_list = []
+  for module in dir(roster_server):
+    if( module.startswith('_') ):
+      continue
+    module_object = getattr(roster_server, module)
+    if( 'AuthenticationMethod' in dir(module_object) ):
+      module_list.append(module)
+
+  if( write_config ):
+    config_parser = ConfigParser.SafeConfigParser()
+    for module in module_list:
+      print "%s. %s" % (module_list.index(module) + 1, module)
+    module = raw_input('Select an authentication module (1 - %s) '
+                       'above: ' % len(module_list))
+    module = int(module) - 1
+
+    authentication_module = getattr(roster_server, module_list[module])
+    authentication_module_instance = (
+        authentication_module.AuthenticationMethod())
+
+    if( not options.ssl_cert ):
+      print 'ERROR: An ssl cert file MUST be specified with --ssl-cert.'
+      sys.exit(1)
+    if( not options.ssl_key ):
+      print 'ERROR: An ssl key file MUST be specified with --ssl-key.'
+      sys.exit(1)
+
+    directory = '/'.join(options.config_file.split('/')[:-1])
+    if( not os.path.exists(directory) ):
+      os.makedirs(directory)
+
+    config_parser.add_section('database')
+    config_parser.set('database', 'server', options.hostname)
+    config_parser.set('database', 'login', options.user_name)
+    config_parser.set('database', 'database', options.database)
+    config_parser.set('database', 'passwd', options.password)
+    config_parser.set('database', 'big_lock_timeout', options.big_lock_timeout)
+    config_parser.set('database', 'big_lock_wait', options.big_lock_wait)
+    config_parser.set('database', 'ssl', 'on' if options.db_ssl else 'off')
+    config_parser.set('database', 'ssl_ca', options.db_ssl_ca)
+
+    config_parser.add_section('exporter')
+    config_parser.set('exporter', 'backup_dir', options.backup_dir)
+    config_parser.set('exporter', 'root_config_dir', options.root_config_dir)
+    config_parser.set('exporter', 'named_dir', options.named_dir)
+
+    config_parser.add_section('server')
+    config_parser.set('server', 'port', options.port)
+    config_parser.set('server', 'host', options.host)
+    config_parser.set('server', 'inf_renew_time', options.infinite_renew_time)
+    config_parser.set('server', 'core_die_time', options.core_die_time)
+    config_parser.set('server', 'run_as_username', options.run_as_username)
+    config_parser.set('server', 'lock_file', options.lock_file)
+    config_parser.set('server', 'ssl_cert_file', options.ssl_cert)
+    config_parser.set('server', 'ssl_key_file', options.ssl_key)
+    config_parser.set('server', 'server_log_file', options.server_log_file)
+    config_parser.set('server', 'get_credentials_wait_increment',
+                      options.get_credentials_wait_increment)
+    config_parser.set('server', 'server_killswitch', 'on')
+
+    config_parser.add_section('credentials')
+    config_parser.set('credentials', 'authentication_method',
+                      module_list[module])
+    config_parser.set('credentials', 'exp_time', options.credential_expiry_time)
+    config_parser_file = open(options.config_file, 'wb')
+
+    config_parser.add_section(module_list[module])
+    for variable in authentication_module_instance.requires:
+      if( authentication_module_instance.requires[
+          variable]['default'] is None ):
+        if( authentication_module_instance.requires[variable]['optional'] ):
+          value = raw_input('Enter \'%s\' for \'%s\' (Enter for None): ' % (
+              variable, module_list[module]))
+        else:
+          value = raw_input('Enter \'%s\' for \'%s\': ' % (
+              variable, module_list[module]))
+      else:
+        value = authentication_module_instance.requires[variable]['default']
+      config_parser.set(module_list[module], variable, value)
+
+    try:
+      config_parser.write(config_parser_file)
+    finally:
+      config_parser_file.close()
+
+  # END CONFIG
+  config_instance = roster_core.Config(options.config_file)
+  db_instance = config_instance.GetDb()
+  db_instance.StartTransaction()
+  try:
+    tables = len(db_instance.ListTableNames())
+  finally:
+    db_instance.EndTransaction()
+  if( tables > 0 and not options.force ):
+    print ('ERROR: Database is not empty, specify a different database or use '
+           '--force.')
+    sys.exit(1)
+
+  db_instance.CreateRosterDatabase()
+
+  db_instance.StartTransaction()
+  try:
+    db_instance.MakeRow(u'users',
+                        {u'user_name': unicode(options.roster_user_name),
+                         u'access_level': 128})
+  finally:
+    db_instance.EndTransaction()
+
+  init_file = open(options.init_file, 'w')
+  try:
+    init_file.writelines(roster_core.embedded_files.INIT_FILE)
+  finally:
+    init_file.close()
+
+if __name__ == '__main__':
+  main(sys.argv[1:])
