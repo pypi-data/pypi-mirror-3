@@ -1,0 +1,118 @@
+{% extends 'timepiece/time-sheet/base.html' %}
+{% load timepiece_tags %}
+
+{% block title %}{{ person.get_full_name }} Time Sheet{% endblock %}
+
+{% block content %}
+<h2>{{ person.first_name }} {{ person.last_name}}'s Time Sheet ({{ window.date|date:"N j" }} &mdash; {{ window.end_date|date:"N j" }})</h2>
+<ul class='header-actions-left'>
+    <li>
+        {% if perms.timepiece.view_user %}
+            <a href='{% url view_person person.pk %}'>User Information</a>
+        {% endif %}
+    </li>
+    <li>
+        Time Sheet
+    </li>
+    <li>
+        <a href='{% url view_person_time_sheet person.pk, period.id, window.id, hourly %}'>Hourly Summary</a>
+    </li>
+    <li>
+        {% if window.previous %}
+            <a href='{% url view_person_time_sheet person.pk,window.period.pk,window.previous.pk %}'>Previous Time Sheet</a>
+        {% else %}
+            Previous Time Sheet
+        {% endif %}
+    </li>
+    <li>
+        {% if window.next %}
+            <a href='{% url view_person_time_sheet person.pk,window.period.pk,window.next.pk %}'>Next Time Sheet</a>
+        {% else %}
+            Next Time Sheet
+        {% endif %}
+    </li>
+    {% if perms.timepiece.export_project_time_sheet %}
+    {# <li><a href='{% url export_project_time_sheet project.id,window.id %}'>Export as CSV</a></li> #}
+    {% endif %}
+    {% if show_verify %}<li><a href='{% url time_sheet_change_status 'verify',person.id,period.id,window.id %}'>Verify Time Sheet</a></li>{% endif %}
+    {% if show_approve %}<li><a href='{% url time_sheet_change_status 'approve',person.id,period.id,window.id %}'>Approve Time Sheet</a></li>{% endif %}
+</ul>
+
+{% if entries %}
+    <table class="time-sheet">    
+        <tr>
+            <th>Date</th>
+            <th>Project</th>
+            <th>Activity</th>
+            <th>Location</th>
+            <th>Time In</th>
+            <th>Time Out</th>
+            <th>Breaks</th>
+            <th>Hours</th>
+            <th>Comments</th>
+        </tr>            
+        {% for entry in entries %}
+            {% ifchanged entry.start_time|date:"W" %}
+                <tr class="ledger_header">
+                    <th colspan='10'>Week of {% week_start entry.start_time %} </th>
+                </tr>
+            {% endifchanged %}
+            <tr>
+                {% ifchanged entry.start_time|date %}
+                    <td>{{ entry.start_time|date:"m/d/Y (D)" }}</td>
+                {% else %}
+                    <td></td>
+                {% endifchanged %}
+                <td>{{ entry.project.name }}</td>
+                <td>{{ entry.activity.name }}</td>
+                <td>{{ entry.location }}</td>
+                <td>{{ entry.start_time|date:"P" }}</td>
+                <td>{{ entry.end_time|date:"P" }}</td>
+                <td class="hours">{{ entry.seconds_paused|seconds_to_hours }}</td>
+                <td class="hours">{{ entry.hours }}</td>
+                <td title="{{entry.comments}}">{{ entry.comments|truncatewords:12 }}</td>
+                {% if entry.is_editable %}
+                    <td><a href="{% url timepiece-update entry.id %}?next={{ request.path|urlencode }}">Edit</a></td>
+            {% endif %}
+            </tr>
+        {% endfor %}
+        <tr>
+            <th colspan='7' class="hours">Overall total for the period:</th>
+            <td>{{ total|floatformat:2 }}</td>
+        </tr>
+    </table>
+{% else %}
+    <p>No entries exist for this time sheet.</p>
+{% endif %}
+
+{% if project_entries %}
+    <table id='person-summary'>
+        <caption>Project Summary</caption>
+    {% for entry in project_entries %}
+        <tr>
+            <td>{{ entry.project__name}} </td>
+            <td class="hours">{{ entry.sum }}</td>
+        </tr>
+    {% endfor %}        
+    </table>
+{% endif %}
+
+<table id='activity-summary'>
+    <caption>Billable Summary</caption>
+    <tr>
+        <td>Billable</td><td class="hours">{{summary.billable}}</td>
+    </tr>
+    <tr>
+        <td>Non-billable</td><td class="hours">{{summary.non_billable}}</td>
+    </tr>
+    <tr>
+        <td>Invoiced</td><td class="hours">{{summary.invoiced}}</td>
+    </tr>
+    <tr>
+        <td>Uninvoiced</td><td class="hours">{{summary.uninvoiced}}</td>
+    </tr>
+</table>
+
+<br style='clear: both' />
+
+{% endblock %}
