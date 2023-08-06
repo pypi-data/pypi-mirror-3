@@ -1,0 +1,658 @@
+###
+### $Release: 0.7.2 $
+### $Copyright: copyright(c) 2008-2012 kuwata-lab.com all rights reserved. $
+### $License: MIT License $
+###
+
+import oktest
+from oktest import *
+import sys, os, re, time, shutil
+from os.path import exists, isfile, isdir, getmtime
+from glob import glob
+try:
+    from StringIO import StringIO      # 2.x
+except ImportError:
+    from io import StringIO            # 3.x
+
+from kook import KookCommandError
+from kook.commands import *
+import kook.commands
+from kook.utils import read_file, write_file, glob2
+import kook.config as config
+
+import _testhelper
+
+def _getvalues(set=False):
+    pair = (sys.stdout.getvalue(), sys.stderr.getvalue())
+    if set:
+        sys.stdout = StringIO()
+        sys.stderr = StringIO()
+    return pair
+
+HELLO_C = """\
+#include <stdio.h>
+
+int main(int argc, char *argv[]) {
+    int i;
+    for (i = 0; i < argc; i++) {
+        printf("argv[%d]: %s\n", i, argv[i]);
+    }
+    return 0;
+}
+"""
+
+HELLO_H = """\
+char *command = "hello";
+char *release = "$_RELEASE_$";
+"""
+
+
+class KookCommandsTest(object):
+
+
+    def before(self):
+        self._stdio = [sys.stdout, sys.stderr]
+        sys.stdout = StringIO()
+        sys.stderr = StringIO()
+        #
+        write_file('hello.c', HELLO_C)
+        write_file('hello.h', HELLO_H)
+        t = time.time() - 99
+        os.utime('hello.c', (t, t))
+        os.utime('hello.h', (t, t))
+        #
+        os.makedirs('hello.d/src/lib')
+        os.makedirs('hello.d/src/include')
+        write_file('hello.d/src/lib/hello.c', HELLO_C)
+        write_file('hello.d/src/include/hello.h', HELLO_H)
+        write_file('hello.d/src/include/hello2.h', HELLO_H)
+        os.utime('hello.d/src/lib/hello.c', (t, t))
+        os.utime('hello.d/src/include/hello.h', (t, t))
+        os.utime('hello.d/src/include/hello2.h', (t, t))
+
+    def after(self):
+        sys.stdout, sys.stderr = self._stdio
+        #
+        for f in glob('hello*'):
+            if os.path.isdir(f):
+                shutil.rmtree(f)
+            else:
+                os.unlink(f)
+
+
+    def test_run(command):
+        not_ok ('hello2.c').is_file()
+        run('cat -n hello.c > hello2.c')
+        ok ('hello2.c').is_file()
+        i = 0
+        buf = []
+        for line in read_file('hello.c').splitlines(True):
+            i += 1
+            buf.append("%6d\t%s" % (i, line))
+        ok (read_file('hello2.c')) == "".join(buf)
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ cat -n hello.c > hello2.c\n"
+        ok (serr) == ""
+        # raises KookCommandError
+        def f():
+            run('cat -n hello999.c 2>/dev/null')
+        ok (f).raises(KookCommandError, "command failed (status=1).")
+
+    def test_run_f(command):
+        # raises KookCommandError
+        def f():
+            run_f('cat -n hello999.c 2>/dev/null')
+        not_ok (f).raises(Exception)
+
+
+    def test_system(command):
+        not_ok ('hello2.c').is_file()
+        system('cat -n hello.c > hello2.c')
+        ok ('hello2.c').is_file()
+        i = 0
+        buf = []
+        for line in read_file('hello.c').splitlines(True):
+            i += 1
+            buf.append("%6d\t%s" % (i, line))
+        ok (read_file('hello2.c')) == "".join(buf)
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ cat -n hello.c > hello2.c\n"
+        ok (serr) == ""
+        # raises KookCommandError
+        def f():
+            system('cat -n hello999.c 2>/dev/null')
+        ok (f).raises(KookCommandError, "command failed (status=1).")
+
+    def test_system_f(command):
+        # raises KookCommandError
+        def f():
+            system_f('cat -n hello999.c 2>/dev/null')
+        not_ok (f).raises(Exception)
+
+
+    def test_cp(self):
+        not_ok ('hello2.c').is_file()
+        time.sleep(1)
+        cp('hello.c', 'hello2.c')
+        ok ('hello2.c').is_file()
+        ok (getmtime('hello2.c')) > getmtime('hello.c')
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ cp hello.c hello2.c\n"
+        ok (serr) == ""
+
+    def test_cp_p(self):
+        not_ok ('hello2.c').is_file()
+        cp_p('hello.c', 'hello2.c')
+        ok ('hello2.c').is_file()
+        ok (getmtime('hello2.c')) == getmtime('hello.c')
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ cp -p hello.c hello2.c\n"
+        ok (serr) == ""
+
+    def test_cp_r(self):
+        not_ok ('hello.d/src2').is_file()
+        cp_r('hello.d/src', 'hello.d/src2')
+        ok ('hello.d/src2/include/hello.h').is_file()
+        ok (getmtime('hello.d/src2/include/hello.h')) > getmtime('hello.d/src/include/hello.h')
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ cp -r hello.d/src hello.d/src2\n"
+        ok (serr) == ""
+
+    def test_cp_pr(self):
+        not_ok ('hello.d/src2').is_file()
+        cp_pr('hello.d/src', 'hello.d/src2')
+        ok ('hello.d/src2/include/hello.h').is_file()
+        ok (getmtime('hello.d/src2/include/hello.h')) == getmtime('hello.d/src/include/hello.h')
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ cp -pr hello.d/src hello.d/src2\n"
+        ok (serr) == ""
+
+
+    def test_mkdir(self):
+        path = "hello.d/test"
+        not_ok (path).exists()
+        mkdir(path)
+        ok (path).is_dir()
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ mkdir %s\n" % path
+        ok (serr) == ""
+        #
+        def f():
+            mkdir(path)
+        ok (f).raises(KookCommandError, "mkdir: %s: already exists." % path)
+        #
+        path = "hello.notexist/test"
+        def f():
+            mkdir(path)
+        ok (f).raises(OSError, "[Errno 2] No such file or directory: '%s'" % path)
+
+    def test_mkdir_p(self):
+        path = "hello.d/test/data/d1"
+        not_ok (path).exists()
+        mkdir_p(path)
+        ok (path).is_dir()
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ mkdir -p %s\n" % path
+        ok (serr) == ""
+        #
+        def f():
+            mkdir(path)
+        ok (f).raises(KookCommandError, "mkdir: %s: already exists." % path)
+
+
+    def test_rm(self):
+        if (isdir('hello.d')):
+            shutil.rmtree('hello.d')
+        #
+        ok ('hello.c').is_file()
+        ok ('hello.h').is_file()
+        rm('hello.*')
+        not_ok ('hello.c').exists()
+        not_ok ('hello.h').exists()
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ rm hello.*\n"
+        ok (serr) == ""
+        #
+        def f():
+            rm('hello.*')
+        ok (f).raises(KookCommandError, "rm: hello.*: not found.")
+        #
+        mkdir("hello.d")
+        def f():
+            rm('hello.d')
+        ok (f).raises(KookCommandError, "rm: hello.d: can't remove directry (try 'rm_r' instead).")
+
+    def test_rm_r(self):
+        ok ('hello.d').is_dir()
+        rm_r('hello.d')
+        not_ok ('hello.d').exists()
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ rm -r hello.d\n"
+        ok (serr) == ""
+        #
+        def f():
+            rm_r('hello.d')
+        ok (f).raises(KookCommandError, "rm_r: hello.d: not found.")
+
+    def test_rm_f(self):
+        if (isdir('hello.d')):
+            shutil.rmtree('hello.d')
+        #
+        ok ('hello.c').is_file()
+        ok ('hello.h').is_file()
+        rm_f('hello.*')
+        not_ok ('hello.c').is_file()
+        not_ok ('hello.h').is_file()
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ rm -f hello.*\n"
+        ok (serr) == ""
+        #
+        def f():
+            rm_f('hello.*')
+        not_ok (f).raises(Exception)
+        #
+        mkdir('hello.d')
+        def f():
+            rm_f('hello.d')
+        ok (f).raises(KookCommandError, "rm_f: hello.d: can't remove directry (try 'rm_r' instead).")
+
+    def test_rm_rf(self):
+        ok ('hello.c').is_file()
+        ok ('hello.h').is_file()
+        ok ('hello.d').is_dir()
+        rm_rf('hello.*')
+        not_ok ('hello.c').exists()
+        not_ok ('hello.h').exists()
+        not_ok ('hello.d').exists()
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ rm -rf hello.*\n"
+        ok (serr) == ""
+        #
+        def f():
+            rm_f('hello.*')
+        not_ok (f).raises(Exception)
+
+
+    def test_mv(self):
+        # move file
+        ok ('hello.c').is_file()
+        not_ok ('hello2.c').is_file()
+        mv('hello.c', 'hello2.c')
+        not_ok ('hello.c').is_file()
+        ok ('hello2.c').is_file()
+        # move directory
+        ok ('hello.d').is_dir()
+        not_ok ('hello2.d').is_dir()
+        mv('hello.d', 'hello2.d')
+        not_ok ('hello.d').is_dir()
+        ok ('hello2.d').is_dir()
+        #
+        expected = r"""
+$ mv hello.c hello2.c
+$ mv hello.d hello2.d
+"""[1:]
+        sout, serr = _getvalues()
+        ok (sout) == expected
+        ok (serr) == ""
+        #
+        def f():
+            mv('hello.notexist', 'hello.new')
+        ok (f).raises(KookCommandError, "mv: hello.notexist: not found.")
+
+    def test_mv2(self):
+        # move some files into directory
+        os.mkdir("hello2.d")
+        os.mkdir("hello2.d/backup")
+        mv("hello.*", "hello2.d/backup")
+        not_ok ("hello.c").exists()
+        not_ok ("hello.h").exists()
+        not_ok ("hello.d").exists()
+        ok ("hello2.d/backup/hello.c").is_file()
+        ok ("hello2.d/backup/hello.h").is_file()
+        ok ("hello2.d/backup/hello.d").is_dir()
+        sout, serr = _getvalues()
+        ok (sout) == "$ mv hello.* hello2.d/backup\n"
+        ok (serr) == ""
+        #
+        def f():
+            mv('notexist.*', 'hello2.d')
+        ok (f).raises(KookCommandError, "mv: notexist.*: not found.")
+
+
+    def test_echo(self):
+        echo("YES")
+        echo("hello.*")
+        expected = r"""
+$ echo YES
+YES
+$ echo hello.*
+hello.c hello.d hello.h
+"""[1:]
+        sout, serr = _getvalues()
+        ok (sout) == expected
+        ok (serr) == ""
+
+    def test_echo_n(self):
+        echo_n("YES")
+        echo_n("hello.*")
+        expected = r"""
+$ echo -n YES
+YES$ echo -n hello.*
+hello.c hello.d hello.h
+"""[1:-1]
+        sout, serr = _getvalues()
+        ok (sout) == expected
+        ok (serr) == ""
+
+
+    def test_store(self):
+        os.mkdir('hello2.d')
+        time.sleep(1)
+        store('**/*.h', 'hello2.d')
+        ok ('hello2.d/hello.h').is_file()
+        ok ('hello2.d/hello.d/src/include/hello.h').is_file()
+        ok ('hello2.d/hello.d/src/include/hello2.h').is_file()
+        #
+        base = 'hello.h'
+        ok (getmtime('hello2.d/'+base)) > getmtime(base)
+        base = 'hello.d/src/include/hello.h'
+        ok (getmtime('hello2.d/'+base)) > getmtime(base)
+        base = 'hello.d/src/include/hello2.h'
+        ok (getmtime('hello2.d/'+base)) > getmtime(base)
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ store **/*.h hello2.d\n"
+        ok (serr) == ""
+        #
+        def f():
+            store('**/*.h', 'hello999.d')
+        ok (f).raises(KookCommandError, "store: hello999.d: directory not found.")
+
+    def test_store_p(self):
+        os.mkdir('hello2.d')
+        time.sleep(1)
+        store_p('**/*.h', 'hello2.d')
+        ok ('hello2.d/hello.h').is_file()
+        ok ('hello2.d/hello.d/src/include/hello.h').is_file()
+        ok ('hello2.d/hello.d/src/include/hello2.h').is_file()
+        #
+        base = 'hello.h'
+        ok (getmtime('hello2.d/'+base)) == getmtime(base)
+        base = 'hello.d/src/include/hello.h'
+        ok (getmtime('hello2.d/'+base)) == getmtime(base)
+        base = 'hello.d/src/include/hello2.h'
+        ok (getmtime('hello2.d/'+base)) == getmtime(base)
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ store -p **/*.h hello2.d\n"
+        ok (serr) == ""
+
+
+    def test_chdir(self):
+        obj = chdir('hello.d')
+        ok (obj).is_a(kook.commands.Chdir)
+        ok (hasattr(obj, '__enter__')) == True
+        ok (hasattr(obj, '__exit__')) == True
+        #
+        major, minor = sys.version_info[0:2]
+        with_stmt_available = major >= 3 or (major == 2 and minor >= 5)
+        if with_stmt_available:
+            input = r"""
+import os
+from kook.commands import chdir
+def test_chdir():
+    obj = inner_dir = outer_dir = None
+    with chdir('hello.d') as d:
+        obj = d
+        inner_dir = os.getcwd()
+    outer_dir = os.getcwd()
+    return (obj, inner_dir, outer_dir)
+"""
+            if major == 2 and minor == 5:
+                input = "from __future__ import with_statement\n" + input
+            write_file("hello_.py", input)
+            import hello_
+            obj, inner_dir, outer_dir = hello_.test_chdir()
+            ok (obj).is_a(kook.commands.Chdir)
+            cwd = os.getcwd()
+            ok (inner_dir) == os.path.join(cwd, 'hello.d')
+            ok (outer_dir) == cwd
+            #
+            expected = r"""
+$ chdir hello.d
+$ chdir -   # back to %s
+"""[1:] % cwd
+            sout, serr = _getvalues()
+            ok (sout) == expected
+            ok (serr) == ""
+
+    def test_chdir2(self):
+        curr_dir = os.getcwd()
+        if "function is passed as 2nd argument":
+            inner_dir = [None]
+            def f():
+                inner_dir[0] = os.getcwd()
+            obj = chdir('hello.d', f)
+            outer_dir = os.getcwd()
+            ok (outer_dir) == curr_dir
+            ok (inner_dir[0]) == os.path.join(curr_dir, 'hello.d')
+            #
+            expected = r"""
+$ chdir hello.d
+$ chdir -   # back to %s
+"""[1:]     % curr_dir
+            sout, serr = _getvalues()
+            ok (sout) == expected
+            ok (serr) == ""
+        #
+        if "function passed as 2nd argument raises exception":
+            inner_dir = [None]
+            def f():
+                inner_dir[0] = os.getcwd()
+                raise TypeError('***')
+            def should_raise():
+                obj = chdir('hello.d', f)
+            ok (should_raise).raises(TypeError, '***')
+            #
+            outer_dir = os.getcwd()
+            ok (outer_dir) == curr_dir
+            ok (inner_dir[0]) == os.path.join(curr_dir, 'hello.d')
+
+    def test_ch(self):
+        cwd = os.getcwd()
+        try:
+            path = cd('hello.d')
+            ok (path) == cwd
+            ok (os.getcwd()) == os.path.join(cwd, 'hello.d')
+            #
+            sout, serr = _getvalues()
+            ok (sout) == "$ cd hello.d\n"
+            ok (serr) == ""
+        finally:
+            cd(cwd)
+
+
+    def test_pushd1(self):
+        cwd = os.getcwd()
+        try:
+            x = pushd('hello.d')
+            ok (x).is_a(kook.commands._Pushd)
+            ok (os.getcwd()) == cwd
+            ok (x.__enter__()).is_(x)
+            ok (os.getcwd()) == cwd + "/hello.d"
+            ok (x.__exit__()) == None
+            ok (os.getcwd()) == cwd
+        finally:
+            os.chdir(cwd)
+
+    def test_pushd2(self):
+        cwd = os.getcwd()
+        try:
+            @pushd('hello.d')
+            def do():
+                return os.getcwd()
+            ok (do).is_a(str)
+            ok (do) == os.getcwd() + "/hello.d"
+            ok (os.getcwd()) == cwd
+            #
+            @pushd('hello.d')
+            def do(path):
+                return [os.getcwd(), path]
+            ok (do).is_a(list)
+            ok (do) == [os.getcwd() + "/hello.d", "hello.d"]
+            ok (os.getcwd()) == cwd
+        finally:
+            os.chdir(cwd)
+
+
+    def _test_edit(self, check_hello2=True):
+        content = read_file('hello.h')
+        ok (content.find('1.2.3')) > 0
+        content = read_file('hello.d/src/include/hello.h')
+        ok (content.find('1.2.3')) > 0
+        content = read_file('hello.d/src/include/hello2.h')
+        if check_hello2:
+            ok (content.find('1.2.3')) > 0
+        else:
+            ok (content.find('1.2.3')) == -1
+        #
+        sout, serr = _getvalues()
+        ok (sout) == "$ edit **/*.h\n"
+        ok (serr) == ""
+
+    def test_edit(self):
+        # edit by callable
+        def f(content):
+            return re.sub(r'\$_RELEASE_\$', '1.2.3', content)
+        edit("**/*.h", by=f)
+        self._test_edit()
+
+    def test_edit2(self):
+        # edit by tuples
+        by = [
+            (r'\$_RELEASE_\$', '1.2.3'),
+        ]
+        edit("**/*.h", by=by)
+        self._test_edit()
+
+    def test_edit3(self):
+        # 'exclude' option
+        def f(content):
+            return re.sub(r'\$_RELEASE_\$', '1.2.3', content)
+        edit("**/*.h", by=f, exclude='*/hello2.*')
+        self._test_edit(False)
+
+    def test_edit4(self):
+        # 'preserve' option
+        def f(content):
+            return re.sub(r'\$_RELEASE_\$', r'$_RELEASE_$', content)
+        d = dict([ (x, os.path.getmtime(x)) for x in glob2('**/*.h') ])
+        time.sleep(1)
+        ## preserve
+        edit_p("**/*.h", by=f)
+        for x in glob('**/*.h'):
+            ok (os.path.getmtime(x)) == d[x]      # not changed
+        ## not preserve
+        edit("**/*.h", by=f)
+        for x in glob('**/*.h'):
+            ok (os.path.getmtime(x)) > d[x]      # changed
+
+
+    def test_noexec(self):
+        noexec = config.noexec
+        config.noexec = True
+        try:
+            # system
+            for f in (system, system_f):
+                f("cat -n hello.c > hello2.c")
+                not_ok ("hello2.c").exists()
+                sout, serr = _getvalues(True)
+                ok (sout) == "$ cat -n hello.c > hello2.c\n"
+                ok (serr) == ""
+            # cp
+            for f in (cp, cp_p, cp_r, cp_pr):
+                f("hello.c", "hello2.c")
+                not_ok ("hello2.c").exists()
+                name = kook.utils.get_funcname(f)
+                sout, serr = _getvalues(True)
+                ok (sout) == "$ %s hello.c hello2.c\n" % re.sub('_', ' -', name)
+                ok (serr) == ""
+            # mkdir
+            for f in (mkdir, mkdir_p):
+                f("hello2.d")
+                not_ok ("hello2.d").exists()
+                name = kook.utils.get_funcname(f)
+                sout, serr = _getvalues(True)
+                ok (sout) == "$ %s hello2.d\n" % re.sub('_', ' -', name)
+                ok (serr) == ""
+            # rm
+            for f in (rm, rm_r, rm_f, rm_rf):
+                f("hello.*")
+                ok ("hello.c").is_file()
+                name = kook.utils.get_funcname(f)
+                sout, serr = _getvalues(True)
+                ok (sout) == "$ %s hello.*\n" % re.sub('_', ' -', name)
+                ok (serr) == ""
+            # mv
+            mv("hello.c", "hello2.c")
+            not_ok ("hello2.c").exists()
+            sout, serr = _getvalues(True)
+            ok (sout) == "$ mv hello.c hello2.c\n"
+            ok (serr) == ""
+            mv("hello.c", "hello.h", "hello.d")
+            ok ("hello.c").exists()
+            ok ("hello.h").exists()
+            sout, serr = _getvalues(True)
+            ok (sout) == "$ mv hello.c hello.h hello.d\n"
+            ok (serr) == ""
+            # echo
+            for f in (echo, echo_n):
+                f("YES")
+                sout, serr = _getvalues(True)
+                name = kook.utils.get_funcname(f)
+                ok (sout) == "$ %s YES\n" % re.sub('_', ' -', name)
+                ok (serr) == ""
+            # store
+            for f in (store, store_p):
+                f("**/*.h", "hello2.d")
+                not_ok ("hello2.d/hello.h").exists()
+                sout, serr = _getvalues(True)
+                name = kook.utils.get_funcname(f)
+                ok (sout) == "$ %s **/*.h hello2.d\n" % re.sub('_', ' -', name)
+                ok (serr) == ""
+            # cd
+            cwd = cd('hello.d')
+            try:
+                ok (os.getcwd()) == os.path.join(cwd, 'hello.d')
+                sout, serr = _getvalues(True)
+                ok (sout) == "$ cd hello.d\n"
+                ok (serr) == ""
+            finally:
+                cd(cwd)
+                _getvalues(True)
+            # edit
+            def f(content):
+                return re.sub('\$_RELEASE_\$', '1.2.3', content)
+            edit("hello.h", by=f)
+            s = read_file("hello.h")
+            ok (s.find("1.2.3")) == -1
+            ok (s.find("$_RELEASE_$")) > 0
+            #
+        finally:
+            config.noexec = noexec
+
+
+if __name__ == '__main__':
+    oktest.main()
