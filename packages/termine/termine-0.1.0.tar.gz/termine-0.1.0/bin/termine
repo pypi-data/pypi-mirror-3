@@ -1,0 +1,142 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Copyright (c) 2012 Ciaran Farrell <cfarrell1980@gmail.com>
+# This file is part of the termine package. You can find the
+# source (python) of termine at http://bitbucket.org/cfarrell1980/termine/
+# This file (and the rest of termine) is licensed under the MIT license. You
+# can find the text of this license in the LICENSE.txt file distributed with
+# termine. Alternatively, you can read the license online in the bitbucket
+# repository at the following URL:
+# https://bitbucket.org/cfarrell1980/termine/raw/ddf534649df6/LICENSE.txt
+
+from termine.gwise import Groupwise,CONFIGFILE,initialConfig
+from termine.gwexceptions import *
+from termine.views import *
+from getpass import getuser,getpass
+from termine.genericlogger import logger
+from termine.genericargparse import parser as parentparser
+import sys,logging,ConfigParser,argparse
+action = None # used to determine which subcommand action to follow
+config = ConfigParser.SafeConfigParser()
+if not os.path.isfile(CONFIGFILE):
+  initialConfig(CONFIGFILE)
+config.read(CONFIGFILE)
+try:
+  defaultwindow = config.get('Global','defaultwindow')
+except Exception,e:
+  raise GWConfigFileException, 'You should remove %s and re-run the script'%CONFIGFILE
+
+termine_desc = '''termine is a command line program that uses the Groupwise
+SOAP API to connect to your Groupwise server and retrieve your appointments'''
+termine_prog = 'termine'
+help_window = '''the range of appointments. Choose from 'today', 'tomorrow',
+'thisweek' or create your own windows in filters.py'''
+help_show = '''if you know the Groupwise id of an appointment (run termine list
+--with-id to show the ids), you can add it as an argument here to get full and
+detailed information about the appointment'''
+help_withid = '''Use this boolean option to show the Groupwise id for each
+appointment in the output. This is useful if you want to copy and paste the id
+into the show subcommand'''
+help_withfullid='''Groupwise ids tend to be a long string with lots of dots. By
+splitting the string on the dots we get a list of which elements 0 and 6 tend to
+be unique. Essentially, it looks as though the uniqueness of a Groupwise id is
+completely made up of these two string subcomponents. However, for absolute
+certainty, use this option to display the full (long) id in the output of the
+list command'''
+parser = argparse.ArgumentParser(parents=[parentparser],
+          description=termine_desc,
+          prog=termine_prog)
+subparsers = parser.add_subparsers(help='sub-command help')
+tlist = subparsers.add_parser('list', help='list help')
+tlist.add_argument('window', nargs='?',
+                    help=help_window,default=defaultwindow)
+tlist.add_argument('-l', '--with-id',dest='withid',help=help_withid,default=False,
+                    action='store_true')
+tlist.add_argument('-a','--with-fullid',dest='withfullid',help=help_withfullid,
+                    default=False,action='store_true')
+tshow = subparsers.add_parser('show', help='show help')
+tshow.add_argument('id', nargs='?', help=help_show)
+
+args = parser.parse_args()
+
+if not args.verbose:
+  logger.setLevel(logging.ERROR)
+else:
+  if args.verbose == 1:
+    logger.setLevel(logging.WARNING)
+  elif args.verbose == 2:
+    logger.setLevel(logging.INFO)
+  elif args.verbose >= 3:
+    logger.setLevel(logging.DEBUG)
+
+logger.debug('parsed --verbose to be %s'%args.verbose)
+logger.debug('parsed --format to be %s'%args.format)
+if hasattr(args,'window'):
+  logger.debug('parsed window to be %s'%args.window)
+  action='list'
+elif hasattr(args,'id'):
+  logger.debug('parsed id to be %s'%args.id)
+  action='show'
+else:
+  # this will probably never be reached as the parser will catch the error
+  parser.error('Could not determine whether you want to show or list')
+
+ok=False
+while not ok: # loop is because user may not be authenticated
+  if action=='list':
+    logger.debug('action is list')
+    w_id,w_fid = args.withid,args.withfullid
+    if w_fid: w_id = True
+    try:
+      gw = Groupwise()
+      soapstring = gw.getAppointments(window=args.window)
+    except GWInitException,e:
+      logger.warn(str(e))
+    except GWFatalException,e:
+      logger.error(str(e))
+      sys.exit(1)
+    else:
+      m = {'raw':GWView,
+          'json':GWJSONView,
+          'html':GWHTMLView,}
+      try:
+        view = m[args.format](soapstring,id=w_id,fullid=w_fid)
+      except KeyError:
+        sys.stderr.write('Did not recognize format %s\n'%args.format)
+        sys.exit(1) # no point in looping here
+      except GWConfigFileException,e:
+        sys.stderr.write("%s\n"%str(e))
+        sys.exit(1) # no point in looping
+      except Exception,e:
+        sys.stderr.write("%s\n"%str(e))
+        sys.exit(1) # get out - something went wrong
+      else:
+        view.render()
+        ok=True
+  else:
+    logger.debug('action is show')
+    try:
+      gw = Groupwise()
+      cache = GWIdCache()
+      try:
+        expanded = cache.expand(args.id)
+      except:
+        expanded = args.id
+      try:
+        soapstring = gw.getItemRequest(expanded)
+      except GWItemFetchException,e:
+        sys.stderr.write("%s\n"%str(e))
+        sys.exit(1)
+    except Exception,e:
+      print e
+      exit()
+    else:
+      try:
+        view = GWAppointmentView(soapstring)
+      except Exception,e:
+        print e
+        exit()
+      else:
+        view.render()
+      ok=True
+
