@@ -1,0 +1,10 @@
+__version__ = "0.2"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = '(Not currently on any branch)'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = 'd12c933288d1ad658daf43c80d84f7d9482e45a5'
+__git_head_subject__ = 'Finished release v0.2.'
+__git_head_message__ = '* release/v0.2:\n  TRIVIAL back to using zc.recipe.egg, not z3c.recipe.scripts\n  TRIVIAL adapting changes to skeleton\n  empty commit after version v0.1.2'
+__git_dirty_diff__ = ''
