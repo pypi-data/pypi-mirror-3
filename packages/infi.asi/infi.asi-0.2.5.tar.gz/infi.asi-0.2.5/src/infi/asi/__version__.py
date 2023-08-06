@@ -1,0 +1,10 @@
+__version__ = "0.2.5"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = '(Not currently on any branch)'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = 'ee55cee77aefe6e9b82d288cd67cc9997b7e8a0d'
+__git_head_subject__ = 'Finished release v0.2.5.'
+__git_head_message__ = '* release/v0.2.5:\n  STORAGEMODEL-166\n  updated project files from skeleton\n  Revert "updated project files from skeleton"\n  updated project files from skeleton\n  empty commit after version 0.2.4'
+__git_dirty_diff__ = ''
