@@ -1,0 +1,53 @@
+"""
+Integration between pyqcy and other testing libraries,
+especially test runners (such as unittest or nose).
+"""
+import unittest
+
+from .properties import Property
+from .runner import run_tests
+
+
+__all__ = ['TestCase']
+
+
+class TestCase(unittest.TestCase):
+    """`unittest` test case for pyqcy properties.
+
+    Properties defined here within subclasses of :class:`TestCase`
+    will be verified automatically as a part of standard `unittest` run.
+    To define them, use the typical syntax with :func:`qc` decorator::
+
+        class Sorting(TestCase):
+            '''Properties that must hold for a sorting.'''
+            @qc
+            def sort_preserves_length(
+                l=list_(of=int, max_length=128)
+            ):
+                assert len(l) == len(list(sorted(l)))
+            @qc
+            def sort_finds_minimum(
+                l=list_(of=int, min_length=1, max_length=128)
+            ):
+                assert min(l) == list(sorted(l))[0]
+
+    Since :class:`TestCase` itself is a subclass of standard
+    :class:`unittest.TestCase`, it will be discovered by :func:`unittest.main`,
+    `nosetests` or similar testing utilities.
+    """
+    class __metaclass__(type):
+        def __new__(cls, name, bases, dict_):
+            """Create ``TestCase`` class that contains properties to check."""
+            properties = [(k, v) for (k, v) in dict_.iteritems()
+                          if isinstance(v, Property)]
+
+            # create a test_*() method for every property
+            # with proper name and docstring
+            for name, prop in properties:
+                def test(self):
+                    run_tests([prop], verbosity=0, propagate_exc=True)
+                test.__name__ = "test_%s" % name
+                test.__doc__ = "[pyqcy] %s" % name
+                dict_[test.__name__] = test
+
+            return type.__new__(cls, name, bases, dict_)
