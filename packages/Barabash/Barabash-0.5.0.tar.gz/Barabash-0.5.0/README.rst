@@ -1,0 +1,65 @@
+=======================================
+ Barabash - A build scripting framework
+=======================================
+
+:WebSite: http://barabash.99k.org
+:Download: http://pypi.python.org/pypi/barabash/
+:Source: https://bitbucket.org/godfryd/barabash/src
+:Keywords: build, scripting, make alternative, scons alternative, cmake alternative
+
+--
+
+.. _barabash-synopsis:
+
+Barabash is a build scripting framework.
+It takes some concepts from `GNU make <http://www.gnu.org/software/make/>`_,
+`CMake <http://www.cmake.org/>`_ and `SCons <http://www.scons.org/>`_.
+
+
+Project website
+===============
+
+Overview, documentation and examples are available on project `Website`_.
+
+.. _`Website`: http://barabash.99k.org/
+
+.. _barabash-installation:
+
+Installation
+============
+
+You can install Barabash either via the Python Package Index (PyPI)
+or from source.
+
+To install using `pip`,::
+
+    $ pip install -U Barabash
+
+To install using `easy_install`::
+
+    $ easy_install -U Barabash
+
+.. _getting-help:
+
+Getting Help
+============
+
+.. _mailing-list:
+
+Mailing list
+------------
+
+For any discussion about usage or development of Barabash, you are welcomed to join
+the `Barabash mailing list`_ .
+
+.. _`Barabash mailing list`: http://groups.google.com/group/barabash/
+
+Bug tracker
+===========
+
+If you have any suggestions, bug reports or annoyances please report them
+to Github `issue tracker`_.
+
+.. _`issue tracker`: https://bitbucket.org/godfryd/barabash/issues?status=new&status=open
+
+
