@@ -1,0 +1,65 @@
+Basic stubby test of monitor initialization.  Mocks everywhere!
+
+    >>> import zc.z3monitor
+    >>> from zope.app.appsetup.product import getProductConfiguration
+    >>> from zope.component import getUtilitiesFor
+    >>> from ZODB.ActivityMonitor import ActivityMonitor
+
+
+Test empty product config to initialize activity monitors
+---------------------------------------------------------
+
+    >>> getProductConfiguration.return_value = {}
+    >>> import mock
+    >>> db = mock.Mock()
+    >>> db.getActivityMonitor.return_value = None
+    >>> getUtilitiesFor.return_value = [('foo', db)]
+
+    >>> zc.z3monitor.initialize(None)
+
+    >>> import ZODB.interfaces
+    >>> getUtilitiesFor.assert_called_with(ZODB.interfaces.IDatabase)
+    >>> getProductConfiguration.assert_called_with('zc.z3monitor')
+    >>> db.setActivityMonitor.assert_called_once_with(
+    ...     ActivityMonitor.return_value)
+
+    >>> from zc.monitor import start
+    >>> start.called
+    False
+
+Test that the port option does as expected and we don't reinitialize database
+-----------------------------------------------------------------------------
+
+    >>> getProductConfiguration.return_value = {'port': '42'}
+    >>> db.getActivityMonitor.return_value = 1
+    >>> zc.z3monitor.initialize(None)
+
+OK, this time we started:
+
+    >>> start.assert_called_once_with(42)
+
+We didn't call setActivityMonitor again:
+
+    >>> db.setActivityMonitor.assert_called_once_with(
+    ...     ActivityMonitor.return_value)
+
+
+
+Test that the port option does as expected and we don't reinitialize database
+-----------------------------------------------------------------------------
+
+Various flavors of bind:
+
+    >>> getProductConfiguration.return_value = {'bind': '43'}
+    >>> zc.z3monitor.initialize(None)
+    >>> start.assert_called_with(43)
+
+    >>> getProductConfiguration.return_value = {'bind': 'foo.com:44'}
+    >>> zc.z3monitor.initialize(None)
+    >>> start.assert_called_with(('foo.com', 44))
+
+    >>> getProductConfiguration.return_value = {'bind': 'foo.sock'}
+    >>> zc.z3monitor.initialize(None)
+    >>> start.assert_called_with('foo.sock')
+
+
