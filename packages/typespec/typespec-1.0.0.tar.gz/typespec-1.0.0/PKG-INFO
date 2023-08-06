@@ -1,0 +1,185 @@
+Metadata-Version: 1.1
+Name: typespec
+Version: 1.0.0
+Summary: Type Specification for Function Annotations
+Home-page: https://github.com/galini/typespec
+Author: Duncan Davis
+Author-email: duncanjdavis@gmail.com
+License: UNKNOWN
+Description: 
+        typespec
+        ========
+        
+        typespec is two things:
+            
+        1. A format specification for function annotations.
+        
+        2. A module for parsing annotations that follow this specification.
+        
+        The typespec format
+        -------------------
+        
+        The typespec format uses standard Python data structures to specify object 
+        types. The following types are recognised:
+        
+        * ``str`` - this is human readable documentation.
+        
+        * ``type`` - this is a type/class that a conforming object may be an instance of. An object conforms to a typespec if it is an instance of one of the specified types or it passes validation of a validation class.
+        
+        * ``tuple`` - this is a grouping of other strs, types and tuples. There is no semantic difference between grouped and ungrouped types but grouped strs are documentation that applies only to the types in the same grouping.
+        
+        Other types are allowed but their meaning is undefined.
+        
+        Simple Examples
+        ~~~~~~~~~~~~~~~
+        
+        Human readable documentation only - no type restrictions defined::
+        
+            "some description of a value"
+        
+        
+        A value that must be a string::
+        
+            str
+        
+        
+        A documented string value::
+        
+            (str, "description of the meaning of the string contents")
+        
+        
+        A value that may be a string or a number::
+        
+            (str, int, float)
+        
+        
+        A value that may be a string or a number with type specific documentation::
+        
+            (
+                (str, "description of the meaning of the string contents"),
+                (int, float, "what does the number represent?")
+            )
+        
+        Validation Classes
+        ~~~~~~~~~~~~~~~~~~
+        
+        Sometimes it is desirable to check more than just the type of an object.
+        For this purpose, validation classes can be defined and used in typespecs.
+        Validation classes are classes that have a ``__validate__`` method. 
+        Before an object is validated against a validation class, it is checked that
+        it is an instance of the base class (ValidationClass.__base__) of the 
+        validation class. In order to validate a value, the validation class is 
+        instantiated with that object as the only argument (so it should have an 
+        ``__init__`` method definition like: ``def __init__(self, val):``) and then the 
+        ``__validate__`` method is called on the resulting object. 
+        If this returns a true value, the object is deemed valid else it is deemed 
+        invalid.
+        
+        Examples::
+        
+            class PositiveInt(int):
+                def __validate__(self):
+                    return self > 0
+        
+            class PositiveFloat(float):
+                def __validate__(self):
+                    return self > 0.0
+        
+            class PositiveNumber(object):
+                def __init__(self, val):
+                    self.val = val
+        
+                def __validate__(self):
+                    if isinstance(self.val, int):
+                        return PositiveInt(self.val).__validate__()
+                    if isinstance(self.val, float):
+                        return PositiveFloat(self.val).__validate__()
+        
+            class SingleCharacterString(str):
+                def __validate__(self):
+                    return len(self) == 1
+        
+        Using typespecs in Annotations
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        A typespec can be used in function annotations. For argument annotations, it
+        specifies the type of argument. For return annotations it specifies the type
+        of object returned/yielded.
+        
+        Examples::
+        
+            def add_chars(
+                a : SingleCharacterString, 
+                b : SingleCharacterString) -> SingleCharacterString:
+                '''
+                Adds the ordinal values of 2 characters and returns the character with
+                that ordinal value.
+                '''
+                return chr(ord(a) + ord(b))
+        
+            def sum(a : (int, float), b : (int, float)) -> float:
+                return float(a + b)
+        
+            def install_python(
+                path : (str, "The file path that python should be installed to"),
+                version : (str, "The version of python to install") = "3.2"
+                ) -> (bool, "True if successful, False if unsuccessful"):
+                    #python installation code
+        
+            def ords(string : str) -> int:
+                '''yields the ordinal values of the characters in ``string``.'''
+                for c in string:
+                    yield ord(c)
+        
+        The typespec module
+        -------------------
+        
+        The typespec module provides simple utilities for validating values against
+        typespecs.
+        
+        Basic Usage
+        ~~~~~~~~~~~
+        
+        Checking an object against a typespec::
+        
+            >>> #use the in operator
+            >>> 1 in typespec.TypeSpec((int, float))
+            True
+            >>> "hello" in typespec.TypeSpec((int, float))
+            False
+        
+        Listing types in a typespec::
+        
+            >>> #simply iterate over the TypeSpec object
+            >>> sorted(t.__name__ for t in typespec.TypeSpec((int, str, "doc")))
+            ['int', 'str']
+        
+        Accessing human readable documentation::
+        
+            >>> #use the doc method
+            >>> typespec.TypeSpec("some documentation").doc()
+            'some documentation'
+            >>> my_spec = typespec.TypeSpec((
+            ...     (str, "description of the meaning of the string contents"),
+            ...     (int, float, "what does the number represent?")
+            ... ))
+            >>> my_spec.doc()
+            ''
+            >>> my_spec.doc(str)
+            'description of the meaning of the string contents'
+            >>> my_spec.doc(int)
+            'what does the number represent?'
+            >>> my_spec.doc(float)
+            'what does the number represent?'
+        
+        For more details see the module documentation.
+        
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Libraries
