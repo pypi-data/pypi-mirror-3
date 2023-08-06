@@ -1,0 +1,175 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Rich Content Extraction &mdash; Haystack v2.0.0-beta documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '2.0.0-beta',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Haystack v2.0.0-beta documentation" href="index.html" />
+    <link rel="next" title="Spatial Search" href="spatial.html" />
+    <link rel="prev" title="Multiple Indexes" href="multiple_index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="spatial.html" title="Spatial Search"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="multiple_index.html" title="Multiple Indexes"
+             accesskey="P">previous</a> |</li>
+        <li><a href="toc.html">Haystack v2.0.0-beta documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="rich-content-extraction">
+<span id="ref-rich-content-extraction"></span><h1>Rich Content Extraction<a class="headerlink" href="#rich-content-extraction" title="Permalink to this headline">¶</a></h1>
+<p>For some projects it is desirable to index text content which is stored in
+structured files such as PDFs, Microsoft Office documents, images, etc.
+Currently only Solr&#8217;s <a class="reference external" href="http://wiki.apache.org/solr/ExtractingRequestHandler">ExtractingRequestHandler</a> is directly supported by
+Haystack but the approach below could be used with any backend which supports
+this feature.</p>
+<div class="section" id="extracting-content">
+<h2>Extracting Content<a class="headerlink" href="#extracting-content" title="Permalink to this headline">¶</a></h2>
+<p><a class="reference internal" href="searchbackend_api.html#SearchBackend.extract_file_contents" title="SearchBackend.extract_file_contents"><tt class="xref py py-meth docutils literal"><span class="pre">SearchBackend.extract_file_contents()</span></tt></a> accepts a file or file-like object
+and returns a dictionary containing two keys: <tt class="docutils literal"><span class="pre">metadata</span></tt> and <tt class="docutils literal"><span class="pre">contents</span></tt>. The
+<tt class="docutils literal"><span class="pre">contents</span></tt> value will be a string containing all of the text which the backend
+managed to extract from the file contents. <tt class="docutils literal"><span class="pre">metadata</span></tt> will always be a
+dictionary but the keys and values will vary based on the underlying extraction
+engine and the type of file provided.</p>
+</div>
+<div class="section" id="indexing-extracted-content">
+<h2>Indexing Extracted Content<a class="headerlink" href="#indexing-extracted-content" title="Permalink to this headline">¶</a></h2>
+<p>Generally you will want to include the extracted text in your main document
+field along with everything else specified in your search template. This example
+shows how to override a hypothetical <tt class="docutils literal"><span class="pre">FileIndex</span></tt>&#8216;s <tt class="docutils literal"><span class="pre">prepare</span></tt> method to
+include the extract content along with information retrieved from the database:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">prepare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">FileIndex</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="c"># This could also be a regular Python open() call, a StringIO instance</span>
+    <span class="c"># or the result of opening a URL. Note that due to a library limitation</span>
+    <span class="c"># file_obj must have a .name attribute even if you need to set one</span>
+    <span class="c"># manually before calling extract_file_contents:</span>
+    <span class="n">file_obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">the_file</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+
+    <span class="n">extracted_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">extract_file_contents</span><span class="p">(</span><span class="n">file_obj</span><span class="p">)</span>
+
+    <span class="c"># Now we&#39;ll finally perform the template processing to render the</span>
+    <span class="c"># text field with *all* of our metadata visible for templating:</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">select_template</span><span class="p">((</span><span class="s">&#39;search/indexes/myapp/file_text.txt&#39;</span><span class="p">,</span> <span class="p">))</span>
+    <span class="n">data</span><span class="p">[</span><span class="s">&#39;text&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">Context</span><span class="p">({</span><span class="s">&#39;object&#39;</span><span class="p">:</span> <span class="n">obj</span><span class="p">,</span>
+                                     <span class="s">&#39;extracted&#39;</span><span class="p">:</span> <span class="n">extracted_data</span><span class="p">}))</span>
+
+    <span class="k">return</span> <span class="n">data</span>
+</pre></div>
+</div>
+<p>This allows you to insert the extracted text at the appropriate place in your
+template, modified or intermixed with database content as appropriate:</p>
+<div class="highlight-html+django"><div class="highlight"><pre><span class="cp">{{</span> <span class="nv">object.title</span> <span class="cp">}}</span>
+<span class="cp">{{</span> <span class="nv">object.owner.name</span> <span class="cp">}}</span>
+
+…
+
+<span class="cp">{%</span> <span class="k">for</span> <span class="nv">k</span><span class="o">,</span> <span class="nv">v</span> <span class="k">in</span> <span class="nv">extracted.metadata.items</span> <span class="cp">%}</span>
+    <span class="cp">{%</span> <span class="k">for</span> <span class="nv">val</span> <span class="k">in</span> <span class="nv">v</span> <span class="cp">%}</span>
+        <span class="cp">{{</span> <span class="nv">k</span> <span class="cp">}}</span>: <span class="cp">{{</span> <span class="nv">val</span><span class="o">|</span><span class="nf">safe</span> <span class="cp">}}</span>
+    <span class="cp">{%</span> <span class="k">endfor</span> <span class="cp">%}</span>
+<span class="cp">{%</span> <span class="k">endfor</span> <span class="cp">%}</span>
+
+<span class="cp">{{</span> <span class="nv">extracted.contents</span><span class="o">|</span><span class="nf">striptags</span><span class="o">|</span><span class="nf">safe</span> <span class="cp">}}</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="toc.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Rich Content Extraction</a><ul>
+<li><a class="reference internal" href="#extracting-content">Extracting Content</a></li>
+<li><a class="reference internal" href="#indexing-extracted-content">Indexing Extracted Content</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="multiple_index.html"
+                        title="previous chapter">Multiple Indexes</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="spatial.html"
+                        title="next chapter">Spatial Search</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/rich_content_extraction.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="spatial.html" title="Spatial Search"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="multiple_index.html" title="Multiple Indexes"
+             >previous</a> |</li>
+        <li><a href="toc.html">Haystack v2.0.0-beta documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2009-2012, Daniel Lindsley.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

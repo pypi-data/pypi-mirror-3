@@ -1,0 +1,551 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Spatial Search &mdash; Haystack v2.0.0-beta documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '2.0.0-beta',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Haystack v2.0.0-beta documentation" href="index.html" />
+    <link rel="next" title="SearchQuerySet API" href="searchqueryset_api.html" />
+    <link rel="prev" title="Rich Content Extraction" href="rich_content_extraction.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="searchqueryset_api.html" title="SearchQuerySet API"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="rich_content_extraction.html" title="Rich Content Extraction"
+             accesskey="P">previous</a> |</li>
+        <li><a href="toc.html">Haystack v2.0.0-beta documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="spatial-search">
+<span id="ref-spatial"></span><h1>Spatial Search<a class="headerlink" href="#spatial-search" title="Permalink to this headline">¶</a></h1>
+<p>Spatial search (also called geospatial search) allows you to take data that
+has a geographic location &amp; enhance the search results by limiting them to a
+physical area. Haystack, combined with the latest versions of a couple engines,
+can provide this type of search.</p>
+<p>In addition, Haystack tries to implement these features in a way that is as
+close to <a class="reference external" href="http://geodjango.org/">GeoDjango</a> as possible. There are some differences, which we&#8217;ll
+highlight throughout this guide. Additionally, while the support isn&#8217;t as
+comprehensive as PostGIS (for example), it is still quite useful.</p>
+<div class="section" id="additional-requirements">
+<h2>Additional Requirements<a class="headerlink" href="#additional-requirements" title="Permalink to this headline">¶</a></h2>
+<p>The spatial functionality has only one non-included, non-available-in-Django
+dependency:</p>
+<ul class="simple">
+<li><tt class="docutils literal"><span class="pre">geopy</span></tt> - <tt class="docutils literal"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">geopy</span></tt></li>
+</ul>
+<p>If you do not ever need distance information, you may be able to skip
+installing <tt class="docutils literal"><span class="pre">geopy</span></tt>.</p>
+</div>
+<div class="section" id="support">
+<h2>Support<a class="headerlink" href="#support" title="Permalink to this headline">¶</a></h2>
+<p>You need the latest &amp; greatest of either Solr or Elasticsearch. None of the
+other backends (specifially the engines) support this kind of search.</p>
+<p>For <a class="reference external" href="http://lucene.apache.org/solr/">Solr</a>, you&#8217;ll need at least <strong>v3.5+</strong>. In addition, if you have an existing
+install of Haystack &amp; Solr, you&#8217;ll need to upgrade the schema &amp; reindex your
+data. If you&#8217;re adding geospatial data, you would have to reindex anyhow.</p>
+<p>For Elasticsearch, you&#8217;ll need at least v0.17.7, preferably v0.18.6 or better.
+If you&#8217;re adding geospatial data, you&#8217;ll have to reindex as well.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="34%" />
+<col width="9%" />
+<col width="23%" />
+<col width="12%" />
+<col width="12%" />
+<col width="9%" />
+</colgroup>
+<thead valign="bottom">
+<tr><th class="head">Lookup Type</th>
+<th class="head">Solr</th>
+<th class="head">Elasticsearch</th>
+<th class="head">Whoosh</th>
+<th class="head">Xapian</th>
+<th class="head">Simple</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr><td><cite>within</cite></td>
+<td>X</td>
+<td>X</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+</tr>
+<tr><td><cite>dwithin</cite></td>
+<td>X</td>
+<td>X</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+</tr>
+<tr><td><cite>distance</cite></td>
+<td>X</td>
+<td>X</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+</tr>
+<tr><td><cite>order_by(&#8216;distance&#8217;)</cite></td>
+<td>X</td>
+<td>X</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+</tr>
+<tr><td><cite>polygon</cite></td>
+<td>&nbsp;</td>
+<td>X</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+<td>&nbsp;</td>
+</tr>
+</tbody>
+</table>
+<p>For more details, you can inspect <a class="reference external" href="http://wiki.apache.org/solr/SpatialSearch">http://wiki.apache.org/solr/SpatialSearch</a>
+or <a class="reference external" href="http://www.elasticsearch.org/guide/reference/query-dsl/geo-bounding-box-filter.html">http://www.elasticsearch.org/guide/reference/query-dsl/geo-bounding-box-filter.html</a>.</p>
+</div>
+<div class="section" id="geospatial-assumptions">
+<h2>Geospatial Assumptions<a class="headerlink" href="#geospatial-assumptions" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="points">
+<h3><tt class="docutils literal"><span class="pre">Points</span></tt><a class="headerlink" href="#points" title="Permalink to this headline">¶</a></h3>
+<p>Haystack prefers to work with <tt class="docutils literal"><span class="pre">Point</span></tt> objects, which are located in
+<tt class="docutils literal"><span class="pre">django.contrib.gis.geos.Point</span></tt> but conviently importable out of
+<tt class="docutils literal"><span class="pre">haystack.utils.geo.Point</span></tt>.</p>
+<p><tt class="docutils literal"><span class="pre">Point</span></tt> objects use <strong>LONGITUDE, LATITUDE</strong> for their construction, regardless
+if you use the parameters to instantiate them or <a class="reference external" href="http://en.wikipedia.org/wiki/Well-known_text">WKT</a>/<tt class="docutils literal"><span class="pre">GEOSGeometry</span></tt>.</p>
+<p>Examples:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># Using positional arguments.</span>
+<span class="kn">from</span> <span class="nn">haystack.utils.geo</span> <span class="kn">import</span> <span class="n">Point</span>
+<span class="n">pnt</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23592948913574</span><span class="p">,</span> <span class="mf">38.97127105172941</span><span class="p">)</span>
+
+<span class="c"># Using WKT.</span>
+<span class="kn">from</span> <span class="nn">django.contrib.gis.geos</span> <span class="kn">import</span> <span class="n">GEOSGeometry</span>
+<span class="n">pnt</span> <span class="o">=</span> <span class="n">GEOSGeometry</span><span class="p">(</span><span class="s">&#39;POINT(-95.23592948913574 38.97127105172941)&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>They are preferred over just providing <tt class="docutils literal"><span class="pre">latitude,</span> <span class="pre">longitude</span></tt> because they are
+more intelligent, have a spatial reference system attached &amp; are more consistent
+with GeoDjango&#8217;s use.</p>
+</div>
+<div class="section" id="distance">
+<h3><tt class="docutils literal"><span class="pre">Distance</span></tt><a class="headerlink" href="#distance" title="Permalink to this headline">¶</a></h3>
+<p>Haystack also uses the <tt class="docutils literal"><span class="pre">D</span></tt> (or <tt class="docutils literal"><span class="pre">Distance</span></tt>) objects from GeoDjango,
+implemented in <tt class="docutils literal"><span class="pre">django.contrib.gis.measure.Distance</span></tt> but conveniently
+importable out of <tt class="docutils literal"><span class="pre">haystack.utils.geo.D</span></tt> (or <tt class="docutils literal"><span class="pre">haystack.utils.geo.Distance</span></tt>).</p>
+<p><tt class="docutils literal"><span class="pre">Distance</span></tt> objects accept a very flexible set of measurements during
+instantiaton and can convert amongst them freely. This is important, because
+the engines rely on measurements being in kilometers but you&#8217;re free to use
+whatever units you want.</p>
+<p>Examples:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack.utils.geo</span> <span class="kn">import</span> <span class="n">D</span>
+
+<span class="c"># Start at 5 miles.</span>
+<span class="n">imperial_d</span> <span class="o">=</span> <span class="n">D</span><span class="p">(</span><span class="n">mi</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+<span class="c"># Convert to fathoms...</span>
+<span class="n">fathom_d</span> <span class="o">=</span> <span class="n">imperial_d</span><span class="o">.</span><span class="n">fathom</span>
+
+<span class="c"># Now to kilometers...</span>
+<span class="n">km_d</span> <span class="o">=</span> <span class="n">imperial_d</span><span class="o">.</span><span class="n">km</span>
+
+<span class="c"># And back to miles.</span>
+<span class="n">mi</span> <span class="o">=</span> <span class="n">imperial_d</span><span class="o">.</span><span class="n">mi</span>
+</pre></div>
+</div>
+<p>They are preferred over just providing a raw distance because they are
+more intelligent, have a well-defined unit system attached &amp; are consistent
+with GeoDjango&#8217;s use.</p>
+</div>
+<div class="section" id="wgs-84">
+<h3><tt class="docutils literal"><span class="pre">WGS-84</span></tt><a class="headerlink" href="#wgs-84" title="Permalink to this headline">¶</a></h3>
+<p>All engines assume WGS-84 (SRID 4326). At the time of writing, there does <strong>not</strong>
+appear to be a way to switch this. Haystack will transform all points into this
+coordinate system for you.</p>
+</div>
+</div>
+<div class="section" id="indexing">
+<h2>Indexing<a class="headerlink" href="#indexing" title="Permalink to this headline">¶</a></h2>
+<p>Indexing is relatively simple. Simply add a <tt class="docutils literal"><span class="pre">LocationField</span></tt> (or several)
+onto your <tt class="docutils literal"><span class="pre">SearchIndex</span></tt> class(es) &amp; provide them a <tt class="docutils literal"><span class="pre">Point</span></tt> object. For
+example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack</span> <span class="kn">import</span> <span class="n">indexes</span>
+<span class="kn">from</span> <span class="nn">shops.models</span> <span class="kn">import</span> <span class="n">Shop</span>
+
+
+<span class="k">class</span> <span class="nc">ShopIndex</span><span class="p">(</span><span class="n">indexes</span><span class="o">.</span><span class="n">SearchIndex</span><span class="p">,</span> <span class="n">indexes</span><span class="o">.</span><span class="n">Indexable</span><span class="p">):</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">indexes</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">document</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">use_template</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c"># ... the usual, then...</span>
+    <span class="n">location</span> <span class="o">=</span> <span class="n">indexes</span><span class="o">.</span><span class="n">LocationField</span><span class="p">(</span><span class="n">model_attr</span><span class="o">=</span><span class="s">&#39;coordinates&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Shop</span>
+</pre></div>
+</div>
+<p>If you must manually prepare the data, you have to do something slightly less
+convenient, returning a string-ified version of the coordinates in WGS-84 as
+<tt class="docutils literal"><span class="pre">lat,long</span></tt>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack</span> <span class="kn">import</span> <span class="n">indexes</span>
+<span class="kn">from</span> <span class="nn">shops.models</span> <span class="kn">import</span> <span class="n">Shop</span>
+
+
+<span class="k">class</span> <span class="nc">ShopIndex</span><span class="p">(</span><span class="n">indexes</span><span class="o">.</span><span class="n">SearchIndex</span><span class="p">,</span> <span class="n">indexes</span><span class="o">.</span><span class="n">Indexable</span><span class="p">):</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">indexes</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">document</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">use_template</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c"># ... the usual, then...</span>
+    <span class="n">location</span> <span class="o">=</span> <span class="n">indexes</span><span class="o">.</span><span class="n">LocationField</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Shop</span>
+
+    <span class="k">def</span> <span class="nf">prepare_location</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="c"># If you&#39;re just storing the floats...</span>
+        <span class="k">return</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s">,</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">latitude</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">longitude</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Alternatively, you could build a method/property onto the <tt class="docutils literal"><span class="pre">Shop</span></tt> model that
+returns a <tt class="docutils literal"><span class="pre">Point</span></tt> based on those coordinates:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># shops/models.py</span>
+<span class="kn">from</span> <span class="nn">django.contrib.gis.geos</span> <span class="kn">import</span> <span class="n">Point</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+
+
+<span class="k">class</span> <span class="nc">Shop</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="c"># ... the usual, then...</span>
+    <span class="n">latitude</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FloatField</span><span class="p">()</span>
+    <span class="n">longitude</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FloatField</span><span class="p">()</span>
+
+    <span class="c"># Usual methods, then...</span>
+    <span class="k">def</span> <span class="nf">get_location</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># Remember, longitude FIRST!</span>
+        <span class="k">return</span> <span class="n">Point</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">longitude</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">latitude</span><span class="p">)</span>
+
+
+<span class="c"># shops/search_indexes.py</span>
+<span class="kn">from</span> <span class="nn">haystack</span> <span class="kn">import</span> <span class="n">indexes</span>
+<span class="kn">from</span> <span class="nn">shops.models</span> <span class="kn">import</span> <span class="n">Shop</span>
+
+
+<span class="k">class</span> <span class="nc">ShopIndex</span><span class="p">(</span><span class="n">indexes</span><span class="o">.</span><span class="n">SearchIndex</span><span class="p">,</span> <span class="n">indexes</span><span class="o">.</span><span class="n">Indexable</span><span class="p">):</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">indexes</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">document</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">use_template</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">location</span> <span class="o">=</span> <span class="n">indexes</span><span class="o">.</span><span class="n">LocationField</span><span class="p">(</span><span class="n">model_attr</span><span class="o">=</span><span class="s">&#39;get_location&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Shop</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="querying">
+<h2>Querying<a class="headerlink" href="#querying" title="Permalink to this headline">¶</a></h2>
+<p>There are two types of geospatial queries you can run, <tt class="docutils literal"><span class="pre">within</span></tt> &amp; <tt class="docutils literal"><span class="pre">dwithin</span></tt>.
+Like their GeoDjango counterparts (<a class="reference external" href="https://docs.djangoproject.com/en/dev/ref/contrib/gis/geoquerysets/#within">within</a> &amp; <a class="reference external" href="https://docs.djangoproject.com/en/dev/ref/contrib/gis/geoquerysets/#dwithin">dwithin</a>), these methods focus on
+finding results within an area.</p>
+<div class="section" id="id1">
+<h3><tt class="docutils literal"><span class="pre">within</span></tt><a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h3>
+<dl class="method">
+<dt id="SearchQuerySet.dwithin">
+<tt class="descclassname">SearchQuerySet.</tt><tt class="descname">dwithin</tt><big>(</big><em>self</em>, <em>field</em>, <em>point_1</em>, <em>point_2</em><big>)</big><a class="headerlink" href="#SearchQuerySet.dwithin" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p><tt class="docutils literal"><span class="pre">within</span></tt> is a bounding box comparison. A bounding box is a rectangular area
+within which to search. It&#8217;s composed of a bottom-left point &amp; a top-right
+point, though provided you give two opposing corners in either order, Haystack
+will determine the right coordinates. It is faster but slighty sloppier than
+its counterpart.</p>
+<p>Examples:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack.query</span> <span class="kn">import</span> <span class="n">SearchQuerySet</span>
+<span class="kn">from</span> <span class="nn">haystack.utils.geo</span> <span class="kn">import</span> <span class="n">Point</span>
+
+<span class="n">downtown_bottom_left</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23947</span><span class="p">,</span> <span class="mf">38.9637903</span><span class="p">)</span>
+<span class="n">downtown_top_right</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23362278938293</span><span class="p">,</span> <span class="mf">38.973081081164715</span><span class="p">)</span>
+
+<span class="c"># &#39;location&#39; is the fieldname from our ``SearchIndex``...</span>
+
+<span class="c"># Do the bounding box query.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">downtown_bottom_left</span><span class="p">,</span> <span class="n">downtown_top_right</span><span class="p">)</span>
+
+<span class="c"># Can be chained with other Haystack calls.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">auto_query</span><span class="p">(</span><span class="s">&#39;coffee&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">downtown_bottom_left</span><span class="p">,</span> <span class="n">downtown_top_right</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s">&#39;-popularity&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>In GeoDjango, assuming the <tt class="docutils literal"><span class="pre">Shop</span></tt> model had been properly geo-ified, this
+would have been implemented as:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">shops.models</span> <span class="kn">import</span> <span class="n">Shop</span>
+<span class="n">Shop</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">location__within</span><span class="o">=</span><span class="p">(</span><span class="n">downtown_bottom_left</span><span class="p">,</span> <span class="n">downtown_top_right</span><span class="p">))</span>
+</pre></div>
+</div>
+<p class="last">Haystack&#8217;s form differs because it yielded a cleaner implementation, was
+no more typing than the GeoDjango version &amp; tried to maintain the same
+terminology/similar signature.</p>
+</div>
+</div>
+<div class="section" id="id2">
+<h3><tt class="docutils literal"><span class="pre">dwithin</span></tt><a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h3>
+<dl class="method">
+<dt>
+<tt class="descclassname">SearchQuerySet.</tt><tt class="descname">dwithin</tt><big>(</big><em>self</em>, <em>field</em>, <em>point</em>, <em>distance</em><big>)</big></dt>
+<dd></dd></dl>
+
+<p><tt class="docutils literal"><span class="pre">dwithin</span></tt> is a radius-based search. A radius-based search is a circular area
+within which to search. It&#8217;s composed of a center point &amp; a radius (in
+kilometers, though Haystack will use the <tt class="docutils literal"><span class="pre">D</span></tt> object&#8217;s conversion utilities to
+get it there). It is slower than``within`` but very exact &amp; can involve fewer
+calculations on your part.</p>
+<p>Examples:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack.query</span> <span class="kn">import</span> <span class="n">SearchQuerySet</span>
+<span class="kn">from</span> <span class="nn">haystack.utils.geo</span> <span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">D</span>
+
+<span class="n">ninth_and_mass</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23592948913574</span><span class="p">,</span> <span class="mf">38.96753407043678</span><span class="p">)</span>
+<span class="c"># Within a two miles.</span>
+<span class="n">max_dist</span> <span class="o">=</span> <span class="n">D</span><span class="p">(</span><span class="n">mi</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="c"># &#39;location&#39; is the fieldname from our ``SearchIndex``...</span>
+
+<span class="c"># Do the radius query.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">dwithin</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">max_dist</span><span class="p">)</span>
+
+<span class="c"># Can be chained with other Haystack calls.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">auto_query</span><span class="p">(</span><span class="s">&#39;coffee&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">dwithin</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">max_dist</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s">&#39;-popularity&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>In GeoDjango, assuming the <tt class="docutils literal"><span class="pre">Shop</span></tt> model had been properly geo-ified, this
+would have been implemented as:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">shops.models</span> <span class="kn">import</span> <span class="n">Shop</span>
+<span class="n">Shop</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">location__dwithin</span><span class="o">=</span><span class="p">(</span><span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">D</span><span class="p">(</span><span class="n">mi</span><span class="o">=</span><span class="mi">2</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p class="last">Haystack&#8217;s form differs because it yielded a cleaner implementation, was
+no more typing than the GeoDjango version &amp; tried to maintain the same
+terminology/similar signature.</p>
+</div>
+</div>
+<div class="section" id="id3">
+<h3><tt class="docutils literal"><span class="pre">distance</span></tt><a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h3>
+<dl class="method">
+<dt id="SearchQuerySet.distance">
+<tt class="descclassname">SearchQuerySet.</tt><tt class="descname">distance</tt><big>(</big><em>self</em>, <em>field</em>, <em>point</em><big>)</big><a class="headerlink" href="#SearchQuerySet.distance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p>By default, search results will come back without distance information attached
+to them. In the concept of a bounding box, it would be ambiguous what the
+distances would be calculated against. And it is more calculation that may not
+be necessary.</p>
+<p>So like GeoDjango, Haystack exposes a method to signify that you want to
+include these calculated distances on results.</p>
+<p>Examples:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack.query</span> <span class="kn">import</span> <span class="n">SearchQuerySet</span>
+<span class="kn">from</span> <span class="nn">haystack.utils.geo</span> <span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">D</span>
+
+<span class="n">ninth_and_mass</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23592948913574</span><span class="p">,</span> <span class="mf">38.96753407043678</span><span class="p">)</span>
+
+<span class="c"># On a bounding box...</span>
+<span class="n">downtown_bottom_left</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23947</span><span class="p">,</span> <span class="mf">38.9637903</span><span class="p">)</span>
+<span class="n">downtown_top_right</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23362278938293</span><span class="p">,</span> <span class="mf">38.973081081164715</span><span class="p">)</span>
+
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">downtown_bottom_left</span><span class="p">,</span> <span class="n">downtown_top_right</span><span class="p">)</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">)</span>
+
+<span class="c"># ...Or on a radius query.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">dwithin</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">D</span><span class="p">(</span><span class="n">mi2</span><span class="p">))</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can even apply a different field, for instance if you calculate results of
+key, well-cached hotspots in town but want distances from the user&#8217;s current
+position:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack.query</span> <span class="kn">import</span> <span class="n">SearchQuerySet</span>
+<span class="kn">from</span> <span class="nn">haystack.utils.geo</span> <span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">D</span>
+
+<span class="n">ninth_and_mass</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23592948913574</span><span class="p">,</span> <span class="mf">38.96753407043678</span><span class="p">)</span>
+<span class="n">user_loc</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23455619812012</span><span class="p">,</span> <span class="mf">38.97240128290697</span><span class="p">)</span>
+
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">dwithin</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">D</span><span class="p">(</span><span class="n">mi2</span><span class="p">))</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">user_loc</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>The astute will notice this is Haystack&#8217;s biggest departure from GeoDjango.
+In GeoDjango, this would have been implemented as:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">shops.models</span> <span class="kn">import</span> <span class="n">Shop</span>
+<span class="n">Shop</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">location__dwithin</span><span class="o">=</span><span class="p">(</span><span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">D</span><span class="p">(</span><span class="n">mi</span><span class="o">=</span><span class="mi">2</span><span class="p">)))</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">user_loc</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that, by default, the GeoDjango form leaves <em>out</em> the field to be
+calculating against (though it&#8217;s possible to override it &amp; specify the
+field).</p>
+<p class="last">Haystack&#8217;s form differs because the same assumptions are difficult to make.
+GeoDjango deals with a single model at a time, where Haystack deals with
+a broad mix of models. Additionally, accessing <tt class="docutils literal"><span class="pre">Model</span></tt> information is a
+couple hops away, so Haystack favors the explicit (if slightly more typing)
+approach.</p>
+</div>
+</div>
+</div>
+<div class="section" id="ordering">
+<h2>Ordering<a class="headerlink" href="#ordering" title="Permalink to this headline">¶</a></h2>
+<p>Because you&#8217;re dealing with search, even with geospatial queries, results still
+come back in <strong>RELEVANCE</strong> order. If you want to offer the user ordering
+results by distance, there&#8217;s a simple way to enable this ordering.</p>
+<p>Using the standard Haystack <tt class="docutils literal"><span class="pre">order_by</span></tt> method, if you specify <tt class="docutils literal"><span class="pre">distance</span></tt> or
+<tt class="docutils literal"><span class="pre">-distance</span></tt> <strong>ONLY</strong>, you&#8217;ll get geographic ordering. Additionally, you must
+have a call to <tt class="docutils literal"><span class="pre">.distance()</span></tt> somewhere in the chain, otherwise there is no
+distance information on the results &amp; nothing to sort by.</p>
+<p>Examples:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">haystack.query</span> <span class="kn">import</span> <span class="n">SearchQuerySet</span>
+<span class="kn">from</span> <span class="nn">haystack.utils.geo</span> <span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">D</span>
+
+<span class="n">ninth_and_mass</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23592948913574</span><span class="p">,</span> <span class="mf">38.96753407043678</span><span class="p">)</span>
+<span class="n">downtown_bottom_left</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23947</span><span class="p">,</span> <span class="mf">38.9637903</span><span class="p">)</span>
+<span class="n">downtown_top_right</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="o">-</span><span class="mf">95.23362278938293</span><span class="p">,</span> <span class="mf">38.973081081164715</span><span class="p">)</span>
+
+<span class="c"># Non-geo ordering.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">downtown_bottom_left</span><span class="p">,</span> <span class="n">downtown_top_right</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s">&#39;title&#39;</span><span class="p">)</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">downtown_bottom_left</span><span class="p">,</span> <span class="n">downtown_top_right</span><span class="p">)</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s">&#39;-created&#39;</span><span class="p">)</span>
+
+<span class="c"># Geo ordering, closest to farthest.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">downtown_bottom_left</span><span class="p">,</span> <span class="n">downtown_top_right</span><span class="p">)</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s">&#39;distance&#39;</span><span class="p">)</span>
+<span class="c"># Geo ordering, farthest to closest.</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">dwithin</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">D</span><span class="p">(</span><span class="n">mi2</span><span class="p">))</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s">&#39;-distance&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This call is identical to the GeoDjango usage.</p>
+</div>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p>You can not specify both a distance &amp; lexicographic ordering. If you specify
+more than just <tt class="docutils literal"><span class="pre">distance</span></tt> or <tt class="docutils literal"><span class="pre">-distance</span></tt>, Haystack assumes <tt class="docutils literal"><span class="pre">distance</span></tt>
+is a field in the index &amp; tries to sort on it. Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># May blow up!</span>
+<span class="n">sqs</span> <span class="o">=</span> <span class="n">SearchQuerySet</span><span class="p">()</span><span class="o">.</span><span class="n">dwithin</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">,</span> <span class="n">D</span><span class="p">(</span><span class="n">mi2</span><span class="p">))</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="s">&#39;location&#39;</span><span class="p">,</span> <span class="n">ninth_and_mass</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s">&#39;distance&#39;</span><span class="p">,</span> <span class="s">&#39;title&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This is a limitation in the engine&#8217;s implementation.</p>
+<p class="last">If you actually <strong>have</strong> a field called <tt class="docutils literal"><span class="pre">distance</span></tt> (&amp; aren&#8217;t using
+calculated distance information), Haystack will do the right thing in
+these circumstances.</p>
+</div>
+</div>
+<div class="section" id="caveats">
+<h2>Caveats<a class="headerlink" href="#caveats" title="Permalink to this headline">¶</a></h2>
+<p>In all cases, you may call the <tt class="docutils literal"><span class="pre">within/dwithin/distance</span></tt> methods as many times
+as you like. However, the <strong>LAST</strong> call is the information that will be used.
+No combination logic is available, as this is largely a backend limitation.</p>
+<p>Combining calls to both <tt class="docutils literal"><span class="pre">within</span></tt> &amp; <tt class="docutils literal"><span class="pre">dwithin</span></tt> may yield unexpected or broken
+results. They don&#8217;t overlap when performing queries, so it may be possible to
+construct queries that work. Your Mileage May Vary.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="toc.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Spatial Search</a><ul>
+<li><a class="reference internal" href="#additional-requirements">Additional Requirements</a></li>
+<li><a class="reference internal" href="#support">Support</a></li>
+<li><a class="reference internal" href="#geospatial-assumptions">Geospatial Assumptions</a><ul>
+<li><a class="reference internal" href="#points"><tt class="docutils literal"><span class="pre">Points</span></tt></a></li>
+<li><a class="reference internal" href="#distance"><tt class="docutils literal"><span class="pre">Distance</span></tt></a></li>
+<li><a class="reference internal" href="#wgs-84"><tt class="docutils literal"><span class="pre">WGS-84</span></tt></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#indexing">Indexing</a></li>
+<li><a class="reference internal" href="#querying">Querying</a><ul>
+<li><a class="reference internal" href="#id1"><tt class="docutils literal"><span class="pre">within</span></tt></a></li>
+<li><a class="reference internal" href="#id2"><tt class="docutils literal"><span class="pre">dwithin</span></tt></a></li>
+<li><a class="reference internal" href="#id3"><tt class="docutils literal"><span class="pre">distance</span></tt></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#ordering">Ordering</a></li>
+<li><a class="reference internal" href="#caveats">Caveats</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="rich_content_extraction.html"
+                        title="previous chapter">Rich Content Extraction</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="searchqueryset_api.html"
+                        title="next chapter"><tt class="docutils literal docutils literal docutils literal"><span class="pre">SearchQuerySet</span></tt> API</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/spatial.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="searchqueryset_api.html" title="SearchQuerySet API"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="rich_content_extraction.html" title="Rich Content Extraction"
+             >previous</a> |</li>
+        <li><a href="toc.html">Haystack v2.0.0-beta documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2009-2012, Daniel Lindsley.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
