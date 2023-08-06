@@ -1,0 +1,110 @@
+Browser tests for Emaillogin
+============================
+
+These tests are specifically to test the controlpanel.
+
+  >>> from Products.Five.testbrowser import Browser
+  >>> from Products.PloneTestCase.setup import portal_owner, default_password
+  >>> browser = Browser()
+  >>> browser.handleErrors = False
+  >>> portal_url = self.portal.absolute_url()
+  
+Set up two test users with emails:
+
+  >>> test_username = 'user1'
+  >>> test_user_fullname = 'User 1'
+  >>> test_user_pass = 'secret'
+  >>> test_user_email = 'user1@host.com'
+  
+  >>> test_username2 = 'user2'
+  >>> test_user2_fullname = 'User 2'
+  >>> test_user2_pass = 'secret2'
+  >>> test_user2_email = 'user2@host.com'  
+  
+  >>> self.portal.portal_membership.addMember(test_username, test_user_pass, ['Member'], [], {'email': test_user_email, 'fullname': test_user_fullname})
+  >>> self.portal.portal_membership.addMember(test_username2, test_user2_pass, ['Member'], [], {'email': test_user2_email, 'fullname': test_user2_fullname})
+
+Login as admin and try to change the email of user 1 to the email of user 2:
+
+  >>> browser.open(portal_url)
+  >>> browser.getLink('Log in').click()
+  >>> browser.getControl(name='__ac_name').value = portal_owner
+  >>> browser.getControl(name='__ac_password').value = default_password
+  >>> browser.getControl(name='submit').click()
+  >>> "You are now logged in" in browser.contents
+  True
+
+Let's go directly to the users preference panel, and try changing email to an existing email, this should trigger a warning:
+
+  >>> browser.open('http://nohost/plone/prefs_users_overview')
+  >>> browser.getControl(name="form.button.FindAll").click()
+  >>> 'prefs_user_details?userid=' +test_username in browser.contents
+  True
+  >>> for x in range(len(self.portal.acl_users.getUsers())):
+  ...    field = browser.getControl(name='users.email:records', index=x)
+  ...    if field.value == test_user_email:
+  ...        field.value = test_user2_email
+  ...        break
+  >>> browser.getControl(name="form.button.Modify").click()
+  >>> '<dt>Warning</dt>' in browser.contents and '%s</dd>' % test_username in browser.contents
+  True
+  >>> browser.contents.count(test_username)
+  1
+  
+And so it does. Change back and test delete / re-adding of user.
+
+  >>> browser.open('http://nohost/plone/prefs_users_overview')
+  >>> browser.getControl(name="form.button.FindAll").click()
+  >>> 'prefs_user_details?userid=' +test_username in browser.contents
+  True
+  >>> for x in range(len(self.portal.acl_users.getUsers())):
+  ...    field = browser.getControl(name='users.email:records', index=x)
+  ...    if field.value == test_user2_email:
+  ...        field.value = test_user_email
+  ...        break
+  >>> browser.getControl(name="form.button.Modify").click()
+  >>> '<dt>Warning</dt>' in browser.contents and '%s</dd>' % test_username in browser.contents
+  False
+
+Email is changed back.
+
+  >>> browser.open('http://nohost/plone/prefs_users_overview')
+  >>> browser.getControl(name="form.button.FindAll").click()
+  >>> 'prefs_user_details?userid=' +test_username in browser.contents
+  True
+  >>> browser.getControl(name='delete:list').value = ['user1']
+  >>> browser.getControl(name="form.button.Modify").click()
+  >>> '<dt>Warning</dt>' in browser.contents and '%s</dd>' % test_username in browser.contents
+  False
+
+The user is deleted. Lets just make sure the user is gone.
+
+  >>> browser.open('http://nohost/plone/prefs_users_overview')
+  >>> browser.getControl(name="form.button.FindAll").click()
+  >>> 'prefs_user_details?userid=' +test_username in browser.contents
+  False
+
+
+  >>> browser.open('http://nohost/plone/@@security-controlpanel')
+  >>> browser.getControl(name="form.enable_self_reg").value = "on"
+  >>> browser.getControl(name="form.enable_user_pwd_choice").value = "on"
+  >>> browser.getControl(name="form.actions.save").click()
+
+Log out and then try to join as a new user but with the same email as the first:
+
+  >>> browser.getLink('Log out').click()
+  >>> "You are now logged out" in browser.contents
+  True
+    
+  >>> browser.open(portal_url)
+  >>> browser.getLink('Register').click()
+  >>> browser.getControl('Full Name').value = test_user_fullname
+  >>> browser.getControl('User Name').value = test_username
+  >>> browser.getControl('E-mail').value = test_user_email
+  >>> browser.getControl('Password').value = test_user_pass
+  >>> browser.getControl('Confirm password').value = test_user_pass
+  >>> browser.getControl('Register').click()
+  >>> 'The email you selected is already in use or is not valid. Please use another.' in browser.contents
+  False
+
+  

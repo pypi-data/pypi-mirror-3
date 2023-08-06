@@ -1,0 +1,184 @@
+Metadata-Version: 1.0
+Name: betahaus.emaillogin
+Version: 0.6.1
+Summary: Enables you to login using your emailaddress.
+Home-page: http://pypi.python.org/pypi/betahaus.emaillogin
+Author: Martin Lundwall
+Author-email: martin@betahaus.net
+License: GPL
+Description: betahaus.emaillogin
+        ====================
+        
+        Contents
+        ========
+        
+        * `What is betahaus.emaillogin?`_
+        * `Installation`_
+        * `How it works`_
+        * `Performance`_
+        * `Extensions`_
+        * `Issues`_
+        * `Change history`_
+        * `Contributors`_
+        
+        What is betahaus.emaillogin?
+        ----------------------------
+        The use of emailaddress are speading more and more but Plone does not 
+        have a convenient way to use a users registered email address to login.
+        
+        ``betahaus.emaillogin`` makes it possible to login using the email address
+        specified in the user profile. 
+        
+        Plone has a very powerful and modifiable authentication system called 
+        Pluggable Authentication Service (PAS). As the name suggest the system 
+        is pluggable and thus can easily be extended by third-party products 
+        such as this.  
+        
+        
+        Installation
+        ------------
+        
+        buildout:
+         - add ``betahaus.emaillogin`` entries to eggs and zcml in the appropriate buildout configuration file.
+         - re-run buildout.
+         - Install via portal_quickinstaller or Site Setup in plone
+         
+                        
+        
+        How it works
+        ------------
+        
+        ``betahaus.emaillogin`` is at installation put first in the list of 
+        extraction plugins. If an email address is specified and a corresponding 
+        user is found. The email address in the request is replaced with the
+        username and then simulates failed extraction to continue normal login procedure.
+        
+        
+        - Code repository: https://svn.plone.org/svn/collective/betahaus.emaillogin
+        
+        
+        Performance
+        -----------
+        
+        The current default implementation does a lookup of the email by iterating over all of the PAS users until the 
+        corresponding email is found. This approach is fine for a large number of sites with a liberal number of users. 
+        It is however computationally expensive and slow when the number of users rise. If you experience performance issues
+        there is a GenericSetup profile called ``extended`` that can be applied. This extension adds a custom email->userid
+        catalog that enables faster userid look-up from email address.
+        
+        The extended profile is applied via ``portal_setup`` -> ``Import`` -> select and apply profile ``Extended performance 
+        for EmailLogin Support``.
+        
+        If you want to uninstall this extended profile just remove the ``email_catalog`` from the site root and emaillogin will 
+        fall back to default lookup implementation. 
+        
+        Extensions
+        ----------
+        
+        You can write a custom email lookup method that will be used for translating an email to one or more usernames.
+        The usecase in mind is that a contenttype based member implementation is used and the email is present in a 
+        catalog, either portal_catalog or a custom catalog. Two examples of this is `betahaus.memberprofile <http://pypi.python.org/pypi/betahaus.memberprofile>`_
+        and `Products.remember <http://pypi.python.org/pypi/Products.remember>`_. Then by reusing the already stored catalog data there is 
+        no need for another catalog. To implement this you need to register a utility implementing the interface ``IEmailPluginExtension``.
+        Warning: When using contentbased membership implementations Plone by default creates the member contenttype on first login.
+        This can cause a problem on initial login since the information is not available in portal_catalog yet.
+         
+        Utility example::
+        
+          from zope.interface import implements
+          from betahaus.emaillogin.interfaces import IEmailPluginExtension
+          class Dummy(object):
+              implements(IEmailPluginExtension)
+              
+              def getUserNames(self, context, login_email, get_all = False):
+                  usernames = context.custom_catalog(email = login_email)
+                  if usernames and get_all == False:
+                       return usernames[0].username
+                  return [x.username for x in usernames]
+        
+          dummy_extension = Dummy()
+          
+          
+        Zcml registration example::
+        
+          <utility
+              provides="betahaus.emaillogin.interfaces.IEmailPluginExtension"      
+              component="betahaus.emaillogin.tests.test_extension.dummy_extension"
+              permission="zope.Public"
+              />  
+        
+        
+        Issues
+        ------
+        
+        Issues can be filed at `the issue tracker <http://plone.org/products/betahaus.emaillogin/issues>`_ on the products page at plone.org.
+        After update to Plone 4 compatibility some bugs might have been introduced. All tests for plone 3 pass, but if you find any bugs don't 
+        hesitate to file it.  
+        
+        
+        Change history
+        --------------
+        
+        0.6.1 (2012-02-16)
+        ------------------
+        
+        - Get rid of unused imports - in particular the one that fails on Plone 4.1.4. [ritz]
+        
+        
+        0.6 (2011-04-11)
+        ----------------
+        
+         - Fixed a bug with correct formatted non existant email when resetting password, thanks James Whisnant for this. [mlundwall]
+         - Added zcml auto slug. [mlundwall]
+         - Fixed some import errors that caused exeptions when someone entered an email that doesn't exist [robinharms]
+         - Plone 4 support. [mlundwall]
+        
+        
+        0.5 (2009-12-28)
+        ----------------
+        
+         - Fixed a bug when removing a user. [mlundwall]
+         - No warning when removing a user with duplicate email. [mlundwall]
+         - Possibility of writing custom email to username utility. [mlundwall]
+         - LDAP support. Thanks to Tom Switzer for the patch (http://plone.org/products/betahaus.emaillogin/issues/1) [mlundwall]
+        
+        0.4 (2009-09-17)
+        ----------------
+        
+         - Added i18n to for some texts that could not be reused from plone. [mlundwall]
+         - Fixed the problem with non working forgotten password retrieval via email. Thanks Winn for reporting. [mlundwall]
+        
+        0.3 (2009-07-27)
+        ----------------
+        
+         - Added a warning to managers when changing email in the prefs_users_overview to an already existing email. [mlundwall]
+         - Added a optional custom email catalog, for better performance with large number of users. [mlundwall]
+        
+        0.2 (2009-05-22)
+        ----------------
+        
+         - Fix bug in personalize_form.vpy that prevented editing user profiles. [davisagli]
+        
+        0.1 (2009-05-11)
+        ----------------
+        
+         - Added custom personalize_form.vpy to prevent changing an existing user's
+           e-mail address to one that already exists. [davisagli]
+         - Avoid applying the custom import steps when other profiles are applied. [davisagli]
+         - Duplicate email warning at install [mlundwall]
+         - Check at registration to not allow multiple users with same email [mlundwall] 
+         - Moved to collective. [mlundwall]
+         - Created recipe with ZopeSkel [Robin Harms Oredsson].
+        
+        Contributors
+        ------------
+        
+         - `Martin Lundwall <http://plone.org/author/mlundwall/>`_, Author
+         - `Robin Harms Oredsson <http://plone.org/author/robinharms/>`_, Idea for this product.
+         - David Glick, GenericSetup stuff and restrictions on changing email.
+         - Tom Switzer, <http://plone.org/products/betahaus.emaillogin/issues/1>`_, LDAP patch
+Platform: UNKNOWN
+Classifier: Framework :: Plone
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: GNU General Public License (GPL)
