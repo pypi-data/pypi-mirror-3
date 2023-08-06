@@ -1,0 +1,153 @@
+Pyafm
+=====
+
+Pyafm is a set of tools for controlling atomic force microscopes.  It
+provides control of AFM postition using both short-range (piezo) and
+long range (stepper) vertical positioning.  There are separate modules
+for controlling the piezo (pypiezo_) and stepper (stepper_), this
+module mostly contains methods that require the capabilities of both.
+
+This module can optionally include temperature sensing via a pypid_
+backend.
+
+Packages
+========
+
+Gentoo
+------
+
+I've packaged pyafm for Gentoo.  You need layman_ and my `wtk
+overlay`_.  Install with::
+
+  # emerge -av app-portage/layman
+  # layman --add wtk
+  # emerge -av sci-physics/pyafm
+
+Although it is not strictly required (thanks to `duck typing`_) you'll
+probably also want my `stepper`_ package or an equivalent
+stepper implementation.
+
+
+Dependencies
+============
+
+Pyafm requires the following Python modules:
+
+* Pycomedi_ (required directly, and via ``pypiezo``)
+* Pypiezo_
+* Stepper_ (or equivalent stepper implementation)
+* Pypid_ (optional temperature monitoring and control)
+* H5config_ (required directly, and via ``pypiezo``)
+* SciPy_
+
+Getting the source
+==================
+
+Pyafm is available as a Git_ repository::
+
+  $ git clone git://tremily.us/pyafm.git
+
+There are also periodic bundled releases.  For example, get version
+0.3 as a gzipped tarball with::
+
+  $ wget 'http://git.tremily.us/?p=pyafm.git;a=snapshot;h=v0.3;sf=tgz'
+  $ tar -xzvf pyafm-0.1.tar.gz
+
+
+Installation
+============
+
+After downloading, change to the source directory and run::
+
+  $ python setup.py install
+
+to install pyafm.  Run::
+
+  $ python setup.py install --help
+
+to see a list of installation options you may want to configure.
+
+
+Usage
+=====
+
+The docstrings include some pretty detailed tests to get you started.
+``dir()`` and ``help()`` are your friends ;).  One neat feature that
+I've added recently (2012-03-16) is the ability to store and load
+complete AFM configurations via h5config_.  For example, when you
+first use pyafm, it may take you a bit to dig up all the necessary
+calibration constants, etc. and plug them into your config::
+
+  >>> import pycomedi.constant
+  >>> import pypiezo.config
+  >>> import pyafm.config
+  >>> config = pyafm.config.AFMConfig()
+  >>> config['name'] = '1B3D9'
+  >>> config['main-axis'] = 'z'
+  >>> config['piezo'] = pypiezo.config.PiezoConfig()
+  >>> config['piezo']['name'] = '2253E'
+  >>> config['piezo']['axes'] = [
+  ...     pypiezo.config.AxisConfig(), pypiezo.config.AxisConfig()]
+  >>> config['piezo']['axes'][0]['gain'] = 20
+  >>> config['piezo']['axes'][0]['sensitivity'] = 8.8e-9
+  >>> config['piezo']['axes'][0]['channel'] = pypiezo.config.OutputChannelConfig()
+  >>> config['piezo']['axes'][0]['channel']['analog-reference] = pycomedi.constant.AREF.ground
+  >>> config['piezo']['axes'][0]['channel']['analog-reference] = pycomedi.constant.AREF.ground
+
+and on, and on ;).  Don't worry though, once you finish telling Python
+about your particular AFM configuration, you can get a working ``AFM``
+instance quite easily::
+
+  >>> devices = []
+  >>> afm = AFM(config=config, devices=devices)
+
+That takes care of opening all the channels and initializing all the
+pieces you configured above.  ``devices`` will end up full of any
+``pycomedi.device.Device`` instances that you need.  Once you're happy
+with your setup, make sure the ``config`` object is up-to-date with::
+
+  >>> afm.setup_config()
+
+Which copies any new object state into the ``.config`` attribute
+(e.g. bit-to-volt conversion polynomials).  Then save your
+configuration with::
+
+  >>> import pyafm.storage
+  >>> pyafm.storage.save_afm(afm=afm, filename='whatever', group='/optional')
+
+Which will create a HDF5 file at the specified path, and store the AFM
+configutaion under the specified group.  Both ``filename`` and
+``group`` are optional.  If you leave them out, they will default to
+``~/.config/pyafm-default.h5`` and ``/`` respectively.
+
+The next time you need to do something with the AFM, just load your
+old config file.  If you used the default location, that's as easy
+as::
+
+  >>> import pyafm.storage
+  >>> devices = []
+  >>> afm = pyafm.storage.load_afm(devices=devices)
+  >>> afm.load_from_config()
+
+When you're done using them, it's good practice to close any devices
+in ``devices``::
+
+  >>> for device in devices:
+  ...     device.close()
+
+Using ``load_afm`` with the default path is a good way to keep your
+AFM configuration synchronized across several applications.  That way,
+there's only one place you need to update if you recalibrate your
+piezo or rebuild an amplifier.
+
+
+.. _layman: http://layman.sourceforge.net/
+.. _wtk overlay: http://blog.tremily.us/posts/Gentoo_overlay/
+.. _duck typing: http://en.wikipedia.org/wiki/Duck_typing
+.. _pycomedi: http://blog.tremily.us/posts/pycomedi/
+.. _pypiezo: http://blog.tremily.us/posts/pypiezo/
+.. _stepper: http://blog.tremily.us/posts/stepper/
+.. _pypid: http://blog.tremily.us/posts/pypid/
+.. _h5config: http://blog.tremily.us/posts/h5config/
+.. _SciPy: http://www.scipy.org/
+.. _Git: http://git-scm.com/
