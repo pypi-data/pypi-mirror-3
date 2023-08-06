@@ -1,0 +1,325 @@
+Metadata-Version: 1.0
+Name: bethel.clustermgmt
+Version: 1.0
+Summary: Zope Cluster Management facilities
+Home-page: http://pypi.python.org/pypi/bethel.clustermgmt
+Author: Andy Altepeter
+Author-email: aaltepet@bethel.edu
+License: GPL
+Description: bethel.clustermgmt
+        ==================
+        
+        .. contents:: Table of Contents
+        
+        
+        Introduction
+        ------------
+        
+        This package contains support for managing and monitoring nodes 
+        in a cluster. When deploying changes to a zope cluster, it is necessary to
+        proceed linearly across all nodes.  Each node should be taken
+        out of service prior to any service disruption.  Load balancers
+        typically use a configurable http health-check, and if that health
+        check fails enough times in a certain window, the node is taken
+        out of service.  [ this is how varnish works ].  Before deploying
+        changes, we simulate a service disruption on the node, causing the
+        load balancer to take it out of service.
+        
+        This package contains a "health status" object which the load
+        balancers call for health checks.  We can inform the health status 
+        object that a node is to be taken out of service.  It will then
+        report the node as down (returning an error for the health check),
+        and the load balancer will take it out of service.
+        
+        Because a load balancer may not send enough information to the backend zope
+        node to enable it to effectively determine which node it is (sounds odd, right?),
+        nodes need to be manually entered via the ZMI manage screen.  On the same 
+        screen, these nodes can be marked as offline.
+        
+        
+        Installation
+        ------------
+        
+        Add bethel.clustermgmt to the eggs and zcml lists in the [instance] part of
+        buildout.cfg, then rerun buildout.
+        
+        This package uses silva.core functionality to register itself with the zope 
+        infrastructure.  As such it is listed as an extension in the Silva extension 
+        service.  It does not need activation in order to be used.
+        
+        A 'Cluster Health Reporter' can now be found in the 'add' list in the ZMI.
+        
+        
+        Configuration
+        -------------
+        
+        The management screen for a cluster health reporter has two sections.  The
+        first is the list of nodes, and the second provides an interface for taking
+        nodes offline.
+        
+        
+        List of Nodes
+        ~~~~~~~~~~~~~
+        
+        Enter the list of nodes in the cluster, one per line.  This does not need to
+        be the fqdn of the node, but each node does need a unique entry.
+        
+        
+        Offline Nodes
+        ~~~~~~~~~~~~~
+        
+        The list of nodes is represented here with checkboxes.  A node is out of
+        offline (out of service) if it's box is checked.  To manually change
+        the service status of an node (putting it online, taking it offline), check or
+        uncheck the box for that node and click "Save Offline Nodes".
+        
+        
+        Use for Monitoring
+        ------------------
+        
+        The load balancer should be configured to query the health status object.
+        If the zope node fails, the health status check will return a system error, or
+        return no response at all (hang).  The load balancer will then automatically
+        take the node out of service.
+        
+        Upon recovery the health status checks will succeed, and the load balancer
+        will automatically bring the node back into service.
+        
+        Load Balancer configuration (varnish)
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Configuring Varnish as a load balancer, and leveraging this health reporter is
+        easy.  Let's assume the following:
+        
+        1. there are two nodes in your cluster, node1.example.com:8080 and
+           node2.example.com:8080
+        
+        2. the cluster health reporter is located at /health
+        
+        Add a director for these two nodes in the varnish VCL file::
+        
+          director zope random {
+            {
+              .backend = {
+                .host = "node1.example.com";
+                .port = "8080";
+                .first_byte_timeout = 30s;
+              }
+              .weight = 1;
+            }
+            {
+              .backend = {
+                .host = "node2.example.com";
+                .port = "8080";
+                .first_byte_timeout = 30s;
+              }
+              .weight = 1;
+            }
+          }
+        
+        A health check is called a "probe" in VCL.  Adding a probe to each backend,
+        the VCL now looks like::
+        
+          director silva23 random {
+          {
+            .backend = {
+              .host = "node1.example.com";
+              .port = "8080";
+              .first_byte_timeout = 30s;
+              .probe = {
+        	.url = "/health?node=node1";
+        	.timeout = 0.3 s;
+        	.window = 8;
+        	.threshold = 3;
+        	.initial = 3;
+              }
+            }
+            .weight = 1;
+          }
+          {
+            .backend = {
+              .host = "node2.example.com";
+              .port = "8080";
+              .first_byte_timeout = 30s;
+              .probe = {
+        	.url = "/health?node=node2";
+        	.timeout = 0.3 s;
+        	.window = 8;
+        	.threshold = 3;
+        	.initial = 3;
+              }
+            }
+            .weight = 1;
+          }
+          }
+        
+        See the `varnish configuration <https://www.varnish-cache.org/docs/3.0/>`_ for more information.
+        
+        
+        Use for Deployments
+        -------------------
+        
+        Using a health status object, rather than an arbitrary web page, for the 
+        load balancers health check makes it useful for automatic service removal
+        during system deployments.
+        
+        The node can me marked as 'out of service' via the ZMI, or using REST.
+        The REST approach is useful for automated deployment scripts.
+        
+        
+        Automated deployments
+        ---------------------
+        
+        
+        REST API
+        ~~~~~~~~
+        
+        This object also responds to REST requests to adjust the service status.
+        Using this method, automated deployment scripts (e.g. using fabric)
+        can take nodes out of service before deploying updates.
+        
+        Access to the REST API calls are protected using the 'bethel.clustermgmt.rest'
+        permission.  To access the api calls, the request needs to be authenticated as
+        a manager, or as a user in a role granting this permission.
+        
+        The REST api has two methods.
+        
+        1) Get the status of all nodes (HTTP GET)::
+        
+           /path/to/health/++rest++nodestatus
+        
+           Returns a json-formatted dictionary of all nodes, and their status (either
+           online or offline), like this::
+        
+           {nodeA: {status: offline}, nodeB: {status: online}}
+        
+        2) Alter the status of one or more nodes (HTTP POST)::
+        
+           /path/to/health/++rest++setstatus
+        
+           POST data instructs the reporter on the new status for the given nodes.  Due to
+           infrae.rest's lack of support for accepting json payloads, the json input is
+           passed in via a POST parameter named "change".  See the unittests for more info.
+        
+           The input format is the same the the output from ++rest++nodestatus.
+        
+        
+        Use in Fabric
+        ~~~~~~~~~~~~~
+        
+        A simple python function can trigger a status change for a node.  This in turn
+        can be converted into a fabric task.  The following is the fabric task we use
+        at Bethel for changing the service status of a node::
+        
+          env.roledefs = {
+            'prod': ['node1.example.com', 'node2.example.com'],
+            'dev': ['test-node.example.com']
+          }
+          env.buildout_root = "/home/zope/silva23/buildout"
+        
+          def alter_service_status(newstatus):
+            #alter the service status of a zope node,
+            #either putting online or offline
+            host = env['host_string']
+            node = host.split('.')[0]
+            url = 'http://%s:8080/silva/varnish_node_is_up/++rest++setstatus'%host
+            query = {'change': json.dumps({node: {'status': newstatus}}),
+                     'skip-bethel-auth': 1}
+            req = urllib2.Request(url, query)
+            authh = "Basic " + base64.encodestring('%s:%s'%rest_creds)[:-1]
+            req.add_header("Authorization", authh)
+            response = urllib2.urlopen(req,
+                                       urllib.urlencode(query))
+            back = ''.join(response.readlines())
+            return 'OK'
+        
+        The username and password are read from a protected file when the fabfile is
+        loaded.
+        
+        This task in turn can be used as a component of a larger automated deployment
+        task (this is the rest of of Bethel's fabfile)::
+        
+          def buildout():
+            with prefix("export HOME=/home/zope/"):
+                with cd(env.buildout_root):
+                    sudo("hg --debug pull -u"%env, user="zope")
+                    sudo("./bin/buildout"%env, user="zope")
+        
+          def restart_apache():
+            #using the sudo command does not work; it issues the following:
+            # sudo -S -p 'sudo password:'  /bin/bash -l -c "/etc/init.d/httpd restart"
+            # which runs a shell executing the command in quotes.  Ross was not
+            # able to configure sudo to allow multiple httpd options with
+            # one line, but suggested the run command instead.
+            #sudo("/etc/init.d/httpd restart")
+            run("sudo /etc/init.d/httpd restart")
+        
+          def push_buildout(apache_restart=True):
+            if type(apache_restart) in StringTypes:
+                apache_restart = (apache_restart == 'True')
+        
+            change_status = False
+            if env.host_string in env.roledefs['prod']:
+                change_status = True
+        
+            #take out of service, it takes less time to take out of service than 
+            #  it does to put back into service
+            if change_status:
+                puts("taking offline; sleeping 20 seconds")
+                alter_service_status('offline')
+                sleep(20)
+        
+            buildout()
+            if apache_restart:
+                restart_apache()
+        
+            #TODO: test some urls, loading up the local ZODB cache before bringing
+            #  back in to service
+         
+        
+            #put back into service
+            if change_status:
+                puts("taking online; sleeping 30 seconds")
+                alter_service_status('online')
+                sleep(30)
+        
+        Adding fabric to your buildout is detailed here: `<http://www.vlent.nl/weblog/2010/09/27/fabric-easy-deployment/>`_
+        
+        This fabfile is located in the buildout root.  Running an automated deployment
+        of our production environment is simple::
+        
+          ./bin/fab -R prod push_buildout
+        
+        When using mod_wsgi to serve Zope, a restart of apache is required for change
+        to take effect.  If for any reason you'd want to push buildout but not restart
+        apache, pass in False to the restart_apache per-task argument::
+        
+          ./bin/fab -R prod push_buildout:restart_apache=False
+        
+        The combination of fabric and bethel.clustermgmt has decreased deployment time
+        considerably.  It is now one command run in the background, whereas before it
+        was a 5-10 minute long repetitive rinse/repeat cycle for each node in the cluster.
+        
+        
+        
+        bethel.clustermgmt changlog
+        ===========================
+        
+        bethel.clustermgmt 1.0 (2012-04-30)
+        -----------------------------------
+        
+        * first release of cluster mgmt utilities
+          
+        
+Keywords: python zope infrae varnish fabric
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Zope2
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: GNU General Public License (GPL)
+Classifier: Topic :: Internet :: Proxy Servers
+Classifier: Topic :: Internet :: WWW/HTTP :: Site Management
+Classifier: Topic :: System :: Monitoring
