@@ -1,0 +1,479 @@
+Metadata-Version: 1.0
+Name: transmogrify.webcrawler
+Version: 1.1
+Summary: Crawling and feeding html content into a transmogrifier pipeline
+Home-page: http://github.com/djay/transmogrify.webcrawler
+Author: Dylan Jay
+Author-email: software@pretaweb.com
+License: GPL
+Description: Crawling - html to import
+        =========================
+        A source blueprint for crawling content from a site or local html files.
+        
+        Webcrawler imports HTML either from a live website, for a folder on disk, or a folder
+        on disk with html which used to come from a live website and may still have absolute
+        links refering to that website.
+        
+        To crawl a live website supply the crawler with a base http url to start crawling with.
+        This url must be the url which all the other urls you want from the site start with.
+        
+        For example ::
+        
+        [crawler]
+        blueprint = transmogrify.webcrawler
+        url  = http://www.whitehouse.gov
+        max = 50
+        
+        will restrict the crawler to the first 50 pages.
+        
+        You can also crawl a local directory of html with relative links by just using a file: style url ::
+        
+        [crawler]
+        blueprint = transmogrify.webcrawler
+        url = file:///mydirectory
+        
+        or if the local directory contains html saved from a website and might have absolute urls in it
+        the you can set this as the cache. The crawler will always look up the cache first ::
+        
+        [crawler]
+        blueprint = transmogrify.webcrawler
+        url = http://therealsite.com --crawler:cache=mydirectory
+        
+        The following will not crawl anything larget than 4Mb ::
+        
+        [crawler]
+        blueprint = transmogrify.webcrawler
+        url  = http://www.whitehouse.gov
+        maxsize=400000
+        
+        To skip crawling links by regular expression ::
+        
+        [crawler]
+        blueprint = transmogrify.webcrawler
+        url=http://www.whitehouse.gov
+        ignore = \.mp3
+        \.mp4
+        
+        If webcrawler is having trouble parsing the html of some pages you can preprocesses
+        the html before it is parsed. e.g. ::
+        
+        [crawler]
+        blueprint = transmogrify.webcrawler
+        patterns = (<script>)[^<]*(</script>)
+        subs = \1\2
+        
+        If you'd like to skip processing links with certain mimetypes you can use the
+        drop:condition. This TALES expression determines what will be processed further.
+        see http://pypi.python.org/pypi/collective.transmogrifier/#condition-section
+        ::
+        
+        [drop]
+        blueprint = collective.transmogrifier.sections.condition
+        condition: python:item.get('_mimetype') not in ['application/x-javascript','text/css','text/plain','application/x-java-byte-code'] and item.get('_path','').split('.')[-1] not in ['class']
+        
+        
+        Options
+        -------
+        
+        site_url
+        - the top url to crawl
+        
+        ignore
+        - list of regex for urls to not crawl
+        
+        cache
+        - local directory to read crawled items from instead of accessing the site directly
+        
+        patterns
+        - Regular expressions to substitute before html is parsed. New line seperated
+        
+        subs
+        - Text to replace each item in patterns. Must be the same number of lines as patterns.  Due to the way buildout handles empty lines, to replace a pattern with nothing (eg to remove the pattern), use ``<EMPTYSTRING>`` as a substitution.
+        
+        maxsize
+        - don't crawl anything larger than this
+        
+        max
+        - Limit crawling to this number of pages
+        
+        start-urls
+        - a list of urls to initially crawl
+        
+        ignore-robots
+        - if set, will ignore the robots.txt directives and crawl everything
+        
+        WebCrawler will emit items like ::
+        
+        item = dict(_site_url = "Original site_url used",
+        _path = "The url crawled without _site_url,
+        _content = "The raw content returned by the url",
+        _content_info = "Headers returned with content"
+        _backlinks    = names,
+        _sortorder    = "An integer representing the order the url was found within the page/site
+        )
+        
+        
+        transmogrify.webcrawler.typerecognitor
+        ======================================
+        
+        A blueprint for assinging content type based on the mime-type as given by the
+        webcrawler
+        
+        transmogrify.webcrawler.cache
+        =============================
+        
+        A blueprint that saves crawled content into a directory structure
+        
+        
+        
+        transmogrify.webcrawler
+        =======================
+        
+        A transmogrifier blueprint source which will crawl a url reading in all pages
+        until all have been crawled.
+        
+        Options
+        -------
+        
+        site_url
+        URL to start crawling. The URL will be treated as the base and any links outside
+        this base will be ignored
+        
+        ignore
+        Regular expressions for urls not to follow
+        
+        
+        patterns
+        Regular expressions to substitute before html is parsed. New line seperated
+        
+        subs
+        Text to replace
+        
+        checkext
+        checkext
+        
+        verbose
+        verbose
+        
+        maxsize
+        don't crawl anything larger than this
+        
+        nonames
+        nonames
+        
+        cache
+        cache
+        
+        Keys inserted
+        -------------
+        
+        The following set the keys items added to the pipeline
+        
+        pathkey
+        default: _path. The path of the url not including the base
+        
+        siteurlkey
+        default: _site_url. The base of the url
+        
+        originkey
+        default: _origin. The original path in case retriving the url caused a redirection
+        
+        contentkey
+        default: _content. The main content of the url
+        
+        contentinfokey
+        default: _content_info. Headers returned by urlopen
+        
+        sortorderkey
+        default: _sortoder. A count on when a link to this item was first encounted while crawling
+        
+        backlinkskey
+        default: _backlinks. A list of tuples of which pages linked to this item. (url, path)
+        
+        
+        Tests
+        -----
+        
+        >>> testtransmogrifier("""
+        ... [webcrawler]
+        ... blueprint = transmogrify.webcrawler
+        ... site_url  = file://%s/test_staticsite
+        ... alias_bases = http://somerandomsite file:///
+        ... """)
+        {'_backlinks': [],
+        '_content_info': {'content-type': 'text/html'},
+        '_mimetype': 'text/html',
+        '_origin': 'file://.../test_staticsite',
+        '_path': '',
+        '_site_url': 'file://.../test_staticsite/',
+        '_sortorder': 0,
+        '_type': 'Document'}
+        ...
+        
+        
+        >>> testtransmogrifier("""
+        ... [webcrawler]
+        ... blueprint = transmogrify.webcrawler
+        ... site_url  = file://%s/test_staticsite
+        ... alias_bases = http://somerandomsite file:///
+        ... """)
+        {...
+        '_path': '',
+        ...}
+        {...
+        '_path': 'cia-plone-view-source.jpg',
+        ...}
+        {...
+        '_path': 'subfolder',
+        ...}
+        {...
+        '_path': 'subfolder2',
+        ...}
+        {...
+        '_path': 'file3.html',
+        ...}
+        {...
+        '_path': 'subfolder/subfile1.htm',
+        ...}
+        {...
+        '_path': 'file.doc',
+        ...}
+        {...
+        '_path': 'file2.htm',
+        ...}
+        {...
+        '_path': 'file4.HTML',
+        ...}
+        {...
+        '_path': 'egenius-plone.gif',
+        ...}
+        {...
+        '_path': 'plone_schema.png',
+        ...}
+        {...
+        '_path': 'file1.htm',
+        ...}
+        {...
+        '_path': 'subfolder2/subfile1.htm',
+        ...}
+        ...
+        
+        >>> testtransmogrifier("""
+        ... [webcrawler]
+        ... blueprint = transmogrify.webcrawler
+        ... site_url  = file://%s/test_staticsite
+        ... alias_bases = http://somerandomsite file:///
+        ... patterns =
+        ...		(?s)<SCRIPT.*Abbreviation"\)
+        ...		(?s)MakeLink\('(?P<u>[^']*)','(?P<a>[^']*)'\)
+        ...     (?s)State=.*<body[^>]*>
+        ... subs =
+        ...     </head><body>
+        ...		<a href="\g<u>">\g<a></a>
+        ...     <br>
+        ... """)
+        
+        
+        
+        External scripts used
+        ---------------------
+        
+        http://svn.python.org/projects/python/trunk/Tools/webchecker/webchecker.py
+        http://svn.python.org/projects/python/trunk/Tools/webchecker/websucker.py
+        
+        thon.org/projects/python/trunk/Tools/webchecker/webchecker.py
+        http://svn.python.org/projects/python/trunk/Tools/webchecker/websucker.py
+        
+        
+        TypeRecognitor
+        ==============
+        
+        TypeRecognitor is a transmogrifier blue print which determines the plone type of the
+        item from the mime_type in the header. It reads the mimetype from the headers in
+        _content_info set by transmogrify.webrawler
+        
+        >>> from os.path import dirname
+        >>> from os.path import abspath
+        >>> config = """
+        ...
+        ... [transmogrifier]
+        ... pipeline =
+        ...     webcrawler
+        ...     typerecognitor
+        ...     clean
+        ...     printer
+        ...
+        ... [webcrawler]
+        ... blueprint = transmogrify.webcrawler
+        ... site_url  = file://%s/test_staticsite
+        ...
+        ... [typerecognitor]
+        ... blueprint = transmogrify.webcrawler.typerecognitor
+        ...
+        ... [clean]
+        ... blueprint = collective.transmogrifier.sections.manipulator
+        ... delete =
+        ...   file
+        ...   text
+        ...   image
+        ...
+        ... [printer]
+        ... blueprint = collective.transmogrifier.sections.tests.pprinter
+        ...
+        ... """ % abspath(dirname(__file__)).replace('\\','/')
+        
+        >>> from collective.transmogrifier.tests import registerConfig
+        >>> registerConfig(u'transmogrify.webcrawler.typerecognitor.test', config)
+        
+        >>> from collective.transmogrifier.transmogrifier import Transmogrifier
+        >>> transmogrifier = Transmogrifier(plone)
+        >>> transmogrifier(u'transmogrify.webcrawler.typerecognitor.test')
+        {...
+        '_mimetype': 'image/jpeg',
+        ...
+        '_path': 'cia-plone-view-source.jpg',
+        ...
+        '_type': 'Image',
+        ...}
+        ...
+        
+        {'_mimetype': 'image/gif',
+        '_path': '/egenius-plone.gif',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Image'}
+        {'_mimetype': 'application/msword',
+        '_path': '/file.doc',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': 'doc_to_html',
+        '_type': 'Document'}
+        {'_mimetype': 'text/html',
+        '_path': '/file1.htm',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Document'}
+        {'_mimetype': 'text/html',
+        '_path': '/file2.htm',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Document'}
+        {'_mimetype': 'text/html',
+        '_path': '/file3.html',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Document'}
+        {'_mimetype': 'text/html',
+        '_path': '/file4.HTML',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Document'}
+        {'_mimetype': 'image/png',
+        '_path': '/plone_schema.png',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Image'}
+        {'_mimetype': 'text/html',
+        '_path': '/subfolder',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Document'}
+        {'_mimetype': 'text/html',
+        '_path': '/subfolder/subfile1.htm',
+        '_site_url': 'file:///home/rok/Projects/pretaweb_dev/src/transmogrify.webcrawler/pretaweb/blueprints/test_staticsite',
+        '_transform': None,
+        '_type': 'Document'}
+        
+        
+        Changelog
+        =========
+        
+        1.1 (2012-04-17)
+        ----------------
+        
+        - add start-urls option [djay]
+        - add ignore_robots option [djay]
+        - fixed bug in http-equiv refresh handling [djay]
+        - fixes to disk caching [djay]
+        - better logging [djay]
+        - default maxsize is unlimited [djay]
+        - Provide ability for the reformat function to substitute patterns with
+        empty strings (nothing).  Buildout does not support empty lines within
+        configuration, so if a substitution is <EMPTYSTRING> this becomes an empty
+        string. [davidjb]
+        - Provide a logger in the LXMLPage class so the reformat function can
+        succeed [davidjb]
+        - Reformat spacing in webcrawler reformat function [davidjb]
+        
+        
+        1.0 (2011-06-29)
+        ----------------
+        -    many fixes for importing from local directory w/ many languages [simahawk]
+        -    fix UnicodeEncodeError when file name/language is not english [simahawk]
+        -    fix iterating over non-sequence [simahawk]
+        -    fix missing import for MyStringIO [simahawk]
+        
+        1.0b7 (2011-02-17)
+        ------------------
+        - fix bug in cache check
+        
+        1.0b6 (2011-02-12)
+        ------------------
+        -    only open cache files when needed so don't run out of handles
+        -    follow http-equiv refresh links
+        
+        1.0b5 (2011-02-06)
+        ------------------
+        - files use file pointers to reduce memory usage
+        - cache saves .metadata files to record and playback headersx
+        
+        1.0b4 (2010-12-13)
+        ------------------
+        - improve logging
+        - fix encoding bug caused by cache
+        
+        1.0b3 (2010-11-10)
+        ------------------
+        
+        - Fixed bug in cache that caused many links to be ignored in some cases
+        - Fix documentation up
+        
+        1.0b2 (2010-11-09)
+        ------------------
+        
+        - Stopped localhost output when no output set
+        
+        1.0b1 (2010-11-08)
+        ------------------
+        
+        - change site_url to just url.
+        
+        - rename maxpage to maxsize
+        
+        - fix file: style urls
+        
+        - Added cache option to replace base_alias
+        
+        - fix _origin key set by webcrawler, instead of url now it is path as expected by further blue
+        [Vitaliy Podoba]
+        
+        - add _orig_path to pipeline item to keep original path for any further purposes, we will need
+        [Vitaliy Podoba]
+        
+        - make all url absolute taking into account base tags inside webcrawler blueprint
+        [Vitaliy Podoba]
+        
+        
+        0.1 (2008-09-25)
+        ----------------
+        
+        - renamed package from pretaweb.blueprints to transmogrify.webcrawler.
+        [djay]
+        
+        - enhanced import view (djay)
+        
+        
+        
+Keywords: transmogrifier blueprint funnelweb source plone import conversion microsoft office
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
