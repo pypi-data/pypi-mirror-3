@@ -1,0 +1,134 @@
+========
+tecutils
+========
+
+tecutils provides various utilities to accelerate development
+of programs design to use MySQL as a database and substitute
+the use of global variables.
+Also includes a standalone module to tranform a text file to pdf.
+
+tecutils contains the following modules:
+
+- mydb
+- envvar
+- simplecrypt
+- txt2pdf
+
+mydb
+====
+
+Requires:
+    mysql-python (sudo apt-get install python-mysqldb)
+    
+Provides:
+    There are three functions that take care the database interaction:
+    
+    - GetRecordset(sHost,sUser,sPwd,sDB,sSQL)
+    - GetData(sHost,sUser,sPwd,sDB,sSQL)
+    - ExecuteSQL(sHost,sUser,sPwd,sDB,sSQL)::
+    
+    from tecutils.mydb import ExecuteSQL, GetData, GetRecordset
+
+    myHost = "localhost"
+    myUser = "root"
+    myPwd = "password"
+    myDB = "test"
+
+    ExecuteSQL(myHost, myUser, myPwd, myDB, "INSERT INTO animal (name, category) VALUES " + \
+      ('snake', 'reptile'), ('frog', 'amphibian'), ('tuna', 'fish'), ('racoon', 'mammal'), 
+      ('lizard', 'reptile')")
+    
+    sql="SELECT name FROM animal WHERE category='reptile'"
+    GetRecordset(myHost, myUser, myPwd, myDB,sql)
+
+    thistype='fish'
+    sql="SELECT name FROM animal WHERE category='%s'" % thistype
+    GetData(myHost, myUser, myPwd, myDB,sql)
+
+
+envvar
+======
+
+Provides:
+    Reads a file containing <var>=<value> and loads in a container, so you can use container.var
+    
+    getVarFromFile(filename,container)
+    
+Use::
+
+    from tecutils import getVarFromFile
+    db = getVarFromFile('config/db.cfg','db')
+
+
+
+Examples
+--------
+
+If use the two modules provides a way to use a configuration file to access de database::
+
+
+    # this is the config file:
+    # db.cfg
+    HOST = 'localhost'
+    USER = 'root'
+    PWD = 'password'
+    DB = 'test'
+
+
+and use it in a program::
+
+    from tecutils.envvar import getVarFromFile
+    from tecutils.mydb import GetRecordset
+
+    getVarFromFile('db.cfg',db)
+
+    data = GetRecordset(db.HOST,db.USER,db.PWD,db.DB,"SELECT * FROM animal")
+    for animal in data:
+        print animal[0]
+
+
+simplecrypt
+===========
+
+Many thanks to the Dabo team: Ed Leafe and Paul McNett (http://dabodev.com)
+for this simple utility to "obscure" passwords so casual browsing on the database
+connection info doesn't show the real one.
+
+Use::
+
+    from tecutils.simplecrypt import simplecrypt
+    pwd = 'foobar'
+    crypt = SimpleCrypt()
+    pwd = crypt.encrypt(pwd)
+  
+  
+or using the example from envvars::
+
+    crypt = SimpleCrypt()
+    db.PWD = crypt.decrypt(db.PWD)
+    
+    
+txt2pdf
+=======
+
+Converts a text file to pdf.
+
+Requires reportlab and pyPDF for normal use
+for windows printing requires win32api or ghostscript and ghostview
+
+Usage: txt2pdf.py [options] text_file
+The name of the outfile is the name on the text_file with pdf extension.
+
+Options:
+  -h, --help            show this help message and exit
+  -c COPIES, --copies=COPIES
+                        number of copies, only valid with -p option
+  -g                    print through ghostprint, only valid with -w option
+  -m                    use half letter as size of output, default letter
+  --output=OUTPUT       use specific output file name
+  -p, --print           print file after converting
+  --printer=PRINTER     printer to send file, default: send to default printer
+  -w                    use win32api to send file to print, only valid with -p
+                        option
+                        
+
