@@ -1,0 +1,6 @@
+
+
+import idlexMain
+idlexMain.main()
+
+
