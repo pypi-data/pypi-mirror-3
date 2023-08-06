@@ -1,0 +1,999 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Sample Implementation: sync-notes &mdash; pysyncml 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/theme_extras.js"></script>
+    <link rel="top" title="pysyncml 0.1 documentation" href="../../index.html" />
+    <link rel="next" title="Module: pysyncml.context" href="../context.html" />
+    <link rel="prev" title="Module: pysyncml.agents" href="../agents/index.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../../index.html">
+          <span>pysyncml 0.1 documentation</span></a></h1>
+        <h2 class="heading"><span>Sample Implementation: sync-notes</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="../agents/index.html">Module: pysyncml.agents</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../context.html">Module: pysyncml.context</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="sample-implementation-sync-notes">
+<h1>Sample Implementation: sync-notes<a class="headerlink" href="#sample-implementation-sync-notes" title="Permalink to this headline">¶</a></h1>
+<p>Below is a sample client-side implementation of a pysyncml
+client. Please note that it uses some of the more advanced features of
+pysyncml, and may therefore appear overwhelming. For a simpler general
+guide to implementing client-side SyncML adapters with pysyncml,
+please see the <a class="reference internal" href="../client.html"><em>Implementing a SyncML Client</em></a> guide.</p>
+<div class="section" id="approach">
+<h2>Approach<a class="headerlink" href="#approach" title="Permalink to this headline">¶</a></h2>
+<p>The <tt class="docutils literal"><span class="pre">sync-notes</span></tt> program maintains the synchronization of a set of
+files in a given directory with a remote &#8220;Note&#8221; storage SyncML server.
+When launched, it scans the directory for any changes, such as new
+files, deleted files, or modified files and reports those changes to
+the local <a class="reference internal" href="../context.html#pysyncml.context.Context.Adapter" title="pysyncml.context.Context.Adapter"><tt class="xref py py-meth docutils literal"><span class="pre">pysyncml.Context.Adapter</span></tt></a>. Then (and at user option), it
+synchronizes with a potentially pre-configured remote SyncML peer.</p>
+</div>
+<div class="section" id="code">
+<h2>Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
+<pre class="literal-block">
+<span class="ln">  1 </span>#!/usr/bin/env python
+<span class="ln">  2 </span># -*- coding: utf-8 -*-
+<span class="ln">  3 </span>#------------------------------------------------------------------------------
+<span class="ln">  4 </span># file: $Id: notes.py 40 2012-07-22 18:53:36Z griff1n $
+<span class="ln">  5 </span># lib:  pysyncml.cli.notes
+<span class="ln">  6 </span># auth: griffin &lt;griffin&#64;uberdev.org&gt;
+<span class="ln">  7 </span># date: 2012/05/19
+<span class="ln">  8 </span># copy: (C) CopyLoose 2012 UberDev &lt;hardcore&#64;uberdev.org&gt;, No Rights Reserved.
+<span class="ln">  9 </span>#------------------------------------------------------------------------------
+<span class="ln"> 10 </span>
+<span class="ln"> 11 </span>'''
+<span class="ln"> 12 </span>A &quot;note&quot; synchronization adapter that stores notes in a
+<span class="ln"> 13 </span>directory. Each note is stored in a separate file - although the
+<span class="ln"> 14 </span>filename is tracked, it may be lost depending on the SyncML server
+<span class="ln"> 15 </span>that is being contacted (if it supports content-type
+<span class="ln"> 16 </span>&quot;text/x-s4j-sifn&quot;, then the filename will be preserved).
+<span class="ln"> 17 </span>
+<span class="ln"> 18 </span>This program is capable of running as either a client or as a server -
+<span class="ln"> 19 </span>for now however, for any given note directory it is recommended to
+<span class="ln"> 20 </span>only be used as one or the other, not both. When run in server mode,
+<span class="ln"> 21 </span>it currently only supports a single optional authenticated username.
+<span class="ln"> 22 </span>
+<span class="ln"> 23 </span>Brief first-time usage (see &quot;--help&quot; for details) as a client::
+<span class="ln"> 24 </span>
+<span class="ln"> 25 </span>  sync-notes --remote https://example.com/funambol/ds \
+<span class="ln"> 26 </span>             --username guest --password guest \
+<span class="ln"> 27 </span>             NOTE_DIRECTORY
+<span class="ln"> 28 </span>
+<span class="ln"> 29 </span>Follow-up synchronizations::
+<span class="ln"> 30 </span>
+<span class="ln"> 31 </span>  sync-notes NOTE_DIRECTORY
+<span class="ln"> 32 </span>
+<span class="ln"> 33 </span>Brief first-time usage as a server (listen port defaults to 80)::
+<span class="ln"> 34 </span>
+<span class="ln"> 35 </span>  sync-notes --server --listen 8080 NOTE_DIRECTORY
+<span class="ln"> 36 </span>
+<span class="ln"> 37 </span>Follow-up synchronizations::
+<span class="ln"> 38 </span>
+<span class="ln"> 39 </span>  sync-notes --server NOTE_DIRECTORY
+<span class="ln"> 40 </span>
+<span class="ln"> 41 </span>'''
+<span class="ln"> 42 </span>
+<span class="ln"> 43 </span>#------------------------------------------------------------------------------
+<span class="ln"> 44 </span># IMPORTS
+<span class="ln"> 45 </span>#------------------------------------------------------------------------------
+<span class="ln"> 46 </span>
+<span class="ln"> 47 </span>import sys, os, re, time, uuid, hashlib, logging, getpass, pysyncml, traceback
+<span class="ln"> 48 </span>import BaseHTTPServer, Cookie, urlparse, urllib
+<span class="ln"> 49 </span>from optparse import OptionParser
+<span class="ln"> 50 </span>from elementtree import ElementTree as ET
+<span class="ln"> 51 </span>import sqlalchemy
+<span class="ln"> 52 </span>from sqlalchemy import orm
+<span class="ln"> 53 </span>from sqlalchemy.ext.declarative import declarative_base, declared_attr
+<span class="ln"> 54 </span>from sqlalchemy.orm import sessionmaker
+<span class="ln"> 55 </span>from sqlalchemy.orm.exc import NoResultFound
+<span class="ln"> 56 </span>
+<span class="ln"> 57 </span>#------------------------------------------------------------------------------
+<span class="ln"> 58 </span># GLOBALS
+<span class="ln"> 59 </span>#------------------------------------------------------------------------------
+<span class="ln"> 60 </span>
+<span class="ln"> 61 </span># create a default device ID that is fairly certain to be globally unique. for
+<span class="ln"> 62 </span># example, the IMEI number for a mobile phone. in this case, we are using
+<span class="ln"> 63 </span># uuid.getnode() which generates a hash based on the local MAC address.
+<span class="ln"> 64 </span># note that this is only used the first time `sync-notes` is used with a
+<span class="ln"> 65 </span># directory - after that, the device ID is retrieved from the sync database.
+<span class="ln"> 66 </span>defaultDevID = 'pysyncml.cli.notes:%x:%x' % (uuid.getnode(), time.time())
+<span class="ln"> 67 </span>
+<span class="ln"> 68 </span># todo: is having a global dbengine and dbsession really the best way?...
+<span class="ln"> 69 </span>dbengine  = None
+<span class="ln"> 70 </span>dbsession = None
+<span class="ln"> 71 </span>
+<span class="ln"> 72 </span># setup a logger
+<span class="ln"> 73 </span>log = logging.getLogger(__name__)
+<span class="ln"> 74 </span>
+<span class="ln"> 75 </span>#------------------------------------------------------------------------------
+<span class="ln"> 76 </span>class LogFormatter(logging.Formatter):
+<span class="ln"> 77 </span>  levelString = {
+<span class="ln"> 78 </span>    logging.DEBUG:       '[  ] DEBUG   ',
+<span class="ln"> 79 </span>    logging.INFO:        '[--] INFO    ',
+<span class="ln"> 80 </span>    logging.WARNING:     '[++] WARNING ',
+<span class="ln"> 81 </span>    logging.ERROR:       '[**] ERROR   ',
+<span class="ln"> 82 </span>    logging.CRITICAL:    '[**] CRITICAL',
+<span class="ln"> 83 </span>    }
+<span class="ln"> 84 </span>  def __init__(self, logsource, *args, **kw):
+<span class="ln"> 85 </span>    logging.Formatter.__init__(self, *args, **kw)
+<span class="ln"> 86 </span>    self.logsource = logsource
+<span class="ln"> 87 </span>  def format(self, record):
+<span class="ln"> 88 </span>    msg = record.getMessage()
+<span class="ln"> 89 </span>    pfx = '%s|%s: ' % (LogFormatter.levelString[record.levelno], record.name) \
+<span class="ln"> 90 </span>          if self.logsource else \
+<span class="ln"> 91 </span>          '%s ' % (LogFormatter.levelString[record.levelno],)
+<span class="ln"> 92 </span>    if msg.find('\n') &lt; 0:
+<span class="ln"> 93 </span>      return '%s%s' % (pfx, record.getMessage())
+<span class="ln"> 94 </span>    return pfx + ('\n' + pfx).join(msg.split('\n'))
+<span class="ln"> 95 </span>
+<span class="ln"> 96 </span>#------------------------------------------------------------------------------
+<span class="ln"> 97 </span># STORAGE MODEL
+<span class="ln"> 98 </span>#------------------------------------------------------------------------------
+<span class="ln"> 99 </span>
+<span class="ln">100 </span># `sync-notes` uses sqlalchemy to store state information. there are two main
+<span class="ln">101 </span># ORM objects:
+<span class="ln">102 </span>#   Server: when `sync-notes` is used in server-mode, this stores details
+<span class="ln">103 </span>#           about what port to listen on, authentication info, default
+<span class="ln">104 </span>#           conflict policy, etc.
+<span class="ln">105 </span>#   Note:   tracks note state so that changes can be detected.
+<span class="ln">106 </span>
+<span class="ln">107 </span>#------------------------------------------------------------------------------
+<span class="ln">108 </span>class DatabaseObject(object):
+<span class="ln">109 </span>  &#64;declared_attr
+<span class="ln">110 </span>  def __tablename__(cls):
+<span class="ln">111 </span>    return cls.__name__.lower()
+<span class="ln">112 </span>  id = sqlalchemy.Column(sqlalchemy.Integer, autoincrement=True, primary_key=True)
+<span class="ln">113 </span>  &#64;classmethod
+<span class="ln">114 </span>  def q(cls, **kw):
+<span class="ln">115 </span>    return dbsession.query(cls).filter_by(**kw)
+<span class="ln">116 </span>
+<span class="ln">117 </span>DatabaseObject = declarative_base(cls=DatabaseObject)
+<span class="ln">118 </span>
+<span class="ln">119 </span>#------------------------------------------------------------------------------
+<span class="ln">120 </span>class Server(DatabaseObject):
+<span class="ln">121 </span>  port     = sqlalchemy.Column(sqlalchemy.Integer)
+<span class="ln">122 </span>  username = sqlalchemy.Column(sqlalchemy.String)
+<span class="ln">123 </span>  password = sqlalchemy.Column(sqlalchemy.String)
+<span class="ln">124 </span>  policy   = sqlalchemy.Column(sqlalchemy.Integer)
+<span class="ln">125 </span>
+<span class="ln">126 </span>#------------------------------------------------------------------------------
+<span class="ln">127 </span>class Note(DatabaseObject, pysyncml.NoteItem):
+<span class="ln">128 </span>  # note: attributes inherited from NoteItem: id, extensions, name, body
+<span class="ln">129 </span>  #       attributes then overriden by DatabaseObject (i hope): id
+<span class="ln">130 </span>  #       and then attributes overriden here: name
+<span class="ln">131 </span>  # note: the `deleted` attribute exists only to ensure ID's are not recycled
+<span class="ln">132 </span>  #       ugh. i need a better solution to that...
+<span class="ln">133 </span>  inode   = sqlalchemy.Column(sqlalchemy.Integer, index=True)
+<span class="ln">134 </span>  name    = sqlalchemy.Column(sqlalchemy.String)
+<span class="ln">135 </span>  sha256  = sqlalchemy.Column(sqlalchemy.String(64))
+<span class="ln">136 </span>  deleted = sqlalchemy.Column(sqlalchemy.Boolean)
+<span class="ln">137 </span>  &#64;classmethod
+<span class="ln">138 </span>  def q(cls, deleted=False, **kw):
+<span class="ln">139 </span>    if deleted is not None:
+<span class="ln">140 </span>      kw['deleted'] = deleted
+<span class="ln">141 </span>    return dbsession.query(cls).filter_by(**kw)
+<span class="ln">142 </span>  def __init__(self, *args, **kw):
+<span class="ln">143 </span>    self.deleted = False
+<span class="ln">144 </span>    DatabaseObject.__init__(self, *args, **kw)
+<span class="ln">145 </span>    # TODO: check this...
+<span class="ln">146 </span>    # NOTE: not calling NoteItem.__init__ as it can conflict with the
+<span class="ln">147 </span>    #       sqlalchemy stuff done here...
+<span class="ln">148 </span>    # todo: is this really necessary?...
+<span class="ln">149 </span>    skw = dict()
+<span class="ln">150 </span>    skw.update(kw)
+<span class="ln">151 </span>    for key in self.__table__.c.keys():
+<span class="ln">152 </span>      if key in skw:
+<span class="ln">153 </span>        del skw[key]
+<span class="ln">154 </span>    pysyncml.Ext.__init__(self, *args, **skw)
+<span class="ln">155 </span>  &#64;orm.reconstructor
+<span class="ln">156 </span>  def __dbinit__(self):
+<span class="ln">157 </span>    # note: not calling ``NoteItem.__init__`` - see ``__init__`` notes.
+<span class="ln">158 </span>    pysyncml.Ext.__init__(self)
+<span class="ln">159 </span>  def __str__(self):
+<span class="ln">160 </span>    return 'Note &quot;%s&quot;' % (self.name,)
+<span class="ln">161 </span>  def __repr__(self):
+<span class="ln">162 </span>    return '&lt;Note &quot;%s&quot;: inode=%s; sha256=%s&gt;' \
+<span class="ln">163 </span>           % (self.name, '-' if self.inode is None else str(self.inode),
+<span class="ln">164 </span>              self.sha256)
+<span class="ln">165 </span>  def dump(self, stream, contentType, version, rootdir):
+<span class="ln">166 </span>    # TODO: convert this to a .body &#64;property...
+<span class="ln">167 </span>    with open(os.path.join(rootdir, self.name), 'rb') as fp:
+<span class="ln">168 </span>      self.body = fp.read()
+<span class="ln">169 </span>    pysyncml.NoteItem.dump(self, stream, contentType, version)
+<span class="ln">170 </span>    self.body = None
+<span class="ln">171 </span>    return self
+<span class="ln">172 </span>  &#64;classmethod
+<span class="ln">173 </span>  def load(cls, stream, contentType=None, version=None):
+<span class="ln">174 </span>    base = pysyncml.NoteItem.load(stream, contentType, version)
+<span class="ln">175 </span>    if contentType == pysyncml.TYPE_TEXT_PLAIN:
+<span class="ln">176 </span>      # remove special characters, windows illegal set: \/:*?&quot;&lt;&gt;|
+<span class="ln">177 </span>      base.name = re.sub(r'[^a-zA-Z0-9,_+=!&#64;#$%^&amp;() -]+', '', base.name)
+<span class="ln">178 </span>      # collapse white space and replace with '_'
+<span class="ln">179 </span>      base.name = re.sub(r'\s+', '_', base.name) + '.txt'
+<span class="ln">180 </span>    ret = Note(name=base.name, sha256=hashlib.sha256(base.body).hexdigest())
+<span class="ln">181 </span>    # temporarily storing the content in &quot;body&quot; attribute (until addItem()
+<span class="ln">182 </span>    # is called)
+<span class="ln">183 </span>    ret.body = base.body
+<span class="ln">184 </span>    return ret
+<span class="ln">185 </span>
+<span class="ln">186 </span>#------------------------------------------------------------------------------
+<span class="ln">187 </span># STORAGE CONTROLLER
+<span class="ln">188 </span>#------------------------------------------------------------------------------
+<span class="ln">189 </span>
+<span class="ln">190 </span>#------------------------------------------------------------------------------
+<span class="ln">191 </span>def hashstream(hash, stream):
+<span class="ln">192 </span>  while True:
+<span class="ln">193 </span>    buf = stream.read(8192)
+<span class="ln">194 </span>    if len(buf) &lt;= 0:
+<span class="ln">195 </span>      break
+<span class="ln">196 </span>    hash.update(buf)
+<span class="ln">197 </span>  return hash
+<span class="ln">198 </span>
+<span class="ln">199 </span>#------------------------------------------------------------------------------
+<span class="ln">200 </span>class FilesystemNoteAgent(pysyncml.BaseNoteAgent):
+<span class="ln">201 </span>  '''
+<span class="ln">202 </span>  The `FilesystemNoteAgent` is the implementation of the `pysyncml.Agent`
+<span class="ln">203 </span>  interface that provides the glue between the SyncML synchronization engine
+<span class="ln">204 </span>  (i.e. the `pysyncml.Adapter`) and the local datastore. This allows the
+<span class="ln">205 </span>  SyncML Adapter to be agnostic about how the items are actually stored.
+<span class="ln">206 </span>
+<span class="ln">207 </span>  It subclasses `pysyncml.BaseNoteAgent` (instead of `pysyncml.Agent`) in
+<span class="ln">208 </span>  order to take advantage of the &quot;note&quot;-aware functionality already provided
+<span class="ln">209 </span>  by pysyncml.
+<span class="ln">210 </span>  '''
+<span class="ln">211 </span>
+<span class="ln">212 </span>  #----------------------------------------------------------------------------
+<span class="ln">213 </span>  def __init__(self, root, ignoreRoot=None, ignoreAll=None,
+<span class="ln">214 </span>               syncstore=None, *args, **kw):
+<span class="ln">215 </span>    '''
+<span class="ln">216 </span>    The `FilesystemNoteAgent` constructor accepts the following parameters:
+<span class="ln">217 </span>
+<span class="ln">218 </span>    :param root:
+<span class="ln">219 </span>
+<span class="ln">220 </span>      (required) the root directory that the notes are stored in.
+<span class="ln">221 </span>
+<span class="ln">222 </span>    :param ignoreRoot:
+<span class="ln">223 </span>
+<span class="ln">224 </span>      (optional) a regular expression string that specifies files that should
+<span class="ln">225 </span>      be ignored in the root directory (but not in subdirectories). This is
+<span class="ln">226 </span>      primarily useful so that synchronization state can be stored in a SQLite
+<span class="ln">227 </span>      database within the note directory itself without being itself sync\'d.
+<span class="ln">228 </span>
+<span class="ln">229 </span>    :param ignoreAll:
+<span class="ln">230 </span>
+<span class="ln">231 </span>      (optional) similar to `ignoreRoot` except this expression is matched
+<span class="ln">232 </span>      against all files, even files in sub-directories. This is primarily
+<span class="ln">233 </span>      useful if you want to ignore temporary files, such as &quot;~&quot; emacs files
+<span class="ln">234 </span>      and dot-files.
+<span class="ln">235 </span>
+<span class="ln">236 </span>    :param syncstore:
+<span class="ln">237 </span>
+<span class="ln">238 </span>      (optional) specifies the `pysyncml.Store` object that represents the
+<span class="ln">239 </span>      SyncML datastore within the pysyncml framework. If specified, will
+<span class="ln">240 </span>      automatically scan for local changes and report them to the store.
+<span class="ln">241 </span>      If not specified, the caller must eventually manually call the
+<span class="ln">242 </span>      :meth:`scan` methed.
+<span class="ln">243 </span>
+<span class="ln">244 </span>    '''
+<span class="ln">245 </span>    super(FilesystemNoteAgent, self).__init__(*args, **kw)
+<span class="ln">246 </span>    self.rootdir    = root
+<span class="ln">247 </span>    self.ignoreRoot = re.compile(ignoreRoot) if ignoreRoot is not None else None
+<span class="ln">248 </span>    self.ignoreAll  = re.compile(ignoreAll) if ignoreAll is not None else None
+<span class="ln">249 </span>    if syncstore is not None:
+<span class="ln">250 </span>      self.scan(syncstore)
+<span class="ln">251 </span>    # the pysyncml.BaseNoteAgent specifies a set of content-types that it
+<span class="ln">252 </span>    # knows how to serialize/deserialize, which includes version &quot;1.0&quot; and
+<span class="ln">253 </span>    # &quot;1.1&quot; of text/plain. it is fairly unclear what the difference is,
+<span class="ln">254 </span>    # but it causes problems when sync'ing with funambol, because it does
+<span class="ln">255 </span>    # not like the multiple &quot;VerCT&quot; nodes that results from it. thus overriding
+<span class="ln">256 </span>    # BaseNoteAgent here for funambol compatibility.
+<span class="ln">257 </span>    # TODO: perhaps the pysyncml framework can be reworked to issue multiple
+<span class="ln">258 </span>    #       &lt;Tx&gt; or &lt;Rx&gt; nodes instead of multiple &lt;VerCT&gt; nodes?...
+<span class="ln">259 </span>    self.contentTypes = [
+<span class="ln">260 </span>      pysyncml.ContentTypeInfo(pysyncml.TYPE_SIF_NOTE, '1.1', True),
+<span class="ln">261 </span>      pysyncml.ContentTypeInfo(pysyncml.TYPE_SIF_NOTE, '1.0'),
+<span class="ln">262 </span>      # pysyncml.ContentTypeInfo(pysyncml.TYPE_TEXT_PLAIN, ['1.1', '1.0']),
+<span class="ln">263 </span>      pysyncml.ContentTypeInfo(pysyncml.TYPE_TEXT_PLAIN, '1.0'),
+<span class="ln">264 </span>      ]
+<span class="ln">265 </span>
+<span class="ln">266 </span>  #----------------------------------------------------------------------------
+<span class="ln">267 </span>  def scan(self, store):
+<span class="ln">268 </span>    '''
+<span class="ln">269 </span>    Scans the local notes for changes (either additions, modifications or
+<span class="ln">270 </span>    deletions) and reports them to the `store` object, which is expected to
+<span class="ln">271 </span>    implement the :class:`pysyncml.Store` interface.
+<span class="ln">272 </span>    '''
+<span class="ln">273 </span>    # todo: this scan assumes that the note index (not the bodies) will
+<span class="ln">274 </span>    #       comfortably fit in memory... this is probably a good assumption,
+<span class="ln">275 </span>    #       but ideally it would not need to depend on that.
+<span class="ln">276 </span>    # `reg` is a registry of notes, along with the note's state (which can
+<span class="ln">277 </span>    # be one of OK, ADDED, MODIFIED, or DELETED). the _scandir() populates
+<span class="ln">278 </span>    # it with all the files currently in the root directory, and _scanindex()
+<span class="ln">279 </span>    # searches for entries that are missing (i.e. the files have been removed).
+<span class="ln">280 </span>    reg = dict()
+<span class="ln">281 </span>    if store.peer is not None:
+<span class="ln">282 </span>      # if the store is already bound to a remote peer, then we may have
+<span class="ln">283 </span>      # already reported some changes (for example, if option &quot;--local&quot; was
+<span class="ln">284 </span>      # used). therefore pre-populate the registry with any changes that we
+<span class="ln">285 </span>      # have already registered.
+<span class="ln">286 </span>      reg = dict((c.itemID, c.state) for c in store.peer.getRegisteredChanges())
+<span class="ln">287 </span>    self._scandir('.', store, reg)
+<span class="ln">288 </span>    self._scanindex(store, reg)
+<span class="ln">289 </span>
+<span class="ln">290 </span>  #----------------------------------------------------------------------------
+<span class="ln">291 </span>  def _scanindex(self, store, reg):
+<span class="ln">292 </span>    # IMPORTANT: this assumes that _scandir has completed and that all
+<span class="ln">293 </span>    #            moved files have been recorded, etc. this function
+<span class="ln">294 </span>    #            then searches for deleted files...
+<span class="ln">295 </span>    # TODO: this is somewhat of a simplistic algorithm... this
+<span class="ln">296 </span>    #       comparison should be done at the same time as the dirwalk
+<span class="ln">297 </span>    #       to detect more complex changes such as: files &quot;a&quot; and &quot;b&quot;
+<span class="ln">298 </span>    #       are synced. then &quot;a&quot; is deleted and &quot;b&quot; is moved to &quot;a&quot;...
+<span class="ln">299 </span>    #       the current algorithm would incorrectly record that as a
+<span class="ln">300 </span>    #       non-syncing change to &quot;b&quot;, and &quot;a&quot; would not be
+<span class="ln">301 </span>    #       deleted. or something like that.
+<span class="ln">302 </span>    for note in Note.q():
+<span class="ln">303 </span>      if str(note.id) in reg:
+<span class="ln">304 </span>        continue
+<span class="ln">305 </span>      log.debug('locally deleted note: %s', note.name)
+<span class="ln">306 </span>      note.deleted = True
+<span class="ln">307 </span>      store.registerChange(note.id, pysyncml.ITEM_DELETED)
+<span class="ln">308 </span>      reg[str(note.id)] = pysyncml.ITEM_DELETED
+<span class="ln">309 </span>
+<span class="ln">310 </span>  #----------------------------------------------------------------------------
+<span class="ln">311 </span>  def _scandir(self, dirname, store, reg):
+<span class="ln">312 </span>    curdir = os.path.normcase(os.path.normpath(os.path.join(self.rootdir, dirname)))
+<span class="ln">313 </span>    log.debug('scanning directory &quot;%s&quot;...', curdir)
+<span class="ln">314 </span>    for name in os.listdir(curdir):
+<span class="ln">315 </span>      # apply the &quot;ignoreRoot&quot; and &quot;ignoreAll&quot; regex's - this is primarily to
+<span class="ln">316 </span>      # ignore the pysyncml storage file in the root directory
+<span class="ln">317 </span>      if dirname == '.':
+<span class="ln">318 </span>        if self.ignoreRoot is not None and self.ignoreRoot.match(name):
+<span class="ln">319 </span>          continue
+<span class="ln">320 </span>      if self.ignoreAll is not None and self.ignoreAll.match(name):
+<span class="ln">321 </span>        continue
+<span class="ln">322 </span>      path = os.path.join(curdir, name)
+<span class="ln">323 </span>      if os.path.islink(path):
+<span class="ln">324 </span>        # todo: should i follow?...
+<span class="ln">325 </span>        continue
+<span class="ln">326 </span>      if os.path.isfile(path):
+<span class="ln">327 </span>        self._scanfile(path, os.path.join(dirname, name), store, reg)
+<span class="ln">328 </span>        continue
+<span class="ln">329 </span>      if os.path.isdir(path):
+<span class="ln">330 </span>        # and recurse!...
+<span class="ln">331 </span>        self._scandir(os.path.join(dirname, name), store, reg)
+<span class="ln">332 </span>
+<span class="ln">333 </span>  #----------------------------------------------------------------------------
+<span class="ln">334 </span>  def _scanfile(self, path, name, store, reg):
+<span class="ln">335 </span>    log.debug('analyzing file &quot;%s&quot;...', path)
+<span class="ln">336 </span>    inode  = os.stat(path).st_ino
+<span class="ln">337 </span>    name   = os.path.normpath(name)
+<span class="ln">338 </span>    note   = None
+<span class="ln">339 </span>    chksum = None
+<span class="ln">340 </span>    try:
+<span class="ln">341 </span>      note = Note.q(name=name).one()
+<span class="ln">342 </span>      log.debug('  matched item %d by name (&quot;%s&quot;)', note.id, note.name)
+<span class="ln">343 </span>    except NoResultFound:
+<span class="ln">344 </span>      try:
+<span class="ln">345 </span>        with open(path,'rb') as fp:
+<span class="ln">346 </span>          chksum = hashstream(hashlib.sha256(), fp).hexdigest()
+<span class="ln">347 </span>        note = Note.q(sha256=chksum).one()
+<span class="ln">348 </span>        log.debug('  matched item %d by checksum (&quot;%s&quot;)', note.id, note.sha256)
+<span class="ln">349 </span>      except NoResultFound:
+<span class="ln">350 </span>        try:
+<span class="ln">351 </span>          note = Note.q(inode=inode).one()
+<span class="ln">352 </span>          log.debug('  matched item %d by inode (%d)', note.id, note.inode)
+<span class="ln">353 </span>          if note.name != name and note.sha256 != chksum:
+<span class="ln">354 </span>            log.debug('  looks like the inode was recycled... dropping match')
+<span class="ln">355 </span>            raise NoResultFound()
+<span class="ln">356 </span>        except NoResultFound:
+<span class="ln">357 </span>          log.debug('locally added note: %s', path)
+<span class="ln">358 </span>          note = Note(inode=inode, name=name, sha256=chksum)
+<span class="ln">359 </span>          dbsession.add(note)
+<span class="ln">360 </span>          dbsession.flush()
+<span class="ln">361 </span>          store.registerChange(note.id, pysyncml.ITEM_ADDED)
+<span class="ln">362 </span>          reg[str(note.id)] = pysyncml.ITEM_ADDED
+<span class="ln">363 </span>          return
+<span class="ln">364 </span>    if inode != note.inode:
+<span class="ln">365 </span>      log.debug('locally recreated note with new inode: %d =&gt; %d (not synchronized)', note.inode, inode)
+<span class="ln">366 </span>      note.inode = inode
+<span class="ln">367 </span>    if name != note.name:
+<span class="ln">368 </span>      # todo: a rename should prolly trigger an update... the lowest
+<span class="ln">369 </span>      #       common denominator (text/plain) does not synchronize
+<span class="ln">370 </span>      #       names though...
+<span class="ln">371 </span>      log.debug('locally renamed note: %s =&gt; %s (not synchronized)', note.name, name)
+<span class="ln">372 </span>      note.name = name
+<span class="ln">373 </span>    # TODO: i *should* store the last-modified and check that instead of
+<span class="ln">374 </span>    #       opening and sha256-digesting every single file... if that gets
+<span class="ln">375 </span>    #       implemented, however, there should be a &quot;deep check&quot; option
+<span class="ln">376 </span>    #       that still checks the checksum since the last-modified can be
+<span class="ln">377 </span>    #       unreliable.
+<span class="ln">378 </span>    if chksum is None:
+<span class="ln">379 </span>      with open(path,'rb') as fp:
+<span class="ln">380 </span>        chksum = hashstream(hashlib.sha256(), fp).hexdigest()
+<span class="ln">381 </span>    modified = None
+<span class="ln">382 </span>    if chksum != note.sha256:
+<span class="ln">383 </span>      modified = 'content'
+<span class="ln">384 </span>      note.sha256 = chksum
+<span class="ln">385 </span>    if modified is not None:
+<span class="ln">386 </span>      log.debug('locally modified note: %s (%s)', path, modified)
+<span class="ln">387 </span>      if reg.get(str(note.id)) == pysyncml.ITEM_ADDED:
+<span class="ln">388 </span>        return
+<span class="ln">389 </span>      store.registerChange(note.id, pysyncml.ITEM_MODIFIED)
+<span class="ln">390 </span>      reg[str(note.id)] = pysyncml.ITEM_MODIFIED
+<span class="ln">391 </span>    else:
+<span class="ln">392 </span>      reg[str(note.id)] = pysyncml.ITEM_OK
+<span class="ln">393 </span>
+<span class="ln">394 </span>  #----------------------------------------------------------------------------
+<span class="ln">395 </span>  def getAllItems(self):
+<span class="ln">396 </span>    for note in Note.q():
+<span class="ln">397 </span>      yield note
+<span class="ln">398 </span>
+<span class="ln">399 </span>  #----------------------------------------------------------------------------
+<span class="ln">400 </span>  def dumpItem(self, item, stream, contentType=None, version=None):
+<span class="ln">401 </span>    item.dump(stream, contentType, version, self.rootdir)
+<span class="ln">402 </span>
+<span class="ln">403 </span>  #----------------------------------------------------------------------------
+<span class="ln">404 </span>  def loadItem(self, stream, contentType=None, version=None):
+<span class="ln">405 </span>    return Note.load(stream, contentType, version)
+<span class="ln">406 </span>
+<span class="ln">407 </span>  #----------------------------------------------------------------------------
+<span class="ln">408 </span>  def getItem(self, itemID, includeDeleted=False):
+<span class="ln">409 </span>    if includeDeleted:
+<span class="ln">410 </span>      return Note.q(id=int(itemID), deleted=None).one()
+<span class="ln">411 </span>    return Note.q(id=int(itemID)).one()
+<span class="ln">412 </span>
+<span class="ln">413 </span>  #----------------------------------------------------------------------------
+<span class="ln">414 </span>  def addItem(self, item):
+<span class="ln">415 </span>    path = os.path.join(self.rootdir, item.name)
+<span class="ln">416 </span>    if '.' not in item.name:
+<span class="ln">417 </span>      pbase = item.name
+<span class="ln">418 </span>      psufx = ''
+<span class="ln">419 </span>    else:
+<span class="ln">420 </span>      pbase = item.name[:item.name.rindex('.')]
+<span class="ln">421 </span>      psufx = item.name[item.name.rindex('.'):]
+<span class="ln">422 </span>    count = 0
+<span class="ln">423 </span>    while os.path.exists(path):
+<span class="ln">424 </span>      count += 1
+<span class="ln">425 </span>      item.name = '%s(%d)%s' % (pbase, count, psufx)
+<span class="ln">426 </span>      path = os.path.join(self.rootdir, item.name)
+<span class="ln">427 </span>    with open(path, 'wb') as fp:
+<span class="ln">428 </span>      fp.write(item.body)
+<span class="ln">429 </span>    item.inode  = os.stat(path).st_ino
+<span class="ln">430 </span>    delattr(item, 'body')
+<span class="ln">431 </span>    dbsession.add(item)
+<span class="ln">432 </span>    dbsession.flush()
+<span class="ln">433 </span>    log.debug('added: %s', item)
+<span class="ln">434 </span>    return item
+<span class="ln">435 </span>
+<span class="ln">436 </span>  #----------------------------------------------------------------------------
+<span class="ln">437 </span>  def replaceItem(self, item):
+<span class="ln">438 </span>    curitem = self.getItem(item.id)
+<span class="ln">439 </span>    path    = os.path.join(self.rootdir, curitem.name)
+<span class="ln">440 </span>    with open(path, 'wb') as fp:
+<span class="ln">441 </span>      fp.write(item.body)
+<span class="ln">442 </span>    curitem.inode  = os.stat(path).st_ino
+<span class="ln">443 </span>    curitem.sha256 = hashlib.sha256(item.body).hexdigest()
+<span class="ln">444 </span>    delattr(item, 'body')
+<span class="ln">445 </span>    dbsession.flush()
+<span class="ln">446 </span>    log.debug('updated: %s', curitem)
+<span class="ln">447 </span>
+<span class="ln">448 </span>  #----------------------------------------------------------------------------
+<span class="ln">449 </span>  def deleteItem(self, itemID):
+<span class="ln">450 </span>    item = self.getItem(itemID)
+<span class="ln">451 </span>    path = os.path.join(self.rootdir, item.name)
+<span class="ln">452 </span>    if os.path.exists(path):
+<span class="ln">453 </span>      os.unlink(path)
+<span class="ln">454 </span>    item.deleted = True
+<span class="ln">455 </span>    # note: writing log before actual delete as otherwise object is invalid
+<span class="ln">456 </span>    log.debug('deleted: %s', item)
+<span class="ln">457 </span>    # note: not deleting from DB to ensure ID's are not recycled... ugh. i
+<span class="ln">458 </span>    #       need a better solution to that... the reason that ID's must not
+<span class="ln">459 </span>    #       be recycled is that soft-deletes will delete the object locally,
+<span class="ln">460 </span>    #       but it's ID must not be used with a new object as otherwise this
+<span class="ln">461 </span>    #       will result in conflicts on the server-side...
+<span class="ln">462 </span>    # dbsession.delete(item)
+<span class="ln">463 </span>
+<span class="ln">464 </span>#------------------------------------------------------------------------------
+<span class="ln">465 </span># ADAPTER INTEGRATION
+<span class="ln">466 </span>#------------------------------------------------------------------------------
+<span class="ln">467 </span>
+<span class="ln">468 </span>#------------------------------------------------------------------------------
+<span class="ln">469 </span>def makeAdapter(opts):
+<span class="ln">470 </span>  '''
+<span class="ln">471 </span>  Creates a tuple of ( Context, Adapter, Agent ) based on the options
+<span class="ln">472 </span>  specified by `opts`. The Context is the pysyncml.Context created for
+<span class="ln">473 </span>  the storage location specified in `opts`, the Adapter is a newly
+<span class="ln">474 </span>  created Adapter if a previously created one was not found, and Agent
+<span class="ln">475 </span>  is a pysyncml.Agent implementation that is setup to interface
+<span class="ln">476 </span>  between Adapter and the local note storage.
+<span class="ln">477 </span>  '''
+<span class="ln">478 </span>
+<span class="ln">479 </span>  # create a new pysyncml.Context. the main function that this provides is
+<span class="ln">480 </span>  # to give the Adapter a storage engine to store state information across
+<span class="ln">481 </span>  # synchronizations.
+<span class="ln">482 </span>
+<span class="ln">483 </span>  context = pysyncml.Context(storage='sqlite:///%(rootdir)s%(storageName)s' %
+<span class="ln">484 </span>                             dict(rootdir=opts.rootdir, storageName=opts.storageName),
+<span class="ln">485 </span>                             owner=None, autoCommit=True)
+<span class="ln">486 </span>
+<span class="ln">487 </span>  # create an Adapter from the current context. this will either create
+<span class="ln">488 </span>  # a new adapter, or load the current local adapter for the specified
+<span class="ln">489 </span>  # context storage location. if it is new, then lots of required
+<span class="ln">490 </span>  # information (such as device info) will not be set, so we need to
+<span class="ln">491 </span>  # check that and specify it if missing.
+<span class="ln">492 </span>
+<span class="ln">493 </span>  adapter = context.Adapter()
+<span class="ln">494 </span>
+<span class="ln">495 </span>  if opts.name is not None:
+<span class="ln">496 </span>    adapter.name = opts.name + ' (pysyncml.cli.notes SyncML Adapter)'
+<span class="ln">497 </span>
+<span class="ln">498 </span>  # TODO: stop ignoring ``opts.remoteUri``... (the router must first support
+<span class="ln">499 </span>  #       manual routes...)
+<span class="ln">500 </span>  # if opts.remoteUri is not None:
+<span class="ln">501 </span>  #   adapter.router.addRoute(agent.uri, opts.remoteUri)
+<span class="ln">502 </span>
+<span class="ln">503 </span>  if adapter.devinfo is None:
+<span class="ln">504 </span>    log.info('adapter has no device info - registering new device')
+<span class="ln">505 </span>  else:
+<span class="ln">506 </span>    if opts.devid is not None and opts.devid != adapter.devinfo.devID:
+<span class="ln">507 </span>      log.info('adapter has invalid device ID - overwriting with new device info')
+<span class="ln">508 </span>      adapter.devinfo = None
+<span class="ln">509 </span>
+<span class="ln">510 </span>  if adapter.devinfo is None:
+<span class="ln">511 </span>    # setup some information about the local device, most importantly the
+<span class="ln">512 </span>    # device ID, which the remote peer will use to uniquely identify this peer
+<span class="ln">513 </span>    adapter.devinfo = context.DeviceInfo(
+<span class="ln">514 </span>      devID             = opts.devid or defaultDevID,
+<span class="ln">515 </span>      devType           = pysyncml.DEVTYPE_SERVER if opts.server else pysyncml.DEVTYPE_WORKSTATION,
+<span class="ln">516 </span>      softwareVersion   = '0.1',
+<span class="ln">517 </span>      manufacturerName  = 'pysyncml',
+<span class="ln">518 </span>      modelName         = 'pysyncml.cli.notes',
+<span class="ln">519 </span>      # TODO: adding this for funambol-compatibility...
+<span class="ln">520 </span>      hierarchicalSync  = False,
+<span class="ln">521 </span>      )
+<span class="ln">522 </span>
+<span class="ln">523 </span>  if not opts.server:
+<span class="ln">524 </span>
+<span class="ln">525 </span>    # servers don't have a fixed peer; i.e. the SyncML message itself
+<span class="ln">526 </span>    # defines which peer is connecting.
+<span class="ln">527 </span>
+<span class="ln">528 </span>    if adapter.peer is None:
+<span class="ln">529 </span>      if opts.remote is None:
+<span class="ln">530 </span>        opts.remote = raw_input('SyncML remote URL: ')
+<span class="ln">531 </span>        if opts.username is None:
+<span class="ln">532 </span>          opts.username = raw_input('SyncML remote username (leave empty if none): ')
+<span class="ln">533 </span>          if len(opts.username) &lt;= 0:
+<span class="ln">534 </span>            opts.username = None
+<span class="ln">535 </span>      log.info('adapter has no remote info - registering new remote adapter')
+<span class="ln">536 </span>    else:
+<span class="ln">537 </span>      if opts.remote is not None:
+<span class="ln">538 </span>        if opts.remote != adapter.peer.url \
+<span class="ln">539 </span>           or opts.username != adapter.peer.username \
+<span class="ln">540 </span>           or opts.password != adapter.peer.password:
+<span class="ln">541 </span>          #or opts.password is not None:
+<span class="ln">542 </span>          log.info('adapter has invalid or rejected remote info - overwriting with new remote info')
+<span class="ln">543 </span>          adapter.peer = None
+<span class="ln">544 </span>
+<span class="ln">545 </span>    if adapter.peer is None:
+<span class="ln">546 </span>      auth = None
+<span class="ln">547 </span>      if opts.username is not None:
+<span class="ln">548 </span>        auth = pysyncml.NAMESPACE_AUTH_BASIC
+<span class="ln">549 </span>        if opts.password is None:
+<span class="ln">550 </span>          opts.password = getpass.getpass('SyncML remote password: ')
+<span class="ln">551 </span>      # setup the remote connection parameters, if not already stored in
+<span class="ln">552 </span>      # the adapter sync tables or the URL has changed.
+<span class="ln">553 </span>      adapter.peer = context.RemoteAdapter(
+<span class="ln">554 </span>        url      = opts.remote,
+<span class="ln">555 </span>        auth     = auth,
+<span class="ln">556 </span>        username = opts.username,
+<span class="ln">557 </span>        password = opts.password,
+<span class="ln">558 </span>        )
+<span class="ln">559 </span>
+<span class="ln">560 </span>  # add a datastore attached to the URI &quot;note&quot;. the actual value of
+<span class="ln">561 </span>  # the URI is irrelevant - it is only an identifier for this item
+<span class="ln">562 </span>  # synchronization channel. it must be unique within this adapter
+<span class="ln">563 </span>  # and must stay consistent across synchronizations.
+<span class="ln">564 </span>
+<span class="ln">565 </span>  # TODO: this check should be made redundant... (ie. once the
+<span class="ln">566 </span>  #       implementation of Store.merge() is fixed this will
+<span class="ln">567 </span>  #       become a single &quot;addStore()&quot; call without the check first).
+<span class="ln">568 </span>  if 'note' in adapter.stores:
+<span class="ln">569 </span>    store = adapter.stores['note']
+<span class="ln">570 </span>  else:
+<span class="ln">571 </span>    store = adapter.addStore(context.Store(
+<span class="ln">572 </span>      uri         = 'note',
+<span class="ln">573 </span>      displayName = opts.name,
+<span class="ln">574 </span>      # TODO: adding this for funambol-compatibility...
+<span class="ln">575 </span>      maxObjSize  = None))
+<span class="ln">576 </span>
+<span class="ln">577 </span>  # create a new agent, which will scan the files stored in the root directory,
+<span class="ln">578 </span>  # looking for changed files, new files, and deleted files.
+<span class="ln">579 </span>
+<span class="ln">580 </span>  agent = FilesystemNoteAgent(opts.rootdir,
+<span class="ln">581 </span>                              ignoreRoot='^(%s)$' % (re.escape(opts.syncdir),),
+<span class="ln">582 </span>                              syncstore=store)
+<span class="ln">583 </span>
+<span class="ln">584 </span>  if store.peer is None:
+<span class="ln">585 </span>    if opts.local:
+<span class="ln">586 </span>      print 'no pending local changes (not associated yet)'
+<span class="ln">587 </span>    else:
+<span class="ln">588 </span>      log.info('no pending local changes (not associated yet)')
+<span class="ln">589 </span>  else:
+<span class="ln">590 </span>    changes = list(store.peer.getRegisteredChanges())
+<span class="ln">591 </span>    if len(changes) &lt;= 0:
+<span class="ln">592 </span>      if opts.local:
+<span class="ln">593 </span>        print 'no pending local changes to synchronize'
+<span class="ln">594 </span>      else:
+<span class="ln">595 </span>        log.info('no pending local changes to synchronize')
+<span class="ln">596 </span>    else:
+<span class="ln">597 </span>      if opts.local:
+<span class="ln">598 </span>        print 'pending local changes:'
+<span class="ln">599 </span>      else:
+<span class="ln">600 </span>        log.info('pending local changes:')
+<span class="ln">601 </span>      for c in changes:
+<span class="ln">602 </span>        item = agent.getItem(c.itemID, includeDeleted=True)
+<span class="ln">603 </span>        msg  = '  - %s: %s' % (item, pysyncml.state2string(c.state))
+<span class="ln">604 </span>        if opts.local:
+<span class="ln">605 </span>          print msg
+<span class="ln">606 </span>        else:
+<span class="ln">607 </span>          log.info(msg)
+<span class="ln">608 </span>
+<span class="ln">609 </span>  store.agent = agent
+<span class="ln">610 </span>
+<span class="ln">611 </span>  return (context, adapter, agent)
+<span class="ln">612 </span>
+<span class="ln">613 </span>#------------------------------------------------------------------------------
+<span class="ln">614 </span>def main_server(opts):
+<span class="ln">615 </span>  try:
+<span class="ln">616 </span>    sconf = Server.q().one()
+<span class="ln">617 </span>  except NoResultFound:
+<span class="ln">618 </span>    log.debug('no prior server - creating new server configuration')
+<span class="ln">619 </span>    sconf = Server()
+<span class="ln">620 </span>    dbsession.add(sconf)
+<span class="ln">621 </span>
+<span class="ln">622 </span>  if opts.listen is not None:
+<span class="ln">623 </span>    sconf.port = opts.listen
+<span class="ln">624 </span>  if sconf.port is None:
+<span class="ln">625 </span>    sconf.port = 80
+<span class="ln">626 </span>  if opts.username is not None:
+<span class="ln">627 </span>    if opts.password is None:
+<span class="ln">628 </span>      opts.password = getpass.getpass('SyncML remote password: ')
+<span class="ln">629 </span>    sconf.username = opts.username
+<span class="ln">630 </span>    sconf.password = opts.password
+<span class="ln">631 </span>  # todo: set server policy when pysyncml supports it...
+<span class="ln">632 </span>
+<span class="ln">633 </span>  dbsession.commit()
+<span class="ln">634 </span>  sessions = dict()
+<span class="ln">635 </span>
+<span class="ln">636 </span>  class Handler(BaseHTTPServer.BaseHTTPRequestHandler):
+<span class="ln">637 </span>    def version_string(self):
+<span class="ln">638 </span>      return 'pysyncml/' + pysyncml.versionString
+<span class="ln">639 </span>    def _parsePathParameters(self):
+<span class="ln">640 </span>      self.path_params = dict()
+<span class="ln">641 </span>      pairs = [e.split('=', 1) for e in self.path.split(';')[1:]]
+<span class="ln">642 </span>      for pair in pairs:
+<span class="ln">643 </span>        key = urllib.unquote_plus(pair[0])
+<span class="ln">644 </span>        if len(pair) &lt; 2:
+<span class="ln">645 </span>          self.path_params[key] = True
+<span class="ln">646 </span>        else:
+<span class="ln">647 </span>          self.path_params[key] = urllib.unquote_plus(pair[1])
+<span class="ln">648 </span>    def do_POST(self):
+<span class="ln">649 </span>      self._parsePathParameters()
+<span class="ln">650 </span>      log.debug('handling POST request to &quot;%s&quot; (parameters: %r)', self.path, self.path_params)
+<span class="ln">651 </span>      sid = None
+<span class="ln">652 </span>      self.session = None
+<span class="ln">653 </span>      if 'Cookie' in self.headers:
+<span class="ln">654 </span>        cks = Cookie.SimpleCookie(self.headers[&quot;Cookie&quot;])
+<span class="ln">655 </span>        if 'sessionid' in cks:
+<span class="ln">656 </span>          sid = cks['sessionid'].value
+<span class="ln">657 </span>          if sid in sessions:
+<span class="ln">658 </span>            self.session = sessions[sid]
+<span class="ln">659 </span>            self.session.count += 1
+<span class="ln">660 </span>          else:
+<span class="ln">661 </span>            sid = None
+<span class="ln">662 </span>      if sid is None:
+<span class="ln">663 </span>        log.debug('no valid session ID found in cookies - checking path parameters')
+<span class="ln">664 </span>        sid = self.path_params.get('sessionid')
+<span class="ln">665 </span>        if sid in sessions:
+<span class="ln">666 </span>          self.session = sessions[sid]
+<span class="ln">667 </span>          self.session.count += 1
+<span class="ln">668 </span>        else:
+<span class="ln">669 </span>          sid = None
+<span class="ln">670 </span>      if sid is None:
+<span class="ln">671 </span>        while sid is None or sid in sessions:
+<span class="ln">672 </span>          sid = str(uuid.uuid4())
+<span class="ln">673 </span>        log.debug('request without session ID: creating new session &quot;%s&quot; and setting cookie', sid)
+<span class="ln">674 </span>        self.session = pysyncml.adict(id=sid, count=1, syncml=pysyncml.Session())
+<span class="ln">675 </span>        sessions[sid] = self.session
+<span class="ln">676 </span>      log.debug('session: id=%s, count=%d', self.session.id, self.session.count)
+<span class="ln">677 </span>      try:
+<span class="ln">678 </span>        response = self.handleRequest()
+<span class="ln">679 </span>      except Exception, e:
+<span class="ln">680 </span>        self.send_response(500)
+<span class="ln">681 </span>        self.end_headers()
+<span class="ln">682 </span>        self.wfile.write(traceback.format_exc())
+<span class="ln">683 </span>        return
+<span class="ln">684 </span>      self.send_response(200)
+<span class="ln">685 </span>      if self.session.count &lt;= 1:
+<span class="ln">686 </span>        cks = Cookie.SimpleCookie()
+<span class="ln">687 </span>        cks['sessionid'] = sid
+<span class="ln">688 </span>        self.send_header('Set-Cookie', cks.output(header=''))
+<span class="ln">689 </span>      if response.contentType is not None:
+<span class="ln">690 </span>        self.send_header('Content-Type', response.contentType)
+<span class="ln">691 </span>      self.send_header('Content-Length', str(len(response.body)))
+<span class="ln">692 </span>      self.send_header('X-PySyncML-Session', 'id=%s, count=%d' % (self.session.id, self.session.count))
+<span class="ln">693 </span>      self.end_headers()
+<span class="ln">694 </span>      self.wfile.write(response.body)
+<span class="ln">695 </span>    def handleRequest(self):
+<span class="ln">696 </span>      global dbsession
+<span class="ln">697 </span>      dbsession = sessionmaker(bind=dbengine)()
+<span class="ln">698 </span>      context, adapter, agent = makeAdapter(opts)
+<span class="ln">699 </span>      # TODO: enforce authentication info...
+<span class="ln">700 </span>      # self.assertEqual(adict(auth=pysyncml.NAMESPACE_AUTH_BASIC,
+<span class="ln">701 </span>      #                        username='guest', password='guest'),
+<span class="ln">702 </span>      #                  pysyncml.Context.getAuthInfo(request, None))
+<span class="ln">703 </span>      clen = 0
+<span class="ln">704 </span>      if 'Content-Length' in self.headers:
+<span class="ln">705 </span>        clen = int(self.headers['Content-Length'])
+<span class="ln">706 </span>      request = pysyncml.adict(headers=dict((('content-type', 'application/vnd.syncml+xml'),)),
+<span class="ln">707 </span>                               body=self.rfile.read(clen))
+<span class="ln">708 </span>      self.session.syncml.effectiveID = pysyncml.Context.getTargetID(request)
+<span class="ln">709 </span>      # todo: this should be a bit more robust...
+<span class="ln">710 </span>      urlparts = list(urlparse.urlsplit(self.session.syncml.effectiveID))
+<span class="ln">711 </span>      if self.path_params.get('sessionid') != self.session.id:
+<span class="ln">712 </span>        urlparts[2] += ';sessionid=' + self.session.id
+<span class="ln">713 </span>        self.session.syncml.returnUrl = urlparse.SplitResult(*urlparts).geturl()
+<span class="ln">714 </span>      response = pysyncml.Response()
+<span class="ln">715 </span>      self.stats = adapter.handleRequest(self.session.syncml, request, response)
+<span class="ln">716 </span>      dbsession.commit()
+<span class="ln">717 </span>      return response
+<span class="ln">718 </span>
+<span class="ln">719 </span>  server = BaseHTTPServer.HTTPServer(('', sconf.port), Handler)
+<span class="ln">720 </span>  log.info('starting server on port %d', sconf.port)
+<span class="ln">721 </span>  server.serve_forever()
+<span class="ln">722 </span>
+<span class="ln">723 </span>  return 0
+<span class="ln">724 </span>
+<span class="ln">725 </span>#------------------------------------------------------------------------------
+<span class="ln">726 </span>def main_client(opts):
+<span class="ln">727 </span>
+<span class="ln">728 </span>  context, adapter, agent = makeAdapter(opts)
+<span class="ln">729 </span>
+<span class="ln">730 </span>  if opts.local:
+<span class="ln">731 </span>    context.save()
+<span class="ln">732 </span>    dbsession.commit()
+<span class="ln">733 </span>    return 0
+<span class="ln">734 </span>
+<span class="ln">735 </span>  mode = {
+<span class="ln">736 </span>    'sync':      pysyncml.SYNCTYPE_TWO_WAY,
+<span class="ln">737 </span>    'full':      pysyncml.SYNCTYPE_SLOW_SYNC,
+<span class="ln">738 </span>    'pull':      pysyncml.SYNCTYPE_ONE_WAY_FROM_SERVER,
+<span class="ln">739 </span>    'push':      pysyncml.SYNCTYPE_ONE_WAY_FROM_CLIENT,
+<span class="ln">740 </span>    'pull-over': pysyncml.SYNCTYPE_REFRESH_FROM_SERVER,
+<span class="ln">741 </span>    'push-over': pysyncml.SYNCTYPE_REFRESH_FROM_CLIENT,
+<span class="ln">742 </span>    }[opts.mode]
+<span class="ln">743 </span>
+<span class="ln">744 </span>  if opts.config:
+<span class="ln">745 </span>    sys.stdout.write('Note SyncML adapter configuration:\n')
+<span class="ln">746 </span>    adapter.describe(pysyncml.IndentStream(sys.stdout, '  '))
+<span class="ln">747 </span>  else:
+<span class="ln">748 </span>    stats = adapter.sync(mode=mode)
+<span class="ln">749 </span>    if not opts.quiet:
+<span class="ln">750 </span>      pysyncml.describeStats(stats, sys.stdout, title='Synchronization Summary')
+<span class="ln">751 </span>
+<span class="ln">752 </span>  context.save()
+<span class="ln">753 </span>  dbsession.commit()
+<span class="ln">754 </span>
+<span class="ln">755 </span>  return 0
+<span class="ln">756 </span>
+<span class="ln">757 </span>#------------------------------------------------------------------------------
+<span class="ln">758 </span>def main():
+<span class="ln">759 </span>
+<span class="ln">760 </span>  #----------------------------------------------------------------------------
+<span class="ln">761 </span>  # setup program parameters
+<span class="ln">762 </span>
+<span class="ln">763 </span>  cli = OptionParser(usage='%prog [options] DIRNAME',
+<span class="ln">764 </span>                     version='%prog ' + pysyncml.versionString,
+<span class="ln">765 </span>                     )
+<span class="ln">766 </span>
+<span class="ln">767 </span>  cli.add_option('-v', '--verbose',
+<span class="ln">768 </span>                 dest='verbose', default=0, action='count',
+<span class="ln">769 </span>                 help='enable verbose output to STDERR, mostly for diagnotic'
+<span class="ln">770 </span>                 ' purposes (multiple invocations increase verbosity).')
+<span class="ln">771 </span>
+<span class="ln">772 </span>  cli.add_option('-q', '--quiet',
+<span class="ln">773 </span>                 dest='quiet', default=False, action='store_true',
+<span class="ln">774 </span>                 help='do not display sync summary')
+<span class="ln">775 </span>
+<span class="ln">776 </span>  cli.add_option('-c', '--config',
+<span class="ln">777 </span>                 dest='config', default=False, action='store_true',
+<span class="ln">778 </span>                 help='configure the local SyncML adapter, display a summary'
+<span class="ln">779 </span>                 ' and exit without actually syncronizing')
+<span class="ln">780 </span>
+<span class="ln">781 </span>  cli.add_option('-l', '--local',
+<span class="ln">782 </span>                 dest='local', default=False, action='store_true',
+<span class="ln">783 </span>                 help='display the pending local changes')
+<span class="ln">784 </span>
+<span class="ln">785 </span>  cli.add_option('-i', '--id',
+<span class="ln">786 </span>                 dest='devid', default=None, action='store',
+<span class="ln">787 </span>                 help='overrides the default device ID, either the store'
+<span class="ln">788 </span>                 ' value from a previous sync or the generated default'
+<span class="ln">789 </span>                 ' (currently &quot;%s&quot; - generated based on local MAC address'
+<span class="ln">790 </span>                 ' and current time)'
+<span class="ln">791 </span>                 % (defaultDevID,))
+<span class="ln">792 </span>
+<span class="ln">793 </span>  cli.add_option('-n', '--name',
+<span class="ln">794 </span>                 dest='name', default=None, action='store',
+<span class="ln">795 </span>                 help='sets the local note adapter/store name (no default)')
+<span class="ln">796 </span>
+<span class="ln">797 </span>  cli.add_option('-m', '--mode',
+<span class="ln">798 </span>                 dest='mode', default='sync', action='store',
+<span class="ln">799 </span>                 help='set the synchronization mode - can be one of &quot;sync&quot;'
+<span class="ln">800 </span>                 ' (for two-way synchronization), &quot;full&quot; (for a complete'
+<span class="ln">801 </span>                 ' re-synchronization), &quot;pull&quot; (for fetching remote'
+<span class="ln">802 </span>                 ' changes only), &quot;push&quot; (for pushing local changes only),'
+<span class="ln">803 </span>                 ' or &quot;pull-over&quot; (to obliterate the local data and'
+<span class="ln">804 </span>                 ' download the remote data) or &quot;push-over&quot; (to obliterate'
+<span class="ln">805 </span>                 ' the remote data and upload the local data); the default'
+<span class="ln">806 </span>                 ' is &quot;%default&quot;.')
+<span class="ln">807 </span>
+<span class="ln">808 </span>  cli.add_option('-r', '--remote',
+<span class="ln">809 </span>                 dest='remote', default=None, action='store',
+<span class="ln">810 </span>                 help='specifies the remote URL of the SyncML synchronization'
+<span class="ln">811 </span>                 ' server - only required if the target ``DIRNAME`` has never'
+<span class="ln">812 </span>                 ' been synchronized, or the synchronization meta information'
+<span class="ln">813 </span>                 ' was lost.')
+<span class="ln">814 </span>
+<span class="ln">815 </span>  cli.add_option('-R', '--remote-uri',
+<span class="ln">816 </span>                 dest='remoteUri', default=None, action='store',
+<span class="ln">817 </span>                 help='specifies the remote URI of the note datastore. if'
+<span class="ln">818 </span>                 ' left unspecified, pysyncml will attempt to identify it'
+<span class="ln">819 </span>                 ' automatically.')
+<span class="ln">820 </span>
+<span class="ln">821 </span>  cli.add_option('-s', '--server',
+<span class="ln">822 </span>                 dest='server', default=False, action='store_true',
+<span class="ln">823 </span>                 help='enables HTTP server mode')
+<span class="ln">824 </span>
+<span class="ln">825 </span>  cli.add_option('-L', '--listen',
+<span class="ln">826 </span>                 dest='listen', default=None, action='store', type='int',
+<span class="ln">827 </span>                 help='specifies the port to listen on for server mode'
+<span class="ln">828 </span>                 ' (implies --server and defaults to port 80)')
+<span class="ln">829 </span>
+<span class="ln">830 </span>  # todo: add a &quot;policy&quot; to configure how the server mode should handle
+<span class="ln">831 </span>  #       conflicts...
+<span class="ln">832 </span>
+<span class="ln">833 </span>  cli.add_option('-u', '--username',
+<span class="ln">834 </span>                 dest='username', default=None, action='store',
+<span class="ln">835 </span>                 help='specifies the remote server username to log in with'
+<span class="ln">836 </span>                 ' (in client mode) or to require authorization for (in'
+<span class="ln">837 </span>                 ' server mode)')
+<span class="ln">838 </span>
+<span class="ln">839 </span>  cli.add_option('-p', '--password',
+<span class="ln">840 </span>                 dest='password', default=None, action='store',
+<span class="ln">841 </span>                 help='specifies the remote server password to log in with'
+<span class="ln">842 </span>                 ' in client mode (if &quot;--remote&quot; and &quot;--username&quot; is'
+<span class="ln">843 </span>                 ' specified, but not &quot;--password&quot;, the password will be'
+<span class="ln">844 </span>                 ' prompted for to avoid leaking the password into the'
+<span class="ln">845 </span>                 ' local hosts environment, which is the recommended'
+<span class="ln">846 </span>                 ' approach). in server mode, specifies the password for'
+<span class="ln">847 </span>                 ' the required username (a present &quot;--username&quot; and missing'
+<span class="ln">848 </span>                 ' &quot;--password&quot; is handled the same way as in client'
+<span class="ln">849 </span>                 ' mode)')
+<span class="ln">850 </span>
+<span class="ln">851 </span>  (opts, args) = cli.parse_args()
+<span class="ln">852 </span>
+<span class="ln">853 </span>  if len(args) != 1:
+<span class="ln">854 </span>    cli.error('expected exactly one argument DIRNAME - please see &quot;--help&quot; for details.')
+<span class="ln">855 </span>
+<span class="ln">856 </span>  # setup logging (based on requested verbosity)
+<span class="ln">857 </span>  rootlog = logging.getLogger()
+<span class="ln">858 </span>  handler = logging.StreamHandler(sys.stderr)
+<span class="ln">859 </span>  handler.setFormatter(LogFormatter(opts.verbose &gt;= 2))
+<span class="ln">860 </span>  rootlog.addHandler(handler)
+<span class="ln">861 </span>  if opts.verbose &gt;= 3:   rootlog.setLevel(logging.DEBUG)
+<span class="ln">862 </span>  elif opts.verbose == 2: rootlog.setLevel(logging.INFO)
+<span class="ln">863 </span>  elif opts.verbose == 1: rootlog.setLevel(logging.INFO)
+<span class="ln">864 </span>  else:                   rootlog.setLevel(logging.FATAL)
+<span class="ln">865 </span>
+<span class="ln">866 </span>  # setup storage locations for note tracking and pysyncml internal data
+<span class="ln">867 </span>  opts.syncdir      = '.sync'
+<span class="ln">868 </span>  opts.storageName  = os.path.join(opts.syncdir, 'syncml.db')
+<span class="ln">869 </span>  opts.indexStorage = os.path.join(opts.syncdir, 'index.db')
+<span class="ln">870 </span>  opts.rootdir      = args[0]
+<span class="ln">871 </span>  if not opts.rootdir.startswith('/') and not opts.rootdir.startswith('.'):
+<span class="ln">872 </span>    opts.rootdir = './' + opts.rootdir
+<span class="ln">873 </span>  if not opts.rootdir.endswith('/'):
+<span class="ln">874 </span>    opts.rootdir += '/'
+<span class="ln">875 </span>
+<span class="ln">876 </span>  if not os.path.isdir(opts.rootdir):
+<span class="ln">877 </span>    cli.error('note root directory &quot;%s&quot; does not exist' % (opts.rootdir,))
+<span class="ln">878 </span>
+<span class="ln">879 </span>  if not os.path.isdir(os.path.join(opts.rootdir, opts.syncdir)):
+<span class="ln">880 </span>    os.makedirs(os.path.join(opts.rootdir, opts.syncdir))
+<span class="ln">881 </span>
+<span class="ln">882 </span>  #----------------------------------------------------------------------------
+<span class="ln">883 </span>  # prepare storage
+<span class="ln">884 </span>
+<span class="ln">885 </span>  global dbengine, dbsession
+<span class="ln">886 </span>  dbengine  = sqlalchemy.create_engine('sqlite:///%s%s' % (opts.rootdir, opts.indexStorage))
+<span class="ln">887 </span>  dbsession = sessionmaker(bind=dbengine)()
+<span class="ln">888 </span>  # TODO: how to detect if my schema has changed?...
+<span class="ln">889 </span>  if not os.path.isfile('%s%s' % (opts.rootdir, opts.indexStorage)):
+<span class="ln">890 </span>    DatabaseObject.metadata.create_all(dbengine)
+<span class="ln">891 </span>
+<span class="ln">892 </span>  if opts.server or opts.listen is not None:
+<span class="ln">893 </span>    opts.server = True
+<span class="ln">894 </span>    return main_server(opts)
+<span class="ln">895 </span>
+<span class="ln">896 </span>  return main_client(opts)
+<span class="ln">897 </span>
+<span class="ln">898 </span>#------------------------------------------------------------------------------
+<span class="ln">899 </span>if __name__ == '__main__':
+<span class="ln">900 </span>  sys.exit(main())
+<span class="ln">901 </span>
+<span class="ln">902 </span>#------------------------------------------------------------------------------
+<span class="ln">903 </span># end of $Id: notes.py 40 2012-07-22 18:53:36Z griff1n $
+<span class="ln">904 </span>#------------------------------------------------------------------------------
+</pre>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="../agents/index.html">Module: pysyncml.agents</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../context.html">Module: pysyncml.context</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer">
+        &copy; Copyright 2012-2012, UberDev, No Rights Reserved.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
