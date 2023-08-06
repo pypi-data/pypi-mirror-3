@@ -1,0 +1,593 @@
+New in version 1.4.0
+--------------------
+
+1. Dropped compatibility with python2.5
+
+2. Added the MarkerType type that can be used to define marker entities
+
+3. Added the application.python.weakref module containing the weakobjectmap
+   class, which offers the same functionality as WeakKeyDictionary from the
+   standard python weakref module, with a few notable improvements:
+
+   - it works even with objects (keys) that are not hashable
+   - subclasses can implement __missing__ to define defaultdict like behavior
+   - it is faster as it directly subclasses dict instead of using a UserDict
+   - it is thread safe, as all it's operations are atomic, in the sense that
+     they are the dict's methods executing in C while being protected by the
+     GIL
+   - iterating it as well as the iterating methods (iterkeys, itervalues
+     and iteritems) are safe from changes to the mapping while iterating
+   - it provides a __repr__ implementation that makes it display similar
+     to a dict which provides an easy way to inspect it
+
+4. Added timestamp and center attributes on posted notifications. Timestamp
+   is a POSIX timestamp of when the notification was posted. Center is a
+   reference to the NotificationCenter instance that posted the notification.
+   In addition 2 properties are also available: datetime and utcdatetime
+   which are provided for convenience. As their name suggests, they will
+   give a datetime object with the local respectively the UTC datetime that
+   correspond to the timestamp value. They are lazyly computed and cached.
+
+5. Swapped the order of the arguments for timer.end() from the debug.timing
+   module. Now the msg argument comes first, to make it more convenient as
+   it is the most used argument.
+
+
+New in version 1.3.0
+--------------------
+
+Removed the obsolete application.python.util module. It's contents was moved
+to application.python and application.python.types in version 1.2.8
+
+
+New in version 1.2.9
+--------------------
+
+Added execute_once decorator, that allows a function or method that is
+decorated with it to be executed only once for each entity to which it
+belongs. For example a decorated method will be executed only once for
+each instance of that class.
+The decorator will add the 'called' and 'lock' attributes to the decorated
+function/method and these attributes can be inspected/used from the outside.
+
+
+New in version 1.2.8
+--------------------
+
+1. Reorganized the application.python package contents
+
+   - the types module was added to hold python types.
+   - the util module was made obsolete and is scheduled to be removed in 1.3.0
+   - the NullType was moved to application.python.types
+   - Null was moved to application.python
+
+2. Added functions/descriptors:
+
+   - added limit function to restrict a numeric value to a given range
+   - added function to recursively create directory and ignore error if exists
+   - added classproperty descriptor for defining properties at the class level
+
+3. Removed obsolete default_host_ip attribute from application.system
+
+
+New in version 1.2.5
+--------------------
+
+1. An outgoing_ip_for method was added to the host object from
+   application.system which determines the IP address which would be used as a
+   source for sending packets to the IP address specified as an argument. This
+   always works correctly as long as no port or protocol based routing is
+   performed. The method needs to be called with an IP address as an argument:
+
+   host.outgoing_ip_for('192.0.2.1')
+
+2. The application.log module can now be used on systems that do not have
+   syslog. The start_syslog function will raise a RuntimeError if it is called
+   on such a system.
+
+
+New in version 1.2.4
+--------------------
+
+The Null class in in application.python.util is no longer overwritten with an
+instance. Instead the Null class was renamed to NullType and is now available
+from the module, while Null remains to be an instance that can be used as a
+singleton as before. This was done mainly because overwriting the Null class
+with an instance, prevented it to be pickled as the class could not be found
+anymore during pickling.
+
+NullType was also transformed into a singleton in order to prevent multiple
+Null instances when unpickling.
+
+
+New in version 1.2.3
+--------------------
+
+The memory_dump function from application.debug.memory was enhanced to detect
+and report the cycles of objects whose reference count reached zero. The
+function now receives two arguments, show_cycles and show_objects, defaulting to
+True and False respectively. The former controls whether the object cycles are
+printed, while the latter whether the garbage objects are printed. In order to
+obtain the behaviour found in the previous versions, the function needs to be
+called as:
+
+memory_dump(show_cycles=False, show_objects=True)
+
+In addition, the representation of garbage objects is truncated according to the
+width of the console, rather than at the fixed size of 80 characters.
+
+
+New in version 1.2.2
+--------------------
+
+Null from application.python.util was transformed into an instance. This
+means that one is no longer required to instantiate it after importing it.
+Exiting code that did that should be unaffected as calling on a Null
+instance returns Null itself. This change will make Null easier to use and
+similar in semantics with None. If the type is still needed (for subclassing
+for example) it can be obtained as type(Null) or Null.__class__
+
+
+New in version 1.2.0
+--------------------
+
+1. python-application now depends on python2.5 or later.
+
+2. The functionality which was deprecated up to this version was removed. This
+   includes:
+    - Within the configuration system:
+      * The ConfigFile.read_settings and ConfigFile.get_option methods
+      * The ConfigSection.__configfile__ and ConfigSection._datatypes special
+        attributes
+      * The dump_settings global function
+      * The NetworkAddress._defaultPort, EndpointAddress._defaultPort and
+        EndpointAddress._name special attributes
+    - Within the logging system:
+      * The startSyslog global function
+    - Within the application.process module:
+      * The Process.config_directory special attribute
+
+   The corresponding entries within this file point to the equivalent
+   functionality provided.
+
+3. The notification system has received a number of enhancements which improve
+   its usability.
+
+   Two new methods were added to the NotificationCenter:
+    - discard_observer: which is equivalent to remove_observer but does not
+      raise an error if the observer is not subscribed for the specified
+      entry in the NotificationCenter
+    - purge_observer: which will remove all of the observer's subscriptions
+      within the NotificationCenter
+
+   A new class, ObserverWeakrefProxy, has been added which allows the
+   NotificationCenter to keep a weak reference to the observer and automatically
+   removes all of its subscriptions once the observer object's reference count
+   reaches zero. Please see examples/notification.py for an example of using the
+   class.
+
+4. The application.system module now contains a host object with dynamic
+   properties that reflect the default IP address, hostname, fully qualified
+   domain name, domain name and host aliases of the running system.
+
+   In addition, the default_host_ip attribute has been deprecated and will be
+   removed in a future release. This attribute is not dynamic and its value is
+   frozen to that determined at module load time. The default_host_ip attribute
+   should be replaced by host.default_ip.
+
+5. The logging system was improved to offer better consistency. The twisted
+   backend was removed and the application.log module is built exclusively upon
+   the standard logging module. This allows better integration with applications
+   which don't use twisted but run on a system where it is available. For the
+   applications which do use it, twisted's log module is hooked automatically to
+   use the logging system in python-application the first time a twisted module
+   is imported. This improvement also simplifies the log module, allowing it to
+   be more easily extended, and in the same time makes it faster.
+
+   The log functions now pass their keyword arguments as a dictionary to the
+   `extra' argument of the functions in the logging module for use by
+   applications which define their own log formatters:
+
+   application.log.info('message', foo=1, bar=2)
+
+   translates to
+
+   logging.info('message', extra={'foo': 1, 'bar': 2})
+
+   The functions log.warn, log.fatal and log.err have been replaced with
+   log.warning, log.critical and log.exception respectively. The previous names
+   have been kept as aliases and can continue to be used as they are not
+   deprecated.
+
+   The log.exception/log.err function now accepts an optional message which, if
+   present, is logged at ERROR level in addition to the exception traceback,
+   which otherwise is logged as before.
+
+6. Miscellaneous improvements:
+    - The Hostname configuration data type no longer tries to resolve the
+      provided value in DNS; this is due to the fact that a glitch in DNS could
+      have resulted in a configuration setting being ignored.
+    - The Null object has been improved with several new methods for descriptor
+      and sequence protocol support.
+
+
+New in version 1.1.5
+--------------------
+
+The configuration framework has received a number of enhancements to make it
+easier to use.
+
+1. Made ConfigSection iterable as (name, value) pairs. With this it became
+   very easy to go through all the settings in a section with a simple
+   for loop or list comprehension: for name, value in MyConfig: ...
+   Saving the current state of a ConfigSection has also become as easy as
+   writing saved_state = dict(MyConfig)
+
+2. Allow any callable to used as a data type converter (or data validator).
+   This was a small regression from version 1.1.1, fixed in this version.
+
+3. The initial state of a ConfigSection, given by the factory default values
+   is saved as a dict in ConfigSection.__defaults__, right after the class is
+   created, before any of the settings is modified or read from a section.
+   With this it's possible to reset to the factory defaults at a later time,
+   or to inspect the factory defaults even after the settings were modified
+   when read from a configuration file.
+
+4. Added ConfigSection.reset() to allow a ConfigSection to revert itself to
+   the factory default values. The method is mirrored in __reset__, in case
+   the reset keyword is used by the section as a setting name and overwrites
+   the method.
+
+5. Added ConfigSection.set() which is used to modify multiple settings at a
+   time. It takes name=value keyword arguments and modifies the settings
+   which are referred by name. Using a keyword argument that doesn't map to
+   an existing setting name will result in an exception. The method is
+   mirrored in __set__, in case the set keyword is used as a setting name
+   in the section and overwrites the method.
+
+   Another use of this function is to restore a previously saved state, which
+   together with the ability to make a snapshot of the current state provide
+   the foundation for implementing a versioning system on top of the existing
+   configuration framework.
+
+     saved_state = dict(MyConfig) # save the current state
+     MyConfig.foo = 'bar'         # change it
+     MyConfig.bar = 'baz'
+     ...
+     MyConfig.reset()             # reset it to factory defaults
+     ...
+     MyConfig.set(saved_state)    # revert to the saved state
+
+6. Added ConfigFile.read() which is used to read the settings from a given
+   configuration file and section (or sections) into the class attributes
+   with the corresponding names. This replaces ConfigFile.read_settings
+   (which was obsoleted), providing a better interface which decouples
+   ConfigSection from ConfigFile.
+   
+   Together with the reset method, read allows a ConfigSection to reload
+   its settings when the configuration file changes. ConfigFile provides
+   an internal caching mechanism that returns the same instance as long
+   as it has not changed on disk, but it will automatically reload it if
+   it detects that it has changed since the last time it was requested.
+   Because of this caching mechanism, a ConfigSection only needs to call
+   its read method to have the content reloaded if it has changed, with
+   no need to perform any other action. By using the reset method it can
+   assure that it doesn't retain old values for settings that were removed
+   from the configuration file since it was last red. If the removed values
+   need to be preserved instead of being reset to factory defaults, then
+   the reset call can be skipped.
+   
+     MyConfig.reset() # revert to factory defaults
+     MyConfig.read()  # reload settings by reading them from the file
+   
+   The read method accepts optional cfgfile and section arguments that
+   override the __cfgfile__ and __section__ attributes. If the arguments
+   are not provided, the class attributes will used instead if defined.
+   If not the arguments nor the class attributes are specified it will
+   raise an exception as it cannot perform the requested action.
+
+7. Improved the ConfigFile caching mechanism to take into account the files
+   that were red and their timestamp, in order to reload the configuration
+   files when they change, instead of retaining them forever once read.
+   This allows ConfigSection.read() to work transparently when reloading a
+   configuration file that changed.
+
+8. The __configfile__ property on ConfigSection was deprecated in favor of
+   __cfgfile__
+
+9. Added ConfigSection.__cfgtype__ to specify the type to use to create
+   instances that handle a configuration file. It defaults to ConfigFile,
+   but it can be overwritten in case one wants to implement a different
+   backend than the one based on ConfigParser.
+
+10. A ConfigSection can now be printed and it will show all its settings
+    in a manner similar to the deprecated dump_settings. This is done by
+    implementing the __str__ method, which makes it easy to include the
+    string representation of a ConfigSection into a message using %s
+
+11. Added ConfigSection.__tracing__ that can hold one of log.level.INFO,
+    log.level.DEBUG or None, indicating where to send messages about the
+    inner working of the ConfigSection. When set to None, no information
+    will be logged, while the other 2 values indicate the log level to
+    which the messages should be logged. When enabled, it will output
+    detailed descriptions of what it does and the state it reaches after
+    operations like read(), set() or reset() as well as the initial class
+    creation or individual changes to settings.
+
+12. Modified the data converters/validators in datatypes to also accept on
+    input what they generate on output. Since they are not real types and
+    do not return instances of themselves, they need to accept what they
+    generate, not only strings in order for ConfigSection.set() to work
+    when restoring a previously saved state. Care must be taken with custom
+    defined data converters/validators to make sure they are able to process
+    not only the input strings that come from the configuration, but also
+    the values they generate out of those strings. This is because when
+    ConfigSection.set() is later called on a saved state, it will no longer
+    receive strings as input values anymore, but it will receive the values
+    that were previously returned by the data converters/validators.
+    If real data types are used instead to define settings, this is not an
+    issue as then the values can be identified by their type and if already
+    the right type the type will no longer be applied on them before being
+    assigned as settings.
+
+Deprecated in this version and scheduled to be removed in 1.2.0:
+
+- ConfigFile.read_settings() in favor of ConfigSection.read()
+- dump_settings(MyConfig) in favor of print MyConfig
+- ConfigSection.__configfile__ in favor of ConfigSection.__cfgfile__
+
+All the deprecated features issue a deprecation warning when used/accessed.
+
+
+The Process class in the process module has received a new property to control
+the local config directory. Until now, the local config directory could not be
+modified and always pointed to the directory containing the script being run.
+Starting with this version, the local config directory only defaults to the
+script's directory but can be later changed using the local_config_directory
+property, similar to the system_config_directory which controls the system
+config directory.
+
+
+New in version 1.1.4
+--------------------
+
+1. Version enhancements
+
+Version can now handle version numbers which may not contain the micro or
+even the minor number. It also added the concept of an undefined version,
+that compares lower than any other version. The undefined version can be
+obtained either by parsing the 'undefined' string, or by creating an
+instance of Version with all arguments None.
+
+
+2. New dependency module
+
+Added a new module application.dependency that can define application
+dependencies on certain packages having minimum required versions and
+allow the application to check if they are satisfied at runtime.
+For usage examples please check examples/dependency.py
+
+
+New in version 1.1.3
+--------------------
+
+Added the isdescriptor function to the application.python.descriptor module.
+As name suggests, it can be used to determine if an object is a descriptor.
+
+
+New in version 1.1.2
+--------------------
+
+1. Configuration framework improvements
+
+The use of the _datatypes attribute of ConfigSection has been deprecated in
+favor of a descriptor based syntax. The newly added ConfigSetting descriptor
+is now used to declare the type and default value of a setting. The
+descriptor is only necessary if validators are used as types, otherwise the
+initial value can be directly assigned to the setting and a descriptor is
+automatically generated using its type and value. The deprecated _datatypes
+attribute can still be used until version 1.2.0 and descriptors will be
+automatically generated from its contents.
+
+The ConfigSection class now has two attributes, __configfile__ and
+__section__, which if set to non-None values are used to automatically load
+the settings from the specified filename and section. Settings in
+ConfigSection classes can still be loaded explicitly using the read_settings
+method of ConfigFile.
+
+The following example describes the new use of the ConfigSection class:
+
+class MyConfigSection(ConfigSection):
+    __configfile__ = 'config.ini'
+    __section__ = 'MySettings'
+    address = ConfigSetting(type=datatypes.IPAddress, value='0.0.0.0')
+    interval = 100
+
+The Boolean configuration datatype has become a validator and instantiating
+it will return a bool instance. With this change, all the configuration
+datatypes are now validators.
+
+The get_option method of ConfigFile has been deprecated in favor of the
+get_setting method whose name is consistent with the rest of the terminology
+used in the configuration package. The signatures of the two methods are
+similar, but not identical:
+
+def get_option(self, section, option, default='', type=str)
+def get_setting(self, section, setting, type=str, default='')
+
+
+2. Descriptors
+
+Added a new descriptor that can be used to implement write once attributes,
+named WriteOnceAttribute. It should be noted that the descriptor can only
+enforce this while the object's attributes are accessed directly. It is
+still possible to modify/delete such an attribute by messing around with
+the descriptor's internal data. Thus the descriptor should not be used to
+guarantee such a behavior, because given Python's introspective abilities,
+it can be circumvented. Instead, the descriptor is meant to be used as an
+indication that the attribute should be writable only once and the code
+using it should play along and honor the limitation.
+
+
+Given a recent bug fix for a memory leak in the ThreadLocal descriptor, now
+both the ThreadLocal and the WriteOnceAttribute descriptors can only be used
+inside classes that allow weak referencing to their instances. Currently, in
+order to clean up internal data from objects that are no longer available,
+both descriptors use weak references with a callback to the objects for which
+they are an attribute, in order to be notified of the objects being released
+when no longer referenced. Due to this change, the following classes cannot
+use these descriptors anymore: subclasses of str, tuple and long as well as
+classes that define __slots__ and do not include __weakref__ in it.
+
+
+3. New version module
+
+Added a new module to handle version numbers for applications, modules and
+packages. The module offers a Version class that is a subclass of str and
+can represent a major.minor.micro[extraversion] version string that offers
+version wise comparison, rather than string wise, when comparing against
+another version instance. When compared against a string instance it will
+compare as a string.
+
+The class understands a number of standard conventions for the extraversion
+part, like alphaN, betaN, preN and rcN notations and is able to compare them
+correctly (alpha < beta < pre < rc). If the extraversion is missing or is a
+number it ranks higher than rcN. If the extraversion is not a number and it
+doesn't fit into these conventions is compared as a string and ranks higher
+than any of them. If the extraversion is a number or follows the alpha, beta,
+pre, rc convention and is prefixed by a dash or a dot, the dash/dot doesn't
+take part in the comparison.
+
+The Version class has a parse classmethod, that is able to take a version
+number expressed as a string and turn it into a Version instance that can be
+compared. This is useful when one needs to compare version numbers, but the
+package provides them as simple strings, not as comparable Version instances.
+
+
+New in version 1.1.1
+--------------------
+
+1. Configuration datatype changes
+
+The _defaultPort and _name attributes from the NetworkAddress and the
+EndpointAddress classes are being deprecated starting with this version,
+being replaced by default_port and respectively name. The deprecated
+attributes are still available, but give a deprecation warning and will
+be completely removed in version 1.2.0
+
+Added the LogLevel datatype that represents a log level and which can be
+used to map a log level name as read from a configuration file into a log
+level that can be assigned to log.level.current to change the application
+log level.
+
+
+New in version 1.1.0
+--------------------
+
+1. Singleton improvements
+
+The Singleton metaclass got enhanced to properly handle classes that take
+arguments in the __init__ and/or __new__ methods. Previously, Singleton
+created one instance per class, thus conflicting with classes that took
+arguments in __init__ and/or __new__, because instantiating the class again
+with a different set of arguments would have returned the same instance that
+was created before with a different set of arguments. This behavior was not
+only confusing, but also wrong.
+
+The new implementation will create multiple singletons per class, each one
+corresponding to a unique combination of the arguments used to instantiate
+the class. As a result, one will get the same object only by calling the
+class with the same arguments.
+
+One restriction of this is that the __init__ and/or __new__ arguments of the
+class that uses Singleton as a metaclass can only have immutable values, so
+that their unique combination can be used to lookup the proper instance in a
+dictionary.
+
+To determine the arguments, the Singleton metaclass will always prefer the
+__init__ signature over the __new__ signature if both are defined. When
+subclassing always keep this in mind, especially for cases where __init__
+is defined only in the parent class, while __new__ is defined in the current
+class. In this case, __init__ will still be preferred even though is defined
+in a parent class.
+
+For classes that had no arguments in __init__ and or __new__, there is no
+change in the behavior.
+
+
+2. Logging improvements
+
+The logging system was enhanced to also show the message type prefix (error,
+fatal, warning, debug) when outputting on the console as it does in syslog.
+
+The startSyslog() function was deprecated and replaced with start_syslog()
+for consistency with the naming convention in the other modules.
+
+Another improvement of the logging system is the ability to set a log level
+that will be used to filter out all log messages that do not have at least
+that level. The default log level is INFO, meaning that any message except
+debug messages will be logged. The level can be changed at any time during
+runtime:
+
+from application import log
+log.level.current = log.level.ERROR # only log error and critical messages
+
+The available log levels are: ALL, DEBUG, INFO, WARNING, ERROR, CRITICAL
+and NONE. ALL and NONE are not effective log levels, but they can be used
+to output all or no log messages by assigning them to log.level.current.
+
+The logging system also received a major improvement by no longer depending
+on twisted for its log module. A new log backend using the python standard
+logging module was added that offers the same functionality in the absence
+of twisted. The change is transparent to the user who doesn't have to take
+any steps to update his code. The functionality offered by the two backends
+is identical, so the logging system works the same if twisted is present or
+not.
+
+While a strong dependency on twisted was removed by this, a weak dependency
+on it still remains, in the sense that if twisted is installed the twisted
+log backend will always be preferred over the logging backend. However,
+twisted is no longer mandatory for python-application to work.
+
+
+3. Notification system
+
+A new notification.py module was added to python-application, to implement a
+notification system that can be used to communicate between different
+components of an application.
+
+The notification system offers a notification center, that is used to post
+notifications and keep track of the registered notification observers.
+
+Observers can register to receive certain notifications posted by certain
+senders. In particular one observer can watch for all notifications or for
+all senders if desired.
+
+The notification system implements a producer/consumer pattern and can be
+used to better isolate different components of an application and make them
+less dependant of each other. This is done by creating an asynchronous
+communication channel between them via the notification center. One entity
+can post a notification that publishes some state or information, while not
+being interested who will receive this information. In the same manner, some
+observers may register to receive that information not necessarily being
+interested in who published it or being aware of each other.
+
+
+4. Miscellaneous improvements
+
+A new module was added in application.python.descriptor to hold various
+useful descriptor classes. It currently only has one descriptor named
+ThreadLocal that can be used to get object attributes that are of a
+given type and hold data that is thread specific. For example:
+
+from application.python.descriptor import ThreadLocal
+from collections import deque
+
+class MyClass(object):
+    queue = ThreadLocal(deque)
+
+Any instance of this class will have a queue attribute that is of type deque
+and its contents is different in each thread. Type can be any python type
+that is a mutable data container (it can be immutable too but it doesn't
+make much sense that way).
+
