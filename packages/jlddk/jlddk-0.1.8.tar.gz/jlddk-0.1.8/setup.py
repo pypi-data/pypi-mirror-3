@@ -1,0 +1,54 @@
+#!/usr/bin/env python
+"""
+    Jean-Lou Dupont's general web related scripts/robots
+    
+    Created on 2012-01-19
+    @author: jldupont
+"""
+__author__  ="Jean-Lou Dupont"
+__version__ ="0.1.8"
+
+
+from distutils.core import setup
+from setuptools import find_packages
+
+DESC="""
+Overview
+--------
+
+This package contains a collection of 'robots'.
+Each 'robot' is implemented with logging on stderr and processing result is output on stdout as either string or JSON.
+
+Robots
+------
+
+* jldwebscraper : extract anchor links from a web page
+* jldfilter : filter stdin through a Python module, output on stdout
+* jldcomp : compare 2 filesystem paths for difference in files
+* jldjsoncat : 'cat' files to stdin by encapsulating them in JSON objects
+* jldwebdl : gated web page download, source links contained in file system path
+
+Configuration
+-------------
+
+Can be performed through options on the command line or using a file (use a leading `@`).
+"""
+
+setup(name=         'jlddk',
+      version=      __version__,
+      description=  'Collection of robots',
+      author=       __author__,
+      author_email= 'jl@jldupont.com',
+      url=          'http://www.systemical.com/doc/opensource/jlddk',
+      package_dir=  {'': "src",},
+      packages=     find_packages("src"),
+      scripts=      ['src/scripts/jldwebscraper',
+                     'src/scripts/jldfilter',
+                     'src/scripts/jldwebdl',
+                     'src/scripts/jldjsoncat',
+                     'src/scripts/jldcomp',
+                     ],                     
+      zip_safe=False
+      ,install_requires=["pyfnc >= 0.1.0"]
+      ,long_description=DESC
+      )
