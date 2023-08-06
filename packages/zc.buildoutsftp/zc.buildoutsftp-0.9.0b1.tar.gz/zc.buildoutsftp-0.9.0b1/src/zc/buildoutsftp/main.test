@@ -1,0 +1,229 @@
+Mochiavellian tests
+===================
+
+We're not going to try to test actuall sftp interaction.  Too hard.
+Instead, we'll mock the environmet and back up the mock-based tests
+with integration tests.
+
+The buildoutsftp extension installs an sftp handler in urllib2.
+
+    >>> import zc.buildoutsftp, urllib2
+    >>> zc.buildoutsftp.install(None)
+    >>> urllib2.build_opener.assert_called_with(zc.buildoutsftp.SFTPHandler)
+    >>> urllib2.install_opener.assert_called_with(
+    ...     urllib2.build_opener.return_value)
+
+A buildout object is passed to install, but install ignores it.
+
+    >>> handler = zc.buildoutsftp.SFTPHandler()
+    >>> request = urllib2.Request('sftp://example.com/data')
+
+Let's start with essentially no ssh support in the user's environment:
+
+    >>> handler.sftp_open(request)
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: ('No stored host key', 'example.com')
+
+There's a early check for the presense of host keys that failed.
+We'll create an empty host key file:
+
+    >>> import os, paramiko
+    >>> host_key = paramiko.RSAKey.generate(1024)
+    >>> host_keys = paramiko.HostKeys()
+    >>> host_keys.add('example.com', 'ssh-rsa', host_key)
+    >>> os.mkdir('.ssh', 0700)
+    >>> from os.path import join
+    >>> host_keys.save(join('.ssh', 'known_hosts'))
+
+    >>> handler.sftp_open(request)
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: Authentication failed.
+
+Authentication failed because the user has no keys.
+
+Let's give them one:
+
+    >>> ukey = creds[(('example.com', 22), 'testuser')]['user_key']
+    >>> ukey.write_private_key_file(join('.ssh', 'id_rsa'))
+    >>> handler.sftp_open(request)
+    ... # doctest: +NORMALIZE_WHITESPACE
+    Traceback (most recent call last):
+    ...
+    AuthenticationException:
+    ('Remote server authentication failed.', 'example.com')
+
+We got a bit farther, but the host key was wrong.  Let's fix it:
+
+    >>> host_key = creds[(('example.com', 22), 'testuser')]['host_key']
+    >>> host_keys = paramiko.HostKeys()
+    >>> host_keys.add('example.com', 'ssh-rsa', host_key)
+    >>> host_keys.save(join('.ssh', 'known_hosts'))
+    >>> print handler.sftp_open(request).read()
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+That worked and we got a directory listing.  If we access a file:
+
+    >>> zc.buildoutsftp.cleanup()
+    >>> request = urllib2.Request('sftp://example.com/data/index.html')
+    >>> print handler.sftp_open(request).read(),
+    Hi world!
+
+We get it's text.
+
+Now, let's try some variations:
+
+User key in ~/.ssh/id_dsa
+-------------------------
+
+    >>> zc.buildoutsftp.cleanup()
+    >>> os.remove(join('.ssh', 'id_rsa'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> request = urllib2.Request('sftp://example.com/data')
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: Authentication failed.
+
+    >>> ukey = paramiko.DSSKey.generate(1024)
+    >>> ukey.write_private_key_file(join('.ssh', 'id_dsa'))
+    >>> creds[(('example.com', 22), 'testuser')]['user_key'] = ukey
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+User key in ~/.ssh/identity
+---------------------------
+
+    >>> zc.buildoutsftp.cleanup()
+    >>> os.remove(join('.ssh', 'id_dsa'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> request = urllib2.Request('sftp://example.com/data')
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: Authentication failed.
+
+    >>> ukey.write_private_key_file(join('.ssh', 'identity'))
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+Host key in global known hosts file
+-----------------------------------
+
+    >>> zc.buildoutsftp.cleanup()
+    >>> os.remove(join('.ssh', 'known_hosts'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> request = urllib2.Request('sftp://example.com/data')
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: ('No stored host key', 'example.com')
+
+    >>> os.mkdir('etc')
+    >>> host_keys.save(join('etc', 'ssh_known_hosts'))
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+    >>> zc.buildoutsftp.cleanup()
+    >>> os.remove(join('etc', 'ssh_known_hosts'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> request = urllib2.Request('sftp://example.com/data')
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: ('No stored host key', 'example.com')
+
+    >>> os.mkdir(join('etc', 'ssh'))
+    >>> host_keys.save(join('etc', 'ssh', 'ssh_known_hosts'))
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+Host key in global known hosts file with non-standard name
+----------------------------------------------------------
+
+    >>> os.remove(join('etc', 'ssh', 'ssh_known_hosts'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> request = urllib2.Request('sftp://example.com/data')
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: ('No stored host key', 'example.com')
+
+    >>> with open(join('etc', 'ssh_config'), 'w') as f:
+    ...     f.write('GlobalKnownHostsFile %s\n'
+    ...             % join('etc', 'ssh', 'known_hosts'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> host_keys.save(join('etc', 'ssh', 'known_hosts'))
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+Alternate global config location
+--------------------------------
+
+    >>> os.remove(join('etc', 'ssh', 'known_hosts'))
+    >>> os.remove(join('etc', 'ssh_config'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> request = urllib2.Request('sftp://example.com/data')
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: ('No stored host key', 'example.com')
+
+    >>> with open(join('etc', 'ssh', 'ssh_config'), 'w') as f:
+    ...     f.write('GlobalKnownHostsFile %s\n'
+    ...             % join('etc', 'KnownHosts'))
+
+    >>> zc.buildoutsftp.cleanup()
+    >>> host_keys.save(join('etc', 'KnownHosts'))
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+Host-specific user
+==================
+
+    >>> import getpass
+    >>> getpass.getuser.return_value = 'bob'
+
+    >>> zc.buildoutsftp.cleanup()
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: Authentication failed.
+
+    >>> with open(join('.ssh', 'config'), 'w') as f:
+    ...     f.write('Host example.com\n'
+    ...             'User testuser\n'
+    ...             )
+    >>> zc.buildoutsftp.cleanup()
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
+
+Host-specific key file
+======================
+
+    >>> os.remove(join('.ssh', 'identity'))
+    >>> zc.buildoutsftp.cleanup()
+    >>> print handler.sftp_open(request).read(),
+    Traceback (most recent call last):
+    ...
+    AuthenticationException: Authentication failed.
+
+    >>> with open(join('.ssh', 'config'), 'w') as f:
+    ...     f.write('Host example.com\n'
+    ...             'User testuser\n'
+    ...             'IdentityFile ~/.ssh/id\n'
+    ...             )
+    >>> zc.buildoutsftp.cleanup()
+    >>> ukey.write_private_key_file(join('.ssh', 'id'))
+    >>> print handler.sftp_open(request).read(),
+    <a href="sftp://example.com/data/moredata">moredata</a><br />
+    <a href="sftp://example.com/data/index.html">index.html</a><br />
