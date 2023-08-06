@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+
+import sys
+import time
+
+from catsnap import Config
+from catsnap.image_truck import ImageTruck
+from catsnap.document.tag import Tag
+from catsnap.document.image import Image
+from catsnap.batch.image_batch import get_images
+from catsnap.batch.tag_batch import get_tags, add_image_to_tags
+
+from boto.exception import DynamoDBResponseError
+
+USAGE = """
+Usage:
+    catsnap add [image_url] tag1 tag2 ...
+    catsnap add [file_path] tag1 tag2 ...
+    catsnap find tag1 tag2 ...
+    catsnap setup
+"""
+
+def main():
+    if len(sys.argv) < 2:
+        show_help()
+    command = sys.argv[1]
+    if command == 'add':
+        if len(sys.argv) < 4:
+            show_help()
+        add(sys.argv[2], sys.argv[3:])
+    elif command == 'find':
+        if len(sys.argv) < 3:
+            show_help()
+        find(sys.argv[2:])
+    elif command == 'setup':
+        if len(sys.argv) > 2:
+            show_help()
+        setup()
+    else:
+        show_help()
+
+def add(path, tags):
+    truck = ImageTruck.new_from_something(path)
+    truck.upload()
+    image = Image(truck.calculate_filename(), truck.source_url)
+    image.add_tags(tags)
+    add_image_to_tags(truck.calculate_filename(), tags)
+
+    print truck.url()
+
+def find(tag_names):
+    filenames = set()
+    tags = get_tags(tag_names)
+    for tag in tags:
+        filenames.update(tag['filenames'])
+    images = get_images(filenames)
+    for image in images:
+        filename = image['filename']
+        image_tags = ' '.join(image['tags'])
+        url = ImageTruck.url_for_filename(filename)
+        print '%s   |   %s' % (url, image_tags)
+
+def setup():
+    Tag.create()
+    Image.create()
+    sys.stdout.write("""
+I've created image and tag tables. Dynamodb tables take some time after being
+created before they're available for use--please wait a minute to add an image.
+""")
+
+def show_help():
+    sys.stderr.write(USAGE)
+    sys.exit(1)
+
+try:
+    main()
+except DynamoDBResponseError, e:
+    if e.status == 400 and e.error_code == u'ResourceNotFoundException':
+        sys.stderr.write("""
+######
+I caught a ResourceNotFoundException while trying to interact with DynamoDB.
+This may mean that you need to run `catsnap setup`. This can also happen
+sometimes right after creating a new DB table--it takes a while before the
+table is ready for queries. If you've run setup recently, please wait a bit
+and try again...
+######
+""")
+        sys.exit(1)
+    else:
+        raise
+
