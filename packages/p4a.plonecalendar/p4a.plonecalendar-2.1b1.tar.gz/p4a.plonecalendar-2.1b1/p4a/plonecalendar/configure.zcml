@@ -1,0 +1,91 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:five="http://namespaces.zope.org/five"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    xmlns:i18n="http://namespaces.zope.org/i18n"
+    i18n_domain="Plone4Artists">
+    
+  <i18n:registerTranslations directory="locales" />
+ 
+  <include package="p4a.z2utils" />
+  <include package="p4a.common" />
+  <include package="dateable.chronos" />
+
+  <genericsetup:registerProfile
+      name="default"
+      title="P4A Plone Calendar"
+      directory="profiles/default"
+      description="Extension profile for p4a.plonecalendar setup."
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      />
+
+<genericsetup:upgradeStep
+        title="Upgrade to 2.1: Remove all marker interfaces"
+        description=""
+        source="0"
+        destination="1000"
+        handler="p4a.plonecalendar.sitesetup.remove_all_old_crap"
+        sortkey="1"
+        profile="p4a.plonecalendar:default"/>
+
+  <browser:resourceDirectory
+      name="p4aplonecalendar"
+      directory="browser/resources"
+      permission="zope.Public"
+      />
+
+  <class class="Products.ATContentTypes.content.folder.ATFolder">
+      <implements interface="dateable.chronos.interfaces.IPossibleCalendar"/>
+  </class>
+  <adapter factory=".eventprovider.ATEventProvider" />
+  <adapter factory=".eventprovider.ATEventCreator" />
+
+  <class class="Products.ATContentTypes.content.topic.ATTopic">
+      <implements interface="dateable.chronos.interfaces.IPossibleCalendar"/>
+  </class>
+  <adapter factory=".eventprovider.TopicEventProvider" />
+  <adapter factory=".eventprovider.TopicEventCreator" />
+
+  <configure zcml:condition="installed plone.app.collection">
+      <class class="plone.app.collection.collection.Collection">
+          <implements interface="dateable.chronos.interfaces.IPossibleCalendar"/>
+      </class>
+      <adapter factory=".eventprovider.CollectionEventProvider" />
+      <adapter factory=".eventprovider.CollectionEventCreator" />
+  </configure>
+
+  <adapter factory=".eventprovider.BrainEvent" />
+  <adapter factory=".eventprovider.RecurringBrainEvent" 
+           provides="dateable.kalends.ITimezonedRecurringEvent" />
+
+  <!-- I don't know why these are needed. /regebro -->
+  <!-- Zope 2.9 -->
+  <subscriber
+      zcml:condition="installed zope.app.event.interfaces.IObjectModifiedEvent"
+      for="dateable.chronos.interfaces.IPossibleCalendar
+           zope.app.event.interfaces.IObjectModifiedEvent"
+      handler=".update_catalog"
+      />
+
+  <!-- Zope >= 2.10 -->
+  <subscriber
+      zcml:condition="installed zope.lifecycleevent.interfaces.IObjectModifiedEvent"
+      for="dateable.chronos.interfaces.IPossibleCalendar
+           zope.lifecycleevent.interfaces.IObjectModifiedEvent"
+      handler=".update_catalog"
+      />
+
+  <subscriber
+      zcml:condition="installed Products.Calendaring.zopeevents"
+      for="*
+            Products.Calendaring.zopeevents.IDemarshalledVEventEvent"
+      handler=".vevent_demarshalled"
+      />
+
+  <include package=".browser" />
+ 
+  <five:registerPackage package="." />
+
+</configure>
