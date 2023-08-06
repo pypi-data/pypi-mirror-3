@@ -1,0 +1,515 @@
+Metadata-Version: 1.0
+Name: django-lazysignup
+Version: 0.10.0
+Summary: Lazy signup for Django
+Home-page: http://github.com/danfairs/django-lazysignup
+Author: Dan Fairs
+Author-email: dan@fezconsulting.com
+License: BSD
+Description: Introduction
+        ============
+        
+        ``django-lazysignup`` is a package designed to allow users to interact with a
+        site as if they were authenticated users, but without signing up. At any time,
+        they can convert their temporary user account to a real user account.
+        
+        ``django-lazysignup`` is beta software. Bug reports, patches and extensions
+        are welcomed. While this package is in beta, backwards-compatibility will be
+        maintained for a single point release and a DeprecationWarning issued.
+        
+        Requirements
+        ============
+        
+        Tested on Django 1.2.x, though should work on Django 1.0 and later
+        (although you  will need to customise one of the templates.) It requires
+        ``django.contrib.auth`` to be in the ``INSTALLED_APPS`` list.
+        
+        Note that from 0.9.0, Django 1.3 or later will be required.
+        
+        Installation
+        ============
+        
+        django-lazysignup can be installed with your favourite package management tool
+        from PyPI::
+        
+          pip install django-lazysignup
+        
+        Once that's done, you need to add ``lazysignup`` to your ``INSTALLED_APPS``.
+        You will also need to add ``lazysignup``'s authentication backend to your
+        site's ``AUTHENTICATION_BACKENDS`` setting::
+        
+          AUTHENTICATION_BACKENDS = (
+            'django.contrib.auth.backends.ModelBackend',
+            'lazysignup.backends.LazySignupBackend',
+          )
+        
+        If you are using Django prior to 1.2, you should override the
+        ``lazysignup/convert.html``  template to remove the ``{% csrf_token %}``
+        template tag. This may be handled more elegantly in a future release.
+        
+        Next, you need to ensure that the tables that ``lazysignup`` uses are created.
+        You should either run ``python manage.py syncdb``, or use the South support
+        and run ``python manage.py migrate lazysignup``.
+        
+        Finally, you need to add lazysignup to your URLConf, using something like
+        this::
+        
+          urlpatterns += (''
+              (r'^convert/', include('lazysignup.urls')),
+          )
+        
+        
+        Usage
+        =====
+        
+        The package works by creating temporary user accounts based on a user's
+        session key whenever a flagged view is requested. You can specify which
+        views trigger this behaviour using the ``lazysignup.decorators.allow_lazy_user``
+        decorator.
+        
+        When an anonymous user requests such a view, a temporary user account will be
+        created for them, and they will be logged in. The user account will have
+        an unusable password set, so that it can't be used to log in as a regular
+        user. The way to tell a regular use from a temporary user is to call
+        the ``is_lazy_user()`` function from ``lazysignup.templatetags.lazysignup_tags``.
+        If this returns ``True``, then the user is temporary. Note that
+        ``user.is_anonymous()`` will return ``False``  and ``user.is_authenticated()``
+        will return ``True``. See below for more information on ``is_lazy_user``.
+        
+        A view is provided to allow such users to convert their temporary account into
+        a real user account by providing a username and a password.
+        
+        A Django management command is provided to clear out stale, uncoverted user
+        accounts - although this depends on your use of database-backed sessions, and
+        assumes that all user accounts with an expired session are safe to delete. This
+        may not be the case for all apps, so you may wish to provide your own cleaning
+        script.
+        
+        The ``allow_lazy_user`` decorator
+        ---------------------------------
+        
+        Use this decorator to indicate that accessing the view should cause anonymous
+        users to have temporary accounts created for them.
+        
+        For example::
+        
+          from django.http import HttpResponse
+          from lazysignup.decorators import allow_lazy_user
+        
+          @allow_lazy_user
+          def my_view(request):
+            return HttpResponse(request.user.username)
+        
+        When accessing the above view, a very simple response containing the generated
+        username will be displayed.
+        
+        The ``is_lazy_user`` template filter
+        ------------------------------------
+        
+        This template filter (which can also be imported from ``lazysignup.utils``
+        and used in your own code) will return True if the user is a generated user.
+        You need to pass it the user to test. For example, a site navigation
+        template might look like this::
+        
+            {% load i18n lazysignup_tags %}
+        
+            <nav id="account-bar">
+              <ul>
+                <li><a href="{% url home %}">{% trans "Home" %}</a></li>
+                {% if not user|is_lazy_user %}
+                  <li><a href="#">{% trans "Account" %}</a></li>
+                  <li><a href="{% url auth_logout %}">{% trans "Log out" %}</a></li>
+                {% else %}
+                  <li><a href="{% url lazysignup_convert %}">{% trans "Save your data" %}</a> {% trans "by setting a username and password" %}</li>
+                {% endif %}
+              </ul>
+            </nav>
+        
+        This filter is very simple, and can be used directly in view code, or tests. For example::
+        
+            from lazysignup.utils import is_lazy_user
+        
+            def testIsLazyUserAnonymous(self):
+                user = AnonymousUser()
+                self.assertEqual(False, is_lazy_user(user))
+        
+        Note that as of version 0.6.0, the user tested no longer needs to have been
+        authenticated by the ``LazySignupBackend`` for lazy user detection to work.
+        
+        User agent blacklisting
+        -----------------------
+        
+        The middleware will not created users for certain requests from blacklisted
+        user agents. This is simply a fairly crude method for preventing many spurious
+        users being created by passing search engines.
+        
+        The blacklist is specified with the ``USER_AGENT_BLACKLIST`` setting. This
+        should be an iterable of regular expression strings. If the user agent string
+        of a request matches a regex (``search()`` is used, so the match can be anywhere
+        in the string) then a user will not be created.
+        
+        If the list is not specified, then the default is as follows
+        
+          - slurp
+          - googlebot
+          - yandex
+          - msnbot
+          - baiduspider
+        
+        Specifying your own ``USER_AGENT_BLACKLIST`` will replace this list.
+        
+        Using the convert view
+        ----------------------
+        
+        Users will be able to visit the ``/convert/`` view. This provides a form with
+        a username, password and password confirmation. As long as they fill in valid
+        details, their temporary user account will be converted into a real user
+        account that they can log in with as usual.
+        
+        You may pass your own form class into the `convert` view in order to customise
+        user creation. The code requires expects the following:
+        
+          - It expects to be able to create the form passing in the generated ``User``
+            object with an ``instance`` kwarg (in general, this is fine when using a
+            ModelForm based on the User model)
+          - It expects to be able to call ``save()`` on the form to convert the user
+            to a real user
+          - It expects to be able to call a ``get_credentials()`` method on the form
+            to obtain a set of credentials to authenticate the new user with. The
+            result of this call should be a dictionary suitable for passing to
+            ``django.contrib.auth.authenticate()``. Typically, this would be a dict
+            with ``username`` and ``password`` keys - but this may vary if you're using
+            a different authentication backend.
+        
+        The default configuration, using the provided ``UserCreationForm``, should
+        be enough for most users, but the customisation point is there if you need
+        it.
+        
+        The view also supports ``template_name`` and ``ajax_template_name`` arguments,
+        to specify templates to render in web and ajax contexts respectively.
+        
+        The ``converted`` signal
+        ------------------------
+        
+        Whenever a temporary user account is converted into a real user account, the
+        ``lazysignup.signals.converted`` signal will be sent.  If you need to do any
+        processing when an account is converted, you should listen for the signal, eg::
+        
+            from lazysignup.signals import converted
+            from django.dispatch import receiver
+        
+            @receiver(converted)
+            def my_callback(sender, **kwargs):
+                print "New user account: %s!" % kwargs['user'].username
+        
+        The signal provides a single argument, ``user``, which contains the
+        newly-converted User object.
+        
+        Custom User classes
+        -------------------
+        
+        Many projects use a custom ``User`` class, augmenting that from
+        ``django.contrib.auth``. If you want to use such a custom class with
+        ``lazysignup``, then you should set the ``LAZYSIGNUP_USER_MODEL`` setting.
+        This should be a standard dotted Django name for a model, eg::
+        
+            LAZYSIGNUP_USER_MODEL = 'myapp.CustomUser'
+        
+        The setting defaults to ``auth.User``, so using Django's own ``User`` model.
+        
+        If you do use a custom user class, note that ``lazysignup`` expects that
+        class' default manager to have a ``create_user`` method, with the same
+        signature and semantics as ``django.contrib.auth.models.UserManager``. If your
+        model actually subclasses Django's own user model, you may well be able to
+        use this manager directly. For example::
+        
+            from django.contrib.auth.models import User, UserManager
+        
+            class MyCustomUser(User):
+                objects = UserManager()
+        
+                notes = models.TextField(blank=True, null=True)
+        
+        ``lazysignup`` also expects that it can fetch instances of your custom user
+        class using a ``get`` method on the object's manager, and that looking them
+        up by primary key and by ``username`` will work. See ``lazysignup.backends``
+        for more detail.
+        
+        Maintenance
+        -----------
+        
+        Over time, a number of user accounts that haven't been converted will build up.
+        To avoid performance problems from an excessive number of user accounts, it's
+        recommended that the ``remove_expired_users`` management command is run on
+        a regular basis. It runs from the command line::
+        
+          python manage.py remove_expired_users
+        
+        In a production environment, this should be run from cron or similar.
+        
+        This works be removing user accounts from the system whose associated sessions
+        have expired. ``user.delete()`` is called for each user, so related data will
+        be removed as well.
+        
+        Note of course that these deletes will cascade, so if you need to keep data
+        associated with such users, you'll need to write your own cleanup job. If
+        that's not the case, then you'll again need to write your own cleanup.
+        Finally, if you're using a custom user class where the user isn't a subclass
+        of Django's own user model, you'll again need your own cleanup script.
+        
+        Helping Out
+        -----------
+        
+        If you want to add a feature or fix a bug, please go ahead! Fork the project
+        on GitHub, and when you're done with your changes, let me know. Fixes and
+        features with tests have a greater chance of being merged. To run the tests,
+        do::
+        
+          cd /path/to/src/lazysignup
+          python manage.py test lazysignup
+        
+        Note that the tests require the ``mock`` package.
+        
+        
+        Changelog
+        =========
+        
+        0.10.0
+        ------
+        
+        This is a feature release. Two new decorators have been added:
+        `@require_lazy_user` and `@require_nonlazy_user`.
+        
+        Thanks to Brad Beattie (bradbeattie) for the implementation and tests, and to
+        Adam Coddington (latestrevision) for the original suggestion.
+        
+        
+        0.9.0
+        -----
+        
+        This is a feature release. A custom signal is now fired when a user is
+        converted. Thanks to Olly Smith (oesmith) for the patch.
+        
+        Versions of Django earlier than 1.3 are now no longer supported. (Nothing has
+        been done to prevent 1.2.x working, but I will no longer take care to make sure
+        that this remains the case.)
+        
+        
+        0.8.0
+        -----
+        
+        This is a feature release. This contains all the features in the 0.8.0 beta
+        series, plus the ability to specify custom templates for the convert view,
+        both via a regular GET and via Ajax. Thanks to percyperez for the idea and
+        initial implementation.
+        
+        Note that this release is the last feature release that will support Django
+        1.2 or earlier. 0.9.0 and later will require Django 1.3 or later.
+        
+        
+        0.8.0b2
+        -------
+        
+        This release introduces the following backwards-incompatible changes:
+        
+        * A test project was added to make running the tests a little easier. The old
+          way of running the tests has been removed.
+        * The `urls.py` no longer hardcodes `convert` as the URL prefix (thanks
+          to mitar)
+        
+        0.8.0b1
+        -------
+        
+        This is a bugfix and feature release. The internal API has changed to no
+        longer depend on session keys for username generation. This should be
+        backwards-compatible as long as you are using the documented API.
+        
+        The following bugs have been fixed:
+        
+        * PEP8 cleanups
+        * Tweak setup.py to make sure templates are installed (thanks Kurt Grandis)
+        
+        The following features have been added:
+        
+        * Removed the hard dependency on session keys to generate usernames, as it was
+          unnecessary.
+        * remove_expired_users should no longer depend on using the database session
+          backend - it will instead use SESSION_COOKIE_AGE to find lazy users
+          who have not logged in recently and whose sessions will therefore have
+          expired.
+        
+        You should still not use remove_expired_users without reviewing the code;
+        in particular, you may wish to subclass the command and override
+        `to_delete()`.
+        
+        These changes are somewhat experimental, so this is a beta release - it is
+        *not* recommended that you run this in production. Testing and feedback is
+        welcome.
+        
+        0.7.0
+        -----
+        
+        This is a feature release. Custom user classes are now supported via the
+        ``LAZYSIGNUP_USER_MODEL`` setting. This is a backwards-compatible change.
+        
+        Thanks to Luke Zapart for the idea and initial implementation.
+        
+        0.6.2
+        -----
+        
+        This is a bugfix release. Issues fixed:
+        
+        * The LazySignupBackend no longer relies on a specific User class to
+          authenticate a user. It now uses the fact that there is a relationship
+          between the LazyUser and the main site User class. This fixes the bug
+          where authenticate() was looking directly for UNUSABLE_PASSWORD, and also
+          paves the way for custom user classes.
+        
+        0.6.1
+        -----
+        
+        This is a bugfix release. Issues fixed:
+        
+        * https://github.com/danfairs/django-lazysignup/issues#issue/2 - Invalid user
+          IDs in the session could cause an AttributeError from the auth backend.
+        
+        Thanks to Alex Ehlke for the report and patch.
+        
+        0.6.0
+        -----
+        
+        This is a feature release:
+        
+        * Users created lazily but not currently logged-in are now correctly detected
+          as lazy users. To facilitate this, a ``LazyUser`` model is included. Note
+          that existing code using ``is_lazy_user`` only on authenticated users will
+          continue to work, as the old method of checking the ``backend`` attribute
+          of the ``User`` object has been retained - it's faster to do that than a
+          potentially unnecessary database query.
+        
+          For those who use it, a South migration is provided to create the initial
+          table. Data migration will be handled by South migrations from now on.
+        
+        * The canonical import location of ``is_lazy_user`` has changed from within
+          ``lazysignup.templatetags.lazysignup_tags`` to ``lazysignup.utils``.
+          Existing code that imports from the old location will continue to work.
+        
+        0.5.1
+        -----
+        
+        Bugfix release:
+        
+        - Fix an issue where a lazy user would be misidentified as a non-lazy user
+        
+        0.5.0
+        -----
+        
+        This version simplifies the implementation significantly by removing the requirement for
+        a middleware. This is a backwards-incompatible change as the ``lazysignup.middleware``
+        module no longer exists, and needs to be removed from your ``MIDDLEWARE_CLASSES`` list.
+        
+        This change means that you can no longer disable the software by removing the middleware
+        class from your configuration. You might want to do this temporarily in development, for
+        example, when testing that your views still work when an anonymous user is presented to
+        them (perhaps through the user agent blacklisting functionality).
+        
+        To this end, support for a new settings has been added: ``ENABLE_LAZYSIGNUP``. It's set
+        to True by default. Setting it to False will both prevent automatic login and
+        automatic user creation.
+        
+        The ``allow_lazy_user`` decorator no longer has to be first in the decorator list. Thanks
+        to Jauco Noordzij for pointing this out initially.
+        
+        There is now also an ``is_lazy_user`` template filter, which will return True if the
+        current user is an automatically created user. It will return False for users who are
+        anonymous, or were authenticated by some other means. Thanks again to Jauco Noordzij
+        for the idea for this feature.
+        
+        Note that the ``is_lazy_user`` filter (which you can also just import and use
+        directly in your view code) is the preferred way of checking for an automatically
+        created user. ``has_usable_password`` will continue to return False for such users,
+        but is no longer the canonical way to identify them. Users authenticated with
+        other authentication backends (for example, LDAP backends) may return False when
+        ``has_usable_password`` is called.
+        
+        
+        0.4.0
+        -----
+        
+        This version fixes a number of issues, adds new features and has backwards-
+        incompatible changes:
+        
+          - Fix a RST issue in README
+          - Fix an issue where a POST to the convert view would break if the user was anonymous.
+            The convert view now redirects to the LOGIN_URL by default, parameterised in the view.
+        
+        New features:
+        
+          - It is now easier to customise the process of converting a lazy user into a real user.
+            Previous versions allowed a custom form to be passed to the ``convert`` view, but the
+            code always expected a ``username`` and ``password1`` field to get credentials from to
+            log the user in. Now, a new ``get_credentials()`` method is called on the form to obtain
+            these credentials.
+          - The tests module now includes a ``no_lazysignup`` decorator that you can apply to a
+            method on your test case, which removes the lazy signup middleware for the duration
+            of that test only. This is useful for testing what happens when a view that is
+            marked with with the ``allow_lazy_user`` decorator ends up with an anonymous user
+            (most commonly, when a search engine visits).
+        
+        Backwards-incompatible changes:
+        
+          - Generated usernames are now based on the session key, rather than actually being the
+            session key. This is to avoid a potential security issue where an app might simply
+            display a username, giving away a significant part of the user's session key. The
+            username is now generated from a SHA1 hash of the session key. This change means that
+            existing generated users will become invalid.
+        
+        0.3.0
+        -----
+        
+        This version introduces a backwards-incompatible changes, renaming the ``@allow_lazy``
+        decorator to ``@allow_lazy_user``. This is to avoid confusion with the decorator of
+        the same name in ``django.utils.functional``.
+        
+        0.2.0
+        -----
+        
+        This version fixes a number of issues:
+        
+          - Correct a duplicated test
+          - Fix a bug where a new user would not be created if they already had a
+            session key.
+        
+        It also introduces a new feature, user agent blacklisting. This aims to
+        prevent explosive growth in the number of users created by search engines,
+        etc. This feature is still in test, so patches and feedback welcome. Note that
+        this introduces a backwards-incompatibly behaviour. Prior to this release,
+        it was safe to assume that all views marked with the ``@allow_lazy`` decorator
+        would receive an authenticated user. This is now no longer the case.
+        
+        See the README.rst file for more information.
+        
+        0.1.2
+        -----
+        
+        * Compatibility fixes for Django <1.2
+        * The convert view is now itself lazy
+        
+        0.1.1
+        -----
+        
+        * Fix some packaging errors
+        
+        0.1
+        ---
+        
+        * Initial release
+        
+        
+Keywords: django lazy signup app user
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: Django
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: BSD License
