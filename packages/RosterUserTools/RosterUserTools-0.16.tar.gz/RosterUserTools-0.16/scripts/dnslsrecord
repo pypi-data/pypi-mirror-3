@@ -1,0 +1,177 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2009, Purdue University
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright notice, this
+# list of conditions and the following disclaimer in the documentation and/or
+# other materials provided with the distribution.
+# 
+# Neither the name of the Purdue University nor the names of its contributors
+# may be used to endorse or promote products derived from this software without
+# specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+"""List record tool for Roster"""
+
+
+__copyright__ = 'Copyright (C) 2009, Purdue University'
+__license__ = 'BSD'
+__version__ = '0.16'
+
+
+import sys
+
+from roster_user_tools import cli_record_lib
+from roster_user_tools import cli_common_lib
+from roster_user_tools.data_flags import Record
+from roster_user_tools.action_flags import List
+
+
+class Args(List, Record):
+  pass
+
+def main(args):
+  """Gathers command line arguments, constructs record_args_dict and
+     runs ListRecords.
+
+  Inputs:
+    args: list of command line args
+  """
+  command = None
+  if( args and not args[0].startswith('-') ):
+    command = args.pop(0)
+  usage = ('\n'
+           '\n'
+           'To list an "a" record (ipv4 forward):\n'
+           '\t%s a --assignment-ip <ipv4-address> -z <zone-name> '
+           '-t <hostname>\n'
+           '\n'
+           'To list a "aaaa" record (ipv6 forward):\n'
+           '\t%s aaaa --assignment-ip <ipv6-address> -z <zone-name> '
+           '-t <hostname>\n'
+           '\n'
+           'To list a "ptr" record (reverse):\n'
+           '\t%s ptr --assignment-host <full-hostname> -z <zone-name> '
+           '-t <ipv4/6-address>\n'
+           '\n'
+           'To list a "cname" record (alias):\n'
+           '\t%s cname --assignment_host <alias_hostname> -z <zone-name> '
+           '-t <hostname>\n'
+           '\n'
+           'To list an "hinfo" record (hardware info):\n'
+           '\t%s hinfo --hardware <hardware-info> '
+           '--os <operating-system> -z <zone-name> -t <hostname>\n'
+           '\n'
+           'To list a "txt" record (text):\n'
+           '\t%s txt --quoted-text <text> -z <zone-name> -t <hostname>\n'
+           '\n'
+           'To list an "soa" record (start of authority):\n'
+           '\t%s soa --admin-email <admin-email> --name-server <name-server> '
+           '--serial-number <serial-number> '
+           '--refresh-seconds <refresh-seconds> '
+           '--retry_seconds <retry-seconds> --expiry-seconds <expiry-seconds> '
+           '--minimum-seconds <minimum-seconds> -z <zone-name> -t <hostname>\n'
+           '\n'
+           'To list an "srv" record (service):\n'
+           '\t%s srv --priority <priority> --weight <weight> --port <port> '
+           '--assignment-host <full-hostname> -z <zone-name> -t <hostname>\n'
+           '\n'
+           'To list an "ns" record (nameserver):\n'
+           '\t%s ns --name-server <full-hostname> '
+           '-z <zone-name> -t <hostname>\n'
+           '\n'
+           'To list an "mx" record (mail):\n'
+           '\t%s mx --mail-server <full-hostname> --priority <priority> '
+           '-z <zone-name> -t <hostname>\n'
+           '\n'
+           'To list all record types:\n'
+           '\t%s all -z <zone-name> -t <hostname>\n') % tuple(
+               [sys.argv[0] for _ in range(11)])
+  args_instance = Args(command,
+      ['a', 'ptr', 'aaaa', 'cname', 'hinfo', 'txt', 'soa', 'srv', 'ns', 'mx',
+       'all'], args, usage)
+  options = args_instance.options
+
+  options = args_instance.options
+
+  try:
+    cli_common_lib_instance = cli_common_lib.CliCommonLib(options)
+  except cli_common_lib.ArgumentError, error:
+    print 'ERROR: %s' % error
+    sys.exit(1)
+  cli_record_lib_instance = cli_record_lib.CliRecordLib(cli_common_lib_instance)
+
+  if( options.zone_name is None ):
+    cli_common_lib.DnsError('Must specify a zone-name with "-z".', 1)
+
+  if( command == 'a' ):
+    record_args_dict = {'assignment_ip': options.assignment_ip}
+    print cli_record_lib_instance.ListRecords('a', options, record_args_dict)
+  elif( command == 'aaaa' ):
+    record_args_dict = {'assignment_ip': options.assignment_ip}
+    print cli_record_lib_instance.ListRecords('aaaa', options, record_args_dict)
+  elif( command == 'hinfo' ):
+    record_args_dict = {'hardware': options.hardware,
+                        'os': options.os}
+    print cli_record_lib_instance.ListRecords('hinfo', options,
+                                              record_args_dict)
+  elif( command == 'txt' ):
+    record_args_dict = {'quoted_text': options.quoted_text}
+    print cli_record_lib_instance.ListRecords('txt', options, record_args_dict)
+  elif( command == 'cname' ):
+    record_args_dict = {'assignment_host': options.assignment_host}
+    print cli_record_lib_instance.ListRecords('cname', options,
+                                              record_args_dict)
+  elif( command == 'soa' ):
+    record_args_dict = {'name_server': options.name_server,
+                        'admin_email': options.admin_email,
+                        'serial_number': options.serial_number,
+                        'refresh_seconds': options.refresh_seconds,
+                        'retry_seconds': options.retry_seconds,
+                        'expiry_seconds': options.expiry_seconds,
+                        'minimum_seconds': options.minimum_seconds}
+    print cli_record_lib_instance.ListRecords('soa', options, record_args_dict)
+  elif( command == 'srv' ):
+    record_args_dict = {'priority': options.priority,
+                        'weight': options.weight,
+                        'port': options.port,
+                        'assignment_host': options.assignment_host}
+    print cli_record_lib_instance.ListRecords('srv', options, record_args_dict)
+  elif( command == 'ns' ):
+    record_args_dict = {'name_server': options.name_server}
+    print cli_record_lib_instance.ListRecords('ns', options, record_args_dict)
+  elif( command == 'mx' ):
+    record_args_dict = {'priority': options.priority,
+                        'mail_server': options.mail_server}
+    print cli_record_lib_instance.ListRecords('mx', options, record_args_dict)
+  elif( command == 'ptr' ):
+    record_args_dict = {'assignment_host': options.assignment_host}
+    print cli_record_lib_instance.ListRecords('ptr', options, record_args_dict)
+
+  ## List all types and targets
+  elif( command == 'all' ):
+    for line in cli_record_lib_instance.ListRecords(None, options, None):
+      print line
+  else:
+    cli_common_lib.DnsError(
+        'Command %s exists, but codepath doesn\'t.' % command, 1)
+
+if __name__ == "__main__":
+  main(sys.argv[1:])
