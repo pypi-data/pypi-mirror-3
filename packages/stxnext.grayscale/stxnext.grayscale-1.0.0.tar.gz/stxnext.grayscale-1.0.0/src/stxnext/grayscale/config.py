@@ -1,0 +1,2 @@
+TYPE = 'theme'
+THEME = 'grayscale'
