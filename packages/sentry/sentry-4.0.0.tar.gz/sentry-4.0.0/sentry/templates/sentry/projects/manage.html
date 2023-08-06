@@ -1,0 +1,92 @@
+{% extends "sentry/projects/base.html" %}
+
+{% load i18n %}
+{% load sentry_helpers %}
+{% load sentry_plugins %}
+
+{% block title %}{% blocktrans with project.name as name %}Manage Project: {{ name }}{% endblocktrans %} | {{ block.super }}{% endblock %}
+
+{% block breadcrumb %}
+    {{ block.super }}
+    <li class="divider">/</li>
+    <li><a href="{% url sentry-manage-project project.pk %}">{% trans "Manage" %}</a></li>
+{% endblock %}
+
+{% block main %}
+    <section class="body">
+        <ul class="nav nav-tabs">
+            <li{% if page == 'details' %} class="active"{% endif %}>
+                <a href="{% url sentry-manage-project project.pk %}">{% trans "Details" %}</a>
+            </li>
+            {% for p in project|get_plugins %}
+                <li{% if page == 'plugin' and plugin.slug == p.slug %} class="active"{% endif %}>
+                    <a href="{% url sentry-configure-project-plugin project.pk p.slug %}">{{ p.get_title }}</a>
+                </li>
+            {% endfor %}
+            <li class="pull-right{% if page == 'plugins' %} active{% endif %}">
+                <a href="{% url sentry-manage-project-plugins project.pk %}">{% trans "Manage Plugins" %}</a>
+            </li>
+        </ul>
+        {% block inner %}
+            <p>{% trans "Here you can edit project information, as well as control the access list for a project with fine-grained permissions." %}</p>
+            <hr>
+            <div class="page-header">
+                <h2>{% trans "Project Details" %}</h2>
+            </div>
+            {% if request.GET.success %}
+                <div class="alert alert-success">{% trans "Changes to your project were saved successfully." %}</div>
+            {% else %}
+                {% if form.errors %}
+                    <div class="alert alert-error">{% trans "Please correct the errors below." %}</div>
+                {% endif %}
+            {% endif %}
+            <form class="form-stacked" action="" method="post">
+                {% csrf_token %}
+                <fieldset>
+                    {% for field in form %}
+                        {% include "sentry/partial/_form_field.html" %}
+                    {% endfor %}
+                </fieldset>
+                <fieldset class="form-actions">
+                    <button type="submit" class="btn btn-primary">{% trans "Save Changes" %}</button>
+                    {% if PROJECT_ID != project.pk %}
+                        <a href="{% url sentry-remove-project project.pk %}" class="btn btn-danger">{% trans "Remove Project" %}</a>
+                    {% else %}
+                        <a href="#" class="btn disabled btn-danger">{% trans "Cannot remove default project" %}</a>
+                    {% endif %}
+                </fieldset>
+            </form>
+            <div class="page-header">
+                {% if can_add_member %}
+                    <a href="{% url sentry-new-team-member project.pk %}" class="btn pull-right btn-primary">{% trans "New Member" %}</a>
+                {% endif %}
+                <h2>{% trans "Members" %}</h2>
+            </div>
+            <table class="table table-bordered table-striped">
+                <colgroup>
+                    <col/>
+                    <col width="100px"/>
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>{% trans "User" %}</th>
+                        <th style="text-align:center">{% trans "Access" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member, user in member_list %}
+                        <tr>
+                            <td>
+                                <a href="{# {% url sentry-view-project-member project.pk member.pk %} #}">{{ user.username }}</a><br>
+                                {{ user.email }}
+                            </td>
+                            <td style="text-align:center;">
+                                {{ member.get_type_display }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endblock %}
+    </section>
+{% endblock %}
