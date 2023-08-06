@@ -1,0 +1,412 @@
+Metadata-Version: 1.0
+Name: gp.fileupload
+Version: 1.2
+Summary: A WSGI middleware to get some stats on large files upload,and provide a progress bar for your users
+Home-page: http://www.gawel.org/docs/gp.fileupload/
+Author: Gael Pasgrimaud
+Author-email: gael@gawel.org
+License: MIT
+Description: The `Sphinx <http://sphinx.pocoo.org/>`_ version of this documentation can be found `here <http://www.gawel.org/docs/gp.fileupload/>`_.
+        
+        A `demo  <http://www.gawel.org/docs/gp.fileupload/demo.html>`_ page is also
+        available.
+        
+        If you found a bug submit an `issue <http://www.bitbucket.org/gawel/gpfileupload/issues/?status=new>`.
+        
+        .. contents::
+        
+        Description
+        ***********
+        
+        
+        `gp.fileupload` is a set of wsgi middleware to deal with large file upload.
+        
+        - `gp.fileupload.FileUpload` is a wsgi middleware to get the stat of large
+          files uploaded to the server. Optional javascript code is provided to animate
+          a progress bar.
+        
+        - `gp.fileupload.Storage` is a wsgi middleware to store files on file system
+          and avoid big transaction in your application.
+        
+        
+        Upload middleware
+        *****************
+        
+        The principle is to count uploaded chunks in the wsgi loop, transmit them to the
+        application, and provide a link with up-to-date json information. The optional
+        javascript code is able to use an existing form and replace it with a progress
+        bar during upload. It can also generate its own upload form, then upload several
+        files sequentially with multiple progress bars. gp.fileupload can be used
+        without modifying your application, just by adding it in the wsgi stack.
+        
+        It has currently been tested with Pylons and Zope 3.
+        
+        Middleware
+        ----------
+        
+        Wrap your wsgi application with the middleware::
+        
+          >>> from gp.fileupload import FileUpload
+        
+          >>> def my_application(environ, start_response):
+          ...     start_response('200 OK', [('Content-Type', 'txt/html')])
+          ...     return ['<html><body>My app</body></html>']
+        
+          >>> app = FileUpload(my_application, tempdir=TEMP_DIR,
+          ...                  max_size=None)
+        
+          >>> def application(environ, start_response):
+          ...     return app(environ, start_response)
+        
+        The `FileUpload` middleware has the following options:
+        
+        - `tempdir`: A path to a temporary folder
+        
+        - `max_size`: Max allowed size. If the file size is larger than `max_size` a
+          `RuntimeError` is raised. 
+        
+        - `include_files`: A list of static files that the middleware should include in
+          your html body (see below). You might want to include the files by yourself
+          in the relevant pages, or they will be included in all of your pages.
+        
+        - `require_session`: a boolean flag that disable the middleware for
+          requests that don't provide the SESSION_name in the query.
+        
+        Application code
+        ----------------
+        
+        Write an html form like this::
+        
+          <form enctype="multipart/form-data"
+                method="POST"
+                action=".?gp.fileupload.id=1">
+            <input type="file" name="file" />
+            <input type="submit" />
+          </form>
+        
+        Where 1 is the session id. The session id **must** be a digit.
+        
+        When the form is submitted, you can use some ajax stuff to get the stats of the upload with the url::
+        
+          http://yourhost/gp.fileupload.stat/1
+        
+        This will return some JSON data like::
+        
+          {'state': 1, 'percent': 69}
+        
+        `state` can have the following values:
+        
+        - `0`: nothing done yet.
+        
+        - `1`: upload is active
+        
+        - `-1`: file is larger than max_size.
+        
+        You can use this to display the upload progress.
+        
+        
+        
+        Storage middleware
+        ******************
+        
+        The storage middleware provide a way to avoid long transaction in your application.
+        
+        POST content is written to a temporary directory. If the POST contains some
+        files then the files are moved to the storage directory. The files content is
+        replaced by the path of the real file relative to the storage root.
+        
+        This way, your application receive **always** a few Ko of data.
+        
+        Usage
+        -----
+        
+        Wrap your wsgi application with the middleware::
+        
+          >>> from gp.fileupload import Storage
+          >>> from gp.fileupload import purge_files
+          >>> import cgi
+        
+          >>> def my_application(environ, start_response):
+          ...     """simple app to read the file path from the request and remove it
+          ...     from the storage directory
+          ...     """
+          ...     if environ['REQUEST_METHOD'] == 'POST':
+          ...         fields = cgi.FieldStorage(fp=environ['wsgi.input'],
+          ...                                   environ=environ,
+          ...                                   keep_blank_values=1)
+          ...         relative_path = fields['file'].read()
+          ...         # remove file from storage
+          ...         purge_files(environ, relative_path)
+          ...     start_response('200 OK', [('Content-Type', 'txt/html')])
+          ...     return ['<html><body>My app</body></html>']
+        
+          >>> app = Storage(my_application,
+          ...               upload_to='/tmp/share/files',
+          ...               tempdir='/tmp/upload_tmp',
+          ...               )
+        
+          >>> def application(environ, start_response):
+          ...     return app(environ, start_response)
+        
+        The `Storage` middleware has the following options:
+        
+        - `upload_to`: the root directory of the storage tree.
+        
+        - `tempdir`: A path to a temporary folder
+        
+        - `exclude_paths`: a list of regular expressions. All matched `PATH_INFO` will
+          be ignored.  If this parameters is not None, then the middleware will also
+          catch non-HTML content send by your application. WARNING: This options is
+          experimental and not well tested.
+        
+        - `require_session`: a boolean flag that disable the middleware for
+          requests that don't provide the SESSION_name in the query.
+        
+        Paste factories
+        ***************
+        
+        The package provides a filter factory usable in `PasteDeploy
+        <http://pythonpaste.org/deploy/>`_ configuration files.
+        
+        The factory provides the middleware itself::
+        
+          [pipeline:main]
+          pipeline = fileupload egg:myapp
+        
+          [filter:fileupload]
+          use = egg:gp.fileupload
+          # temporary directory to write streams to
+          tempdir = %(here)s/data/fileupload
+        
+          # file to inject in the html code
+          include_files = fileupload.css jquery.*
+        
+          # if you already have jquery in your application, use this line
+          #include_files = fileupload.css jquery.fileupload.*
+        
+          # max upload size is 50Mo
+          max_size = 50
+        
+          # use this options to also wrap your application with a Storage middleware
+          #upload_to = %(here)s/storage
+          #exclude_paths = /@@
+        
+        Then you can access the javascript stuff at `/gp.fileupload.static/`.
+        
+        The `include_files` parameters will inject these tags in your application::
+        
+          <link type="text/css" rel="Stylesheet" media="screen"
+                href="/gp.fileupload.static/fileupload.css"/>
+          <script type="text/javascript"
+                  src="/gp.fileupload.static/jquery.js"/>
+          <script type="text/javascript"
+                  src="/gp.fileupload.static/jquery.fileupload.js"/>
+          <script type="text/javascript"
+                  src="/gp.fileupload.static/jquery.fileupload.auto.js"/>
+        
+        And feel free to use ajax stuff. Notice that these tags are included at the end
+        of the html body.
+        
+        Available files are:
+        
+        - `jquery.js`: jquery 1.2.6
+        
+        - `jquery.fileupload.js`: the `jQuery().fileUpload` plugin.  
+        
+        - `jquery.fileupload.auto.js`: auto bind form tags with a `multipart/form-data`
+          enctype.
+        
+        - `fileupload.css`: a few css to display the progress bar.
+        
+        
+        
+        Ajax stuff
+        **********
+        
+        Description
+        -----------
+        
+        A `jQuery <http://jquery.com>`_ plugin is provided as a helper.
+        
+        To use it, you only need to add a script tag to your html head section::
+        
+          <script type="text/javascript">
+              jQuery(document).ready(function() { jQuery('#sample').fileUpload(); });
+          </script>
+        
+        The `fileUpload` plugin has the following options:
+        
+        - `replace_existing_form`: replace the existing form with a generated one.
+           Defaults to false.
+        
+        - `submit_label`: The label of the general submit button.
+        
+        - `field_name`: A string to use as file field name for each form. Default to `file`.
+        
+        - `hidden_submit_name`: A string to use in the hidden field name located below
+           each file field. The hidden field is supposed to replace the missing button,
+           and is required by form frameworks (such as z3c.form) which expect a button
+           name (bound to an action). Default to `submit`.
+        
+        - `submit_empty_forms`: if true, submit forms with empty file fields. Default:
+          true.
+        
+        - `use_iframes`: If set to `false` the form will be submitted as a normal form.
+          If `true` the form target become an iframe and the page is not reloaded.
+        
+        - `stat_delay`: delay between each stat request. Default: 1500.  
+        
+        - `success`: A javascript function evaluated when all files are uploaded. The
+          default one does nothing.
+        
+        Examples
+        --------
+        
+        If you want multiple file forms::
+        
+            <div id="forms"></div>
+        
+            <script type="text/javascript">
+              jQuery(document).ready(function() {
+                jQuery('#forms').fileUpload({action:'/upload', field_name:'file_field'})
+              });
+            </script>
+        
+        This will show a form with addable file field and upload them to `/upload`.
+        The forms are submitted in iframes as target so the page does not change after
+        uploading.
+        
+        If you already have forms. This is what is done in the
+        `jquery.fileupload.auto.js`::
+        
+            <script type="text/javascript">
+              jQuery(document).ready(function() {
+                jQuery('form[enctype^='multipart/form-data]')
+                    .fileUpload({use_iframes: false});
+              });
+            </script>
+        
+        This will show a progress bar when the form is uploaded, then redirect to the
+        application page when the upload is completed. So the usage is totally
+        transparent for you.
+        
+        
+        
+        Contributors
+        ************
+        
+        Gael Pasgrimaud <gael@gawel.org>
+        
+        Christophe Combelles <ccomb@free.fr>
+        
+        
+        News
+        ****
+        
+        1.2 (2012-09-03)
+        ----------------
+        
+        * Use json instead of simplejson if you have Python2.6.
+        
+        * Fix middleware to work on Windows.
+        
+        * Add a flag ``require_session`` that enable the middleware only if
+          there is SESSION_NAME in the query string. By default the behavior
+          is off, meaning it behave like before.
+        
+        1.1
+        ---
+        
+        * Unrecorded changes.
+        
+        1.0
+        ---
+        
+        * Unrecorded changes.
+        
+        0.9 (2010-03-20)
+        ----------------
+        
+        * support multiple file with same name and special chars (by pfalcon)
+        
+        * allow JSON callback on stats (by pfalcon)
+        
+        
+        0.8 (2009-02-20)
+        ----------------
+        
+        - fix installation problem
+        
+        0.7 (2009-02-08)
+        ----------------
+        
+        - fix #1. bug in js when the environ have a SCRIPT_NAME
+        
+        - storage improvement. (by trollfot)
+        
+        0.6 (2008-11-24)
+        ----------------
+        
+        - improve middleware internals using WebOb
+        
+        0.5 (2008-08-28)
+        ----------------
+        
+        - support readline(int). Thanks to Tony Caduto for bug report.
+        
+        - Added a hidden field to provide an action name
+          required by form frameworks such as z3c.form
+        
+        - updated the doc
+        
+        - raised the stat update delay to 1500ms
+        
+        - added an option to replace the existing form with a generated one.
+        
+        - changed the progress filename from a span to a div
+        
+        - improved usability by adding a form on input:file change event
+        
+        - handle only POST method
+        
+        - improve Storage middleware
+        
+        0.4 (2008-08-12)
+        ----------------
+        
+        - fix egg install script
+        
+        - add a storage module
+        
+        0.3 (2008-07-27)
+        ----------------
+        
+        - fix Content-Length header sent after code injection.
+        
+        - add `e.stopPropagation()` to the `Add more file` link 
+        
+        0.2 (2008-07-25)
+        ----------------
+        
+        - add docs/ folder to auto generate documentation with sphinx
+        
+        - use jquery packed version
+        
+        - IE javascript fixes  
+        
+        0.1 (2008-07-24)
+        ----------------
+        
+        - first version
+        
+        
+Keywords: wsgi middleware upload progress bar
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Middleware
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Environment :: Web Environment
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: JavaScript

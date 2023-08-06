@@ -1,0 +1,55 @@
+Storage middleware
+******************
+
+The storage middleware provide a way to avoid long transaction in your application.
+
+POST content is written to a temporary directory. If the POST contains some
+files then the files are moved to the storage directory. The files content is
+replaced by the path of the real file relative to the storage root.
+
+This way, your application receive **always** a few Ko of data.
+
+Usage
+-----
+
+Wrap your wsgi application with the middleware::
+
+  >>> from gp.fileupload import Storage
+  >>> from gp.fileupload import purge_files
+  >>> import cgi
+
+  >>> def my_application(environ, start_response):
+  ...     """simple app to read the file path from the request and remove it
+  ...     from the storage directory
+  ...     """
+  ...     if environ['REQUEST_METHOD'] == 'POST':
+  ...         fields = cgi.FieldStorage(fp=environ['wsgi.input'],
+  ...                                   environ=environ,
+  ...                                   keep_blank_values=1)
+  ...         relative_path = fields['file'].read()
+  ...         # remove file from storage
+  ...         purge_files(environ, relative_path)
+  ...     start_response('200 OK', [('Content-Type', 'txt/html')])
+  ...     return ['<html><body>My app</body></html>']
+
+  >>> app = Storage(my_application,
+  ...               upload_to='/tmp/share/files',
+  ...               tempdir='/tmp/upload_tmp',
+  ...               )
+
+  >>> def application(environ, start_response):
+  ...     return app(environ, start_response)
+
+The `Storage` middleware has the following options:
+
+- `upload_to`: the root directory of the storage tree.
+
+- `tempdir`: A path to a temporary folder
+
+- `exclude_paths`: a list of regular expressions. All matched `PATH_INFO` will
+  be ignored.  If this parameters is not None, then the middleware will also
+  catch non-HTML content send by your application. WARNING: This options is
+  experimental and not well tested.
+
+- `require_session`: a boolean flag that disable the middleware for
+  requests that don't provide the SESSION_name in the query.
