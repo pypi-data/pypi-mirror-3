@@ -1,0 +1,334 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>zktools.node &mdash; zktools 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="zktools 0.1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">zktools 0.1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for zktools.node</h1><div class="highlight"><pre>
+<span class="c"># ***** BEGIN LICENSE BLOCK *****</span>
+<span class="c"># Version: MPL 1.1/GPL 2.0/LGPL 2.1</span>
+<span class="c">#</span>
+<span class="c"># The contents of this file are subject to the Mozilla Public License Version</span>
+<span class="c"># 1.1 (the &quot;License&quot;); you may not use this file except in compliance with</span>
+<span class="c"># the License. You may obtain a copy of the License at</span>
+<span class="c"># http://www.mozilla.org/MPL/</span>
+<span class="c">#</span>
+<span class="c"># Software distributed under the License is distributed on an &quot;AS IS&quot; basis,</span>
+<span class="c"># WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License</span>
+<span class="c"># for the specific language governing rights and limitations under the</span>
+<span class="c"># License.</span>
+<span class="c">#</span>
+<span class="c"># The Original Code is Mozilla zktools.</span>
+<span class="c">#</span>
+<span class="c"># The Initial Developer of the Original Code is Mozilla Foundation.</span>
+<span class="c"># Portions created by the Initial Developer are Copyright (C) 2011</span>
+<span class="c"># the Initial Developer. All Rights Reserved.</span>
+<span class="c">#</span>
+<span class="c"># Contributor(s):</span>
+<span class="c"># Ben Bangert (bbangert@mozilla.com)</span>
+<span class="c">#</span>
+<span class="c"># Alternatively, the contents of this file may be used under the terms of</span>
+<span class="c"># either the GNU General Public License Version 2 or later (the &quot;GPL&quot;), or</span>
+<span class="c"># the GNU Lesser General Public License Version 2.1 or later (the &quot;LGPL&quot;),</span>
+<span class="c"># in which case the provisions of the GPL or the LGPL are applicable instead</span>
+<span class="c"># of those above. If you wish to allow use of your version of this file only</span>
+<span class="c"># under the terms of either the GPL or the LGPL, and not to allow others to</span>
+<span class="c"># use your version of this file under the terms of the MPL, indicate your</span>
+<span class="c"># decision by deleting the provisions above and replace them with the notice</span>
+<span class="c"># and other provisions required by the GPL or the LGPL. If you do not delete</span>
+<span class="c"># the provisions above, a recipient may use your version of this file under</span>
+<span class="c"># the terms of any one of the MPL, the GPL or the LGPL.</span>
+<span class="c">#</span>
+<span class="c"># ***** END LICENSE BLOCK *****</span>
+<span class="sd">&quot;&quot;&quot;Zookeeper Nodes</span>
+
+<span class="sd">This module provides a :class:`ZkNode` object which can load itself from</span>
+<span class="sd">a Zookeeper path, and serialize itself back.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">decimal</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+
+<span class="kn">import</span> <span class="nn">zookeeper</span>
+
+<span class="n">ZOO_OPEN_ACL_UNSAFE</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;perms&quot;</span><span class="p">:</span> <span class="mh">0x1f</span><span class="p">,</span> <span class="s">&quot;scheme&quot;</span><span class="p">:</span> <span class="s">&quot;world&quot;</span><span class="p">,</span> <span class="s">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;anyone&quot;</span><span class="p">}</span>
+
+
+<span class="n">CONVERSIONS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^\d+\.\d+$&#39;</span><span class="p">):</span> <span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">,</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^\d+$&#39;</span><span class="p">):</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^true$&#39;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">):</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^false$&#39;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">):</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^None$&#39;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">):</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$&#39;</span><span class="p">):</span>
+       <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s">T%H:%M:%S.</span><span class="si">%f</span><span class="s">Z&#39;</span><span class="p">),</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+Z$&#39;</span><span class="p">):</span>
+       <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s"> %H:%M:%S.</span><span class="si">%f</span><span class="s">Z&#39;</span><span class="p">),</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^\d{4}-\d{2}-\d{2}$&#39;</span><span class="p">):</span>
+       <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s">&#39;</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="n">JSON_REGEX</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^[\{\[].*[\}\]]$&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_load_value</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">use_json</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Convert a saved value to the best Python match&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">regex</span><span class="p">,</span> <span class="n">convert</span> <span class="ow">in</span> <span class="n">CONVERSIONS</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">regex</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">convert</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">use_json</span> <span class="ow">and</span> <span class="n">JSON_REGEX</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span> <span class="nf">_save_value</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">use_json</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Convert a Python object to the best string repr&quot;&quot;&quot;</span>
+    <span class="c"># Float is all we care about, as we lose float precision</span>
+    <span class="c"># when calling str on it</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s">T%H:%M:%S.</span><span class="si">%f</span><span class="s">Z&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s">&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">use_json</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ZkNode"><a class="viewcode-back" href="../../api/node.html#zktools.node.ZkNode">[docs]</a><span class="k">class</span> <span class="nc">ZkNode</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Zookeeper Node</span>
+
+<span class="sd">    This object provides access to a single node for updating the</span>
+<span class="sd">    value that can also track changes to the value from Zookeeper.</span>
+
+<span class="sd">    The value of the node is coerced into an appropriate Python</span>
+<span class="sd">    object when loaded, current supported conversions::</span>
+
+<span class="sd">        Numbers with decimals      -&gt; Decimal</span>
+<span class="sd">        Numbers without decimals   -&gt; Int</span>
+<span class="sd">        true/false                 -&gt; Bool</span>
+<span class="sd">        none                       -&gt; None</span>
+<span class="sd">        ISO 8601 Date and Datetime -&gt; date or datetime</span>
+
+<span class="sd">    And optionally, with use_json::</span>
+
+<span class="sd">        JSON string                -&gt; dict/list</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        The JSON determination is extremely lax, if its a string that</span>
+<span class="sd">        starts and ends with brackets or curley marks, its assumed to</span>
+<span class="sd">        be a JSON object and will be coerced if possible. If coercion</span>
+<span class="sd">        fails, the string will be returned as is.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        from zktools.connection import ZkConnection</span>
+<span class="sd">        from zktools.configuration import ZkNode</span>
+
+<span class="sd">        conn = ZkConnection()</span>
+<span class="sd">        node = ZkNode(conn, &#39;/some/config/node&#39;)</span>
+
+<span class="sd">        # prints out the current value, defaults to None</span>
+<span class="sd">        print node.value</span>
+
+<span class="sd">        # Set the value in zookeeper</span>
+<span class="sd">        node.value = 483.24</span>
+
+
+<span class="sd">    The default behavior is to track changes to the node, so that</span>
+<span class="sd">    the ``value`` attribute always reflects the node&#39;s value in</span>
+<span class="sd">    Zookeeper.</span>
+
+<span class="sd">    .. warning::</span>
+
+<span class="sd">        **Do not delete nodes that are in use**, there is purposely</span>
+<span class="sd">        no code to handle such situations as it creates overly complex</span>
+<span class="sd">        scenarios both for ZkNode to handle, and for application code</span>
+<span class="sd">        using it to deal with.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ZkNode.__init__"><a class="viewcode-back" href="../../api/node.html#zktools.node.ZkNode.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">connection</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">use_json</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a Zookeeper Node</span>
+
+<span class="sd">        Creating a ZkNode by default attempts to load the value, and</span>
+<span class="sd">        if its not found will automatically create a blank string as</span>
+<span class="sd">        the value.</span>
+
+<span class="sd">        In the event the node is deleted once this object is deleted</span>
+<span class="sd">        once its being tracked, the ``deleted`` attribute will be</span>
+<span class="sd">        ``True``.</span>
+
+
+<span class="sd">        :param connection: zookeeper connection object</span>
+<span class="sd">        :type connection: ZkConnection instance</span>
+<span class="sd">        :param path: Path to the Zookeeper node</span>
+<span class="sd">        :type path: str</span>
+<span class="sd">        :param default: A default value if the node is being created</span>
+<span class="sd">        :param use_json: Whether values that look like a JSON object should</span>
+<span class="sd">                         be deserialized, and dicts/lists saved as JSON.</span>
+<span class="sd">        :type use_json: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span> <span class="o">=</span> <span class="n">connection</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Condition</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_json</span> <span class="o">=</span> <span class="n">use_json</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reload</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">connection</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_created_watcher</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">,</span>
+                                <span class="n">_save_value</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">use_json</span><span class="o">=</span><span class="n">use_json</span><span class="p">),</span>
+                                <span class="p">[</span><span class="n">ZOO_OPEN_ACL_UNSAFE</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+
+                <span class="c"># Wait for the node to actually be created</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">()</span>
+</div>
+    <span class="k">def</span> <span class="nf">_created_watcher</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Watch for our node to be created before continuing&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">CREATED_EVENT</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="o">.</span><span class="n">notify_all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_node_watcher</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Watch a node for updates&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">CHANGED_EVENT</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_watcher</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">_load_value</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">use_json</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_json</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">type</span> <span class="ow">in</span> <span class="p">(</span><span class="n">zookeeper</span><span class="o">.</span><span class="n">EXPIRED_SESSION_STATE</span><span class="p">,</span>
+                          <span class="n">zookeeper</span><span class="o">.</span><span class="n">AUTH_FAILED_STATE</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reload</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="o">.</span><span class="n">notify_all</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_load</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Load data from the node, and coerce as necessary&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_watcher</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">_load_value</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">use_json</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_json</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the current value</span>
+
+<span class="sd">        If the Zookeeper session expired, it will be reconnected and</span>
+<span class="sd">        the value reloaded.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reload</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_reload</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+
+    <span class="nd">@value.setter</span>
+<div class="viewcode-block" id="ZkNode.value"><a class="viewcode-back" href="../../api/node.html#zktools.node.ZkNode.value">[docs]</a>    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set the value with a new one</span>
+
+<span class="sd">        :param value: The value of the node</span>
+<span class="sd">        :type value: Any str&#39;able object</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">,</span> <span class="n">_save_value</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">use_json</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_json</span><span class="p">))</span>
+
+            <span class="c"># Now wait to see that it triggered our change event</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">zktools 0.1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011-2012, Mozilla Foundation.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,548 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>zktools.locking &mdash; zktools 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="zktools 0.1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">zktools 0.1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for zktools.locking</h1><div class="highlight"><pre>
+<span class="c"># ***** BEGIN LICENSE BLOCK *****</span>
+<span class="c"># Version: MPL 1.1/GPL 2.0/LGPL 2.1</span>
+<span class="c">#</span>
+<span class="c"># The contents of this file are subject to the Mozilla Public License Version</span>
+<span class="c"># 1.1 (the &quot;License&quot;); you may not use this file except in compliance with</span>
+<span class="c"># the License. You may obtain a copy of the License at</span>
+<span class="c"># http://www.mozilla.org/MPL/</span>
+<span class="c">#</span>
+<span class="c"># Software distributed under the License is distributed on an &quot;AS IS&quot; basis,</span>
+<span class="c"># WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License</span>
+<span class="c"># for the specific language governing rights and limitations under the</span>
+<span class="c"># License.</span>
+<span class="c">#</span>
+<span class="c"># The Original Code is Mozilla zktools.</span>
+<span class="c">#</span>
+<span class="c"># The Initial Developer of the Original Code is Mozilla Foundation.</span>
+<span class="c"># Portions created by the Initial Developer are Copyright (C) 2011</span>
+<span class="c"># the Initial Developer. All Rights Reserved.</span>
+<span class="c">#</span>
+<span class="c"># Contributor(s):</span>
+<span class="c"># Ben Bangert (bbangert@mozilla.com)</span>
+<span class="c">#</span>
+<span class="c"># Alternatively, the contents of this file may be used under the terms of</span>
+<span class="c"># either the GNU General Public License Version 2 or later (the &quot;GPL&quot;), or</span>
+<span class="c"># the GNU Lesser General Public License Version 2.1 or later (the &quot;LGPL&quot;),</span>
+<span class="c"># in which case the provisions of the GPL or the LGPL are applicable instead</span>
+<span class="c"># of those above. If you wish to allow use of your version of this file only</span>
+<span class="c"># under the terms of either the GPL or the LGPL, and not to allow others to</span>
+<span class="c"># use your version of this file under the terms of the MPL, indicate your</span>
+<span class="c"># decision by deleting the provisions above and replace them with the notice</span>
+<span class="c"># and other provisions required by the GPL or the LGPL. If you do not delete</span>
+<span class="c"># the provisions above, a recipient may use your version of this file under</span>
+<span class="c"># the terms of any one of the MPL, the GPL or the LGPL.</span>
+<span class="c">#</span>
+<span class="c"># ***** END LICENSE BLOCK *****</span>
+<span class="sd">&quot;&quot;&quot;Zookeeper Locking</span>
+
+<span class="sd">This module provides a :class:`ZkLock`, which should look familiar to anyone</span>
+<span class="sd">that has used Python&#39;s ``threading.Lock`` class. In addition to normal locking</span>
+<span class="sd">behavior, revokable shared read/write locks with are also supported. All of the</span>
+<span class="sd">locks can be revoked as desired. This requires the current lock holder(s) to</span>
+<span class="sd">release their lock(s).</span>
+
+<span class="sd">**Shared Read/Write Locks**</span>
+
+<span class="sd">Also known in the Zookeeper Recipes as ``Revocable Shared Locks with Freaking</span>
+<span class="sd">Laser Beams``, :class:`ZkReadLock` and :class:`ZkWriteLock` locks have been</span>
+<span class="sd">implemented. A read lock can be acquired as long as no write locks are active,</span>
+<span class="sd">while a write-lock can only be acquired when there are no other read or write</span>
+<span class="sd">locks active.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">import</span> <span class="nn">zookeeper</span>
+
+
+<span class="n">ZOO_OPEN_ACL_UNSAFE</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;perms&quot;</span><span class="p">:</span> <span class="mh">0x1f</span><span class="p">,</span> <span class="s">&quot;scheme&quot;</span><span class="p">:</span> <span class="s">&quot;world&quot;</span><span class="p">,</span> <span class="s">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;anyone&quot;</span><span class="p">}</span>
+<span class="n">IMMEDIATE</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+
+<span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">CtxManager</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A lock context manager&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lock_object</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lock_object</span> <span class="o">=</span> <span class="n">lock_object</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">None</span>  <span class="c"># No useful object will be supplied for &#39;as&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lock_object</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">None</span>  <span class="c"># Return a non-true value to propagate exc</span>
+
+
+<div class="viewcode-block" id="_LockBase"><a class="viewcode-back" href="../../api/locking.html#zktools.locking._LockBase">[docs]</a><span class="k">class</span> <span class="nc">_LockBase</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base lock implementation for subclasses&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="_LockBase.__init__"><a class="viewcode-back" href="../../api/locking.html#zktools.locking._LockBase.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">connection</span><span class="p">,</span> <span class="n">lock_name</span><span class="p">,</span> <span class="n">lock_root</span><span class="o">=</span><span class="s">&#39;/ZktoolsLocks&#39;</span><span class="p">,</span>
+                 <span class="n">logfile</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a Zookeeper lock object</span>
+
+<span class="sd">        :param connection: zookeeper connection object</span>
+<span class="sd">        :type connection: ZkConnection instance</span>
+<span class="sd">        :param lock_root: Path to the root lock node to create the locks</span>
+<span class="sd">                          under</span>
+<span class="sd">        :type lock_root: string</span>
+<span class="sd">        :param logfile: Path to a file to log the zookeeper stream to</span>
+<span class="sd">        :type logfile: string</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span> <span class="o">=</span> <span class="n">connection</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cv</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Condition</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lock_root</span> <span class="o">=</span> <span class="n">lock_root</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">local</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">revoked</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_log_debug</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="o">&gt;=</span> <span class="n">log</span><span class="o">.</span><span class="n">getEffectiveLevel</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">logfile</span><span class="p">:</span>
+            <span class="n">zookeeper</span><span class="o">.</span><span class="n">set_log_stream</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">logfile</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">zookeeper</span><span class="o">.</span><span class="n">set_log_stream</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s">&quot;/dev/null&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">/</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lock_root</span><span class="p">,</span> <span class="n">lock_name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_lock_dir</span><span class="p">()</span>
+</div>
+    <span class="k">def</span> <span class="nf">_ensure_lock_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># Ensure our lock dir exists</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span><span class="p">):</span>
+            <span class="k">return</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lock_root</span><span class="p">,</span> <span class="s">&quot;zktools ZLock dir&quot;</span><span class="p">,</span>
+                           <span class="p">[</span><span class="n">ZOO_OPEN_ACL_UNSAFE</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">NodeExistsException</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_log_debug</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;Lock node in zookeeper already created&quot;</span><span class="p">)</span>
+
+        <span class="c"># Try and create our locking node</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span><span class="p">,</span> <span class="s">&quot;lock&quot;</span><span class="p">,</span> <span class="p">[</span><span class="n">ZOO_OPEN_ACL_UNSAFE</span><span class="p">],</span>
+                            <span class="mi">0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">NodeExistsException</span><span class="p">:</span>
+            <span class="c"># Ok if this exists already</span>
+            <span class="k">pass</span>
+
+<div class="viewcode-block" id="_LockBase._acquire_lock"><a class="viewcode-back" href="../../api/locking.html#zktools.locking._LockBase._acquire_lock">[docs]</a>    <span class="k">def</span> <span class="nf">_acquire_lock</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node_name</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">revoke</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Acquire a lock</span>
+
+<span class="sd">        Internal function used by read/write lock</span>
+
+<span class="sd">        :param node_name: Name of the node to use for the lock</span>
+<span class="sd">        :type node_name: str</span>
+<span class="sd">        :param timeout: How long to wait to acquire the lock, set to 0 to</span>
+<span class="sd">                        get non-blocking behavior.</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param revoke: Whether prior locks should be revoked. Can be set to</span>
+<span class="sd">                       True to request and wait for prior locks to release</span>
+<span class="sd">                       their lock, or :obj:`IMMEDIATE` to destroy the blocking</span>
+<span class="sd">                       read/write locks and attempt to acquire a write lock.</span>
+<span class="sd">        :type revoke: bool or :obj:``IMMEDIATE``</span>
+
+
+<span class="sd">        :returns: True if the lock was acquired, False otherwise</span>
+<span class="sd">        :rtype: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># First clear out any prior revokation warnings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">revoked</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">removed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">revoke_lock</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">revoked</span>
+
+        <span class="c"># Create a lock node</span>
+        <span class="n">znode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span> <span class="o">+</span> <span class="n">node_name</span><span class="p">,</span> <span class="s">&quot;0&quot;</span><span class="p">,</span>
+                               <span class="p">[</span><span class="n">ZOO_OPEN_ACL_UNSAFE</span><span class="p">],</span>
+                               <span class="n">zookeeper</span><span class="o">.</span><span class="n">EPHEMERAL</span> <span class="o">|</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">SEQUENCE</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">revoke_watcher</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+            <span class="c"># This method must be in closure scope to ensure that</span>
+            <span class="c"># it can append to the thread acquire is called from</span>
+            <span class="c"># to indicate if this particular thread&#39;s lock was</span>
+            <span class="c"># revoked or removed</span>
+            <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">CHANGED_EVENT</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">revoke_watcher</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">data</span> <span class="o">==</span> <span class="s">&#39;unlock&#39;</span><span class="p">:</span>
+                    <span class="n">revoke_lock</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">type</span> <span class="o">==</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">DELETED_EVENT</span> <span class="ow">or</span> \
+                 <span class="n">state</span> <span class="o">==</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">EXPIRED_SESSION_STATE</span><span class="p">:</span>
+                <span class="c"># Trigger if node was deleted</span>
+                <span class="n">revoke_lock</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">znode</span><span class="p">,</span> <span class="n">revoke_watcher</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="o">==</span> <span class="s">&#39;unlock&#39;</span><span class="p">:</span>
+            <span class="n">revoke_lock</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">keyname</span> <span class="o">=</span> <span class="n">znode</span><span class="p">[</span><span class="n">znode</span><span class="o">.</span><span class="n">rfind</span><span class="p">(</span><span class="s">&#39;/&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span>
+
+        <span class="n">acquired</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">cv</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">lock_watcher</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+            <span class="n">cv</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+
+        <span class="n">lock_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">first_run</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">acquired</span><span class="p">:</span>
+            <span class="n">cv</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+            <span class="c"># Have we been at this longer than the timeout?</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">first_run</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">lock_start</span> <span class="o">&gt;</span> <span class="n">timeout</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">znode</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">NoNodeException</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                    <span class="k">return</span> <span class="bp">False</span>
+
+            <span class="c"># Get all the children of the node</span>
+            <span class="n">children</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span><span class="p">)</span>
+            <span class="n">children</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">val</span><span class="p">:</span> <span class="n">val</span><span class="p">[</span><span class="n">val</span><span class="o">.</span><span class="n">rfind</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:])</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">keyname</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+                <span class="c"># Disconnects or other errors can cause this</span>
+                <span class="n">znode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span> <span class="o">+</span> <span class="n">node_name</span><span class="p">,</span> <span class="s">&quot;0&quot;</span><span class="p">,</span> <span class="p">[</span><span class="n">ZOO_OPEN_ACL_UNSAFE</span><span class="p">],</span>
+                    <span class="n">zookeeper</span><span class="o">.</span><span class="n">EPHEMERAL</span> <span class="o">|</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">SEQUENCE</span><span class="p">)</span>
+                <span class="n">keyname</span> <span class="o">=</span> <span class="n">znode</span><span class="p">[</span><span class="n">znode</span><span class="o">.</span><span class="n">rfind</span><span class="p">(</span><span class="s">&#39;/&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">znode</span><span class="p">,</span> <span class="n">revoke_watcher</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">data</span> <span class="o">==</span> <span class="s">&#39;unlock&#39;</span><span class="p">:</span>
+                    <span class="n">revoke_lock</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="n">acquired</span><span class="p">,</span> <span class="n">blocking_nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">has_lock</span><span class="p">(</span><span class="n">keyname</span><span class="p">,</span> <span class="n">children</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">acquired</span><span class="p">:</span>
+                <span class="k">break</span>
+
+            <span class="k">if</span> <span class="n">revoke</span> <span class="o">==</span> <span class="n">IMMEDIATE</span><span class="p">:</span>
+                <span class="c"># Remove all prior nodes</span>
+                <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">blocking_nodes</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span> <span class="o">+</span> <span class="s">&#39;/&#39;</span> <span class="o">+</span> <span class="n">node</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">NoNodeException</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                <span class="k">continue</span>  <span class="c"># Now try again</span>
+            <span class="k">elif</span> <span class="n">revoke</span><span class="p">:</span>
+                <span class="c"># Ask all prior blocking nodes to release</span>
+                <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">blocking_nodes</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span> <span class="o">+</span> <span class="s">&#39;/&#39;</span> <span class="o">+</span> <span class="n">node</span><span class="p">,</span> <span class="s">&quot;unlock&quot;</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">NoNodeException</span><span class="p">:</span>
+                        <span class="k">pass</span>
+            <span class="n">prior_blocking_node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span> <span class="o">+</span> <span class="s">&#39;/&#39;</span> <span class="o">+</span> <span class="n">blocking_nodes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">prior_blocking_node</span><span class="p">,</span> <span class="n">lock_watcher</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+                <span class="c"># The node disappeared? Rinse and repeat.</span>
+                <span class="k">continue</span>
+
+            <span class="c"># Wait for a notification from get_children, no longer</span>
+            <span class="c"># than the timeout</span>
+            <span class="n">wait_for</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">time_spent</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">lock_start</span>
+                <span class="n">wait_for</span> <span class="o">=</span> <span class="n">timeout</span> <span class="o">-</span> <span class="n">time_spent</span>
+            <span class="n">cv</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">wait_for</span><span class="p">)</span>
+            <span class="n">first_run</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">lock_node</span> <span class="o">=</span> <span class="n">znode</span>
+        <span class="k">return</span> <span class="n">CtxManager</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="_LockBase.release"><a class="viewcode-back" href="../../api/locking.html#zktools.locking._LockBase.release">[docs]</a>    <span class="k">def</span> <span class="nf">release</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Release a lock</span>
+
+<span class="sd">        :returns: True if the lock was released, or False if it is no</span>
+<span class="sd">                  longer valid.</span>
+<span class="sd">        :rtype: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">revoked</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">lock_node</span><span class="p">)</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">lock_node</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">zookeeper</span><span class="o">.</span><span class="n">NoNodeException</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="_LockBase.revoked"><a class="viewcode-back" href="../../api/locking.html#zktools.locking._LockBase.revoked">[docs]</a>    <span class="k">def</span> <span class="nf">revoked</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Indicate if this shared lock has been revoked</span>
+
+<span class="sd">        :returns: True if the lock has been revoked, False otherwise.</span>
+<span class="sd">        :rtype: bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">revoked</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="_LockBase.has_lock"><a class="viewcode-back" href="../../api/locking.html#zktools.locking._LockBase.has_lock">[docs]</a>    <span class="k">def</span> <span class="nf">has_lock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check with Zookeeper to see if the lock is acquired</span>
+
+<span class="sd">        :returns: Whether the lock is acquired or not</span>
+<span class="sd">        :rtype: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="p">,</span> <span class="s">&#39;lock_node&#39;</span><span class="p">):</span>
+            <span class="c"># So we can check it even if we released</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="n">znode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">lock_node</span>
+        <span class="n">keyname</span> <span class="o">=</span> <span class="n">znode</span><span class="p">[</span><span class="n">znode</span><span class="o">.</span><span class="n">rfind</span><span class="p">(</span><span class="s">&#39;/&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span>
+        <span class="c"># Get all the children of the node</span>
+        <span class="n">children</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span><span class="p">)</span>
+        <span class="n">children</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">val</span><span class="p">:</span> <span class="n">val</span><span class="p">[</span><span class="n">val</span><span class="o">.</span><span class="n">rfind</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:])</span>
+        <span class="k">if</span> <span class="n">keyname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="n">acquired</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">has_lock</span><span class="p">(</span><span class="n">keyname</span><span class="p">,</span> <span class="n">children</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">acquired</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="_LockBase.clear"><a class="viewcode-back" href="../../api/locking.html#zktools.locking._LockBase.clear">[docs]</a>    <span class="k">def</span> <span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Clear out a lock</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">            You must be sure this is a dead lock, as clearing it will</span>
+<span class="sd">            forcably release it.</span>
+
+<span class="sd">        :returns: True if the lock was cleared, or False if it</span>
+<span class="sd">                  is no longer valid.</span>
+<span class="sd">        :rtype: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">children</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_locknode</span> <span class="o">+</span> <span class="s">&#39;/&#39;</span> <span class="o">+</span> <span class="n">child</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">zookeeper</span><span class="o">.</span><span class="n">NoNodeException</span><span class="p">:</span>
+                <span class="k">pass</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">connected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Indicate whether a connection to Zookeeper exists&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_zk</span><span class="o">.</span><span class="n">connected</span>
+
+</div>
+<div class="viewcode-block" id="ZkLock"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.ZkLock">[docs]</a><span class="k">class</span> <span class="nc">ZkLock</span><span class="p">(</span><span class="n">_LockBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Zookeeper Lock</span>
+
+<span class="sd">    Implements a Zookeeper based lock optionally with lock revocation</span>
+<span class="sd">    should locks be idle for more than a specific set of time.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        from zktools.connection import ZkConnection</span>
+<span class="sd">        from zktools.locking import ZkLock</span>
+
+<span class="sd">        # Create a connection and a lock</span>
+<span class="sd">        conn = ZkConnection()</span>
+<span class="sd">        my_lock = ZkLock(conn, &quot;my_lock_name&quot;)</span>
+
+<span class="sd">        my_lock.acquire() # wait to acquire lock</span>
+<span class="sd">        # do something with the lock</span>
+
+<span class="sd">        my_lock.release() # release our lock</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ZkLock.acquire"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.ZkLock.acquire">[docs]</a>    <span class="k">def</span> <span class="nf">acquire</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">revoke</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Acquire a lock</span>
+
+<span class="sd">        :param timeout: How long to wait to acquire the lock, set to 0 to</span>
+<span class="sd">                        get non-blocking behavior.</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param revoke: Whether prior locks should be revoked. Can be set to</span>
+<span class="sd">                       True to request and wait for prior locks to release</span>
+<span class="sd">                       their lock, or :obj:`IMMEDIATE` to destroy the blocking</span>
+<span class="sd">                       read/write locks and attempt to acquire a write lock.</span>
+<span class="sd">        :type revoke: bool or :obj:`IMMEDIATE`</span>
+
+<span class="sd">        :returns: True if the lock was acquired, False otherwise</span>
+<span class="sd">        :rtype: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">node_name</span> <span class="o">=</span> <span class="s">&#39;/lock-&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">has_lock</span> <span class="o">=</span> <span class="n">has_write_lock</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_acquire_lock</span><span class="p">(</span><span class="n">node_name</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="n">revoke</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="ZkReadLock"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.ZkReadLock">[docs]</a><span class="k">class</span> <span class="nc">ZkReadLock</span><span class="p">(</span><span class="n">_LockBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Shared Zookeeper Read Lock</span>
+
+<span class="sd">    A read-lock is considered succesful if there are no active write</span>
+<span class="sd">    locks.</span>
+
+<span class="sd">    This class takes the same initialization parameters as</span>
+<span class="sd">    :class:`ZkLock`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ZkReadLock.acquire"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.ZkReadLock.acquire">[docs]</a>    <span class="k">def</span> <span class="nf">acquire</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">revoke</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Acquire a shared read lock</span>
+
+<span class="sd">        :param timeout: How long to wait to acquire the lock, set to 0 to</span>
+<span class="sd">                        get non-blocking behavior.</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param revoke: Whether prior locks should be revoked. Can be set to</span>
+<span class="sd">                       True to request and wait for prior locks to release</span>
+<span class="sd">                       their lock, or :obj:`IMMEDIATE` to destroy the blocking</span>
+<span class="sd">                       write locks and attempt to acquire a read lock.</span>
+<span class="sd">        :type revoke: bool or :obj:`IMMEDIATE`</span>
+
+<span class="sd">        :returns: True if the lock was acquired, False otherwise</span>
+<span class="sd">        :rtype: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">node_name</span> <span class="o">=</span> <span class="s">&#39;/read-&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">has_lock</span> <span class="o">=</span> <span class="n">has_read_lock</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_acquire_lock</span><span class="p">(</span><span class="n">node_name</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="n">revoke</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="ZkWriteLock"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.ZkWriteLock">[docs]</a><span class="k">class</span> <span class="nc">ZkWriteLock</span><span class="p">(</span><span class="n">_LockBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Shared Zookeeper Write Lock</span>
+
+<span class="sd">    A write-lock is only succesful if there are no read or write locks</span>
+<span class="sd">    active.</span>
+
+<span class="sd">    This class takes the same initialization parameters as</span>
+<span class="sd">    :class:`ZkLock`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ZkWriteLock.acquire"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.ZkWriteLock.acquire">[docs]</a>    <span class="k">def</span> <span class="nf">acquire</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">revoke</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Acquire a shared write lock</span>
+
+<span class="sd">        :param timeout: How long to wait to acquire the lock, set to 0 to</span>
+<span class="sd">                        get non-blocking behavior.</span>
+<span class="sd">        :type timeout: int</span>
+<span class="sd">        :param revoke: Whether prior locks should be revoked. Can be set to</span>
+<span class="sd">                       True to request and wait for prior locks to release</span>
+<span class="sd">                       their lock, or :obj:`IMMEDIATE` to destroy the blocking</span>
+<span class="sd">                       read/write locks and attempt to acquire a write lock.</span>
+<span class="sd">        :type revoke: bool or :obj:`IMMEDIATE`</span>
+
+<span class="sd">        :returns: True if the lock was acquired, False otherwise</span>
+<span class="sd">        :rtype: bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">node_name</span> <span class="o">=</span> <span class="s">&#39;/write-&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_locks</span><span class="o">.</span><span class="n">has_lock</span> <span class="o">=</span> <span class="n">has_write_lock</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_acquire_lock</span><span class="p">(</span><span class="n">node_name</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="n">revoke</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="has_read_lock"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.has_read_lock">[docs]</a><span class="k">def</span> <span class="nf">has_read_lock</span><span class="p">(</span><span class="n">keyname</span><span class="p">,</span> <span class="n">children</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Determines if this keyname has a valid read lock</span>
+
+<span class="sd">    :param keyname: The keyname without full path prefix of the current node</span>
+<span class="sd">                    being examined</span>
+<span class="sd">    :type keyname: str</span>
+<span class="sd">    :param children: List of the children nodes at this lock point</span>
+<span class="sd">    :type children: list</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">prior_nodes</span> <span class="o">=</span> <span class="n">children</span><span class="p">[:</span><span class="n">children</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">keyname</span><span class="p">)]</span>
+    <span class="n">prior_write_nodes</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">prior_nodes</span> <span class="k">if</span> \
+                         <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;write-&#39;</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prior_write_nodes</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="n">prior_write_nodes</span>
+
+</div>
+<div class="viewcode-block" id="has_write_lock"><a class="viewcode-back" href="../../api/locking.html#zktools.locking.has_write_lock">[docs]</a><span class="k">def</span> <span class="nf">has_write_lock</span><span class="p">(</span><span class="n">keyname</span><span class="p">,</span> <span class="n">children</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Determines if this keyname has a valid write lock</span>
+
+<span class="sd">    :param keyname: The keyname without full path prefix of the current node</span>
+<span class="sd">                    being examined</span>
+<span class="sd">    :type keyname: str</span>
+<span class="sd">    :param children: List of the children nodes at this lock point</span>
+<span class="sd">    :type children: list</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">keyname</span> <span class="o">==</span> <span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="n">children</span><span class="p">[:</span><span class="n">children</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">keyname</span><span class="p">)]</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">zktools 0.1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011-2012, Mozilla Foundation.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

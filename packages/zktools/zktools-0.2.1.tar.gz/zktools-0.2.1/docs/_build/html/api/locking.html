@@ -1,0 +1,806 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>zktools.locking &mdash; zktools 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="zktools 0.1 documentation" href="../index.html" />
+    <link rel="up" title="API Documentation" href="../api.html" />
+    <link rel="next" title="zktools.node" href="node.html" />
+    <link rel="prev" title="zktools.connection" href="connection.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="node.html" title="zktools.node"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="connection.html" title="zktools.connection"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">zktools 0.1 documentation</a> &raquo;</li>
+          <li><a href="../api.html" accesskey="U">API Documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-zktools.locking">
+<span id="zktools-locking"></span><span id="locking-module"></span><h1><a class="reference internal" href="#module-zktools.locking" title="zktools.locking"><tt class="xref py py-mod docutils literal"><span class="pre">zktools.locking</span></tt></a><a class="headerlink" href="#module-zktools.locking" title="Permalink to this headline">¶</a></h1>
+<p>Zookeeper Locking</p>
+<p>This module provides a <a class="reference internal" href="#zktools.locking.ZkLock" title="zktools.locking.ZkLock"><tt class="xref py py-class docutils literal"><span class="pre">ZkLock</span></tt></a>, which should look familiar to anyone
+that has used Python&#8217;s <tt class="docutils literal"><span class="pre">threading.Lock</span></tt> class. In addition to normal locking
+behavior, revokable shared read/write locks with are also supported. All of the
+locks can be revoked as desired. This requires the current lock holder(s) to
+release their lock(s).</p>
+<p><strong>Shared Read/Write Locks</strong></p>
+<p>Also known in the Zookeeper Recipes as <tt class="docutils literal"><span class="pre">Revocable</span> <span class="pre">Shared</span> <span class="pre">Locks</span> <span class="pre">with</span> <span class="pre">Freaking</span>
+<span class="pre">Laser</span> <span class="pre">Beams</span></tt>, <a class="reference internal" href="#zktools.locking.ZkReadLock" title="zktools.locking.ZkReadLock"><tt class="xref py py-class docutils literal"><span class="pre">ZkReadLock</span></tt></a> and <a class="reference internal" href="#zktools.locking.ZkWriteLock" title="zktools.locking.ZkWriteLock"><tt class="xref py py-class docutils literal"><span class="pre">ZkWriteLock</span></tt></a> locks have been
+implemented. A read lock can be acquired as long as no write locks are active,
+while a write-lock can only be acquired when there are no other read or write
+locks active.</p>
+<p><strong>Using the Lock Command Line Interface</strong></p>
+<p><cite>zktools</cite> comes with a CLI to easily see current locks, details of each
+lock, and remove empty locks called <cite>zooky</cite>.</p>
+<p>Usage:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>zooky list
+LOCK                           STATUS
+fred                           Locked
+zkLockTest                     Free
+
+<span class="nv">$ </span>zooky show fred
+LOCK HOLDER          DATA            INFO
+write-0000000002     0               <span class="o">{</span><span class="s1">&#39;pzxid&#39;</span>: 152321L, <span class="s1">&#39;ctime&#39;</span>: 1326417195365L, <span class="s1">&#39;aversion&#39;</span>: 0, <span class="s1">&#39;mzxid&#39;</span>: 152321L, <span class="s1">&#39;numChildren&#39;</span>: 0,
+                                     <span class="s1">&#39;ephemeralOwner&#39;</span>: 86927055090548768L, <span class="s1">&#39;version&#39;</span>: 0, <span class="s1">&#39;dataLength&#39;</span>: 1, <span class="s1">&#39;mtime&#39;</span>: 1326417195365L,
+                                     <span class="s1">&#39;cversion&#39;</span>: 0, <span class="s1">&#39;modifed_ago&#39;</span>: 16, <span class="s1">&#39;created_ago&#39;</span>: 16, <span class="s1">&#39;czxid&#39;</span>: 152321L<span class="o">}</span>
+</pre></div>
+</div>
+<p>The <cite>modifed_ago</cite> and <cite>created_ago</cite> fields in INFO show how many seconds
+ago the lock was created and modified.</p>
+<div class="section" id="constants">
+<h2>Constants<a class="headerlink" href="#constants" title="Permalink to this headline">¶</a></h2>
+<dl class="data">
+<dt id="zktools.locking.IMMEDIATE">
+<tt class="descclassname">zktools.locking.</tt><tt class="descname">IMMEDIATE</tt><a class="headerlink" href="#zktools.locking.IMMEDIATE" title="Permalink to this definition">¶</a></dt>
+<dd><p>Flag used to declare that revokation should occur immediately. Other
+lock-holders will not be given time to release their lock.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="lock-class">
+<h2>Lock Class<a class="headerlink" href="#lock-class" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="zktools.locking.ZkLock">
+<em class="property">class </em><tt class="descclassname">zktools.locking.</tt><tt class="descname">ZkLock</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#ZkLock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.ZkLock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Zookeeper Lock</p>
+<p>Implements a Zookeeper based lock optionally with lock revocation
+should locks be idle for more than a specific set of time.</p>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">zktools.connection</span> <span class="kn">import</span> <span class="n">ZkConnection</span>
+<span class="kn">from</span> <span class="nn">zktools.locking</span> <span class="kn">import</span> <span class="n">ZkLock</span>
+
+<span class="c"># Create a connection and a lock</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">ZkConnection</span><span class="p">()</span>
+<span class="n">my_lock</span> <span class="o">=</span> <span class="n">ZkLock</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s">&quot;my_lock_name&quot;</span><span class="p">)</span>
+
+<span class="n">my_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span> <span class="c"># wait to acquire lock</span>
+<span class="c"># do something with the lock</span>
+
+<span class="n">my_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span> <span class="c"># release our lock</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="zktools.locking.ZkLock.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="headerlink" href="#zktools.locking.ZkLock.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a Zookeeper lock object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>connection</strong> (<em>ZkConnection instance</em>) &#8211; zookeeper connection object</li>
+<li><strong>lock_root</strong> (<em>string</em>) &#8211; Path to the root lock node to create the locks
+under</li>
+<li><strong>logfile</strong> (<em>string</em>) &#8211; Path to a file to log the zookeeper stream to</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkLock.acquire">
+<tt class="descname">acquire</tt><big>(</big><em>timeout=None</em>, <em>revoke=False</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#ZkLock.acquire"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.ZkLock.acquire" title="Permalink to this definition">¶</a></dt>
+<dd><p>Acquire a lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>timeout</strong> (<em>int</em>) &#8211; How long to wait to acquire the lock, set to 0 to
+get non-blocking behavior.</li>
+<li><strong>revoke</strong> (bool or <a class="reference internal" href="#zktools.locking.IMMEDIATE" title="zktools.locking.IMMEDIATE"><tt class="xref py py-obj docutils literal"><span class="pre">IMMEDIATE</span></tt></a>) &#8211; Whether prior locks should be revoked. Can be set to
+True to request and wait for prior locks to release
+their lock, or <a class="reference internal" href="#zktools.locking.IMMEDIATE" title="zktools.locking.IMMEDIATE"><tt class="xref py py-obj docutils literal"><span class="pre">IMMEDIATE</span></tt></a> to destroy the blocking
+read/write locks and attempt to acquire a write lock.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">True if the lock was acquired, False otherwise</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">bool</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkLock.release">
+<tt class="descname">release</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkLock.release" title="Permalink to this definition">¶</a></dt>
+<dd><p>Release a lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was released, or False if it is no
+longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="zktools.locking.ZkLock.revoked">
+<tt class="descname">revoked</tt><a class="headerlink" href="#zktools.locking.ZkLock.revoked" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicate if this shared lock has been revoked</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock has been revoked, False otherwise.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkLock.revoke_all">
+<tt class="descname">revoke_all</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkLock.revoke_all" title="Permalink to this definition">¶</a></dt>
+<dd><p>Revoke any existing locks, gently</p>
+<p>Unlike <a class="reference internal" href="#zktools.locking.ZkLock.clear" title="zktools.locking.ZkLock.clear"><tt class="xref py py-meth docutils literal"><span class="pre">clear()</span></tt></a>, this asks all existing locks to
+release, rather than forcibly revoking them.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if existing locks were present, False if
+there were no existing locks.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkLock.has_lock">
+<tt class="descname">has_lock</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkLock.has_lock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check with Zookeeper to see if the lock is acquired</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Whether the lock is acquired or not</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkLock.clear">
+<tt class="descname">clear</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkLock.clear" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clear out a lock</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">You must be sure this is a dead lock, as clearing it will
+forcably release it by deleting all lock nodes.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was cleared, or False if it
+is no longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="shared-read-write-lock-classes">
+<h2>Shared Read/Write Lock Classes<a class="headerlink" href="#shared-read-write-lock-classes" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="zktools.locking.ZkReadLock">
+<em class="property">class </em><tt class="descclassname">zktools.locking.</tt><tt class="descname">ZkReadLock</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#ZkReadLock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.ZkReadLock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shared Zookeeper Read Lock</p>
+<p>A read-lock is considered succesful if there are no active write
+locks.</p>
+<p>This class takes the same initialization parameters as
+<a class="reference internal" href="#zktools.locking.ZkLock" title="zktools.locking.ZkLock"><tt class="xref py py-class docutils literal"><span class="pre">ZkLock</span></tt></a>.</p>
+<dl class="method">
+<dt id="zktools.locking.ZkReadLock.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="headerlink" href="#zktools.locking.ZkReadLock.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a Zookeeper lock object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>connection</strong> (<em>ZkConnection instance</em>) &#8211; zookeeper connection object</li>
+<li><strong>lock_root</strong> (<em>string</em>) &#8211; Path to the root lock node to create the locks
+under</li>
+<li><strong>logfile</strong> (<em>string</em>) &#8211; Path to a file to log the zookeeper stream to</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkReadLock.acquire">
+<tt class="descname">acquire</tt><big>(</big><em>timeout=None</em>, <em>revoke=False</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#ZkReadLock.acquire"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.ZkReadLock.acquire" title="Permalink to this definition">¶</a></dt>
+<dd><p>Acquire a shared read lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>timeout</strong> (<em>int</em>) &#8211; How long to wait to acquire the lock, set to 0 to
+get non-blocking behavior.</li>
+<li><strong>revoke</strong> (bool or <a class="reference internal" href="#zktools.locking.IMMEDIATE" title="zktools.locking.IMMEDIATE"><tt class="xref py py-obj docutils literal"><span class="pre">IMMEDIATE</span></tt></a>) &#8211; Whether prior locks should be revoked. Can be set to
+True to request and wait for prior locks to release
+their lock, or <a class="reference internal" href="#zktools.locking.IMMEDIATE" title="zktools.locking.IMMEDIATE"><tt class="xref py py-obj docutils literal"><span class="pre">IMMEDIATE</span></tt></a> to destroy the blocking
+write locks and attempt to acquire a read lock.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">True if the lock was acquired, False otherwise</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">bool</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="zktools.locking.ZkReadLock.revoked">
+<tt class="descname">revoked</tt><a class="headerlink" href="#zktools.locking.ZkReadLock.revoked" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicate if this shared lock has been revoked</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock has been revoked, False otherwise.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkReadLock.has_lock">
+<tt class="descname">has_lock</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkReadLock.has_lock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check with Zookeeper to see if the lock is acquired</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Whether the lock is acquired or not</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkReadLock.revoke_all">
+<tt class="descname">revoke_all</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkReadLock.revoke_all" title="Permalink to this definition">¶</a></dt>
+<dd><p>Revoke any existing locks, gently</p>
+<p>Unlike <a class="reference internal" href="#zktools.locking.ZkReadLock.clear" title="zktools.locking.ZkReadLock.clear"><tt class="xref py py-meth docutils literal"><span class="pre">clear()</span></tt></a>, this asks all existing locks to
+release, rather than forcibly revoking them.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if existing locks were present, False if
+there were no existing locks.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkReadLock.release">
+<tt class="descname">release</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkReadLock.release" title="Permalink to this definition">¶</a></dt>
+<dd><p>Release a lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was released, or False if it is no
+longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkReadLock.clear">
+<tt class="descname">clear</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkReadLock.clear" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clear out a lock</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">You must be sure this is a dead lock, as clearing it will
+forcably release it by deleting all lock nodes.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was cleared, or False if it
+is no longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="zktools.locking.ZkWriteLock">
+<em class="property">class </em><tt class="descclassname">zktools.locking.</tt><tt class="descname">ZkWriteLock</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#ZkWriteLock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.ZkWriteLock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shared Zookeeper Write Lock</p>
+<p>A write-lock is only succesful if there are no read or write locks
+active.</p>
+<p>This class takes the same initialization parameters as
+<a class="reference internal" href="#zktools.locking.ZkLock" title="zktools.locking.ZkLock"><tt class="xref py py-class docutils literal"><span class="pre">ZkLock</span></tt></a>.</p>
+<dl class="method">
+<dt id="zktools.locking.ZkWriteLock.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="headerlink" href="#zktools.locking.ZkWriteLock.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a Zookeeper lock object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>connection</strong> (<em>ZkConnection instance</em>) &#8211; zookeeper connection object</li>
+<li><strong>lock_root</strong> (<em>string</em>) &#8211; Path to the root lock node to create the locks
+under</li>
+<li><strong>logfile</strong> (<em>string</em>) &#8211; Path to a file to log the zookeeper stream to</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkWriteLock.acquire">
+<tt class="descname">acquire</tt><big>(</big><em>timeout=None</em>, <em>revoke=False</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#ZkWriteLock.acquire"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.ZkWriteLock.acquire" title="Permalink to this definition">¶</a></dt>
+<dd><p>Acquire a shared write lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>timeout</strong> (<em>int</em>) &#8211; How long to wait to acquire the lock, set to 0 to
+get non-blocking behavior.</li>
+<li><strong>revoke</strong> (bool or <a class="reference internal" href="#zktools.locking.IMMEDIATE" title="zktools.locking.IMMEDIATE"><tt class="xref py py-obj docutils literal"><span class="pre">IMMEDIATE</span></tt></a>) &#8211; Whether prior locks should be revoked. Can be set to
+True to request and wait for prior locks to release
+their lock, or <a class="reference internal" href="#zktools.locking.IMMEDIATE" title="zktools.locking.IMMEDIATE"><tt class="xref py py-obj docutils literal"><span class="pre">IMMEDIATE</span></tt></a> to destroy the blocking
+read/write locks and attempt to acquire a write lock.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">True if the lock was acquired, False otherwise</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">bool</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="zktools.locking.ZkWriteLock.revoked">
+<tt class="descname">revoked</tt><a class="headerlink" href="#zktools.locking.ZkWriteLock.revoked" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicate if this shared lock has been revoked</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock has been revoked, False otherwise.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkWriteLock.has_lock">
+<tt class="descname">has_lock</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkWriteLock.has_lock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check with Zookeeper to see if the lock is acquired</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Whether the lock is acquired or not</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkWriteLock.revoke_all">
+<tt class="descname">revoke_all</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkWriteLock.revoke_all" title="Permalink to this definition">¶</a></dt>
+<dd><p>Revoke any existing locks, gently</p>
+<p>Unlike <a class="reference internal" href="#zktools.locking.ZkWriteLock.clear" title="zktools.locking.ZkWriteLock.clear"><tt class="xref py py-meth docutils literal"><span class="pre">clear()</span></tt></a>, this asks all existing locks to
+release, rather than forcibly revoking them.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if existing locks were present, False if
+there were no existing locks.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkWriteLock.release">
+<tt class="descname">release</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkWriteLock.release" title="Permalink to this definition">¶</a></dt>
+<dd><p>Release a lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was released, or False if it is no
+longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking.ZkWriteLock.clear">
+<tt class="descname">clear</tt><big>(</big><big>)</big><a class="headerlink" href="#zktools.locking.ZkWriteLock.clear" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clear out a lock</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">You must be sure this is a dead lock, as clearing it will
+forcably release it by deleting all lock nodes.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was cleared, or False if it
+is no longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="private-lock-base-class">
+<h2>Private Lock Base Class<a class="headerlink" href="#private-lock-base-class" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="zktools.locking._LockBase">
+<em class="property">class </em><tt class="descclassname">zktools.locking.</tt><tt class="descname">_LockBase</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#_LockBase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking._LockBase" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base lock implementation for subclasses</p>
+<dl class="method">
+<dt id="zktools.locking._LockBase.__init__">
+<tt class="descname">__init__</tt><big>(</big><em>connection</em>, <em>lock_name</em>, <em>lock_root='/ZktoolsLocks'</em>, <em>logfile=None</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#_LockBase.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking._LockBase.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a Zookeeper lock object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>connection</strong> (<em>ZkConnection instance</em>) &#8211; zookeeper connection object</li>
+<li><strong>lock_root</strong> (<em>string</em>) &#8211; Path to the root lock node to create the locks
+under</li>
+<li><strong>logfile</strong> (<em>string</em>) &#8211; Path to a file to log the zookeeper stream to</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking._LockBase._acquire_lock">
+<tt class="descname">_acquire_lock</tt><big>(</big><em>node_name</em>, <em>timeout=None</em>, <em>revoke=False</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#_LockBase._acquire_lock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking._LockBase._acquire_lock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Acquire a lock</p>
+<p>Internal function used by read/write lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>node_name</strong> (<em>str</em>) &#8211; Name of the node to use for the lock</li>
+<li><strong>timeout</strong> (<em>int</em>) &#8211; How long to wait to acquire the lock, set to 0 to
+get non-blocking behavior.</li>
+<li><strong>revoke</strong> (bool or :obj:<tt class="docutils literal"><span class="pre">IMMEDIATE</span></tt>) &#8211; Whether prior locks should be revoked. Can be set to
+True to request and wait for prior locks to release
+their lock, or <a class="reference internal" href="#zktools.locking.IMMEDIATE" title="zktools.locking.IMMEDIATE"><tt class="xref py py-obj docutils literal"><span class="pre">IMMEDIATE</span></tt></a> to destroy the blocking
+read/write locks and attempt to acquire a write lock.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">True if the lock was acquired, False otherwise</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">bool</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking._LockBase.release">
+<tt class="descname">release</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#_LockBase.release"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking._LockBase.release" title="Permalink to this definition">¶</a></dt>
+<dd><p>Release a lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was released, or False if it is no
+longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="zktools.locking._LockBase.revoked">
+<tt class="descname">revoked</tt><a class="reference internal" href="../_modules/zktools/locking.html#_LockBase.revoked"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking._LockBase.revoked" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicate if this shared lock has been revoked</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock has been revoked, False otherwise.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking._LockBase.has_lock">
+<tt class="descname">has_lock</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#_LockBase.has_lock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking._LockBase.has_lock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check with Zookeeper to see if the lock is acquired</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Whether the lock is acquired or not</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="zktools.locking._LockBase.clear">
+<tt class="descname">clear</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#_LockBase.clear"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking._LockBase.clear" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clear out a lock</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">You must be sure this is a dead lock, as clearing it will
+forcably release it by deleting all lock nodes.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">True if the lock was cleared, or False if it
+is no longer valid.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="internal-utility-functions">
+<h2>Internal Utility Functions<a class="headerlink" href="#internal-utility-functions" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="zktools.locking.has_read_lock">
+<tt class="descclassname">zktools.locking.</tt><tt class="descname">has_read_lock</tt><big>(</big><em>keyname</em>, <em>children</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#has_read_lock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.has_read_lock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Determines if this keyname has a valid read lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>keyname</strong> (<em>str</em>) &#8211; The keyname without full path prefix of the current node
+being examined</li>
+<li><strong>children</strong> (<em>list</em>) &#8211; List of the children nodes at this lock point</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="zktools.locking.has_write_lock">
+<tt class="descclassname">zktools.locking.</tt><tt class="descname">has_write_lock</tt><big>(</big><em>keyname</em>, <em>children</em><big>)</big><a class="reference internal" href="../_modules/zktools/locking.html#has_write_lock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#zktools.locking.has_write_lock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Determines if this keyname has a valid write lock</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>keyname</strong> (<em>str</em>) &#8211; The keyname without full path prefix of the current node
+being examined</li>
+<li><strong>children</strong> (<em>list</em>) &#8211; List of the children nodes at this lock point</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#"><tt class="docutils literal"><span class="pre">zktools.locking</span></tt></a><ul>
+<li><a class="reference internal" href="#constants">Constants</a></li>
+<li><a class="reference internal" href="#lock-class">Lock Class</a></li>
+<li><a class="reference internal" href="#shared-read-write-lock-classes">Shared Read/Write Lock Classes</a></li>
+<li><a class="reference internal" href="#private-lock-base-class">Private Lock Base Class</a></li>
+<li><a class="reference internal" href="#internal-utility-functions">Internal Utility Functions</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="connection.html"
+                        title="previous chapter"><tt class="docutils literal docutils literal docutils literal"><span class="pre">zktools.connection</span></tt></a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="node.html"
+                        title="next chapter"><tt class="docutils literal"><span class="pre">zktools.node</span></tt></a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/api/locking.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="node.html" title="zktools.node"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="connection.html" title="zktools.connection"
+             >previous</a> |</li>
+        <li><a href="../index.html">zktools 0.1 documentation</a> &raquo;</li>
+          <li><a href="../api.html" >API Documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011-2012, Mozilla Foundation.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>
