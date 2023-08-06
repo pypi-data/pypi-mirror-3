@@ -1,0 +1,40 @@
+#!/bin/sh
+
+# $1 is the hook name
+# $2 (optional) is the environment name
+
+if [ ${2:-} ]; then
+    _run_hook_env_name=$2
+elif [ ${VIRTUAL_ENV:-} ]; then
+    _run_hook_env_name="${VIRTUAL_ENV##*/}"
+else
+    _run_hook_env_name=
+fi
+
+
+# Internal hook implementations
+case $1 in
+    postdeactivate) unset _virtualenv_sh_auto_virtualenv;;
+esac
+
+
+# External hook scripts
+case $1 in
+    initialize|premkvirtualenv|postmkvirtualenv|prermvirtualenv|postrmvirtualenv)
+        virtualenv_sh_run_global_hook $1 ${_run_hook_env_name};;
+
+    preactivate|postactivate)
+        virtualenv_sh_run_global_hook $1 ${_run_hook_env_name}
+        virtualenv_sh_run_local_hook $1 ${_run_hook_env_name};;
+
+    predeactivate|postdeactivate)
+        virtualenv_sh_run_local_hook $1 ${_run_hook_env_name}
+        virtualenv_sh_run_global_hook $1 ${_run_hook_env_name};;
+esac
+
+
+# Registered hook functions
+virtualenv_sh_run_hook_functions $1 ${_run_hook_env_name}
+
+
+unset _run_hook_env_name
