@@ -1,0 +1,2 @@
+from daycare.middleware.tracking import Track404sMiddleware
+from daycare.middleware.redirecting import RedirectFallbackMiddleware
