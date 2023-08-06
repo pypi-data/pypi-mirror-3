@@ -1,0 +1,199 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+#   Copyright 2012 Niko Usai <usai.niko@gmail.com>, http://mogui.it
+#
+#   this file is part of pyorient
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+__author__ = 'mogui'
+
+import argparse
+import re
+import os
+import sys
+import subprocess
+
+def die_error(mes):
+	print("\n:(\n:: ERROR :: %s" % mes)
+	sys.exit(-1)
+
+def getMetaAttributesForPlate(plate, plate_dir):
+	tpl = plate if plate.startswith("tpl") else "tpl.%s" % plate
+	filepath = os.path.join(plate_dir, tpl)
+	frontMatter_path = filepath
+	if os.path.isdir(filepath):
+		frontMatter_path = os.path.join(filepath, 'meta')
+	meta = {}
+	
+	meta['name'] = tpl.split('.')[1]
+	meta['filepath'] = filepath
+
+	try:
+		in_file = open(frontMatter_path,"r")
+		text = in_file.read()
+		in_file.close()
+	except Exception, e:
+		die_error("plate %s is inexistent!!" % meta['name'])
+		
+	
+	g = re.findall(r"---(.*)---", text, flags=re.S)
+
+	if len(g) > 0:
+		
+		lines = re.findall(r"(?:([\w]+): ([\w ,\.\-_;!?\|]+|\|))$|([\s]+[\w ,\.\-_;!?\|]+)$", g[0], flags=re.M)
+		#print(lines)
+		collect=False
+		
+		collectBuffer = ''
+		bufferKey = ''
+		for group in lines:
+			if group[1] != '' and group[1] != '|':
+				if collect:
+					meta[bufferKey] = collectBuffer
+					collect = False
+					bufferKey = None
+					collectBuffer = ''
+				meta[group[0]] = group[1].strip()
+			elif group[1] == '|':
+				collect = True
+				bufferKey = group[0].strip()
+			elif collect:
+				collectBuffer +=  group[2] + "\n"
+		if collect:
+			meta[bufferKey] = collectBuffer
+	return meta
+
+
+
+def main():
+	#print(getMetaAttributesForPlate('boiler_dir/tpl.wordpress_theme/meta'))
+	#sys.exit()
+	parser = argparse.ArgumentParser(version='%(prog)s 0.1', description='A command line tool to quick manage boilerplate structures called plates, extensible')
+	parser.add_argument('plate', action="store",nargs='?', default=False, help="boilerplate template to fire up")
+	parser.add_argument('option', action="store",nargs='?', default=False, help="help to get help on a plate | name of the newly created boilerplate")
+	parser.add_argument('-l', '--list', action="store_true", default=None, help="list all present plates")
+	parser.add_argument('-u','--update', action="store_true", default=None, help="Update plates from github")
+	parser.add_argument('-d', dest="plate_dir", action="store", default="~/.boiler_dir", help="different directory to store plates [default ~/.boiler]")
+	results = parser.parse_args()
+
+	plate_dir = os.path.realpath(os.path.expanduser(results.plate_dir))
+	
+
+	if results.list:
+		if not os.path.isdir(plate_dir):
+			die_error("Plates directory doesn't exists")
+
+		format = "| %-20s | %-10s | %-10s | %-60s |"
+		print("\nPresent plates\n")
+		print("="*113)
+		print(format % ("plate name", "type" ,"author", "description"))
+		print("="*113)
+		dirList=os.listdir(plate_dir)
+		
+		for fname in dirList:
+			if fname.startswith('tpl'):
+				pass
+				meta = getMetaAttributesForPlate(fname, plate_dir)
+				print(format % (meta['name'], meta.get('type', 'copy'), meta.get('author', 'No author'), meta.get('description', '-')))
+		print("="*113)
+	elif results.update:
+		if not os.path.isdir(plate_dir):
+			cwd = subprocess.check_output("pwd")
+			repo = "git://github.com/mogui/boiler_templates.git"
+			subprocess.call(["git", "clone", repo, plate_dir ])
+		else:
+			print("updating plates ...")
+			os.chdir(plate_dir)
+			subprocess.call('git pull', shell=True)
+			#e = subprocess.check_output(["pwd"])
+			#print(e)
+		
+
+	else:
+		if not results.plate:
+			parser.print_help()
+			sys.exit(-1)
+		if results.plate == 'help':
+			if not results.option:
+				print("You want help on which plate? specify it plox")
+			else:
+				meta = getMetaAttributesForPlate(results.option, plate_dir)
+				print("\n%s : %s by %s " % (meta['name'], meta.get('type', 'copy'), meta.get('author', '-')))
+				print("%s\n" % meta.get('description', '-'))
+				print(meta.get('help', 'no help'))
+		else:
+			meta = getMetaAttributesForPlate(results.plate, plate_dir)
+
+			# switch for different action for types
+			plate_type = meta.get('type', 'copy')
+			
+
+			#
+			# Copy type
+			#
+			if plate_type == 'copy':
+				
+				if results.option != False:
+					new_name = results.option
+				else:
+					new_name = raw_input("> Insert name of the your boilerplate [%s]\n> " % meta['name'])
+					if new_name == '':
+						new_name = meta['name']
+
+				print("\nCopying %s to ./%s ..." % (new_name, meta['name']))
+				subprocess.call(["cp", "-r", meta['filepath'], "./%s" % new_name])
+
+				if os.path.isdir(meta['filepath']):
+					bootscript = os.path.join(meta['filepath'], 'bootstrap')
+					if os.path.exists(bootscript):
+						print("Executing bootstrap script...")
+						subprocess.call(["bash", bootscript, "./%s" % new_name])
+
+					subprocess.call(["rm", os.path.join('./', new_name, 'meta'), os.path.join('./', new_name, 'bootstrap')])
+				print("Done")
+			#
+			# Script Type
+			#
+			else:
+				
+				if results.option != False:
+					new_name = results.option
+				else:
+					new_name = raw_input("> Insert name of the your boilerplate copy[%s]\n> " % meta['name'])
+					if new_name == '':
+						new_name = meta['name']
+				call_list = [meta['type'], meta['filepath'], new_name]
+				args = meta.get('arguments', False)
+
+				if args:
+					try:
+						args = args.split(",")
+						for arg in args:
+							param = raw_input("> %s[%s]\n> " % (arg.split("|")[0], arg.split("|")[1]))
+
+							if param == '':
+								param = arg.split("|")[1]
+							call_list.append(param.replace(" ", "_"))
+					except Exception, e:
+						die_error("Improper arguments format in front matters! %s" % e)
+				print(call_list)
+				subprocess.call(call_list)
+
+
+				
+
+if __name__ == '__main__':
+	main()
