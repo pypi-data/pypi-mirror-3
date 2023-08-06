@@ -1,0 +1,239 @@
+..
+    This file is part of lazr.json.
+
+    lazr.json is free software: you can redistribute it and/or modify it
+    under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, version 3 of the License.
+
+    lazr.json is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+    License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with lazr.json.  If not, see <http://www.gnu.org/licenses/>.
+
+==========
+Importable
+==========
+
+The lazr.json package is importable, and has a version number.
+
+    >>> import lazr.json
+    >>> print 'VERSION:', lazr.json.__version__
+    VERSION: ...
+
+====================
+Object Serialisation
+====================
+
+Import the methods and classes relevant to this package.
+
+    >>> import json
+    >>> from lazr.json import (
+    ...     custom_type_decoder,
+    ...     CustomTypeEncoder,
+    ...     register_serialisable_type,
+    ...     )
+
+Define a complex object class we want to serialise.
+
+    >>> class ComplexObject:
+    ...     def __init__(self, str='string_value', i=5):
+    ...         self.f_string = str
+    ...         self.f_int = i
+    ...     def __eq__(self, other):
+    ...         return (self.f_int == other.f_int and
+    ...             self.f_string == other.f_string)
+
+By default an instance of the complex object cannot be serialised.
+    >>> obj = ComplexObject()
+    >>> try:
+    ...     json.dumps(obj)
+    ... except TypeError as e:
+    ...      print e
+    <...> is not JSON serializable
+
+The CustomTypeEncoder is used to serialise complex objects. However,
+until the class of object is registered as being serialisable, an
+exception will still be raised.
+
+    >>> try:
+    ...     json.dumps(obj, cls=CustomTypeEncoder)
+    ... except TypeError as e:
+    ...      print e
+    <...> is not JSON serializable
+
+We can register the object's class as being serialisable. If we don't specify
+an encoder then the object's __dict__ is used.
+
+    >>> register_serialisable_type("complex", ComplexObject)
+    >>> print json.dumps(obj, cls=CustomTypeEncoder)
+    {"%complex,__builtin__.ComplexObject%":
+    {"f_int": 5, "f_string": "string_value"}}
+
+We can register an encoder for a complex object.
+
+    >>> class ComplexObjectEncoder(json.JSONEncoder):
+    ...     def default(self, obj):
+    ...         if isinstance(obj, ComplexObject):
+    ...             return {
+    ...                 'int_value': obj.f_int,
+    ...                 'str_value': obj.f_string}
+    ...         return json.JSONEncoder.default(self, obj)
+
+    >>> register_serialisable_type(
+    ...     "complex", ComplexObject, ComplexObjectEncoder)
+
+The json encoding of the object is changed accordingly.
+
+    >>> print json.dumps(obj, cls=CustomTypeEncoder)
+    {"%complex,__builtin__.ComplexObject%":
+    "{\"int_value\": 5, \"str_value\": \"string_value\"}"}
+
+Arbitrarily complex objects are supported, including those with complex
+attributes.
+
+    >>> class AnotherComplexObject:
+    ...     def __init__(self):
+    ...         self.obj = ComplexObject()
+
+    >>> register_serialisable_type("another", AnotherComplexObject)
+    >>> another = AnotherComplexObject()
+    >>> print json.dumps(another, cls=CustomTypeEncoder)
+    {"%another,__builtin__.AnotherComplexObject%":
+    {"obj": {"%complex,__builtin__.ComplexObject%":
+    "{\"int_value\": 5, \"str_value\": \"string_value\"}"}}}
+
+Collections of complex objects can be serialised.
+
+    >>> complex_collection = [ComplexObject() for x in range(4)]
+    >>> json_collection = json.dumps(complex_collection, cls=CustomTypeEncoder)
+    >>> print json_collection
+    [{"%complex,__builtin__.ComplexObject%":
+    "{\"int_value\": 5, \"str_value\": \"string_value\"}"}, ...]
+
+==========================
+Serialising Built In Types
+==========================
+
+Support for some object types is included out-of-the-box.
+
+1. lazr.enum
+
+    >>> from lazr.enum import (
+    ...     EnumeratedType,
+    ...     Item,
+    ...     )
+    >>> class Fruit(EnumeratedType):
+    ...     "A choice of fruit."
+    ...     APPLE = Item('Apple')
+
+    >>> an_apple = Fruit.APPLE
+    >>> print json.dumps(an_apple, cls=CustomTypeEncoder)
+    {"%BaseItem,lazr.enum._enum.Item%": "{\"type\": \"Fruit\", \"name\": \"APPLE\"}"}
+
+
+======================
+Object Deserialisation
+======================
+
+To deserialise a json string containing complex objects, the json.loads()
+object_hook is used. One of two requirements must be met for an object to
+be able to be deserialised:
+
+1. The object class provides a from_dict() method.
+2. A decoder for the object class is specified.
+
+If none of the above is true, the object dict from the serialisation process is
+returned. There's been no decoder for ComplexObject registered yet so all that
+can be expected is the object's dict:
+
+    >>> obj = ComplexObject('complex', 6)
+    >>> json_data = json.dumps(obj, cls=CustomTypeEncoder)
+    >>> deserialised = json.loads(json_data, object_hook=custom_type_decoder)
+    >>> print deserialised
+    {"int_value": 6, "str_value": "complex"}
+
+Create a decoder for ComplexObject:
+    >>> class ComplexObjectDecoder:
+    ...     @classmethod
+    ...     def from_dict(cls, class_, value_dict):
+    ...         return class_(
+    ...             value_dict['str_value'], value_dict['int_value'])
+
+Register the decoder:
+    >>> register_serialisable_type(
+    ...     "complex", ComplexObject, ComplexObjectEncoder,
+    ...     ComplexObjectDecoder)
+
+Now do the deserialisation again and we expect a ComplexObject back:
+
+    >>> deserialised = json.loads(json_data, object_hook=custom_type_decoder)
+    >>> print deserialised == obj
+    True
+
+Collections of complex objects can be deserialised:
+    >>> deserialised_collection = json.loads(
+    ...     json_collection, object_hook=custom_type_decoder)
+    >>> print len(deserialised_collection)
+    4
+    >>> print deserialised_collection[0] == complex_collection[0]
+    True
+
+Now we'll use a from_dict() method on the object class itself.
+Remove the registered decoder:
+    >>> register_serialisable_type(
+    ...     "complex", ComplexObject, ComplexObjectEncoder)
+
+Add a from_dict method to ComplexObject:
+
+    >>> def from_dict(class_, value_dict):
+    ...     return class_(
+    ...         value_dict['str_value'], value_dict['int_value'])
+    >>> import types
+    >>> ComplexObject.from_dict = types.MethodType(from_dict, ComplexObject)
+
+Do the deserialisation again and we expect a ComplexObject back:
+
+    >>> deserialised = json.loads(json_data, object_hook=custom_type_decoder)
+    >>> print deserialised == obj
+    True
+
+Single value dicts which look like (but are not) serialised objects are
+correctly handled.
+    >>> dict_val = json.loads('{"a": 123}', object_hook=custom_type_decoder)
+    >>> print dict_val
+    {u'a': 123}
+    >>> dict_val = json.loads('{"a,b": 123}', object_hook=custom_type_decoder)
+    >>> print dict_val
+    {u'a,b': 123}
+    >>> dict_val = json.loads('{"%a,b%": 123}', object_hook=custom_type_decoder)
+    >>> print dict_val
+    {u'%a,b%': 123}
+
+============================
+Deserialising Built In Types
+============================
+
+Support for deserialising some types is supported out-of-the-box.
+
+1. lazr.enum
+
+    >>> json_apple = json.dumps(an_apple, cls=CustomTypeEncoder)
+    >>> deserialised_apple = json.loads(
+    ...     json_apple, object_hook=custom_type_decoder)
+    >>> print deserialised_apple == an_apple
+    True
+
+.. pypi description ends here
+
+===============
+Other Documents
+===============
+
+.. toctree::
+   :glob:
+
+   *
+   docs/*
