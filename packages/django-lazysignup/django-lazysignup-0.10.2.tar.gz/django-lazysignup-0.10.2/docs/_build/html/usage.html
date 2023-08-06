@@ -1,0 +1,245 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Usage &mdash; django-lazysignup 0.10.2 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.10.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="django-lazysignup 0.10.2 documentation" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li><a href="index.html">django-lazysignup 0.10.2 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="usage">
+<h1>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h1>
+<p>The package works by creating temporary user accounts based on a user&#8217;s
+session key whenever a flagged view is requested. You can specify which
+views trigger this behaviour using the <tt class="docutils literal"><span class="pre">lazysignup.decorators.allow_lazy_user</span></tt>
+decorator.</p>
+<p>When an anonymous user requests such a view, a temporary user account will be
+created for them, and they will be logged in. The user account will have
+an unusable password set, so that it can&#8217;t be used to log in as a regular
+user. The way to tell a regular use from a temporary user is to call
+the <tt class="docutils literal"><span class="pre">is_lazy_user()</span></tt> function from <tt class="docutils literal"><span class="pre">lazysignup.templatetags.lazysignup_tags</span></tt>.
+If this returns <tt class="docutils literal"><span class="pre">True</span></tt>, then the user is temporary. Note that
+<tt class="docutils literal"><span class="pre">user.is_anonymous()</span></tt> will return <tt class="docutils literal"><span class="pre">False</span></tt>  and <tt class="docutils literal"><span class="pre">user.is_authenticated()</span></tt>
+will return <tt class="docutils literal"><span class="pre">True</span></tt>. See below for more information on <tt class="docutils literal"><span class="pre">is_lazy_user</span></tt>.</p>
+<p>A view is provided to allow such users to convert their temporary account into
+a real user account by providing a username and a password.</p>
+<p>A Django management command is provided to clear out stale, uncoverted user
+accounts - although this depends on your use of database-backed sessions, and
+assumes that all user accounts with an expired session are safe to delete. This
+may not be the case for all apps, so you may wish to provide your own cleaning
+script.</p>
+<div class="section" id="the-allow-lazy-user-decorator">
+<h2>The <tt class="docutils literal"><span class="pre">allow_lazy_user</span></tt> decorator<a class="headerlink" href="#the-allow-lazy-user-decorator" title="Permalink to this headline">¶</a></h2>
+<p>Use this decorator to indicate that accessing the view should cause anonymous
+users to have temporary accounts created for them.</p>
+<p>For example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">HttpResponse</span>
+<span class="kn">from</span> <span class="nn">lazysignup.decorators</span> <span class="kn">import</span> <span class="n">allow_lazy_user</span>
+
+<span class="nd">@allow_lazy_user</span>
+<span class="k">def</span> <span class="nf">my_view</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+  <span class="k">return</span> <span class="n">HttpResponse</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">username</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>When accessing the above view, a very simple response containing the generated
+username will be displayed.</p>
+</div>
+<div class="section" id="require-lazy-user-and-require-nonlazy-user-decorators">
+<h2><tt class="docutils literal"><span class="pre">require_lazy_user</span></tt> and <tt class="docutils literal"><span class="pre">require_nonlazy_user</span></tt> decorators<a class="headerlink" href="#require-lazy-user-and-require-nonlazy-user-decorators" title="Permalink to this headline">¶</a></h2>
+<p>It is also possible to mark views as requiring only a lazily-created user,
+or requiring only a non-lazy user, with the <tt class="docutils literal"><span class="pre">require_lazy_user</span></tt> and
+<tt class="docutils literal"><span class="pre">require_nonlazy_user</span></tt> decorators respectively. These decorators take
+arguments and keyword arguments which are passed verbatim to Django&#8217;s own
+<tt class="docutils literal"><span class="pre">redirect</span></tt> view.</p>
+</div>
+<div class="section" id="the-is-lazy-user-template-filter">
+<h2>The <tt class="docutils literal"><span class="pre">is_lazy_user</span></tt> template filter<a class="headerlink" href="#the-is-lazy-user-template-filter" title="Permalink to this headline">¶</a></h2>
+<p>This template filter (which can also be imported from <tt class="docutils literal"><span class="pre">lazysignup.utils</span></tt>
+and used in your own code) will return True if the user is a generated user.
+You need to pass it the user to test. For example, a site navigation
+template might look like this:</p>
+<div class="highlight-python"><pre>{% load i18n lazysignup_tags %}
+
+&lt;nav id="account-bar"&gt;
+  &lt;ul&gt;
+    &lt;li&gt;&lt;a href="{% url home %}"&gt;{% trans "Home" %}&lt;/a&gt;&lt;/li&gt;
+    {% if not user|is_lazy_user %}
+      &lt;li&gt;&lt;a href="#"&gt;{% trans "Account" %}&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href="{% url auth_logout %}"&gt;{% trans "Log out" %}&lt;/a&gt;&lt;/li&gt;
+    {% else %}
+      &lt;li&gt;&lt;a href="{% url lazysignup_convert %}"&gt;{% trans "Save your data" %}&lt;/a&gt; {% trans "by setting a username and password" %}&lt;/li&gt;
+    {% endif %}
+  &lt;/ul&gt;
+&lt;/nav&gt;</pre>
+</div>
+<p>This filter is very simple, and can be used directly in view code, or tests. For example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">lazysignup.utils</span> <span class="kn">import</span> <span class="n">is_lazy_user</span>
+
+<span class="k">def</span> <span class="nf">testIsLazyUserAnonymous</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">AnonymousUser</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="bp">False</span><span class="p">,</span> <span class="n">is_lazy_user</span><span class="p">(</span><span class="n">user</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Note that as of version 0.6.0, the user tested no longer needs to have been
+authenticated by the <tt class="docutils literal"><span class="pre">LazySignupBackend</span></tt> for lazy user detection to work.</p>
+</div>
+<div class="section" id="user-agent-blacklisting">
+<h2>User agent blacklisting<a class="headerlink" href="#user-agent-blacklisting" title="Permalink to this headline">¶</a></h2>
+<p>The middleware will not created users for certain requests from blacklisted
+user agents. This is simply a fairly crude method for preventing many spurious
+users being created by passing search engines.</p>
+<p>The blacklist is specified with the <tt class="docutils literal"><span class="pre">USER_AGENT_BLACKLIST</span></tt> setting. This
+should be an iterable of regular expression strings. If the user agent string
+of a request matches a regex (<tt class="docutils literal"><span class="pre">search()</span></tt> is used, so the match can be anywhere
+in the string) then a user will not be created.</p>
+<p>If the list is not specified, then the default is as follows</p>
+<blockquote>
+<div><ul class="simple">
+<li>slurp</li>
+<li>googlebot</li>
+<li>yandex</li>
+<li>msnbot</li>
+<li>baiduspider</li>
+</ul>
+</div></blockquote>
+<p>Specifying your own <tt class="docutils literal"><span class="pre">USER_AGENT_BLACKLIST</span></tt> will replace this list.</p>
+</div>
+<div class="section" id="using-the-convert-view">
+<h2>Using the convert view<a class="headerlink" href="#using-the-convert-view" title="Permalink to this headline">¶</a></h2>
+<p>Users will be able to visit the <tt class="docutils literal"><span class="pre">/convert/</span></tt> view. This provides a form with
+a username, password and password confirmation. As long as they fill in valid
+details, their temporary user account will be converted into a real user
+account that they can log in with as usual.</p>
+<p>You may pass your own form class into the <cite>convert</cite> view in order to customise
+user creation. The code requires expects the following:</p>
+<blockquote>
+<div><ul class="simple">
+<li>It expects to be able to create the form passing in the generated <tt class="docutils literal"><span class="pre">User</span></tt>
+object with an <tt class="docutils literal"><span class="pre">instance</span></tt> kwarg (in general, this is fine when using a
+ModelForm based on the User model)</li>
+<li>It expects to be able to call <tt class="docutils literal"><span class="pre">save()</span></tt> on the form to convert the user
+to a real user</li>
+<li>It expects to be able to call a <tt class="docutils literal"><span class="pre">get_credentials()</span></tt> method on the form
+to obtain a set of credentials to authenticate the new user with. The
+result of this call should be a dictionary suitable for passing to
+<tt class="docutils literal"><span class="pre">django.contrib.auth.authenticate()</span></tt>. Typically, this would be a dict
+with <tt class="docutils literal"><span class="pre">username</span></tt> and <tt class="docutils literal"><span class="pre">password</span></tt> keys - but this may vary if you&#8217;re using
+a different authentication backend.</li>
+</ul>
+</div></blockquote>
+<p>The default configuration, using the provided <tt class="docutils literal"><span class="pre">UserCreationForm</span></tt>, should
+be enough for most users, but the customisation point is there if you need
+it.</p>
+<p>The view also supports <tt class="docutils literal"><span class="pre">template_name</span></tt> and <tt class="docutils literal"><span class="pre">ajax_template_name</span></tt> arguments,
+to specify templates to render in web and ajax contexts respectively.</p>
+</div>
+<div class="section" id="the-converted-signal">
+<h2>The <tt class="docutils literal"><span class="pre">converted</span></tt> signal<a class="headerlink" href="#the-converted-signal" title="Permalink to this headline">¶</a></h2>
+<p>Whenever a temporary user account is converted into a real user account, the
+<tt class="docutils literal"><span class="pre">lazysignup.signals.converted</span></tt> signal will be sent.  If you need to do any
+processing when an account is converted, you should listen for the signal, eg:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">lazysignup.signals</span> <span class="kn">import</span> <span class="n">converted</span>
+<span class="kn">from</span> <span class="nn">django.dispatch</span> <span class="kn">import</span> <span class="n">receiver</span>
+
+<span class="nd">@receiver</span><span class="p">(</span><span class="n">converted</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">my_callback</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">print</span> <span class="s">&quot;New user account: </span><span class="si">%s</span><span class="s">!&quot;</span> <span class="o">%</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;user&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">username</span>
+</pre></div>
+</div>
+<p>The signal provides a single argument, <tt class="docutils literal"><span class="pre">user</span></tt>, which contains the
+newly-converted User object.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Usage</a><ul>
+<li><a class="reference internal" href="#the-allow-lazy-user-decorator">The <tt class="docutils literal"><span class="pre">allow_lazy_user</span></tt> decorator</a></li>
+<li><a class="reference internal" href="#require-lazy-user-and-require-nonlazy-user-decorators"><tt class="docutils literal"><span class="pre">require_lazy_user</span></tt> and <tt class="docutils literal"><span class="pre">require_nonlazy_user</span></tt> decorators</a></li>
+<li><a class="reference internal" href="#the-is-lazy-user-template-filter">The <tt class="docutils literal"><span class="pre">is_lazy_user</span></tt> template filter</a></li>
+<li><a class="reference internal" href="#user-agent-blacklisting">User agent blacklisting</a></li>
+<li><a class="reference internal" href="#using-the-convert-view">Using the convert view</a></li>
+<li><a class="reference internal" href="#the-converted-signal">The <tt class="docutils literal"><span class="pre">converted</span></tt> signal</a></li>
+</ul>
+</li>
+</ul>
+
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/usage.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li><a href="index.html">django-lazysignup 0.10.2 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Dan Fairs.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
