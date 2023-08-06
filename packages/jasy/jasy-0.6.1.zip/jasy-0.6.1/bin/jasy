@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+
+#
+# Jasy - Web Tooling Framework
+# Copyright 2010-2012 Zynga Inc.
+#
+
+# Import standard library stuff
+import sys, os, os.path, pkg_resources, logging
+
+# Version check
+if sys.version_info[0] < 3:
+    sys.stderr.write("Jasy requires Python 3!\n")
+    sys.exit(1)
+
+# Include local Jasy into Python library path
+basedir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), os.pardir))
+if os.path.exists(os.path.join(basedir, "jasy")):
+    sys.path.insert(0, basedir)
+
+# Parse options
+from jasy.core.Options import Options
+
+args = sys.argv[1:]
+if args and "jasyscript.py" in args[0]:
+    args = args.pop(0)
+
+options = Options()
+
+options.add("verbose", short="v", help="print more detailed status messages to stdout")
+options.add("quiet", short="q", help="don't print status messages to stdout")
+options.add("log", accept=str, help="Write debug messages to given logfile")
+options.add("file", accept=str, value="jasyscript.py", help="Use the given jasy script")
+options.add("version", short="V", help="Print version info only")
+options.add("stats", help="Show statistics after run")
+
+options.parse(args)
+
+# Configure log level for root logger first (enable debug level when either logfile or console verbosity is activated)
+loglevel = logging.INFO
+if options.log or options.verbose is True:
+    loglevel = logging.DEBUG
+
+# Basic configuration of console logging
+logging.basicConfig(level=loglevel, format="%(message)s")
+
+# Configure console handler to correct level
+if options.verbose is True:
+    logging.getLogger().handlers[0].setLevel(logging.DEBUG)
+elif options.quiet is True:
+    logging.getLogger().handlers[0].setLevel(logging.WARN)
+else:
+    logging.getLogger().handlers[0].setLevel(logging.INFO)
+
+# Enable writing to logfile with debug level
+if options.log:
+    logfileHandler = logging.FileHandler(options.logfile)
+    logfileHandler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+    logfileHandler.setLevel(logging.DEBUG)
+    logging.getLogger().addHandler(logfileHandler)        
+
+# Jasy Main
+import jasy
+
+# Print out some info
+logging.info("Jasy %s" % jasy.__version__)
+logging.debug("Jasy Path: %s" % os.path.dirname(os.path.abspath(jasy.__file__)))
+
+if options.version:
+    sys.exit(0)
+    
+del jasy
+
+# Find Jasy Script
+def findJasyscript():
+    current = os.path.abspath(os.getcwd())
+    while True:
+        scriptfile = os.path.join(current, "jasyscript.py")
+        if os.path.exists(scriptfile):
+            return scriptfile
+
+        old = current
+        current = os.path.normpath(os.path.join(current, ".."))
+        if current == old:
+            break
+            
+jasyscript = options.file
+if jasyscript == "jasyscript.py":
+    jasyscript = findJasyscript()
+else:
+    jasyscript = os.path.abspath(os.path.expanduser(jasyscript))
+    
+if jasyscript is None or not os.path.isfile(jasyscript):
+    sys.stderr.write("Cannot find any Jasy script with task definitions (%s)!\n" % jasyscript)
+    sys.exit(1)
+
+# Change to root directory of jasyscript before executing it
+oldcwd = os.getcwd()
+os.chdir(os.path.dirname(os.path.join(oldcwd, jasyscript)))
+if os.getcwd() != oldcwd:
+    logging.info("Running from %s" % os.getcwd())
+jasyscript = os.path.basename(jasyscript)
+
+# Extend path
+sys.path.insert(0, os.getcwd())
+
+# Global environment
+try:
+    
+    # Basics
+    from jasy.core.Error import JasyError
+    from jasy.env.Task import *
+    from jasy.env.State import *
+    from jasy.env.File import *
+
+    # Asset Support
+    from jasy.asset.Manager import AssetManager
+
+    # JavaScript Support
+    from jasy.js.Resolver import Resolver
+    from jasy.js.Sorter import Sorter
+    from jasy.js.api.Writer import ApiWriter
+
+    # Environment Addons
+    from jasy.env.JavaScript import *
+    
+except JasyError as error:
+    sys.stderr.write("%s\n" % error)
+    sys.exit(1)
+
+# Configuring jasy for remote calls
+setJasyCommand(os.path.abspath(sys.argv[0]))
+
+def main():
+    
+    try:
+        # execute build script
+        buildfile = open(jasyscript, "r")
+        retval = exec(buildfile.read(), globals())
+
+        # list all tasks when none is given
+        tasks = options.getTasks()
+        if not tasks:
+            startSection("Help")
+            logging.error("Available tasks: ")
+            printTasks()
+            sys.exit(1)
+
+        # all arguments are processed as a list of task to execute in order
+        for entry in tasks:
+            executeTask(entry["task"], **entry["params"])
+    
+    except JasyError as error:
+        sys.stderr.write("%s\n" % error)
+        sys.exit(1)
+
+    except KeyboardInterrupt:
+        sys.stderr.write("Build interrupted!\n")
+        sys.exit(2)
+
+    sys.exit(0)
+
+if options.stats:
+    
+    logging.info("Running in profiling mode...")
+    
+    import cProfile
+    cProfile.run("main()", "jasyprofile.txt")
+    
+    startSection("Analysing data...")
+    import pstats
+    stats = pstats.Stats("jasyprofile.txt")
+    
+    stats.sort_stats('time', 'cum').print_stats(30)
+    
+    os.remove("jasyprofile.txt")
+    
+else:
+    
+    main()
