@@ -1,0 +1,10 @@
+__version__ = "0.2"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = '(Not currently on any branch)'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = '6ff5ee1d5493faf1babe366b08901ec96e561441'
+__git_head_subject__ = 'Finished release v0.2.'
+__git_head_message__ = '* release/v0.2:\n  TRIVIAL using dist version names for ubuntu, e.g. natty instead of 11.04\n  TRIVIAL using platform.dist instead of platform.linux_distribution\n  empty commit after version v0.1.18'
+__git_dirty_diff__ = ''
