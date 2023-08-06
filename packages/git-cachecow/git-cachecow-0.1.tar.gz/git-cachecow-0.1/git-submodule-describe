@@ -1,0 +1,48 @@
+#!/usr/bin/python
+
+import backwards, re, sys
+from copy import deepcopy
+
+try:
+    gm = open('.gitmodules')
+except IOError as e:
+    sys.exit(0)
+
+data = {}
+d_row = {
+        "key": None,
+        "uri": None,
+        "path": None
+}
+row = deepcopy(d_row)
+
+sub_name = re.compile('^\[submodule "(.*?)"]$')
+sub_path = re.compile('^path = (.*?)$')
+sub_uri = re.compile('^url = (.*?)$')
+for line in gm:
+    line = line.strip()
+
+    m = sub_name.search(line)
+    p = sub_path.search(line)
+    u = sub_uri.search(line)
+
+    if m:
+        row['key'] = m.group(1)
+    elif p:
+        row['path'] = p.group(1)
+    elif u:
+        row['uri'] = u.group(1)
+
+    if row['key'] and row['uri'] and row['path']:
+        data[row['key']] = row
+        row = deepcopy(d_row)
+
+# Only work on repos that have not been checked out
+sub_hash = re.compile('^-(.*?) (.*?)$')
+gf = backwards.check_output('git submodule', shell=True).split("\n")
+for line in gf:
+    h = sub_hash.search(line)
+    if h:
+        row = data[h.group(2)]
+        print "%s\t%s\t%s" % (row['uri'], row['path'], h.group(1))
+
