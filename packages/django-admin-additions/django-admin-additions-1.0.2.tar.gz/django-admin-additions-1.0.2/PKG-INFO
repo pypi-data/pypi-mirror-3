@@ -1,0 +1,129 @@
+Metadata-Version: 1.0
+Name: django-admin-additions
+Version: 1.0.2
+Summary: Admin additions.
+Home-page: http://hg.schinckel.net/django-admin-additions
+Author: Matthew Schinckel
+Author-email: matt@schinckel.net
+License: UNKNOWN
+Description: django-admin-additions
+        ======================
+        
+        There are a few things about the django admin that get me down. Here are solutions to
+        those, all bundled up together.
+        
+        Installation
+        ------------
+        
+        Add ``'admin_additions'`` to you ``settings.INSTALLED_APPS``.
+        
+        Then configure the additions you want to use. The default settings are shown:
+        
+        ::
+        
+            ADMIN_ADDITIONS = {
+                'RETURN_TO_FILTERED_CHANGELIST': False,
+                'SAVE_ON_TOP': True,
+                'LIST_SELECT_RELATED': False,
+                'FULLY_DYNAMIC_FORMSETS': True
+            }
+        
+        Settings
+        ------------
+        
+        RETURN_TO_FILTERED_CHANGELIST
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        When editing an object, you usually want to revert back to the filtered view
+        from whence you came.
+        
+        This is a monkey-patch that supplements the normal `change_view` method on the
+        `ModelAdmin` base class, and ensures that it returns after a POST back to the 
+        referring view.
+        
+        This method of returning to the filtered view after submitting a form in an admin
+        change view is based largely upon `Snippet 2531 <http://djangosnippets.org/snippets/2531/>`.
+        
+        SAVE_ON_TOP
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Should be the default: display the save toolbar on the top of every `change_view`.
+        
+        LIST_SELECT_RELATED
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Turn on automatic `.select_related()` for all queries for a change_list. If you have
+        altered the display columns, and do any lookups at all, this is a good idea.
+        
+        FULLY_DYNAMIC_FORMSETS
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Sets the `extra` value on `InlineModelAdmin` to 0, so you just use the addition button
+        instead of having any empty formsets.
+        
+        Patching functions
+        ------------------------
+        
+        ``patch_model_admin(model, patch_function)``
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Patch an installed ``ModelAdmin``. This includes unregistering, patching and then re-registering. You may pass in a model, or a string of the form `"app_label.ModelName"`, and a function that will take and patch a ``ModelAdmin`` class.
+        
+        If you create a new class based on the passed in class, then you may return it: that will then be used within the re-registration. If you simply patch the existing class, you can return nothing, and the patched original class will be used.
+        
+        ::
+        
+            from admin_additions.patchers import patch_model_admin
+            
+            def patcher_function(model_admin):
+                # Do stuff here.
+                model_admin.form = MyClassyForm
+                return model_admin # optional: you may patch in-place
+            
+            patch_model_admin(MyModel, patcher_function)
+        
+        ``add_inlines(model, *inlines)``
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        A simple/common case of patching a ``ModelAdmin`` - adding a new inline:
+        
+        ::
+        
+            from django.contrib import admin
+            from admin_additions.patchers import add_inlines
+            
+            from models import Foo
+            
+            class FooInline(admin.StackedInline):
+                model = Foo
+            
+            add_inlines('bar.Bar', FooInline)
+            
+        You may pass multiple inlines.
+        
+        You may also pass in any combination of models or admin inlines: if a model is received, it will create a ``StackedInline`` for that model.
+        
+        ``add_actions(model, *actions)``
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        Like for inlines, but add an action.
+        
+        ``@patch_admin(model)``
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        
+        A decorator, that can decorate a function to be patched.
+        
+        ::
+        
+            from admin_additions.patchers import patch_admin
+            
+            @patch_admin(model)
+            def patcher_function(model_admin):
+                model_admin.form = MyClassyForm
+        
+        This syntax is terser than the ``patch_model_admin`` function above.
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Operating System :: OS Independent
+Classifier: Framework :: Django
+Classifier: License :: OSI Approved :: BSD License
