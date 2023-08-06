@@ -1,0 +1,12 @@
+#include "expat.h"
+
+// 100 MB
+#define XML_LIMIT_MAX_LIMIT   13107200
+
+// 134 MB 2^27
+#define XML_LIMIT_ABORT_LIMIT 134217728
+
+#define XML_LIMIT_TAG_LIMIT
+#define XML_LIMIT_NODE_NESTING
+#define XML_LIMIT_ENTITY_EXP
+
