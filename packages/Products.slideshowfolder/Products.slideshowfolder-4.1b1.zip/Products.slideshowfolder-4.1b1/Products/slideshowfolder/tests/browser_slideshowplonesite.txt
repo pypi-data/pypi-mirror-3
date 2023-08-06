@@ -1,0 +1,126 @@
+====================
+Slideshow Plone Site Test
+====================
+
+This is a basic functional test / browser test where we'll like to check
+that the slideshow works properly for the root of a Plone Site.
+
+====================
+Setup
+- based on the example.tests package (https://svn.plone.org/svn/collective/examples/example.tests/trunk)
+====================
+
+First, we must perform some setup. We use the testbrowser that is shipped
+with Five, as this provides proper Zope 2 integration. Most of the 
+documentation, though, is in the underlying zope.testbrower package.
+
+    >>> from Products.Five.testbrowser import Browser
+    >>> browser = Browser()
+    >>> portal_url = self.portal.absolute_url()
+
+The following is useful when writing and debugging testbrowser tests. It lets
+us see all error messages in the error_log.
+
+    >>> self.portal.error_log._ignored_exceptions = ()
+
+With that in place, we can go to the portal front page and log in. We will
+do this using the default user from PloneTestCase:
+
+    >>> from Products.PloneTestCase.setup import portal_owner, default_password
+    >>> browser.open(portal_url)
+
+We have the login portlet, so let's use that.
+
+    >>> browser.getControl(name='__ac_name').value = portal_owner
+    >>> browser.getControl(name='__ac_password').value = default_password
+    >>> browser.getControl(name='submit').click()
+
+Here, we set the value of the fields on the login form and then simulate a
+submit click.
+
+We then test that we are still on the portal front page:
+
+    >>> browser.url == portal_url
+    True
+    
+And we ensure that we get the friendly logged-in message:
+
+    >>> "You are now logged in" in browser.contents
+    True
+
+======================================
+Setup image for the slideshow
+======================================
+
+Prepare image upload.
+
+    >>> from zope.testbrowser import interfaces
+    >>> from zope.interface.verify import verifyObject
+    >>> verifyObject(interfaces.IBrowser, browser)
+    True
+
+Lets add and upload an image.
+
+    >>> browser.getLink('Image').click()
+    >>> browser.getControl(name='title').value = 'Test image'
+    >>> ctrl = browser.getControl(name='image_file')
+    >>> ctrl
+    <Control name='image_file' type='file'>
+
+    >>> verifyObject(interfaces.IControl, ctrl)
+    True
+    >>> ctrl.value is None
+    True
+    >>> import cStringIO
+    >>> ctrl.add_file(cStringIO.StringIO('Test image'),
+    ...               'image/jpeg', 'test_image.jpg')
+    >>> browser.getControl('Save').click()
+
+Lets check if the image was uploaded at all.
+
+    >>> 'Test image' in browser.contents
+    True
+
+Lets go back to the Plone Site.
+
+    >>> browser.getLink('Home').click()
+
+======================================
+Slideshow: Plone Site
+======================================
+
+Currently there is a problem with folders having a default page. When making a slideshow 
+it doesn't remove the default page:
+http://plone.org/products/slideshowfolder/issues/31 
+So fare we do it through the normal procedure and just select another view for the Plone Site.
+
+    >>> browser.getLink('Standard view').click()
+
+We are now ready to test that the Plone Site it self has the "Make slideshow" action available.
+
+    >>> "Make slideshow" in browser.contents
+    True
+
+Lets change the Plone Site to become a slideshow.
+
+    >>> browser.getLink('Make slideshow').click()
+
+Now its a slideshow.
+
+    >>> "This folder is now designated a slideshow." in browser.contents
+    True
+
+After enabling the slideshow it should be possible to disable the slideshow again.
+
+    >>> "Disable slideshow" in browser.contents
+    True
+
+There should be some images. Since the browser test doesn't support javascript this is just
+a quick shot.
+
+    >>> browser.contents
+    '...<div id="myShow" class="slideshowfolder"...style="width: 600px; height: 450px;">...<!-- this gets replaced by the slideshow javascript -->...</div>...'
+
+    >>> "There are currently no images in this slideshow." in browser.contents
+    False
+
