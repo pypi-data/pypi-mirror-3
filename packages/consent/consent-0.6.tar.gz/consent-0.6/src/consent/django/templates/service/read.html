@@ -1,0 +1,109 @@
+{% extends "service/master.html"%}
+
+{% block title %}{{ domainObject.getLabelValue|escape }} - {{ hasManyKey.capitalize }}{% endblock %}
+
+{% block content %}
+
+{% ifequal view.getStatusMessage 'Configuring' %}
+<script type="text/javascript">
+    
+
+function checkServiceStatus() {
+
+    new Ajax.Request('{{ uriPrefix }}/api{{ service.getUri }}', {
+        method:'get',
+        onSuccess: function(transport){
+            var isRunning = 0;
+            var isConfiguring = 0;
+            var response = transport.responseText || "";
+            if (response) {
+                var data = eval('(' + response + ')');
+                if (data['status'] == 'Running') {
+                    isRunning = 1;
+                } else if (data['status'] == 'Configuring') {
+                    isConfiguring = 1;
+                }
+            }
+            if (isRunning == 1) {
+                showServiceStatusRunning();
+            } else {
+                var t = setTimeout("checkServiceStatus()", 1000);
+            }
+        },
+        onFailure: function(){ 
+            var t = setTimeout("checkServiceStatus()", 1000);
+        },
+    });
+}
+
+function showServiceStatusRunning() {
+    var statusElement = document.getElementById('servicestatus');
+    statusElement.innerHTML = 'Running';
+}
+
+  {% ifequal view.getStatusMessage 'Configuring' %} 
+  {% endifequal %}
+function showServiceStatusConfiguring() {
+    var statusElement = document.getElementById('servicestatus');
+    statusElement.innerHTML = 'Configuring <img height="12" width="12" src="{{ consent_media_url }}/images/ajax-loader.gif" alt="..." />';
+}
+
+addEvent(window, 'load', showServiceStatusConfiguring);
+addEvent(window, 'load', checkServiceStatus);
+
+</script>
+{% endifequal %}
+
+<h2>{{ service.name }}</h2>
+
+<p>
+  <strong>Status:</strong> <span id="servicestatus">{{ view.getStatusMessage|escape }} 
+  </span><br />
+  <small class="greyed">
+    Information about the status of this service.
+  </small>
+</p>
+
+<p>
+  <strong>Location:</strong> <a href="{{ serviceLocation }}">{{ serviceLocation }}</a><br />
+  <small class="greyed">
+    The location of this service online.
+  </small>
+</p>
+<p>
+  <strong>Service type:</strong> {{ service.plugin.name }}<br />
+  <small class="greyed">
+    The service type refers to the software system used to provide this service to the project.
+  </small>
+</p>
+
+{{ pluggedInServiceAttributes }}
+
+{% if serviceUserHelp %}
+<h3>Using this Service</h3>
+{{ serviceUserHelp }}
+{% endif %}
+
+{% if view.canUpdateService %}
+
+<form action="{{uriPrefix}}/projects/{{ service.project.name }}/services/{{ service.name }}/edit/" method="post">
+  <p>
+    <strong>Do you wish to edit this service?</strong><br />
+    <input type="submit" value="Edit this service &raquo;" />
+  </p>
+</form>
+
+{% if view.canDeleteService %}
+
+<form action="{{uriPrefix}}/projects/{{ service.project.name }}/services/{{ service.name }}/delete/" method="post">
+  <p>
+    <strong>Do you wish to delete this service?</strong><br />
+    <input type="submit" value="Delete this service &raquo;" />
+  </p>
+</form>
+
+{% endif %}
+{% endif %}
+
+{% endblock %}
+
