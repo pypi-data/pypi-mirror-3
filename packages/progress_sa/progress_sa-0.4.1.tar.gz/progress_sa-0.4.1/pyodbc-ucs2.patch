@@ -1,0 +1,41 @@
+diff --git a/setup.py b/setup.py
+index 4a96a0e..44666ab 100755
+--- a/setup.py
++++ b/setup.py
+@@ -55,7 +55,7 @@ def main():
+         # Other posix-like: Linux, Solaris, etc.
+ 
+         # Python functions take a lot of 'char *' that really should be const.  gcc complains about this *a lot*
+-        extra_compile_args = ['-Wno-write-strings']
++        extra_compile_args = ['-Wno-write-strings', '-fshort-wchar']
+ 
+         # What is the proper way to detect iODBC, MyODBC, unixODBC, etc.?
+         libraries.append('odbc')
+diff --git a/src/connection.cpp b/src/connection.cpp
+index fafe668..38487fc 100644
+--- a/src/connection.cpp
++++ b/src/connection.cpp
+@@ -88,8 +88,22 @@ static bool Connect(PyObject* pConnectString, HDBC hdbc, bool fAnsi)
+         Py_BEGIN_ALLOW_THREADS
+         ret = SQLDriverConnectW(hdbc, 0, szConnectW, SQL_NTS, 0, 0, 0, SQL_DRIVER_NOPROMPT);
+         Py_END_ALLOW_THREADS
+-        if (SQL_SUCCEEDED(ret))
++
++        if (SQL_SUCCEEDED(ret)) {
++            // TODO: check ODBC driver vendor here
++            if (true) { // DataDirect "application wants UCS-2" option:
++                Py_BEGIN_ALLOW_THREADS
++                ret = SQLSetConnectAttr(hdbc, 1040+21, (SQLPOINTER)1, SQL_IS_INTEGER);
++                Py_END_ALLOW_THREADS
++                if (!SQL_SUCCEEDED(ret))
++                {
++                    RaiseErrorFromHandle("SQLSetConnnectAttr(SQL_ATTR_APP_WCHAR_TYPE)", hdbc, SQL_NULL_HANDLE);
++                    return 0;
++                }
++            }
++
+             return true;
++        }
+ 
+         // The Unicode function failed.  If the error is that the driver doesn't have a Unicode version (IM001), continue
+         // to the ANSI version.
