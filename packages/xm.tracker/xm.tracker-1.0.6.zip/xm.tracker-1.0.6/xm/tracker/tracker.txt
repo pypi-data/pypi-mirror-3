@@ -1,0 +1,104 @@
+.. -*-Doctest-*-
+
+Trackers, tasks and entries
+===========================
+
+The tracker stores a list of tasks. Each task stores timelog entries.
+
+    >>> from xm.tracker.tracker import Tracker, Task, Entry
+    >>> import mx.DateTime
+
+First create a tracker instance.
+
+    >>> tracker = Tracker()
+
+A new Tracker will have it's starttime set to None.
+
+    >>> tracker.starttime is None
+    True
+
+Now add a few tasks.
+
+    >>> t1 = Task(u'Write the interfaces',
+    ...           uid=u'MADKKJERN@342kNK',
+    ...           story=u'Write a Time tracker',
+    ...           project=u'eXtremeManagement',
+    ...           estimate=u'6 hours')
+    >>> tracker.tasks.append(t1)
+    >>> t2 = Task(u'Write the code',
+    ...           uid=u'MDAeOJGSPERKWEL#2',
+    ...           story=u'Write a Time tracker',
+    ...           project=u'eXtremeManagement')
+    >>> tracker.tasks.append(t2)
+    >>> len(tracker.tasks)
+    2
+    >>> tracker.tasks[0].title
+    u'Write the interfaces'
+    >>> tracker.get_task(u'MDAeOJGSPERKWEL#2')
+    <xm.tracker.tracker.Task object at ...>
+
+When the user has spent time on a task he can add an entry to the task.
+The task stores a list of entries and has a record of how much time
+has been spent in total on the task.
+
+    >>> t1.total_time().strftime('%H:%M:%S')
+    '00:00:00'
+    >>> t1.entries
+    []
+    >>> t1.entries.append(Entry('Did something cool today!', 230))
+    >>> t1.entries.append(Entry('Did something else as well!', 20))
+    >>> len(t1.entries)
+    2
+    >>> t1.total_time().strftime('%H:%M:%S')
+    '00:04:10'
+    >>> t1.entries[0].time
+    <mx.DateTime.DateTimeDelta object for '00:03:50.00' at ...>
+
+Each entry has a date attribute.  It is set to today upon instantiating.
+
+    >>> d = mx.DateTime.now()
+    >>> e1 = t1.entries[0]
+    >>> e1.date
+    <mx.DateTime.DateTime object for '...' at ...>
+    >>> e1.date.day == d.day
+    True
+
+Entries can get either a timedelta or a number of seconds as input.
+
+    >>> from mx.DateTime import DateTimeDeltaFromSeconds
+    >>> minute = DateTimeDeltaFromSeconds(60)
+    >>> Entry('dummy text', 60).time == minute
+    True
+    >>> Entry('dummy text', minute).time == minute
+    True
+    >>> Entry('dummy text', '60').time == minute
+    True
+    >>> Entry('dummy text', 60.0).time == minute
+    True
+
+A tracker also has ad hoc entries that are not yet associated with an
+xm task.  They are grouped in a special Task.
+
+    >>> tracker.unassigned
+    <xm.tracker.tracker.Task object at ...>
+    >>> len(tracker.unassigned.entries)
+    0
+    >>> tracker.unassigned.total_time().strftime('%H:%M:%S')
+    '00:00:00'
+    >>> tracker.unassigned.entries.append(Entry('Feed Reinout', 13))
+    >>> tracker.unassigned.total_time().strftime('%H:%M:%S')
+    '00:00:13'
+
+We can get that special task by its hardcoded uid too:
+
+    >>> from xm.tracker.config import UNASSIGNED
+    >>> adhoc = tracker.get_task(UNASSIGNED)
+    >>> adhoc
+    <xm.tracker.tracker.Task object at ...>
+
+We can ask the task if it is the special unassigned task.
+
+    >>> adhoc.is_unassigned()
+    True
+    >>> Task().is_unassigned()
+    False

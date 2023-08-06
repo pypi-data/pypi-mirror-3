@@ -1,0 +1,79 @@
+.. -*- doctest -*-
+
+Time Tracker functional tests
+=============================
+
+This document explains how the user interface of the time tracker is used.
+
+    >>> from Products.Five.testbrowser import Browser
+    >>> browser = Browser()
+    >>> portal_url = self.portal.absolute_url()
+
+The following is useful when writing and debugging testbrowser tests. It lets
+us see all error messages in the error_log.
+
+    >>> browser.handleErrors = False
+    >>> self.portal.error_log._ignored_exceptions = ()
+
+With that in place, we can go to the login form and log in.  We could
+login as the default_user from PloneTestCase, but he is just a normal
+Member; depending on what we set in the rolemap.xml in
+Products.eXtremeManagement the Member role may not have the View
+Tracker permission.  So we use a different user that has the Employee
+role.
+
+    >>> browser.open(portal_url + '/login_form')
+    >>> browser.getControl(name='__ac_name').value = 'employee'
+    >>> browser.getControl(name='__ac_password').value = 'secret'
+    >>> browser.getControl(name='submit').click()
+    >>> "You are now logged in" in browser.contents
+    True
+
+Now we go to the tracker view.
+
+    >>> browser.open(portal_url + '/@@tracker')
+    >>> "Time Tracker" in browser.contents
+    True
+    >>> "Start working" in browser.contents
+    True
+    >>> "00:00" in browser.contents
+    True
+
+We start the timer.
+
+    >>> browser.getControl(name='start').click()
+    >>> "Started the timer" in browser.contents
+    True
+    >>> "Stop and reset" in browser.contents
+    True
+
+The timer will be updated by KSS, which needs a specific class,
+specifying the number of seconds to start the timer with.  We will
+check this value, as checking for the presence or absence of the
+string '00:00' can give too many false positives or negatives, with
+all the counters shown on the page when a few tasks are available.
+
+    >>> "kssattr-timerstart-0.0" in browser.contents
+    True
+
+After reloading the page the time should not be zero seconds anymore.
+We will wait one second before reloading.
+
+    >>> import time
+    >>> time.sleep(1)
+    >>> browser.reload()
+    >>> "kssattr-timerstart-0.0" in browser.contents
+    False
+
+We have a button to select tasks.  They must be in the to-do state, so
+we transition one first.
+
+    >>> task = self.portal.project.iteration.story.task
+    >>> browser.open(task.absolute_url())
+    >>> browser.getLink('activate').click()
+
+We cannot test the selecting of tasks anymore in the current way because we're
+using only kss now.
+
+We cannot test tracking an entry as that gives us nested forms which
+testbrowser severly dislikes...
