@@ -1,0 +1,180 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Write your own command &mdash; Django Chuck 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="Django Chuck 0.1 documentation" href="../index.html" />
+    <link rel="next" title="Write your own template engine" href="writing_a_template_engine.html" />
+    <link rel="prev" title="Add your own modules" href="add_module.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="writing_a_template_engine.html" title="Write your own template engine"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="add_module.html" title="Add your own modules"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">Django Chuck 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="write-your-own-command">
+<h1>Write your own command<a class="headerlink" href="#write-your-own-command" title="Permalink to this headline">¶</a></h1>
+<p>The structure of a Django Chuck command is nearly the same as a Django command. You create a new command class in <tt class="docutils literal"><span class="pre">django_chuck.commands</span></tt> that inherits from <tt class="docutils literal"><span class="pre">BaseCommand</span></tt>, define your arguments, a help message and a <tt class="docutils literal"><span class="pre">handle</span></tt> function that will get called to run the command.</p>
+<p>The parameter will get parsed by <tt class="docutils literal"><span class="pre">argparse</span></tt> so you can use all options described on <a class="reference external" href="http://docs.python.org/library/argparse.html">the argparse pydoc page</a>. It&#8217;s important that you set the parameters in <tt class="docutils literal"><span class="pre">__init__</span></tt> otherwise all commands would get them!</p>
+<p>The <tt class="docutils literal"><span class="pre">handle</span></tt> function will get two parameters <tt class="docutils literal"><span class="pre">args</span></tt>, the parsed command line arguments, and <tt class="docutils literal"><span class="pre">cfg</span></tt>, a dictionary of all config settings. Just pass them to the constructor of the <tt class="docutils literal"><span class="pre">BaseCommand</span></tt> and you will always get either the arg value or config value if you call the property directly on your command object.</p>
+<p>Let&#8217;s say you define a new parameter <tt class="docutils literal"><span class="pre">myurl</span></tt> the user will automatically be allowed to set it either on the command line or in his config file by defining the <tt class="docutils literal"><span class="pre">dest</span></tt> value. You dont have to care where the parameter comes from you can just call <tt class="docutils literal"><span class="pre">self.myurl</span></tt> and will get the arg value, config value or None.</p>
+<p>The <tt class="docutils literal"><span class="pre">BaseCommand</span></tt> class also gives you some helper functions.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="27%" />
+<col width="73%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Function</th>
+<th class="head">Description</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>execute_in_project(cmd)</td>
+<td>Loads virtualenv and django settings and executes the given cmd</td>
+</tr>
+<tr class="row-odd"><td>db_cleanup</td>
+<td>Delete django tables for complete db import</td>
+</tr>
+<tr class="row-even"><td>load_fixtures(file)</td>
+<td>Load the given fixture file</td>
+</tr>
+</tbody>
+</table>
+<p>You want to do some cleanup after a system failure or user interruption? Just implement the method <tt class="docutils literal"><span class="pre">signal_handler</span></tt> and do what ever you want to do. By default the project- and virtualenv directory will get erased automatically if the user doesnt set <tt class="docutils literal"><span class="pre">delete_project_on_failure</span></tt> to <tt class="docutils literal"><span class="pre">False</span></tt> in the config file.</p>
+<p>Here is a complete example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">django_chuck.commands.base</span> <span class="kn">import</span> <span class="n">BaseCommand</span>
+<span class="kn">from</span> <span class="nn">django_chuck.commands</span> <span class="kn">import</span> <span class="n">sync_database</span><span class="p">,</span> <span class="n">migrate_database</span>
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+    <span class="n">help</span> <span class="o">=</span> <span class="s">&quot;Sync, migrate database and load fixtures&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Command</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s">&quot;fixture_files&quot;</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s">&quot;help&quot;</span><span class="p">:</span> <span class="s">&quot;Comma separated list of fixture files to load&quot;</span><span class="p">,</span>
+            <span class="s">&quot;nargs&quot;</span><span class="p">:</span> <span class="s">&quot;?&quot;</span><span class="p">,</span>
+        <span class="p">}))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s">&quot;my_dir&quot;</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s">&quot;help&quot;</span><span class="p">:</span> <span class="s">&quot;My work dir to do something in there&quot;</span><span class="p">,</span>
+            <span class="s">&quot;nargs&quot;</span><span class="p">:</span> <span class="s">&quot;?&quot;</span><span class="p">,</span>
+        <span class="p">}))</span>
+
+
+  <span class="k">def</span> <span class="nf">signal_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+      <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">my_dir</span><span class="p">):</span>
+          <span class="k">print</span> <span class="s">&quot;Deleting directory &quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">my_dir</span>
+          <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">my_dir</span><span class="p">)</span>
+
+
+    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Command</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">handle</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+
+        <span class="n">sync_database</span><span class="o">.</span><span class="n">Command</span><span class="p">()</span><span class="o">.</span><span class="n">handle</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+        <span class="n">migrate_database</span><span class="o">.</span><span class="n">Command</span><span class="p">()</span><span class="o">.</span><span class="n">handle</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixture_files</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">fixture_file</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixture_files</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">db_cleanup</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">load_fixtures</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">site_dir</span><span class="p">,</span> <span class="s">&quot;fixtures&quot;</span><span class="p">,</span> <span class="n">fixture_file</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="add_module.html"
+                        title="previous chapter">Add your own modules</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="writing_a_template_engine.html"
+                        title="next chapter">Write your own template engine</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/customization/writing_a_command.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="writing_a_template_engine.html" title="Write your own template engine"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="add_module.html" title="Add your own modules"
+             >previous</a> |</li>
+        <li><a href="../index.html">Django Chuck 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Notch Interactive GmbH.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
