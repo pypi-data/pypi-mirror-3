@@ -1,0 +1,68 @@
+project_metadata:
+  package: {{package}}
+
+global:
+  engine.logging.on: true
+  {%- if use_sqlalchemy %}
+  engine.sqlalchemy.on: true
+  {%- endif %}
+
+controllers:
+  {%- if use_controller %}
+  '':
+    controller: !!python/name:{{package}}.controller.Root
+    /:
+      {%- if use_sqlalchemy %}
+      tools.orm_session.on: true
+      {%- endif %}
+      tools.sessions.on: true
+      {%- if use_redis %}
+      tools.sessions.storage_type: redis
+      {%- endif %}
+      {%- if use_controller %}
+      tools.staticdir.root: {{path}}/static
+      tools.staticfile.root: {{path}}/static
+    /css:
+      tools.sessions.on: false
+      tools.staticdir.on: true
+      tools.staticdir.dir: css
+    /js:
+      tools.sessions.on: false
+      tools.staticdir.on: true
+      tools.staticdir.dir: js
+    /img:
+      tools.sessions.on: false
+      tools.staticdir.on: true
+      tools.staticdir.dir: img
+    /favicon.ico:
+      tools.sessions.on: false
+      tools.staticfile.on: true
+      tools.staticfile.filename: favicon.ico
+      {%- endif %}
+  {%- endif %}
+  {%- if use_rest_controller %}
+  /api:
+    controller: !!python/name:{{package}}.rest_controller.rest_controller
+    /:
+      request.dispatch: !!python/name:{{package}}.rest_controller.rest_controller
+      {%- if use_sqlalchemy %}
+      tools.orm_session.on: true
+      {%- endif %}
+  {%- endif %}
+
+{% if use_sqlalchemy -%}
+sqlalchemy_engine:
+  url: {{sqlalchemy_url}}
+  pool_recycle: 3600
+{%- endif %}
+
+{% if use_jinja2 -%}
+jinja2:
+  loader: !!python/object:jinja2.loaders.FileSystemLoader
+          encoding: utf-8
+          searchpath: [{{path}}/src/{{package}}/templates]
+  bytecode_cache: !!python/object:jinja2.bccache.FileSystemBytecodeCache {directory: {{path}}/.cache,
+                                                                          pattern: __jinja2_%s.cache}
+  auto_reload: true
+  use_webassets: {{use_webassets|lower}}
+{%- endif %}
