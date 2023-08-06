@@ -1,0 +1,110 @@
+Metadata-Version: 1.0
+Name: megrok.z3cform.crud
+Version: 0.1
+Summary: Crud forms for Grok, uusing z3c.form
+Home-page: http://pypi.python.org/pypi/megrok.z3cform.crud
+Author: Danilo G. Botelho
+Author-email: danilogbotelho@yahoo.com
+License: GPL
+Description: Crud
+        ====
+        
+        This module gives you an abstract base class to make CRUD forms with.
+        These forms give you by default a tabular view of the objects, where
+        attributes of the object can be edited in-place.  Please refer to the
+        ``ICrudForm`` interface for more details.
+        
+        >>> from megrok.z3cform.crud import crud
+        
+        Form registration
+        =================
+        
+        Models
+        ------
+        
+        We set up some models to serve as a form context::
+        
+        >>> import grokcore.component as grok
+        >>> from zope import interface, schema
+        
+        >>> class IPerson(interface.Interface):
+        ...    name = schema.TextLine(title=u"Name")
+        ...    age = schema.Int(title=u"Age")
+        
+        >>> class Person(grok.Context):
+        ...    grok.implements(IPerson)
+        ...    name = schema.fieldproperty.FieldProperty(IPerson['name'])
+        ...    age = schema.fieldproperty.FieldProperty(IPerson['age'])
+        ...
+        ...    def __init__(self, name, age):
+        ...        self.name = name
+        ...        self.age = age
+        
+        >>> class IPersonContainer(interface.Interface):
+        ...    pass
+        
+        >>> class PersonContainer(dict):
+        ...    grok.implements(IPersonContainer)
+        
+        For this test, we take the the name of our persons as keys in our
+        storage:
+        
+        >>> storage = PersonContainer()
+        >>> storage['Peter'] = Person(u'Peter', 16)
+        >>> storage['Martha'] = Person(u'Martha', 32)
+        
+        We declare the Form with the help of megrok.z3cform.base. It's very similar to a grok.View::
+        
+        >>> import megrok.z3cform.base as z3cform
+        
+        >>> class TestForm(crud.CrudForm):
+        ...    grok.context(IPersonContainer)
+        ...
+        ...    update_schema = IPerson
+        ...
+        ...    def get_items(self):
+        ...        return sorted(storage.items(), key=lambda x: x[1].name)
+        ...
+        ...    def add(self, data):
+        ...        person = Person(**data)
+        ...        storage[str(person.name)] = person
+        ...        return person
+        ...
+        ...    def remove(self, (id, item)):
+        ...        del storage[id]
+        
+        Grokking and querying
+        ---------------------
+        
+        We let Grok register the component::
+        
+        >>> grok.testing.grok_component('form', TestForm)
+        True
+        
+        Now, we can query it normally::
+        
+        >>> from zope.publisher.browser import TestRequest
+        >>> request = TestRequest()
+        
+        >>> from zope.component import getMultiAdapter
+        >>> myform = getMultiAdapter((storage, request), name="testform")
+        
+        >>> myform
+        <TestForm object at ...>
+        >>> print myform()
+        <form action="http://127.0.0.1" method="post"
+        enctype="multipart/form-data" class="form-testform">
+        ...
+        
+        Changelog
+        =========
+        
+        0.1
+        ---
+        
+        - Initial release
+        
+Keywords: Grok CRUD z3c.form
+Platform: UNKNOWN
+Classifier: Framework :: Zope3
+Classifier: Programming Language :: Python
