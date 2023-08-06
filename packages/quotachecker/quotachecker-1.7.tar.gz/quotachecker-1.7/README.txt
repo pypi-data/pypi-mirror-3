@@ -1,0 +1,99 @@
+####################
+Folder Quota Checker
+####################
+
+This program returns the quota of 1st level sub directories in a directory using the ``du`` command (available on all \*nix platforms).
+
+
+Usage
+=====
+
+If no start directory is given all directories in the current one will be checked by default::
+
+   $ qcheck
+   ./directory-0   4
+   ./directory-1   920
+   ...
+   ./directory-9   8248
+   .            41264
+
+
+Choose directories
+------------------
+
+Sometimes it is required to get the quota of a defined subset of directories.
+
+It is possible to give folder names as arguments::
+
+   $ qcheck directory-1 directory-2
+   ./directory-1   920
+   ./directory-2   120
+
+
+This method only make sense for a couple of directories. A greater folder list can be given by a text file.  The folder names should? be written line by line in the text file. To use it give the option ``-t`` and than the filename like this: ::
+
+   $ qcheck -t folder_set.txt
+
+If the folder doesn't exist a "DoesentExistException" will show you that for every missing Folder.
+
+
+Output
+======
+
+By default the result is written to the standard output in bit-format.
+
+Each directory-quota will be presented in one line::
+
+   $ qcheck
+   ./directory-0   4
+   ./directory-1   920
+   ...
+   ./directory-9   8248
+   .            41264
+
+
+The output can also converted to a human readable form with the ``-r`` option::
+
+   $ qcheck -r
+   ./directory-0 4,0K
+   ./directory-1 920K
+   ...
+   ./directory-9 8,1M
+   .           41M
+
+
+
+file-output
+-----------
+
+If the file output is enabled with the option ``-f FILENAME`` the output will be written to a csv-file. The file will be created if it does not exists.
+
+If the *file* already exists, the new content will be saved as a new column in the document. The name of the column contains the date like ``YY-MM``:
+
+.. csv-table:: Example CSV output
+
+   directorys;2011-12;2012-03
+   directory-1;0K;128K
+   directory-2;32M;132M
+   directory-3;980M;1.124G
+
+If the *column* already exists the quotachecker will return a note that you have to set the ``-o`` parameter if you want to overwrite the column and exit.
+If the ``-o`` option is set quotachecker will overwrite the column by if it exist.
+
+
+Requirements
+============
+
+If the installed python is at least 2.7 you have all what you need and there is nothing to install.
+
+If the installed python is 2.6 you need to install `argparse <http://pypi.python.org/pypi/argparse>`_ witch is already done if you installed the quotachecker with pip.
+
+
+Testing
+=======
+
+If something doesn't work as described please first run the tests::
+
+  python runtests.py
+
+ad send me me the output if it fails.
