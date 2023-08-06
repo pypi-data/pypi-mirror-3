@@ -1,0 +1,212 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      lang="en"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="monet.calendar.extensions">
+
+<head>
+    <metal:css fill-slot="style_slot">
+        <style type="text/css" media="all"
+            tal:content="string: @import url(${context/portal_url}/++resource++monet.calendar.extensions.stylesheets/monetcalendarsearchevent.css)">
+        </style>
+    </metal:css>
+</head>
+
+<body>
+
+<div metal:fill-slot="main">
+    <tal:main-macro metal:define-macro="main">
+
+        <div tal:replace="structure provider:plone.abovecontenttitle" />
+
+        <h1 class="documentFirstHeading summary"> 
+            <metal:field use-macro="python:here.widget('title', mode='view')">
+            Title
+            </metal:field>
+        </h1>
+
+        <div tal:replace="structure provider:plone.belowcontenttitle" />
+
+        <p class="documentDescription">
+            <metal:field use-macro="python:here.widget('description', mode='view')">
+            Description
+            </metal:field>
+        </p>
+                
+        <div tal:replace="structure provider:plone.abovecontentbody" />
+
+    	<span i18n:translate="summary_label">Results for the search: </span>
+    	<span tal:content="python: here.REQUEST.form.get('SearchableText') + ', '"
+    		  tal:condition="python: here.REQUEST.form.get('SearchableText',None)" />
+   		<tal:event_type condition="python: here.REQUEST.form.get('getEventType',None)">
+        	<span i18n:translate="" i18n:domain="monet.calendar.event"
+        		  tal:content="python: here.REQUEST.form.get('getEventType')"
+        		  />
+        	<span>, </span>
+    	</tal:event_type>
+
+		<tal:main-macro metal:define-macro="calendar"
+                        define="dates fromTo|view/getFromTo;
+                                date dates/date;
+                                events view/getEventsInParent;">
+
+	    	<span i18n:translate="" tal:content="python: view.getSummarySearchDates(dates)">
+	    		dal 13/10/2010 al 05/10/2010
+	    	</span>
+			
+			<!-- single day view -->
+			<tal:singleday condition="python:not dates.get('date_from')">
+				<tal:events define="list_filter_events python: view.filterEventsByDate(events,date)">
+		
+		        <tal:notlistFE condition="not: list_filter_events">
+					<h3 i18n:translate="no_events_found">No events were found.</h3>
+		        </tal:notlistFE>
+		
+		        <tal:listFE condition="list_filter_events">
+		        	<h2 class="monetEventDate" tal:define="wdn python: view.getWeekdayName(date);
+			                                               mon python: view.getMonthName(date)">
+			            <tal:wdn content="wdn">
+			                wdn
+			            </tal:wdn>
+			            <tal:day content="date/day">
+			                day
+			            </tal:day>
+			            <tal:mon content="mon">
+			                mon
+			            </tal:mon>
+			            <tal:year content="date/year">
+			                year
+			            </tal:year>
+			        </h2>
+			        
+		            <div tal:define="dict_sorted_events python: view.sortedEventsBySlots(list_filter_events);
+		                             keys python: dict_sorted_events['sequence_slots']">
+		                 <div class="fieldSearchKey" tal:repeat="key keys">
+		                     <tal:keys define="events python: dict_sorted_events[key]"
+		                              condition="events">
+		                         <h3 class="searchKey" tal:content="python: view.getSlotsName(key)">
+		                            Morning
+		                         </h3>
+		                         <div class="searchEvent" tal:repeat="event events">
+		                             <h4>
+		                                 <a tal:attributes="href event/getURL">
+		                                    <span tal:replace="event/Title" />
+		                                </a>
+		                            </h4>
+		                             <p class="documentDescription searchEventDescription">
+		                                <span tal:replace="event/Description" />
+		                            </p>
+		                             <div class="searchEventLocation">
+		                                 <strong i18n:translate="">Where</strong>:<br/>
+		                                <span tal:replace="event/getLocation">
+		                                    location
+		                                </span><br tal:condition="python: event.getLocation and event.getAddress"/>
+		                                <span tal:replace="event/getAddress">
+		                                    address
+		                                </span>                            
+		                            </div>
+		                             <div class="searchEventTime">
+		                                 <strong i18n:translate="">When</strong>
+		                                 <p tal:replace="structure event/getTime" />
+		                            </div>
+		                             <div class="searchEventType" tal:define="event_types event/getEventType">
+		                                 <strong i18n:translate="">Event type</strong>:
+		                                 <span tal:condition="event_types" i18n:domain="monet.calendar.event"
+		                                      i18n:translate="" tal:content="python: event_types[0]" class="discreet">
+		                                     eventType
+		                                 </span>
+		                                 <span tal:omit-tag=""
+										       tal:condition="python: len(event_types) > 1" 
+		                                       tal:repeat="event_type python: event_types[1:]">
+		                                    |
+		                                    <span i18n:domain="monet.calendar.event" i18n:translate=""
+		                                          tal:content="event_type" class="discreet">
+		                                         eventType
+		                                     </span>
+		                                </span>
+		                             </div>
+		                         </div>
+		                     </tal:keys>    
+		                </div>
+		            </div>
+		        </tal:listFE>
+				</tal:events>
+	        </tal:singleday>
+	
+			<!-- multiple days view -->
+			<tal:multidays condition="python:dates.get('date_from')">
+			<tal:events define="list_filter_events python: view.filterEventsByRange(events, dates['date_from'], dates['date_to'])">
+			
+				<tal:no_events_found condition="python: not view.eventFound(list_filter_events)">
+					<h3 i18n:translate="no_events_found">No events were found.</h3>
+				</tal:no_events_found>
+				<tal:event_found condition="python: view.eventFound(list_filter_events)">
+					<tal:day tal:repeat="day list_filter_events">
+						<div class="fieldSearchKey" tal:condition="python:day[1]">
+							<table class="daySum">
+								<caption tal:define="calendar_section_path view/getCalendarSectionPath;
+								                     subsite_path view/getSubSitePath;
+													 date_string python:view.formatDateString(day[0]);">
+									<a tal:attributes="href string:${calendar_section_path}/monetsearchevents?date=${date_string}&amp;path=${subsite_path}"
+									   tal:content="python:view.toCalendarLocalizedTime(day[0])">Mon 24/05</a></caption>
+								<thead>
+									<tr>
+									<th scope="col" class="evCol1" i18n:translate="">Event</th>
+									<th scope="col" class="evCol2" i18n:translate="">Where</th>
+									<th scope="col" class="evCol3" i18n:translate="">When</th>
+									<th scope="col" class="evCol4" i18n:translate="">Event type</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr tal:repeat="event python:day[1]">
+										<td><a tal:attributes="href event/getURL"
+										       tal:content="event/Title">Plone conference</a></td>
+										<td>
+											<div class="searchEventLocation">
+				                                <span tal:replace="event/getLocation">
+				                                    location
+				                                </span><br tal:condition="python: event.getLocation and event.getAddress"/>
+				                                <span tal:replace="event/getAddress">
+				                                    address
+				                                </span>
+											</div> 
+										</td>
+										<td><div class="searchEventTime" tal:content="structure event/getTime" /></td>
+										<td>
+				                             <div class="searchEventType" tal:define="event_types event/getEventType">
+				                                 <span tal:condition="event_types" i18n:domain="monet.calendar.event"
+				                                      i18n:translate="" tal:content="python: event_types[0]" class="discreet">
+				                                     eventType
+				                                 </span>
+				                                 <span tal:omit-tag=""
+												       tal:condition="python: len(event_types) > 1" 
+				                                       tal:repeat="event_type python: event_types[1:]">
+				                                    <br/>
+				                                    <span i18n:domain="monet.calendar.event" i18n:translate=""
+				                                          tal:content="event_type" class="discreet">
+				                                         eventType
+				                                     </span>
+				                                </span>
+				                             </div>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</tal:day>
+				</tal:event_found>
+	
+			</tal:events>
+			</tal:multidays>
+		
+		</tal:main-macro>
+		
+        <div tal:replace="structure provider:plone.belowcontentbody" />
+        
+    </tal:main-macro>
+</div>
+
+</body>
+</html>
