@@ -1,0 +1,77 @@
+#!/usr/bin/python
+################################################################
+#
+#   Reset definitions in the .dfs file to readiness to 
+#	 run the argument file as if for the first time. 
+#
+################################################################
+#
+# Command Line Argument:
+#   1. The name of the file whose definitions are to be reset 
+#      (without the .tex extension)
+#
+################################################################
+import sys,pickle
+#
+import synt,pattern
+#
+#
+#
+#
+if len(sys.argv)< 2:
+	print 'Usage: resetdefs <file> '
+	raise SystemExit
+
+filename = sys.argv[1] + '.tex'
+try:
+	f = open(filename,"r")
+except:
+	print filename + ' not found.'
+	raise SystemExit
+r = f.readlines()
+f.close()
+tdf_filelist = []
+for s in r:
+	inputfilem = pattern.inputfile.match(s)
+	if inputfilem:
+		tdf_filelist.append(inputfilem.group(2))
+
+if sys.argv[1] in tdf_filelist:
+	tdf_filelist.remove(sys.argv[1])
+if 'utility' in tdf_filelist:
+	tdf_filelist.remove('utility')
+ 
+			 
+if tdf_filelist:
+	print "Included files:", 
+	for x in tdf_filelist:
+		print x,
+	print
+	
+
+mathdb = synt.makemathdb()
+filename = sys.argv[1] + '.dfs'
+try:
+	f = open(filename,"r")
+	x = pickle.load(f)
+	f.close()
+	mathdb[synt.MD_TROPS] = x[synt.MD_TROPS]
+	mathdb[synt.MD_TRMUL] = x[synt.MD_TRMUL]
+	mathdb[synt.MD_CAOPS] = x[synt.MD_CAOPS]
+	mathdb[synt.MD_THMS] = x[synt.MD_THMS]
+except:
+	print "Creating ", filename
+
+print len(mathdb)
+for tdf in tdf_filelist: 
+	g = open(tdf + '.dfs')
+	db = pickle.load(g)
+	g.close()
+	if len(db) < len(mathdb):
+		print "len ", tdf, " = ", len(db)
+		raise SystemExit
+	synt.dbmerge(mathdb,db)
+		
+f = open(sys.argv[1] + '.dfs', "w")
+pickle.dump(mathdb,f)
+f.close()

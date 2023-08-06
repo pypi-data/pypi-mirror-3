@@ -1,0 +1,119 @@
+#!/usr/bin/python
+################################################################
+#
+#              Renumber Notes 
+#
+################################################################
+#
+#
+import sys, os
+#
+import pattern
+#
+tex_path = os.getenv('TEXPATH') or ''
+#
+if len(sys.argv)< 2:
+	print 'File not specified.'
+	raise SystemExit
+filename = sys.argv[1]
+filename = tex_path + filename + '.tex'
+try:
+	f = open(filename,"r")
+except:
+	print filename + ' not found.'
+	raise SystemExit
+#
+# Get numbering lists. 
+#
+section_number = -1
+# 
+r = f.readline()
+last_section = -1
+lines = []
+newlines = []
+fixlines = []
+reflist = []
+outlist = []
+inlist = []
+soutlist = []
+sinlist = []
+finished_sections = []
+newthnum = [] 
+reps = []	
+while 1:
+	thmnumm = pattern.thmnum.match(r)
+	notem =   pattern.note.match(r)
+	
+	if thmnumm or not r:
+		if thmnumm:
+			newthnum = thmnumm.group(2)+ '.' + thmnumm.group(3)
+		reps = []	
+		if outlist:
+			repcheck = outlist[:]
+			repcheck.sort()
+			for i in range(len(repcheck)-1):
+				if repcheck[i] == repcheck[i+1]:
+					reps.append(repcheck[i])
+		if reps: 
+			fixlines = newlines
+		elif not outlist:
+			fixlines = newlines
+		else:
+# Process newlines here.
+			fixlines = []
+			note_num = 1
+			for s in newlines:	
+				notem = pattern.note.match(s)
+				if notem:
+					oldnum = notem.group(1)
+					newnum = "%d" % note_num
+					s = s.replace(oldnum,newnum,1)
+					note_num = note_num + 1
+				refpatm = pattern.inref.match(s)
+				if refpatm:
+					newr = s[refpatm.end(3):]
+				else:
+					newr = ''
+				while refpatm:
+					ref = refpatm.group(2)
+					index = -1
+					if ref in outlist:
+						index = outlist.index(ref)
+					if index > -1: 
+						newr =  inlist[index] + refpatm.group(3) + newr
+					else:
+						newr = ref+ refpatm.group(3) +  newr 
+					starttwo = refpatm.start(2)
+					s = s[:starttwo]
+					refpatm = pattern.inref.match(s)
+				newr = s + newr 
+				fixlines.append(newr)
+############################################################
+		lines = lines + fixlines
+		if reps:
+			print 'Repeated notes in theorem ' + oldthnum + ':',reps
+		elif inlist:
+			print "Renoting theorem ", oldthnum
+			print inlist
+			print outlist
+		newlines = []
+		inlist = []
+		outlist = []
+		ncount = 0
+	if not r:
+		break
+	if notem:
+		num = notem.group(1)
+		ncount = ncount + 1	
+		new_ref ="%d" % ncount 
+		if new_ref != num :
+			outlist.append(num)
+			inlist.append(new_ref)
+	newlines.append(r)
+	oldthnum = newthnum 
+	r = f.readline()
+f.close()
+#
+f = open(filename,"w")
+f.writelines(lines)
+f.close()

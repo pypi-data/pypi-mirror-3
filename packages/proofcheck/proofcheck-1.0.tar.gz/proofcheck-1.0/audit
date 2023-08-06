@@ -1,0 +1,310 @@
+#!/usr/bin/python
+################################################################
+#
+#              Find Dependencies of A Proof 
+#
+################################################################
+#
+# Command Line Arguments:
+#
+#   1. The name of the file containing the proof whose 
+#      dependencies are to be traced. (without .tex extension)
+#   2. The number of the theorem 
+#
+################################################################
+#
+import sys,pickle,os
+#
+import synt, pattern
+#
+tex_path = os.getenv('TEXPATH') or ''
+#
+#
+if len(sys.argv)< 3:
+	print 'Usage: check <file> <theorem-number>'
+	sys.exit(1)
+Theorem_ref = sys.argv[2]
+
+if not pattern.exref.match(Theorem_ref):
+	print Theorem_ref, "not a valid theorem number"
+	sys.exit(1)
+
+filename = tex_path + sys.argv[1] + '.tex'
+try:
+	f = open(filename,"r")
+	line_list = f.readlines()
+	f.close()
+except:
+	print filename + ' not found.'
+	sys.exit(1)
+
+
+############################################################
+#
+# Load math data from .dfs file
+#
+############################################################
+
+try:
+	f = open(tex_path + sys.argv[1] + ".dfs","r")
+	dfs_mtime = os.stat(tex_path + sys.argv[1] + ".dfs")[ST_MTIME]
+except:
+	print "File, " + sys.argv[1] + ".dfs, not found. "
+	print "Run resetprops  ", sys.argv[1]
+	print " Then run parse " 
+	sys.exit(1)
+syntdb = pickle.load(f)
+if len(syntdb) < 10:
+	print "File, " + sys.argv[1] + ".dfs, obsolete. "
+	print "Run resetprops  ", sys.argv[1]
+	sys.exit(1)
+	
+synt.mathdb = syntdb
+f.close()
+
+#############################################################
+#
+#  Do pre-processing: Run all directives
+#
+#############################################################
+
+for s in line_list: 
+	if pattern.directive.match(s):
+		synt.process_directive(s)
+	
+line_list = synt.translate(line_list) 
+
+#
+############################################################
+#
+# Define all the functions  
+#
+############################################################
+#
+
+def reforder(ref1,ref2):
+	r1 = ref1.split(".")	
+	r2 = ref2.split(".")	
+	while r1:
+		if int(r1[0]) < int(r2[0]):
+			return -1
+		if int(r1[0]) > int(r2[0]):
+			return 1
+		del r1[0]
+		del r2[0]
+	if r2:
+		return -1
+	else:
+		return 1
+#
+#
+#############################################################
+#
+#  Locate the theorem referred to on the command line
+#
+#############################################################
+#
+exrefs={}
+basicrefs={}
+linetail = [line_list[0],0,1,line_list]
+r = linetail[0]
+#f = open(filename,"r")
+#r = f.readline()
+while r:
+	thmnumm = pattern.thmnum.match(r)
+	while not thmnumm:
+#		r = f.readline()
+		r = synt.getline(linetail)
+		if not r:
+			break
+		thmnumm = pattern.thmnum.match(r)
+	if not r:break
+	sreference = thmnumm.group(2)
+	reference = thmnumm.group(3)
+	Current_theorem =  sreference + '.' + reference
+#	print Current_theorem 
+	TeXdollarm = pattern.TeXdollar.search(r)
+#	dollar_spot = r.index('$')
+#	linetail[0] = r[dollar_spot +1:]
+	linetail[0] = r[TeXdollarm.end(1):]
+	reffed_item = synt.getformula(linetail)
+	if reffed_item:
+		theorem = reffed_item[0]
+	else:
+		print " failed to parse."
+		sys.exit(1)
+#
+#############################################################
+#
+# Get all the external reference numbers listed in the proof 
+#
+#############################################################
+#
+	basic_ref = {}
+	basic_refnums = []  # basic_ref.keys()
+	ext_ref = {}
+	ext_refnums = []  # ext_ref.keys()
+	note_list = []
+	note_nums = []  # 
+	int_vars = []
+	goal_list = []
+	int_reflist = []
+#
+	if reffed_item[1].find('\\By') > -1: # Just a one liner
+	 	shortproof = reffed_item[1]
+		bym = pattern.by.match(shortproof)
+		if not bym :
+			print Current_theorem
+			print "Bad reference"
+			print 1
+			sys.exit(1)
+	 	parsed_ref = synt.refparse(bym.group(1))
+		if parsed_ref == 0:
+			print Current_theorem
+			print "Bad reference"
+			print 2
+			sys.exit(1)
+	 	for r in parsed_ref:
+	 		if r[0] == '0':
+	 			if r not in basic_refnums:
+	 				basic_refnums.append(r)
+	 		elif r[0].isdigit():
+	 			if r not in ext_refnums:
+	 				ext_refnums.append(r)
+#		print Current_theorem
+		exrefs[Current_theorem] = ext_refnums	
+		
+		basicrefs[Current_theorem] = basic_refnums
+		ext_refnums = []
+	else:                         # This is the main case
+		while r:
+#			r = f.readline()
+			r = synt.getline(linetail)
+			by_spot = r.find('\\By')
+			bye_spot = r.find('\\Bye')
+			if pattern.thmnum.match(r):
+#				print Current_theorem
+				exrefs[Current_theorem] = ext_refnums	
+				basicrefs[Current_theorem] = basic_refnums	
+#				print ext_refnums 
+				ext_refnums = []
+				break
+			if by_spot != -1:
+				if bye_spot != -1:
+					parsed_ref = synt.refparse(r[by_spot +4:].strip())
+				else:
+					parsed_ref = synt.refparse(r[by_spot +3:].strip())
+				if parsed_ref == 0:
+					print Current_theorem
+					print "Bad reference"
+					sys.exit(1)
+				for r in parsed_ref:
+					if r[0] == '0':
+						if r not in basic_refnums:
+							basic_refnums.append(r)
+					elif r[0].isdigit():
+						if r not in ext_refnums:
+							ext_refnums.append(r)
+			if bye_spot != -1:
+				exrefs[Current_theorem] = ext_refnums	
+				basicrefs[Current_theorem] = basic_refnums	
+#				print Current_theorem
+#				print ext_refnums 
+				ext_refnums = []
+				break
+	
+		sreference = thmnumm.group(2)
+		reference = thmnumm.group(3)
+		Current_theorem =  sreference + '.' + reference
+		
+f.close()  # End first pass
+ext_refnums_copy = ext_refnums[:]
+#
+#
+if Theorem_ref not in exrefs.keys():
+	print Theorem_ref, " not found."
+	sys.exit(1)
+	
+
+#Find what theorems depend on the given theorem:
+n = 0
+newlist = [Theorem_ref]
+oldlist = []
+while newlist:
+#	print len(oldlist),len(newlist)
+	list = oldlist + newlist
+	t = []
+	for x in exrefs.keys():
+		for p in newlist:
+			if p in exrefs[x] and x not in t and x not in list:
+				t.append(x)
+				n = n + 1
+	oldlist = oldlist + newlist
+	newlist = t 
+del oldlist[0]
+consequences = oldlist
+n_consequences = len(consequences)
+
+callers = []
+for x in exrefs.keys():
+	if Theorem_ref in exrefs[x]:
+		callers.append(x)
+
+#Find the given theorem needs:
+n = 0
+newlist = [Theorem_ref]
+oldlist = []
+while newlist:
+#	print len(oldlist),len(newlist)
+	list = oldlist + newlist
+	t = []
+	for p in newlist:
+		for q in exrefs[p]:
+			if q not in t and q not in list:
+				if q not in exrefs.keys():
+					print "Non-existent reference in proof of",p, ":",q 
+					continue
+				t.append(q)
+				n = n + 1
+	oldlist = oldlist + newlist
+	newlist = t 
+#del oldlist[0]
+basicpredecessors = []
+for p in oldlist:
+	for q in  basicrefs[p]:
+		if q not in basicpredecessors:
+			basicpredecessors.append(q)
+basicpredecessors.sort(cmp=reforder)
+
+predecessors = oldlist[1:]
+n_predecessors = len(predecessors)
+
+print
+print "called by ",len(callers),":"
+for p in callers:
+	print p,
+print
+print
+
+print "used by", n_consequences,":"
+consequences.sort(cmp=reforder)
+for p in consequences:
+	print p,
+print
+print
+
+print "needs ", n_predecessors,":"
+predecessors.sort(cmp=reforder)
+for p in predecessors:
+	print p,
+print
+print
+print "uses ",len(basicpredecessors)," zero plus references :"
+for p in basicpredecessors:
+	print p,
+print
+print
+f = open(sys.argv[1] + ".dep","w")
+for x in predecessors:
+	f.write(x + "\n")
+f.close()

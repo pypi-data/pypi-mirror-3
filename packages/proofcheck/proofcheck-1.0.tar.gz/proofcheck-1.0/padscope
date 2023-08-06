@@ -1,0 +1,118 @@
+#!/usr/bin/python
+################################################################
+#
+#         	Get a final format by appending spaces to scopes 
+#
+################################################################
+import sys,pickle,os
+from stat import ST_MTIME
+#
+import synt,pattern
+#
+tex_path = os.getenv('TEXPATH') or ''
+#
+
+if len(sys.argv) < 3:
+	print "Usage: <source file> <formatted file> (without .tex extensions)"
+	print "No file specified."
+	sys.exit(1)
+
+file = sys.argv[1]
+try:
+	f = open(tex_path + file + ".tex","r")
+except:
+	print file + ".tex not found"
+	sys.exit(1)
+line_list = f.readlines()
+f.close()
+
+
+############################################################
+#
+# Load math data from .dfs file
+#
+############################################################
+
+try:
+	f = open(tex_path + sys.argv[1] + ".dfs","r")
+	dfs_mtime = os.stat(tex_path + sys.argv[1] + ".dfs")[ST_MTIME]
+except:
+	print "File, " + sys.argv[1] + ".dfs, not found. "
+	print "Run resetprops  ", sys.argv[1]
+	print " Then run parse " 
+	sys.exit(1)
+syntdb = pickle.load(f)
+if len(syntdb) < 10:
+	print "File, " + sys.argv[1] + ".dfs, obsolete. "
+	print "Run resetprops  ", sys.argv[1]
+	sys.exit(1)
+	
+synt.mathdb = syntdb
+f.close()
+usrdict = syntdb[synt.MD_MACR]
+
+#############################################################
+#
+#  Do pre-processing: Run all directives
+#
+#############################################################
+
+for s in line_list: 
+	if pattern.directive.match(s):
+		synt.process_directive(s)
+	
+####################################################
+#
+#	 Top Level Line Fetching Loop	
+#
+####################################################
+#  1 = Text mode
+#  2 = Math mode 
+#  3 = Math margin mode 
+#  4 = Error mode
+#  5 = End of formula mode 
+####################################################
+
+mode = [1]
+linetail = [line_list[0], 0,1,line_list]
+line_num = 1
+parsetree = []
+#state = [mode, linetail, parsetree]
+
+out_list = []
+#
+while linetail[0]:
+#	print "mode = ", mode
+	if mode[0] == 1:
+		parsetree = []
+		synt.intext(mode,linetail,out_list)
+	elif mode[0] == 2:
+		synt.mathparse(mode,linetail,parsetree,out_list,pfcdict=usrdict)
+	elif mode[0] == 3:
+		synt.mathmargin(mode,linetail,out_list)
+	elif mode[0] == 4:
+		print "Error line", str(line_num) + ': ', linetail[0] 
+		sys.exit(1)
+	elif mode[0] == 5:
+		print "Only one formula allowed"
+		print "Error line", str(line_num) + ': ', linetail[0]
+		sys.exit(1)
+	if not linetail[0]: 
+		synt.getline(linetail,verbose=True)
+		line_num = linetail[2]
+if mode[0] in [3,4]:
+	print "File ended without completing expression"
+	sys.exit(1)
+
+file = sys.argv[2]
+try:
+	f = open(tex_path + file + ".tex","w")
+except:
+	print "Error opening "+ file + ".tex"
+	sys.exit(1)
+print "Writing file:", file + ".tex"
+for x in out_list:
+	f.write(x)
+f.close()
+
+

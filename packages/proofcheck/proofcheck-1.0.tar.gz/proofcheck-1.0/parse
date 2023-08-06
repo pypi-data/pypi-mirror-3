@@ -1,0 +1,388 @@
+#!/usr/bin/python
+################################################################
+#
+#           Check both math and proof syntax 
+#
+################################################################
+import sys,pickle,os
+from getpath import getpath
+from stat import ST_MTIME
+#
+import synt,pattern
+
+verbose = False 
+
+if len(sys.argv) == 1:
+	print "No file specified."
+	raise SystemExit
+
+file = sys.argv[1]
+try:
+	f = open(file + ".tex","r")
+except:
+	print file + ".tex not found"
+	raise SystemExit
+
+line_list = f.readlines()
+f.close()
+
+getprops = False
+
+############################################################
+#
+# Load math data from .dfs file
+#
+############################################################
+
+try:
+	f = open(sys.argv[1] + ".dfs","r")
+	dfs_mtime = os.stat(sys.argv[1] + ".dfs")[ST_MTIME]
+	syntdb = pickle.load(f)
+	f.close()
+except:
+	syntdb = synt.makemathdb()
+	getprops = True
+if len(syntdb) < 12:
+	syntdb = synt.makemathdb()
+	getprops = True
+	
+synt.mathdb = syntdb
+if syntdb[synt.MD_RSFLG]:
+	dfs_mtime = -1
+	
+
+
+#############################################################
+#
+#  Do pre-processing: Run all directives and
+#
+#     merge revised .dfs files
+#
+#############################################################
+
+for r in line_list:
+	inputfilem = pattern.inputfile.match(r)
+	if inputfilem:
+		fname = inputfilem.group(1) 
+		dfs_file = inputfilem.group(2) + ".dfs"
+		fpathname = getpath(fname)
+		dfs_pathname = getpath(dfs_file)  # Should perhaps require the same path
+		if not fpathname:
+			print "File",fname, " not found."
+			raise SystemExit
+		if os.stat(fpathname)[ST_MTIME] > dfs_mtime:
+				for s in open(fpathname):
+					if pattern.directive.match(s):
+						synt.process_directive(s)
+		if fname != 'utility.tdf' and fname != 'utility.ldf' and not dfs_pathname:
+			print "Warning: can't find ", dfs_file
+		if dfs_pathname and os.stat(dfs_pathname)[ST_MTIME] > dfs_mtime:
+				f = open(dfs_pathname)
+				pickled_db = pickle.load(f)
+				print "Merging ", dfs_pathname
+				synt.dbmerge(synt.mathdb,pickled_db)
+				f.close()
+
+proppathname = getpath(syntdb[synt.MD_PFILE])
+if not proppathname:
+	print "Can't find",syntdb[synt.MD_PFILE]
+	raise SystemExit
+
+if dfs_mtime != -1 and os.stat(proppathname)[ST_MTIME] > dfs_mtime:
+	getprops = True
+	print "Warning: Properties file, ", syntdb[synt.MD_PFILE], "has changed!"
+
+if getprops:
+	synt.mathdb = synt.readprops(proppathname,synt.mathdb)
+
+for s in line_list: 
+	if pattern.directive.match(s):
+		synt.process_directive(s)
+
+line_list = synt.translate(line_list) 
+
+#
+####################################################
+#
+#  States
+#
+#  1 = Expecting Theorem state
+#  2 = Expecting Proof state
+#  3 = Expecting Note state
+#
+####################################################
+
+state = 1
+line_num = 1
+linetail = [line_list[0],0,line_num,line_list]
+
+n_definitions = 0
+n_axioms = 0
+n_newdefinitions = 0 
+n_unflagged_defs = 0
+n_unnumbered_defs = 0
+n_undefined_terms = 0
+n_undefined_formulas = 0
+notenumlist = []
+thmnumlist = []
+shortproofs = []
+fullproofs = []
+definitions = []
+axioms = []
+olddefinitions = []
+proofs = []
+#
+while linetail[0]:
+	notem = pattern.note.match(linetail[0])
+	thmnumm = pattern.thmnum.match(linetail[0])
+	byem = pattern.bye.match(linetail[0])
+	noparsem = pattern.noparse.match(linetail[0])
+	TeXdollars = pattern.TeXdollar.search(linetail[0])
+	if linetail[0][0] == '%':
+		linetail[0] = '' 
+	elif thmnumm:
+		thmnum = thmnumm.group(2) + '.'+ thmnumm.group(3) 
+		if thmnum in thmnumlist:
+			print "Repeated theorem number:", thmnum
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			raise SystemExit
+		thmnumlist.append(thmnum)
+		notenumlist = []
+		if state == 3:
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			print "Previous proof not completed."
+			raise SystemExit
+		linetail[0] = thmnumm.group(4)
+		getfm = synt.getformula(linetail,verbose)
+		if getfm: 
+			bym = pattern.by.match(linetail[0])
+			if bym:
+				rp = synt.refparse(bym.group(1))
+				if rp == 0: 
+					print "Error in reference:",
+					print bym.group(1)
+					print "Error line", str(linetail[2]) + ': ', linetail[0]
+					raise SystemExit
+				elif rp == ['A']:
+					axioms.append(thmnum)
+					n_axioms = n_axioms + 1
+				elif rp == ['D']:
+					n_definitions = n_definitions + 1
+					if getfm[2][0][0] == 51:
+						n_newdefinitions = n_newdefinitions + 1
+					else:
+						olddefinitions.append(thmnum)
+					dc = synt.definition_check(getfm[0])
+					if dc:  
+						print "Error in definition", thmnum
+						print "Error line", str(linetail[2]) + ': ', linetail[0]
+						print dc
+						raise SystemExit
+				elif getfm[2][0][0] == 51:
+					n_newdefinitions = n_newdefinitions + 1
+					n_unflagged_defs = n_unflagged_defs + 1
+					definitions.append(thmnum)
+				else:
+					shortproofs.append(thmnum)
+					proofs.append(thmnum)
+				linetail[0] = '' 
+				state = 1
+			else:
+				if	synt.getline(linetail,verbose):
+					bym = pattern.by.match(linetail[0])
+					if bym:
+						rp = synt.refparse(bym.group(1))
+						if rp == 0:
+							print "Error in reference:",
+							print bym.group(1)
+							print "Error line", str(linetail[2]) + ': ', linetail[0]
+							raise SystemExit
+						elif rp == ['D']:
+							n_definitions = n_definitions + 1
+							if getfm[2][0][0] == 51:
+								n_newdefinitions = n_newdefinitions + 1
+							else:
+								olddefinitions.append(thmnum)
+							dc = synt.definition_check(getfm[2])
+							if dc:  
+								print "Error in definition"
+								print "Error line", str(linetail[2]) + ': ', linetail[0]
+								print dc
+								raise SystemExit
+						elif getfm[2][0][0] == 51:
+							n_newdefinitions = n_newdefinitions + 1
+							n_unflagged_defs = n_unflagged_defs + 1
+							definitions.append(thmnum)
+						else:
+							shortproofs.append(thmnum)
+							proofs.append(thmnum)
+						linetail[0] = '' 
+						state = 1
+					elif getfm[2][0][0] == 51:
+						n_newdefinitions = n_newdefinitions + 1
+						n_unflagged_defs = n_unflagged_defs + 1
+						definitions.append(thmnum)
+						state = 2
+					else:
+						state = 2
+		else:
+			print "Error line ", str(linetail[2]) + ': ', linetail[0]
+			raise SystemExit
+	elif notem:
+		notenum = notem.group(1)
+		if notenum in notenumlist:
+			print "Repeated note number"
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			raise SystemExit
+		notenumlist.append(notenum)
+		if state == 1:
+			print "Note outside of proof"			
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			raise SystemExit
+		linetail[0] = notem.group(3)
+		if not synt.getnote(linetail,verbose):
+			print "Note does not parse."
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			raise SystemExit
+		state = 3
+		bym = pattern.by.match(linetail[0])
+		if bym:
+			if synt.refparse(bym.group(1)) == 0:
+				print "Error in reference:",
+				print bym.group(1)
+				print "Error line", str(linetail[2]) + ': ', linetail[0]
+				raise SystemExit
+			linetail[0] = '' 
+		else:
+			if	synt.getline(linetail,verbose):
+				bym = pattern.by.match(linetail[0])
+				if bym:
+					if synt.refparse(bym.group(1)) == 0:
+						print "Error in reference:",
+						print bym.group(1)
+						print "Error line", str(linetail[2]) + ': ', linetail[0]
+						raise SystemExit
+					linetail[0] = '' 
+	elif byem:
+		if state == 1 or state == 2:
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			print "No proof to finish."
+			raise SystemExit
+		if synt.refparse(byem.group(1)) == 0:
+			print "Error in reference:",
+			print byem.group(1)
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			raise SystemExit
+		fullproofs.append(thmnum)
+		proofs.append(thmnum)
+		linetail[0] = '' 
+		state = 1
+	elif noparsem:
+		linetail[0] = '' 
+	elif TeXdollars: 
+		linetail[0] = linetail[0][TeXdollars.end(1):]
+		getfm = synt.getformula(linetail,verbose)
+		if not getfm:
+			print "Error line", str(linetail[2]) + ': ', linetail[0]
+			raise SystemExit
+		elif getfm[2][0][0] == 51:
+			print "Warning line, un-numbered definition:", linetail[2]
+			n_unnumbered_defs = n_unnumbered_defs + 1
+			n_newdefinitions = n_newdefinitions + 1
+	else:
+		linetail[0] = '' 
+	if linetail[0] == '':
+		if synt.getline(linetail,verbose) == '':
+			break
+				
+
+save_rsflag = synt.mathdb[synt.MD_RSFLG]
+synt.mathdb[synt.MD_RSFLG] = False
+g = open(file + ".dfs","w")
+pickle.dump(synt.mathdb, g)
+g.close()
+
+f = open(file + ".pfs","w")
+for x in proofs:
+	f.write(x + "\n")
+f.close()
+
+n_shortproofs = len(shortproofs)
+n_fullproofs = len(fullproofs)
+n_props = len(thmnumlist)
+n_olddefs = len(olddefinitions)
+
+if n_newdefinitions == 1: 
+	print
+	print "1 new definition processed."
+elif n_newdefinitions > 1: 
+	print
+	print n_newdefinitions, " new definitions processed."
+
+if n_newdefinitions-n_unflagged_defs - n_unnumbered_defs == 1:
+	print "    ","1 numbered and flagged"
+elif n_newdefinitions-n_unflagged_defs - n_unnumbered_defs > 1:
+	print "    ",n_newdefinitions-n_unflagged_defs - n_unnumbered_defs,"numbered and flagged"
+
+if n_unnumbered_defs == 1:
+	print "    ","1 unnumbered definition"
+elif n_unnumbered_defs > 1:
+	print "    ",n_unnumbered_defs, "unnumbered definitions"
+
+if n_unflagged_defs == 1:
+	print "    ","1 unflagged definition",
+elif n_unflagged_defs > 1:
+	print "    ",n_unflagged_defs, "unflagged definitions:",
+for x in definitions:
+	print x,
+print
+
+if save_rsflag: 
+	if n_olddefs == 1:
+		print "Warning! ",
+		print "    ","1 definition already readable: ",
+	elif n_olddefs > 1:
+		print "Warning! ",
+		print "    ",n_olddefs, "definitions already readable: ",
+	for x in olddefinitions: 
+		print x,
+	print
+
+if n_undefined_terms == 1:
+	print "1 new undefined term"
+elif  n_undefined_terms > 1:
+	print  n_undefined_terms , "new undefined terms"
+
+if n_undefined_formulas == 1:
+	print "1 new undefined formula"
+elif  n_undefined_formulas > 1:
+	print  n_undefined_formulas , "new undefined formulas"
+
+if n_props == 1: 
+	print "1 numbered proposition:"
+elif n_props  > 1: 
+	print n_props, "numbered propositions:"
+
+if n_definitions == 1: 
+	print "     1 definition"
+elif n_definitions  > 1: 
+	print "    ", n_definitions, "definitions"
+
+if n_shortproofs + n_fullproofs == 1: 
+	print "     1 proof"
+elif n_shortproofs + n_fullproofs  > 1: 
+	print "    ", n_shortproofs + n_fullproofs, "proofs"
+
+n_unproved = n_props - n_shortproofs - n_fullproofs - n_definitions
+if n_unproved == 1:
+	print "    ","1 proposition given without proof"
+elif n_unproved >1:
+	print "    ",n_unproved,"propositions given without proof"
+
+if n_axioms == 1:
+	print "    ","1 axiom including"
+elif n_axioms > 1:
+	print "    ",n_axioms,"axioms included"
+#
+# End of parse
+#

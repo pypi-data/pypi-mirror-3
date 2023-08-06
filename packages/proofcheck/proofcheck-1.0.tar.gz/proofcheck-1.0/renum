@@ -1,0 +1,226 @@
+#!/usr/bin/python
+################################################################
+#
+#              Renumber Propositions 
+#
+################################################################
+#
+#  If a file which is used for 0+ references is renumbered
+#  all the files which refer to it in this way must 
+#  follow the it on the command line.
+#
+# Arguments
+#
+#  1.  File to be renumbered.   (Or if 0+ references
+#      are to be renumbered in subsequent arguments a
+#      ".rnm" file (including the extension) may be substituted.)
+#
+#  2 - n.  Files whose 0+ references are to be renumbered based
+#      on the renumbering determined by the first argument.
+#
+################################################################
+#
+#
+import string, sys, os, re, time
+import pattern
+#
+tex_path = os.getenv('TEXPATH') or ''
+#
+#
+if len(sys.argv)< 2:
+	print 'File not specified.'
+	raise SystemExit
+#
+##########################################################
+#
+#  Check to see that all named files are preseent.
+#
+Use_renum_file = False 
+Start_num = 1
+for n in range(1,len(sys.argv)):
+	if n == 1 and len(sys.argv[1]) > 3 and sys.argv[1][-4:] == ".rnm":
+		Use_renum_file = True 
+		Start_num = 2
+		filename = tex_path + sys.argv[1]
+	else:
+		filename = tex_path + sys.argv[n] + '.tex'
+	if not os.path.isfile(filename):
+		print filename + ' not found.'
+		raise SystemExit
+##########################################################
+#
+# Define dictionary using function 
+#
+def usedict(x):
+	y = x.group(2)
+	if y in change_num:
+		z = x.group(1) + change_num[y]
+		return z
+	else:
+		return x.group(0)  
+##########################################################
+#
+# Get reference lists. 
+#
+change_num = {}
+outlist = []
+inlist = []
+if Use_renum_file:
+	f = open(tex_path + sys.argv[1],"r")
+	lines = f.readlines()
+	f.close()
+	for x in lines:
+		if x[0] == "#":
+			pass
+		else:
+			y = x.split()
+			if len(y) != 2:
+				print "Error in ", sys.argv[1] 
+				print x
+				raise SystemExit
+			else:
+				outlist.append(y[1])			
+				inlist.append(y[0])
+				change_num[y[1]] = y[0]
+else:
+	filename = tex_path + sys.argv[1] + '.tex'
+	f = open(filename,"r")
+	r = f.readline()
+	unit_pattern = None
+			
+	count=0
+	scount = 0
+	reflist = []
+	outlist = []
+	inlist = []
+	while r:
+		directivem = pattern.directive.match(r)
+		if directivem:
+			if directivem.group(1)== "major_unit:":
+				try:
+					pattern_string = pattern.latex_unit_prefix + directivem.group(3) + pattern.latex_unit_suffix
+					unit_pattern = re.compile(pattern_string)
+				except:
+					print "Bad major unit definition"
+					raise SystemExit
+				
+		chaptheadm = pattern.chapthead.match(r)
+		latex_sectionm = pattern.latex_section.match(r)
+		if unit_pattern:
+			latex_unitm = unit_pattern.match(r)
+			if latex_unitm:
+				scount = scount + 1
+				new_sref ="%d" % scount 
+				count = 0
+		elif chaptheadm or latex_sectionm:
+			scount = scount + 1
+			new_sref ="%d" % scount 
+			count = 0
+		thnumm = pattern.thmnum.match(r)
+		if thnumm:
+			count = count + 1
+			new_ref ="%d" % count 
+			sreference = thnumm.group(2)
+			reference = thnumm.group(3)
+			ref_num = int(reference)
+			old_ref = sreference + '.' + reference
+			if old_ref in reflist:
+				print old_ref + ' is a duplicate reference!'
+				raise SystemExit
+			else:
+				reflist.append(old_ref)
+			if reference != new_ref or  sreference != new_sref:
+				change_ref = new_sref + '.' + new_ref
+				outlist.append(old_ref)
+				inlist.append(change_ref)
+				change_num[old_ref] = change_ref
+		r = f.readline()
+	f.close()
+	if not outlist:
+		print "No new numbering"
+		raise SystemExit
+	t = time.localtime()
+	f = open(sys.argv[1] + "-" + str(t[1]) + "-" + str(t[0]) + ".rnm","w")
+	f.write("# Renumbering of " + sys.argv[1] + ".tex\n")
+	f.write("# " + time.asctime(time.localtime())+ "\n")
+	f.write("#  New  Old\n")
+	for j in range(len(inlist)):
+		f.write("%s  %s\n" % (inlist[j],outlist[j]))
+	f.close()
+	print inlist
+	print outlist
+#
+for j in range(Start_num,len(sys.argv)):
+	filename = tex_path + sys.argv[j] + '.tex'
+	if j == 2:
+		change_num = {}
+		for k in range(len(inlist)):
+			change_num['0' + outlist[k]] = '0' + inlist[k]
+	
+#
+	scount = 0
+	newlines = []
+	f = open(filename,"r")
+	r = f.readline()
+	n = len(inlist)
+	indollars = False
+	while r:
+		comment_match =  re.search(pattern.TeXcomment,r)
+		if comment_match:
+			comment = r[comment_match.start(1):]
+			r = r[:comment_match.start(1)]
+		else:
+			comment = ''
+		chaptheadm = pattern.chapthead.match(r)
+		latex_sectionm = pattern.latex_section.match(r)
+		if unit_pattern:
+			latex_unitm = unit_pattern.match(r)
+			if j == 1 and latex_unitm:
+				newr = r
+				scount = scount + 1
+				new_sref = "%d" % scount 
+			else:
+				splitlist = re.split(pattern.TeXdollar,r)
+				newr = ''
+				for jj in range(0,len(splitlist),2):
+					if indollars:
+						newr = newr + splitlist[jj]
+					else:
+						newr = newr + re.sub(pattern.exref,usedict,splitlist[jj])
+					if jj + 1 == len(splitlist):
+						continue
+					newr = newr + splitlist[jj + 1]
+					indollars = not indollars
+		elif j == 1 and chaptheadm:
+			section = chaptheadm.group(1)
+			scount = scount + 1
+			new_sref = "%d" % scount 
+			if section != new_sref: 
+				newr = r[:chaptheadm.start(1)] + new_sref + r[chaptheadm.end(1):]	
+			else:
+				newr = r
+		elif j == 1 and latex_sectionm:
+			newr = r
+			scount = scount + 1
+			new_sref = "%d" % scount 
+		else:
+			splitlist = re.split(pattern.TeXdollar,r)
+			newr = ''
+			for jj in range(0,len(splitlist),2):
+				if indollars:
+					newr = newr + splitlist[jj]
+				else:
+					newr = newr + re.sub(pattern.exref,usedict,splitlist[jj])
+				if jj + 1 == len(splitlist):
+					continue
+				newr = newr + splitlist[jj + 1]
+				indollars = not indollars
+					
+		newr = newr + comment
+		newlines.append(newr)
+		r = f.readline()
+
+#
+	f = open(filename,"w")
+	f.writelines(newlines)
+	f.close()
