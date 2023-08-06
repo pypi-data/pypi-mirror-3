@@ -1,0 +1,97 @@
+============
+Preparations
+============
+
+The purpose of the :mod:`preparations` component is to store information about
+an experimental preparation.
+
+This component depends on :mod:`measurements`, :mod:`equipment`,
+and :mod:`chemistry`.
+
+Research animals
+----------------
+
+To create a database entry for an animal used in research, to must at mimumum
+specify the species/strain, sex and an identifier::
+
+    >>> from helmholtz.preparations.models import Animal
+    >>> rat1 = Animal(strain=wistar, identifier="#001", sex='M')
+    >>> rat1.save()
+    
+The animal's date of birth may either be supplied directly::
+
+    >>> from datetime import date
+    >>> rat2 = Animal(strain=wistar, identifier="#002", sex='F', birth=date(2011, 6, 17))
+    >>> rat2.save()
+    
+or by providing its age in days at a known date::
+
+    >>> rat1.set_birth(150, date(2011, 12, 1))
+    
+If the date of sacrifice of the animal is given::
+
+    >>> rat1.sacrifice = date(2011, 12, 1)
+
+Then the :attr:`age` attribute gives its age in weeks when sacrificed::
+
+    >>> rat1.age
+    21.4
+
+
+Experimental preparations
+-------------------------
+
+Helmholtz supports four types of experimental preparation, through the classes
+:class:`InVivoPreparation`, :class:`InVitroSlice`, :class:`InVitroCulture` and :class:`InSilico`
+(the latter is for simulations), e.g.::
+
+    >>> from helmholtz.preparations.models import InVivoPreparation
+    >>> prep = InVivoPreparation(animal=rat1, protocol="text description of surgery, etc.")
+    >>> prep.save()
+
+There are many things we might be interested in recording about our preparation.
+The weight of the animal is a common one, so let's add it::
+
+    >>> from helmholtz.measurements.models import FloatMeasurement
+    >>> from helmholtz.units.models import Unit
+    >>> grams = Unit.objects.get(name="gram")
+    >>> WEIGHT = prep.add_field("weight", grams)
+    >>> weight = FloatMeasurement(parameter=WEIGHT, value=212.0, unit=grams,
+    ...                           timestamp=datetime(2011, 12, 1, 9, 23))
+    >>> weight.save()
+    >>> prep.observations.add(weight)
+    >>> prep.save()
+
+Since weight is such a common thing to be recorded, the preparation classes have
+special method :meth:`get_weights()` and :meth:`get_weight_at_sacrifice()`::
+
+    >>> prep.get_weight_at_sacrifice()
+    <FloatMeasurement: weight:212.0 g at 2011-12-01 09:23:00 on object in vivo, #001, Norway rat(Wistar), male>
+
+    
+Reference
+---------
+
+.. automodule:: helmholtz.preparations.models
+
+.. autoclass:: Animal
+   :members:
+   
+.. autoclass:: Preparation
+   :members:
+   
+.. autoclass:: InVivoPreparation
+   :members:
+   
+.. autoclass:: InVitroCulture
+   :members:
+   
+.. autoclass:: InSilico
+   :members:
+   
+.. autoclass:: InVitroSlice
+   :members:
+   
+.. autoclass:: PreparationInformation
+   :members:
+    

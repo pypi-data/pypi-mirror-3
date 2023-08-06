@@ -1,0 +1,198 @@
+=================
+People and places
+=================
+
+The purpose of the :mod:`people` component is to store metadata about the
+people and places involved in obtaining experimental data, from individual
+scientists and research labs to suppliers of research materials.
+
+Note that Helmholtz has not been conceived with human research in mind, so
+there is no support for identifying/anonymizing human subjects. This should
+probably be added as an extension component if someone is interested.
+
+This component depends on :mod:`helmholtz.core` and :mod:`helmholtz.access_control`.
+
+Universities and laboratories
+-----------------------------
+
+Like most organised human activities, science mostly takes place in
+hierarchical structures: a scientist is part of a laboratory which belongs to
+a department which may be in a faculty or division of a university. Since the
+number of levels in the hierarchy can vary, we provide a single class,
+:class:`ScientificStructure`, which can be arranged in a hierarchy: each 
+:class:`ScientificStructure` has an attribute :attr:`parent`, which contains
+a reference to the nest level up (unless the structure is at the top of the
+hierarchy, e.g. a university, in which case :attr:`parent` is empty).
+
+Here is an example::
+
+    >>> from helmholtz.people.models import ScientificStructure
+    >>> univ = ScientificStructure(name="University of Somewhere",
+    ...                            diminutive="USW")
+    >>> univ.save()
+    >>> print univ
+    USW
+    >>> dept = ScientificStructure(name="Department of Neuroscience",
+    ...                            parent=univ)
+    >>> dept.create_diminutive()
+    >>> dept.save()
+    >>> print dept
+    USW → Department_of_Neuroscience
+    >>> lab = ScientificStructure(name="Smith Lab", parent=dept)
+    >>> lab.create_diminutive()
+    >>> lab.save()
+    >>> print lab
+    USW → Department_of_Neuroscience → Smith_Lab
+    
+Note that as well as giving a name to each structure, we need a short version
+of the name (the diminutive), which will be used in URLs. This can be set
+be hand, as for the university above, or generated automatically based on the
+name, using the :meth:`create_diminutive()` method.
+
+To find the top-level parent of a structure, use the :meth:`get_root()`
+method, e.g.::
+
+    >>> lab.get_root()
+    <ScientificStructure: USW>
+    
+To get a list of all the child structures, use the :meth:`get_children()`::
+
+    >>> univ.get_children()
+    [<ScientificStructure: USW → Department_of_Neuroscience>]
+    
+
+Scientists
+----------
+
+It is important to know who participated in any given experiment, or at least
+to have a contact person in case someone needs to obtain more information which
+is not in the database, initiate a collaboration, etc. For a public database,
+there is no requirement that this information be made public, but the system
+needs to know how to route a message to the responsible person.
+
+Entering a researcher in the database is straightforward::
+
+    >>> from helmholtz.people.models import Researcher, EMail
+    >>> bob = Researcher(first_name="Robert", last_name="Brown")
+    >>> bob.save()
+    >>> email = EMail(identifier="bob.brown@usomewhere.edu")
+    >>> email.save()
+    >>> bob.contacts.add(email)
+
+For more information on adding e-mail addresses and other contact information,
+see below.
+
+Since scientists rarely stay in the same institution for the whole of their
+academic careers, it is important to be able to associate a :class:`Researcher`
+object with multiple :class:`ScientificStructure` objects. To do this we use an
+intermediate :class:`Position`::
+
+    >>> from helmholtz.people.models import Position, PositionType
+    >>> from datetime import datetime
+    >>> postdoc = PositionType.objects.get(name__contains="postdoc")
+    >>> asst_prof = PositionType.objects.get(name__contains="assistant professor")
+    >>> bobs_postdoc = Position(researcher=bob, position_type=postdoc,
+    ...                         structure=lab, start=datetime(2005,9,1),
+    ...                         end=datetime(2009,8,31))
+    >>> bobs_postdoc.save()
+    >>> bobs_lab = ScientificStructure(name="Brown Lab", parent=dept)
+    >>> bobs_lab.save()
+    >>> bob_faculty = Position(researcher=bob, position_type=asst_prof,
+    ...                        structure=bobs_lab, start=datetime(2009,9,1))
+    >>> bob_faculty.save()
+    
+Note that the database is pre-populated with some common position types, but you
+can easily add new ones if you need to. To see the existing types, use::
+
+    >>> PositionType.objects.all()
+     [<PositionType: Master's student>, <PositionType: PhD student>,
+      <PositionType: assistant professor>, <PositionType: associate professor>,
+      <PositionType: engineer>, <PositionType: postdoc>, <PositionType: professor>,
+      <PositionType: research associate>, <PositionType: research scientist>,
+      <PositionType: senior research scientist>, <PositionType: undergraduate>]
+
+
+To see Bob's most recent position, use the :meth:`last_position` method
+
+    >>> bob.last_position()
+    <Position: Robert Brown, assistant professor in USW → Department_of_Neuroscience → Smith_Lab from 2009-09-01 to present>
+
+
+Contact information
+-------------------
+
+As well as :class:`EMail`, encountered earlier, the :mod:`people` component
+provides :class:`Address`, :class:`Phone`, :class:`Fax` and :class:`WebSite`,
+all of which can be attached to either an individual :class:`Researcher` or
+to a :class:`ScientificStructure`::
+
+    >>> from helmholtz.people.models import Phone, Address, WebSite
+    >>> bobs_mobile = Phone(label="mobile", number="+xx xxx xxxx")
+    >>> bobs_mobile.save()
+    >>> bobs_work = Phone(label="work", number="+xx xxx yyyy")
+    >>> bobs_work.save()
+    >>> bob.contacts.add(bobs_mobile, bobs_work)
+    >>> bob.save()
+    >>> lab_address = Address(street_address_1="32-94 SomeStreet",
+    ...                       town="Someplace",
+    ...                       postal_code="99999",
+    ...                       country="Nowhereland")
+    >>> lab_address.save()
+    >>> website = WebSite(url="http://www.usomewhere.edu/neuroscience/Smith_Lab/")
+    >>> website.save()
+    >>> lab.contacts.add(lab_address, website)
+    >>> lab.save()
+
+Suppliers
+---------
+
+::
+
+    >>> from helmholtz.people.models import Supplier
+    >>> acme = Supplier("ACME Scientific Instruments Inc.")
+    >>> acme.save()
+    >>> acme_website = WebSite(url="http://acme.example.com/")
+    >>> acme_website.save()
+    >>> acme.contacts.add(acme_website)
+    >>> acme.save()
+
+Suppliers are usually associated with chemicals (see :doc:`chemistry`)
+or with equipment (:doc:`equipment`).
+
+
+Reference
+---------
+
+.. automodule:: helmholtz.people.models
+
+.. autoclass:: Address
+   :members:
+   
+.. autoclass:: EMail
+   :members:
+ 
+.. autoclass:: Phone
+   :members:
+ 
+.. autoclass:: Fax
+   :members:
+ 
+.. autoclass:: WebSite
+   :members:
+ 
+.. autoclass:: ScientificStructure
+   :members:
+ 
+.. autoclass:: Researcher
+   :members:
+ 
+.. autoclass:: PositionType
+   :members:
+ 
+.. autoclass:: Position
+   :members:
+ 
+.. autoclass:: Supplier
+    :members:
+    
+

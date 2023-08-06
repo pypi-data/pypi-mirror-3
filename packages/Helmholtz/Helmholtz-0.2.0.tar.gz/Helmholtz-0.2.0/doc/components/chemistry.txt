@@ -1,0 +1,90 @@
+=========
+Chemistry
+=========
+
+The purpose of the :mod:`chemistry` component is to track the simple and
+compound chemical substances, e.g. bath solutions, anaesthetics, used in your
+experiments. The level of detail is intended to be that of a Methods section in
+a published article.
+
+This component depends on the :class:`Supplier` class from the :mod:`people`
+component, and on the :mod:`units` component.
+
+Adding chemical products to the database
+----------------------------------------
+
+We need to begin by creating the :class:`Supplier` for our chemicals (actually,
+it is not mandatory to give the supplier, but it's useful information to have)::
+
+  >>> from helmholtz.people.models import Supplier
+  >>> acme = Supplier(name="ACME Chemical Co.")
+  >>> acme.save()
+  
+Now we create some substances::
+
+  >>> from helmholtz.chemistry.models import Substance, Product, Solution
+  >>> substances = []
+  >>> for name in "NaCl", "KCl", u"KH₂PO₄", u"MgSO₄", u"CaCl₂", u"NaHCO₃", "glucose":
+  ...     subst = Substance(name)
+  ...     subst.save()
+  ...     substances.append(subst)
+
+.. NOTE we should pre-populate with commonly-used substances
+
+And since the same substance can be supplied in different forms and by different
+suppliers, we create a :class:`Product` for each substance, associating it with
+the supplier::
+
+  >>> products = {}
+  >>> for subst in substances:
+  ...     product = Product(name=subst.name, substance=subst, supplier=acme)
+  ...     product.save()
+  ...     products[subst.name] = product
+
+Here we have given the product the same name as the substance, but they can be
+different. :class:`Product` also accepts a :attr:`catalog_ref` argument, if you
+wish to supply it.
+
+Now let's create our solution::
+
+    >>> solution = Solution(label="ACSF 1")
+    >>> solution.save()
+    >>> from helmholtz.units.fields import PhysicalQuantity as Q
+    >>> components = [
+    ...    ("NaCl",     Q(134.0, "mM")),
+    ...    ("KCl",      Q(5.0, "mM")),
+    ...    (u"KH₂PO₄",  Q(1.25, "mM")),
+    ...    (u"MgSO₄",   Q(2.0, "mM")),
+    ...    (u"CaCl₂",   Q(1.0, "mM")),
+    ...    (u"NaHCO₃",  Q(16.0, "mM")),
+    ...    ("glucose",  Q(10.0, "mM")),
+    ... ]
+    >>> for name, conc in components:
+    ...    product = products[name]
+    ...    solution.quantityofsubstance_set.create(chemical_product=product,
+    ...                                            concentration=conc)
+    >>> solution.save()
+
+Now we can get a list of all the components of the solution and their
+concentrations::
+
+    >>> solution.list_components()
+    [u'134.00 mM NaCl', u'5.00 mM KCl', u'10.00 mM glucose']
+
+
+Reference
+---------
+
+.. automodule:: helmholtz.chemistry.models
+
+.. autoclass:: Substance
+   :members:
+
+.. autoclass:: Product
+   :members:
+
+.. autoclass:: Solution
+   :members:
+
+.. autoclass:: QuantityOfSubstance
+   :members:

@@ -1,0 +1,125 @@
+=========
+Equipment
+=========
+
+The purpose of the :mod:`equipment` component is to store metadata about the
+equipment used in experiments, with the level of information found in the
+Methods section of a published article.
+
+In many cases, this component will not be used directly, but it provides base
+classes that are be subclassed in more specialized components,
+e.g. :mod:`helmholtz.electrophysiology`.
+
+This component depends on :mod:`helmholtz.annotation` and :mod:`helmholtz.people`
+(the last should really be called "people_and_places", if it wasn't such a
+mouthful, since what we are interested in here are equipment suppliers and the
+labs where the equipment is used).
+
+
+Equipment and devices
+---------------------
+
+We make a distinction between a class of equipment, e.g. the Axopatch 200B-10400
+amplifier, and a specific piece of equipment, e.g. the Axopatch 200B-10400 with
+serial number XYZ which is sitting on my desk. The former is represented by the
+:class:`helmholtz.equipment.Equipment` class, the latter by the
+:class:`helmholtz.equipment.Device` class.
+
+Let's begin by creating some equipment::
+
+  >>> from helmholtz.equipment.models import EquipmentType, GenericEquipment
+  >>> from helmholtz.people.models import Supplier
+  >>> olympus = Supplier(name="Olympus")
+  >>> olympus.save()
+  >>> microscope = EquipmentType("microscope")
+  >>> microscope.save()
+  >>> bx51wi = GenericEquipment(type=microscope, manufacturer=olympus,
+  ...                           model="BX51WI")
+  >>> bx51wi.save()
+  >>> amplifier = EquipmentType(name="amplifier")
+  >>> amplifier.save()
+  >>> mds = Supplier(name="MDS Analytical Technologies")
+  >>> mds.save()                         
+  >>> axopatch = GenericEquipment(type=amplifier, manufacturer=mds,
+  ...                             model="Axopatch 200B-10400")
+  >>> axopatch.save()
+
+Here we use the :class:`helmholtz.equipment.GenericEquipment` class because we
+don't have any specific metadata we wish to attach to the equipment. Where we
+do have such metadata we create a new component containing a subclass of
+:class:`helmholtz.equipment.Equipment`, e.g. the :mod:`helmholtz.electrophysiology`
+component which contains the :class:`helmholtz.electrophysiology.Electrode` class.
+
+Now we create our specific devices::
+
+  >>> from helmholtz.equipment.models import Device
+  >>> my_amp = Device(equipment=axopatch, serial_or_id="ABC123")
+  >>> my_amp.save()
+  >>> my_microscope = Device(equipment=bx51wi)
+  >>> my_microscope.save()
+
+Having this distinction between :class:`Device` and :class:`Equipment` seems
+like over-kill here, but it is very useful when we may use many devices all of the
+same type, e.g. electrodes, where it saves re-entering all the common metadata
+for every single device used.
+
+Describing your experimental setup
+----------------------------------
+
+An experimental setup is defined by its location and the equipment (devices) that makes it
+up. The equipment may be divided into several sub-systems::
+
+  >>> from helmholtz.equipment.models import Setup, SubSystem
+  >>> amps = SubSystem(label="amplifiers")
+  >>> amps.save()
+  >>> amps.equipment.add(my_amp)
+  >>> amps.save()
+  >>> vis = SubSystem(label="visualisation")
+  >>> vis.save()
+  >>> vis.equipment.add(my_microscope)
+  >>> vis.save()
+  >>> my_setup = Setup(place=my_lab, room="C253")
+  >>> my_setup.save()
+  >>> my_setup.subsystems.add(amps, vis)
+  >>> my_setup.save()
+  
+Here we assume that you have previously defined ``my_lab`` - see :doc:`people`.
+
+.. Notes: since in general any specific type of equipment will have specific
+..        metadata associated with it, I suggest we remove EquipmentType,
+..        StereotaxicType and GenericEquipment, and always use inheritance
+..        e.g. have a microscopy module containing class Microscope(Equipment),
+
+
+ 
+
+
+Reference
+---------
+
+.. automodule:: helmholtz.equipment.models
+
+.. autoclass:: Material
+   :members:
+   
+.. autoclass:: Equipment
+   :members:
+
+.. autoclass:: EquipmentType
+   :members:
+
+.. autoclass:: GenericEquipment
+   :members:
+
+.. autoclass:: Device
+   :members:
+
+.. autoclass:: DeviceConfiguration
+   :members:
+
+.. autoclass:: SubSystem
+   :members:
+
+.. autoclass:: Setup
+   :members:
+

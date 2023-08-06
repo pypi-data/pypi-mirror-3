@@ -1,0 +1,78 @@
+==========
+Experiment
+==========
+
+The :mod:`experiment` module contains the :class:`Experiment` class, which is
+used to tie all the other information in the database together.
+
+In this context, an experiment refers to one or a series of protocols performed
+on a single experimental preparation within a continuous period of time. It may
+be an electrophysiological experiment, an imaging experiment, a histological
+experiment, a morphological reconstruction or any combination of these,
+provided they were performed on the same preparation at about the same time.
+
+Creating an Experiment
+----------------------
+
+The minimum required for a new :class:`Experiment` object is a label and a
+start date/time::
+
+    >>> from helmholtz.experiment.models import Experiment
+    >>> from datetime import datetime
+    >>> expt = Experiment(label="something_useful",
+    ...                   start=datetime(2010, 7, 18, 9))
+    >>> expt.save()
+    
+Note that if you want to base the experiment label on the date, then the
+:meth:`strftime()` method can be useful::
+
+    >>> timestamp = datetime(2006, 1, 18, 9, 15)
+    >>> timestamp.strftime("%Y-%m-%d")
+    '2006-01-18'
+    >>> timestamp.strftime("%y-%b-%d")
+    '06-Jan-18'
+     
+See http://docs.python.org/library/time.html#time.strftime for more options.
+Also note that ``datetime.now()`` will give you the current date and time.
+
+Other things you can associate with an experiment are an end date/time, text
+notes, the equipment setup that was used, the researchers that performed the
+experiment, and the experimental preparation. Here is a more complete example.
+We assume that the setup, the researcher and the preparation already exist in
+the database (see :doc:`equipment`, :doc:`people` and
+:doc:`preparations` for how to create these).
+
+    >>> from helmholtz.equipment.models import Setup
+    >>> from helmholtz.preparations.models import Animal, InVitroSlice
+    >>> from helmholtz.people.models import Researcher
+    >>> setup = Setup.objects.get(room="B254")
+    >>> researchers = Researcher.objects.filter(first_name__in=["Akemi", "Bob"])
+    >>> slice = InVitroSlice.objects.get(animal__identifier="W7352")
+    >>> expt = Experiment(label=datetime.now().strftime("%F"),
+    ...                   start=datetime.now(),
+    ...                   setup=setup,
+    ...                   preparation=slice)
+    >>> expt.save()
+    >>> expt.researchers.add(*researchers)
+    >>> expt.save()
+    
+Note that since more than one researcher can be associated with an experiment,
+it is necessary to save the :class:`Experiment` object before adding the
+researchers.
+
+.. should the preparation be optional? I think probably we should not allow null for preparation
+
+.. what if an experiment contains both electrophysiology and reconstructions -
+..   these will use different setups. Do we need a Procedure class? or could
+..   we attach the setup to RecordingBlock, Reconstruction, etc.?
+..   or we could define a single Setup with SubSystems for the different
+..   parts of the experiment.
+.. should we remove notes, and just use annotations?
+
+Reference
+---------
+
+.. automodule:: helmholtz.experiment.models
+
+.. autoclass:: Experiment
+   :members:
