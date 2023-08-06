@@ -1,0 +1,185 @@
+Introduction
+============
+etherws is an implementation of Ethernet over WebSocket tunnel
+based on Linux Universal TUN/TAP device driver.
+
+How to Use
+==========
+For example, if you want to make virtual ethernet link for *VM1* and *VM2*
+whose hypervisor's broadcast domains were isolated by router *R*::
+
+  +------------------+            +------------------+
+  | Hypervisor1      |            |      Hypervisor2 |
+  |  +-----+         |            |         +-----+  |
+  |  | VM1 |         |            |         | VM2 |  |
+  |  +--+--+         |            |         +--+--+  |
+  |     | (vnet0)    |            |    (vnet0) |     |
+  |  +--+--+         |            |         +--+--+  |
+  |  | br0 |         |            |         | br0 |  |
+  |  +--+--+         |            |         +--+--+  |
+  |     |            |            |            |     |
+  | (ethws0)  (eth0) |            | (eth0)  (ethws0) |
+  +----||--------+---+            +----+-------||----+
+       ||        |        +---+        |       ||
+       ||   -----+--------| R |--------+-----  ||
+       ||                 +---+                ||
+       ||                                      ||
+       ``======================================''
+            (Ethernet over WebSocket tunnel)
+
+then you can use following commands.
+
+on *Hypervisor1*::
+
+  # etherws --device ethws0 server
+  # brctl addbr br0
+  # brctl addif br0 vnet0
+  # brctl addif br0 ethws0
+  # ifconfig br0 up
+
+on *Hypervisor2*::
+
+  # etherws --device ethws0 client --uri ws://<Hypervisor1's IP address>/
+  # brctl addbr br0
+  # brctl addif br0 vnet0
+  # brctl addif br0 ethws0
+  # ifconfig br0 up
+
+Additionally, you may improve performance by increasing MTU.
+For example,
+
+on each hypervisor::
+
+ # ifconfig vnet0 mtu 16436
+ # ifconfig ethws0 mtu 16436
+
+on each VM::
+
+ # ifconfig eth0 mtu 16436
+
+Using SSL/TLS
+=============
+etherws supports SSL/TLS connection.
+If you want to encrypt tunnels, then you can use following options.
+
+on *Hypervisor1*::
+
+  # etherws --device ethws0 server --keyfile ssl.key --certfile ssl.crt
+
+*ssl.key* is a server private key, and *ssl.crt* is a server certificate.
+
+Now you also can test SSL/TLS connection by following command::
+
+  # openssl s_client -connect <Hypervisor1's IP address>:443
+
+on *Hypervisor2*::
+
+  # etherws --device ethws0 client --uri wss://<Hypervisor1's IP address>/ --cacerts ssl.crt
+
+Here, URI scheme was just changed to *wss*, and CA certificate to verify
+server certificate was specified.
+
+By the way, client verifies server certificate by default.
+So, for example, client will die with error messages if your server uses
+self-signed certificate and client uses another CA certificate.
+
+If you want to just encrypt tunnels and do not need to verify
+certificate, then you can use following option::
+
+  # etherws --device ethws0 client --uri wss://<Hypervisor1's IP address>/ --insecure
+
+Note: see `<http://docs.python.org/library/ssl.html>`_
+for more information about certificates.
+
+Client Authentication
+=====================
+etherws supports HTTP Basic Authentication.
+It means you can use etherws as simple L2-VPN server/client.
+
+On server side, etherws requires user information in Apache htpasswd
+format (and currently supports SHA-1 digest only). To create this file::
+
+  # htpasswd -s -c filename username
+
+If you do not have htpasswd command, then you can use python one-liner::
+
+  # python -c 'import hashlib; print("username:{SHA}" + hashlib.sha1("password").digest().encode("base64"))'
+
+To run server with this::
+
+  # etherws --device ethws0 server --htpasswd filename
+
+You also can test by following command::
+
+  # telnet <address> 80
+  GET / HTTP/1.1
+
+It will return *401 Authorization Required*.
+
+On client side, etherws requires username from option, and password from
+option or stdin::
+
+  # etherws --device ethws0 client --uri ws://<address>/ --user username --passwd password
+  # etherws --device ethws0 client --uri ws://<address>/ --user username
+  Password: 
+
+If authentication did not succeed, then it will die with some error messages.
+
+Note that you should not use HTTP Basic Authentication without SSL/TLS
+support, because it is insecure in itself.
+
+Complex Examples
+================
+etherws has simple virtual Ethernet switch in itself and it can handle multiple
+TAP interfaces or WebSocket connections as virtual switch port::
+
+  (A)# etherws --device ethws0 --device ethws1 --device ethws2 server
+  (B)# etherws --device ethws0 server
+  (C)# etherws --device ethws0 --device ethws1 client --uri ws://x.x.x.x/
+  (D)# etherws --device ethws0 client --uri ws://x.x.x.x/ --uri ws://y.y.y.y/
+
+This will create following network::
+
+       (ethws0)  (ethws1)  (ethws2)             (ethws0)
+           |        |         |                    |
+     +-----+--------+---------+-----+     +--------+--------+
+     |           server (A)         |     |   server (B)    |
+     |        (ws://x.x.x.x/)       |     | (ws://y.y.y.y/) |
+     +-----+------------------+-----+     +-----+-----------+
+           |                  |                 |
+           |    (WebSocket)   |    +------------+
+           |                  |    |
+   +-------+------+   +-------+----+--+
+   |  client (C)  |   |   client (D)  |
+   +--+--------+--+   +-------+-------+
+      |        |              |
+  (ethws0)  (ethws1)      (ethws0)
+
+Also you can use TAP interface which is created by etherws as 802.1Q VLAN
+interface using vconfig command and so on.
+
+History
+=======
+0.7 (2012-06-29 JST)
+  - switching support
+  - multiple ports support
+
+0.6 (2012-06-16 JST)
+  - improve performance
+
+0.5 (2012-05-20 JST)
+  - added passwd option to client mode
+  - fixed bug: basic authentication password cannot contain colon
+  - fixed bug: client loops meaninglessly even if server stops
+
+0.4 (2012-05-19 JST)
+  - server certificate verification support
+
+0.3 (2012-05-17 JST)
+  - client authentication support
+
+0.2 (2012-05-16 JST)
+  - SSL/TLS connection support
+
+0.1 (2012-05-15 JST)
+  - First release
