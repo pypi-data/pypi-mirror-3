@@ -1,0 +1,626 @@
+#!/bin/sh
+
+script="`basename $0`"
+usage () {
+    echo "$script <vm_name> <os_type> <auto|auto64|iso_source_file> [properties_file] [vm_option=..., vm_option=...]"
+    echo ""
+    echo "Description:"
+    echo ""
+    echo "    Automate the creation of VirtualBox machine instances."
+    echo ""
+    echo "Examples:"
+    echo ""
+    echo "    $script testbox0 archlinux auto"
+    echo "    $script testbox0 archlinux archlinux-2011.08.19-core-i686.iso"
+    echo "    $script testbox0 archlinux iso/archlinux-2011.08.19-core-i686.iso conf/vm.properties"
+    echo "    $script testbox0 archlinux auto kickstart=no"
+    echo "    $script testbox0 archlinux auto kickstart_file=bootstrap.sh"
+    echo "    $script testbox0 archlinux auto postinstall=no"
+    echo "    $script testbox0 archlinux auto vm_basefolder=/srv/vbox"
+    echo ""
+    echo "Notes:"
+    echo ""
+    echo "  - Specifying 'auto' or 'auto64' for the iso source will download"
+    echo "    the latest generic 32/64-bit installation image for the OS"
+    echo ""
+    echo "  - A properties file can optionally be used to supply overrides to the"
+    echo "    default VM config options, it is sourced by $script and should be a"
+    echo "    valid shell script."
+    echo ""
+    echo "  - Properties can additionally be defined as command line"
+    echo "    arguments. If both a properties file and command line properties"
+    echo "    are given, then those specified on the command line will take"
+    echo "    precedence."
+    echo ""
+    echo "  - If 'kickstart=yes' (the default) and 'kickstart_file' is"
+    echo "    unspecified, then a generic kickstart file will be downloaded"
+    echo "    from this project's github repository and run on the new guest"
+    echo "    machine. Similarly for 'postinstall=yes' and 'postinstall_configure_files'."
+    echo ""
+    echo "  - 'postinstall_configure_files' should be a space delimited list"
+    echo "    of files which will be concatenated in the order given and run"
+    echo "    on the guest after the OS is installed.  'postinstall_configure_root'"
+    echo "    can optionally be defined as a prefix for the postinstall files."
+    echo ""
+    echo "  - The kickstart and postinstall files are made available to the"
+    echo "    guest machine by running a \"one shot\" web server on the host."
+    echo "    The default address for this web server to listen on is the inet"
+    echo "    IP address of the host, and the default port is 8585. This can be"
+    echo "    changed by specifying the 'kickstart_listen_on' parameter:"
+    echo ""
+    echo "        $script testbox0 ubuntu auto kickstart_listen_on=10.10.5.1:8080"
+    echo ""
+}
+
+vm="$1"
+vm_ostype="$2"
+vm_source_iso_file="$3"
+vm_properties_file="$4"
+vm_basefolder="${HOME:-.}/.vboxn"
+vm_force_delete_existing_machine="no"
+vm_base_memory="256"
+vm_video_memory="16"
+vm_disk_format="VDI"
+vm_disk_size_in_gigabytes="20"
+vm_disk_hostiocache="on"
+vm_vrde_port="3389"
+vm_vrde_address=""
+vm_ostype_label=`echo "$vm_ostype" | tr '[:upper:]' '[:lower:]' | sed "s/_64$/64/"`
+vm_hostonlyadapter_ip="192.168.44.1"
+vm_hostonlyadapter_mask="255.255.255.0"
+vm_ip_address="192.168.44.100"
+vm_pae=$(if [ -z "$(grep -i PAE /proc/cpuinfo)" ]; then echo "off"; else echo "on"; fi)
+vm_hwvirtex="on"
+vm_hdd_bus="sata"
+vm_ssh_user="$(whoami)"
+vm_ssh_key="${HOME:-.}/.ssh/id_rsa.pub"
+
+kickstart="yes"
+kickstart_file=""
+kickstart_listen_on=$(ifconfig eth0 | grep "inet addr" | awk '{print $2}' | sed "s/addr://")":8585"
+
+postinstall="yes"
+postinstall_environment_file=""
+postinstall_configure_root=""
+postintstall_configure_files=""
+
+ts=`date +%Y%m%d%H%M%S`
+
+if [ ! "$vm" ]; then
+    usage
+    exit 1
+fi
+
+if [ ! "$vm_ostype" ]; then
+    usage
+    exit 1
+fi
+
+if [ ! "$vm_source_iso_file" ]; then
+    usage
+    exit 1
+fi
+
+if [ "$vm_source_iso_file" = "auto" ]; then
+    if [ "$vm_ostype_label" = "archlinux" ]; then
+        vm_source_iso_file="http://ftp.heanet.ie/mirrors/ftp.archlinux.org/iso/2011.08.19/archlinux-2011.08.19-core-i686.iso"
+        kickstart_file="https://raw.github.com/devopsni/vboxn/master/share/archlinux/latest/aif-generic.cfg"
+        postinstall_configure_root="https://raw.github.com/devopsni/vboxn/master/share/archlinux/latest/postinstall"
+        postinstall_configure_files="base.sh vagrant.sh netcfg.sh"
+    elif [ "$vm_ostype_label" = "ubuntu" ]; then
+        if [ "$vm_pae" = "on" ]; then
+            vm_source_iso_file="http://www.ubuntu.com/start-download?distro=server&bits=32&release=12.04"
+        else
+            vm_source_iso_file="http://archive.ubuntu.com/ubuntu/dists/precise/main/installer-i386/current/images/netboot/non-pae/mini.iso"
+        fi
+        kickstart_file="https://raw.github.com/devopsni/vboxn/master/share/ubuntu/12.04/preseed.cfg"
+        postinstall_configure_root="https://raw.github.com/devopsni/vboxn/master/share/ubuntu/12.04/postinstall"
+        postinstall_configure_files="base.sh python2-libs.sh vagrant.sh etc.sh finally.sh"
+    fi
+fi
+
+if [ -n "$vm_properties_file" ]; then
+    # the properties file is an optional parameter so "$vm_properties_file",
+    # which is just the script's "$4", may actually be a vm_option=... param;
+    # we determine whether it's a vm_option by grepping for an "equals" sign
+    # preceded by one or more characters which are not question marks or
+    # forward slashes (which would indicate a filepath or url and hence a
+    # properties file).
+    if [ -z "`echo $vm_properties_file | sed -n '/^[^?\/]\+=.*/p'`" ]; then
+        if [ -n "`echo $vm_properties_file | grep '^http[s]\?\|^ftp://'`" ];then
+            # a url - download to a temp file
+            vm_temp_properties_file="/tmp/${script}.vm.properties.${ts}"
+            wget --no-check-certificate $vm_properties_file -O $vm_temp_properties_file
+            if [ $? -ne 0 ]; then
+                echo "Error: couldn't download file $vm_properties_file"
+                exit 1
+            fi
+            vm_properties_file="$vm_temp_properties_file"
+        elif [ ! -f $vm_properties_file ]; then
+            echo "properties file doesn't exist - $vm_properties_file"
+            exit 1
+        fi
+    else
+        # the fourth command line arg was a key=value, therefore no explicit
+        # properties file was given, therfore we are free to create one and
+        # don't need to worry about anything defined in this block being
+        # overridden later (in particular the vm_basefolder).
+        args="$@"
+        basefolder=`echo "$@" | sed 's/^.*vm_basefolder=\([^ ]\+\).*/\1/'`
+        if [ "$basefolder" != "$args" ]; then
+            if [ ! -d $basefolder ]; then
+                echo "vm_basefolder does not exist - $basefolder"
+                exit 1
+            else
+                # strip trailing slash
+                vm_basefolder="`echo $basefolder | sed 's/\/$//'`"
+            fi
+        fi
+        vm_root="${vm_basefolder}/${vm}"
+        if [ ! -d $vm_root ]; then
+            mkdir -p $vm_root
+            if [ $? -ne 0 ]; then
+                echo "ERROR: couldn't create folder $vm_root"
+                exit 1
+            fi
+        fi
+        vm_properties_file="${vm_root}/vboxn.properties"
+        if [ -e $vm_properties_file ]; then
+            rm $vm_properties_file
+        fi
+        touch $vm_properties_file
+        if [ $? -ne 0 ]; then
+            echo "ERROR: couldn't create file $vm_properties_file"
+            exit 1
+        fi
+    fi
+fi
+
+#------------------------------------------------------------------------------
+# Support for adding property values as command line args (requires Python)
+#
+# The somersaults here are to deal with spaces in the passed in values (and I
+# don't know how to handle this in Bash natively), though the spaces must still
+# be backslash-escaped, eg.
+#
+#    $ ${script} testbox0 archlinux auto postinstall=no vm_option="has\ spaces"
+#
+#------------------------------------------------------------------------------
+shift
+shift
+shift
+args="$@"
+
+command -v python >/dev/null 2>&1
+
+if [ $? -eq 0 ] && [ -n "$args" ]; then
+
+# have python and more than 3 args
+splitargs=$(cat <<EOF | python -
+import shlex
+for s in shlex.split('$args'):
+    key, delim, val = s.partition('=')
+    if delim:
+        key=key.strip()
+        val=val.strip()
+        s = '%s="%s"' % (key, val)
+        print('{{'+s+'}}')
+EOF
+)
+
+    if [ -n "$splitargs" ]; then
+        if [ -z "$vm_properties_file" ]; then
+            vm_properties_file="vm.properties"
+        fi
+        if [ ! -e $vm_properties_file ]; then
+            touch $vm_properties_file
+        fi
+        echo "" >> $vm_properties_file
+        echo $splitargs | sed "s/{{\([^}]*\)}}/\1\n/g" | sed "s/^\s*//g" >> $vm_properties_file
+        echo "" >> $vm_properties_file
+    fi
+fi
+#------------------------------------------------------------------------------
+
+# source the properties file
+if [ -n "$vm_properties_file" ]; then
+    . $vm_properties_file
+fi
+
+# download the iso if remote
+if [ -n "`echo $vm_source_iso_file | grep '^http[s]\?\|^ftp://'`" ];then
+    # a url - download if it hasn't already been downloaded
+    # downloads are tagged with a truncated md5 sum of the url
+    vm_source_iso_target="${vm_basefolder}/${vm_ostype_label}-install-image-`echo $vm_source_iso_file | md5sum | cut -b 1-16`.iso"
+    if [ ! -f "$vm_source_iso_target" ]; then
+        targetdir=$(dirname $vm_source_iso_target)
+        if [ ! -d $targetdir ]; then
+            mkdir -p $targetdir
+        fi
+        wget --no-check-certificate $vm_source_iso_file -O "$vm_source_iso_target"
+        if [ $? -ne 0 ]; then
+            echo "Error: couldn't download file $vm_source_iso_target"
+            exit 1
+        fi
+    fi
+    vm_source_iso_file="$vm_source_iso_target"
+fi
+
+if [ ! -f $vm_source_iso_file ]; then
+    echo "iso source file doesn't exist - $vm_iso_source_file"
+    exit 1
+fi
+
+
+canonical_os_name () {
+    # Support the passing in of lowercase OS names by canonicalising here.
+    # Also validates OS name is valid.
+    for os in `VBoxManage list ostypes | grep "ID:" | sed "s/ID:\s*//g"`;do
+        if [ "$vm_ostype" = "$os" ]; then
+            return
+        else
+            os_lower=`echo $os | tr '[:upper:]' '[:lower:]' | sed "s/_64$/64/"`
+            if [ "$vm_ostype" = "$os_lower" ]; then
+                vm_ostype="$os"
+                return
+            fi
+        fi
+    done
+    echo "ERROR: unrecognised OS type '$vm_ostype'"
+    exit 1
+}
+
+configure_hostonly_adapter () {
+    if [ -n "$vm_hostonlyadapter_ip" ]; then
+        i=0
+        for line in `VBoxManage list hostonlyifs | grep "^Name:\|^IPAddress:" | sed "s/Name:\s*\|IPAddress:\s*//"`; do
+            # returns name, ip, name, ip, ...
+            odd=$(($i % 2))
+            if [ $odd -eq 0 ]; then
+                # adapter name
+                name="$line"
+            else
+                # adapter ip
+                if [ ! $name ]; then
+                    break
+                fi
+                if [ "$line" = "$vm_hostonlyadapter_ip" ]; then
+                    # found an adapter with that IP
+                    echo "Using existing hostonly adapter - $name (${vm_hostonlyadapter_ip})"
+                    vm_hostonlyadapter="$name"
+                    return
+                fi
+            fi
+            i=$(($i + 1))
+        done
+        # no adapter with that IP, so create it. The adapter cannot be named
+        # explicitly, it will be vboxnet0, vboxnet1, ...
+        # Grab name from output of hostonlyif  - output will include eg. " ... 'vboxnet2' was created"
+        idx=`VBoxManage hostonlyif create | grep "vboxnet" | sed "s/.*vboxnet//" | sed "s/'.*//"`
+        if [ -n "$idx" ]; then
+            vm_hostonlyadapter="vboxnet$idx"
+            echo "Creating new hostonly adapter - $vm_hostonlyadapter (${vm_hostonlyadapter_ip})"
+            VBoxManage hostonlyif ipconfig $vm_hostonlyadapter --ip $vm_hostonlyadapter_ip --netmask $vm_hostonlyadapter_mask
+        fi
+    fi
+}
+
+canonical_os_name
+
+vm_disk_format=`echo $vm_disk_format | tr '[:lower:]' '[:upper:]'`
+vm_disk_format_lower=`echo $vm_disk_format | tr '[:upper:]' '[:lower:]'`
+vm_disk_filename="$vm_basefolder/$vm/disk0.$vm_disk_format_lower"
+vm_disk_size=`echo "2^10*$vm_disk_size_in_gigabytes" | bc`
+kickstart_listen_host=`echo $kickstart_listen_on | sed "s/^\(.*\):.*/\1/"`
+kickstart_listen_port=`echo $kickstart_listen_on | sed "s/^.*:\(.*\)/\1/"`
+if [ -z "$vm_root" ]; then
+    vm_root="${vm_basefolder}/${vm}"
+fi
+if [ ! -d $vm_root ]; then
+    mkdir -p $vm_root
+    if [ $? -ne 0 ]; then
+        echo "ERROR: couldn't create folder $vm_root"
+        exit 1
+    fi
+fi
+if [ -f "$vm_properties_file" ]; then
+    file_copy="/tmp/${script}.${vm}.properties.${ts}.copy"
+    file_final="$vm_root/vboxn.properties"
+    cp $vm_properties_file $file_copy
+    if [ -e "$file_final" ]; then
+        rm -f $file_final
+    fi
+    mv $file_copy $file_final
+fi
+if [ -e "$vm_temp_properties_file" ]; then
+    # it was given as a url and downloaded to a temp location
+    rm $vm_temp_properties_file
+fi
+
+
+###############################################################################
+#
+# Create a new VirtualBox machine
+#
+###############################################################################
+
+# Check for existing machine with that name
+VBoxManage list vms | grep "$vm" >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+    if [ "$vm_force_delete_existing_machine" = "yes" ]; then
+        echo -n "Deleting existing VM ${vm}..."
+        VBoxManage unregistervm $1 --delete
+        echo "Deletion complete."
+    else
+        echo "A machine with that name exists. Remove it with 'vboxn destroy $vm'"; exit 1
+    fi
+fi
+
+# Create VM
+VBoxManage createvm -name "$vm" --basefolder "$vm_basefolder" --ostype $vm_ostype -register
+
+# Check VM exists
+VBoxManage list vms | grep "$vm" >/dev/null 2>&1
+if [ $? -eq 1 ]; then
+    echo "ERROR: createvm failed (VBoxManage createvm -name \"$vm\" --basefolder \"$vm_basefolder\" --ostype $vm_ostype -register)"
+    exit 1
+fi
+
+set -e
+
+# base memory
+VBoxManage modifyvm "$vm" --memory $vm_base_memory --vram $vm_video_memory
+
+# set boot order
+VBoxManage modifyvm "$vm" --boot1 dvd --boot2 disk --boot3 none
+
+# set acpi
+VBoxManage modifyvm "$vm" --acpi on
+
+# set pae
+VBoxManage modifyvm "$vm" --pae $vm_pae
+
+# set hardware virtualization
+VBoxManage modifyvm "$vm" --hwvirtex $vm_hwvirtex
+
+# network interface - nat for the outside world
+VBoxManage modifyvm "$vm" --nic1 nat
+
+# network interface - hostonly for 'host -> guest' without port-forwarding
+vm_hostonlyadapter=""
+configure_hostonly_adapter 
+if [ -n "$vm_hostonlyadapter" ]; then
+    VBoxManage modifyvm "$vm" --nic2 hostonly
+    VBoxManage modifyvm "$vm" --hostonlyadapter2 $vm_hostonlyadapter
+fi
+
+# remote desktop settings
+VBoxManage modifyvm "$vm" --vrde on --vrdeport $vm_vrde_port
+if [ -n "$vm_vrde_address" ]; then
+    VBoxManage modifyvm "$vm" --vrdeaddress $vm_vrde_address
+fi
+
+# create and attach hard disk drive
+VBoxManage createhd --filename "$vm_disk_filename" --size $vm_disk_size --format $vm_disk_format
+if [ "$vm_hdd_bus" = "sata" ]; then
+    VBoxManage storagectl "$vm" --name "Disk Controller" --add sata --hostiocache $vm_disk_hostiocache --sataportcount 1
+elif [ "$vm_hdd_bus" = "ide" ]; then
+    VBoxManage storagectl "$vm" --name "Disk Controller" --add sata --hostiocache $vm_disk_hostiocache --sataideemulation1 1 --sataportcount 1
+else
+    VBoxManage storagectl "$vm" --name "Disk Controller" --add $vm_hdd_bus --hostiocache $vm_disk_hostiocache
+fi
+VBoxManage storageattach "$vm" --storagectl "Disk Controller" --port 0 --device 0 --type hdd --medium "$vm_disk_filename"
+
+# create and attach dvd drive
+VBoxManage storagectl "$vm" --name "DVD IDE Controller" --add ide
+VBoxManage storageattach "$vm" --storagectl "DVD IDE Controller" --type dvddrive --port 0 --device 0 --medium "$vm_source_iso_file"
+
+VBoxManage startvm "$vm"
+
+###############################################################################
+#
+# Remote-controlled OS install
+#
+###############################################################################
+
+kickstart_file_final="${vm_root}/vboxn.kickstart"
+kickstart_file_tmp="${kickstart_file_final}.tmp"
+postinstall_file_final="${vm_root}/vboxn.postinstall"
+
+if [ -e "$kickstart_file_final" ] && [ "$kickstart_file_final" != "${kickstart_file}" ]; then
+    rm -rf $kickstart_file_final
+fi
+if [ -e "$postinstall_file_final" ]; then
+    rm -rf $postinstall_file_final
+fi
+
+if [ "$kickstart" = "yes" ]; then
+    if [ -n "`echo $kickstart_file | grep '^http[s]\?\|^ftp://'`" ];then
+        # it's a url
+        wget --no-check-certificate $kickstart_file -O $kickstart_file_final
+        if [ $? -ne 0 ]; then
+            echo "Error: couldn't download file $kickstart_file"
+            exit 1
+        fi
+    else
+        # copy to local file
+        cp $kickstart_file $kickstart_file_final
+    fi
+    length=$(wc -c < $kickstart_file_final)
+    echo "HTTP/1.0 200 OK\r" > $kickstart_file_tmp
+    echo "Content-Type: text/plain\r" >> $kickstart_file_tmp
+    echo "Content-Length: $length\r" >> $kickstart_file_tmp
+    echo "\r" >> $kickstart_file_tmp
+    cat $kickstart_file_final >> $kickstart_file_tmp
+    mv $kickstart_file_tmp $kickstart_file_final
+fi
+
+if [ "$postinstall" = "yes" ] && [ -n "$postinstall_configure_files" ]; then
+    echo "" > $postinstall_file_final
+    if [ -n "$vm_ssh_user" ] && [ -f "$vm_ssh_key" ]; then
+        echo "VBOXN_SSH_USER=\"$vm_ssh_user\"" >> $postinstall_file_final
+        echo -n "VBOXN_SSH_KEY=\"" >> $postinstall_file_final
+        cat $vm_ssh_key >> $postinstall_file_final
+        echo -n "\"" >> $postinstall_file_final
+        echo "" >> $postinstall_file_final
+    fi
+    echo 'VBOX_VERSION="'$(VBoxManage -v | sed "s/r.*$//")'"' >> $postinstall_file_final
+    echo "" >> $postinstall_file_final
+    # write out environment variables to local postinstall file
+    if [ -n "$postinstall_environment_file" ]; then
+        if [ -n "`echo $postinstall_environment_file | grep '^http[s]\?\|^ftp://'`" ];then
+            # it's a url
+            wget --no-check-certificate -O - $postinstall_environment_file >> $postinstall_file_final
+            if [ $? -ne 0 ]; then
+                echo "Error: couldn't download file $postinstall_environment_file"
+                exit 1
+            fi
+        else
+            # copy to local file
+            cat $postinstall_environment_file >> $postinstall_file_final
+        fi
+    fi
+    if [ ! -f $postinstall_file_final ]; then
+        touch $postinstall_file_final
+    fi
+    # append any "all uppercase" variables from the local properties file
+    if [ -f "$vm_properties_file" ]; then
+        echo "" >> $postinstall_file_final
+        echo "`sed -n '/^[_A-Z]\+=.*$/p' $vm_properties_file`" >> $postinstall_file_final
+        echo "" >> $postinstall_file_final
+    fi
+    ip_defined=`sed -n "/^VBOXN_IP=.\+/p" $postinstall_file_final`
+    if [ -z "$ip_defined" ]; then
+        if [ -z "$vm_ip_address" ]; then
+            subnet=`echo $vm_hostonlyadapter_ip | sed "s/\(.*\.\).*/\1/"`
+            vm_ip_address="${subnet}.100"
+        fi
+        echo 'VBOXN_IP="'$vm_ip_address'"' >> $postinstall_file_final
+    fi
+    # append any postinstall configure files
+    divide="#----------------------------------------------------------------"
+    echo "" >> $postinstall_file_final
+    echo $divide >> $postinstall_file_final
+    for f in $postinstall_configure_files; do
+        if [ -n "$postinstall_configure_root" ]; then
+            # strip trailing slash and join
+            postinstall_configure_root="`echo $postinstall_configure_root | sed 's/\/$//'`"
+            f="$postinstall_configure_root/$f"
+        fi
+        if [ -n "`echo $f | grep '^http[s]\?\|^ftp://'`" ];then
+            wget --no-check-certificate $f -O - >> $postinstall_file_final
+            if [ $? -ne 0 ]; then
+                echo "Error: couldn't download file $f"
+                exit 1
+            fi
+        else
+            cat $f >> $postinstall_file_final
+        fi
+        echo $divide >> $postinstall_file_final
+    done
+fi
+
+if [ "$kickstart" = "yes" ] && [ -f "$kickstart_file_final" ]; then
+    # source scancodes constants and functions
+    . vboxn-scancodes
+    cat $kickstart_file_final | nc -l $kickstart_listen_host $kickstart_listen_port &
+    pause 20
+
+    case "$vm_ostype" in
+        ArchLinux*)
+
+        # <enter>  (Select first option - boot from disc)
+        echo "Beginning ArchLinux install."
+        enter
+        pause 40
+
+        # bring up network
+        echo "dhcpcd eth0"
+        putscancode $kd $kh $kc $kp $kc $kd && space && putscancode $ke $kt $kh $k0
+        enter
+        pause 30
+
+        # fetch kickstart script
+        echo "wget -t 1 http://${kickstart_listen_host}:${kickstart_listen_port} -O aif.cfg"
+        putscancode $kw $kg $ke $kt && space
+        putscancode $kminus $kt && space && putscancode $k1 && space
+        putscancode $kh $kt $kt $kp $kcolon $kforwardslash $kforwardslash
+        putchars "$kickstart_listen_host:$kickstart_listen_port" && space
+        putscancode $kminus $kO && space && putscancode $ka $ki $kf $kperiod $kc $kf $kg
+        enter
+        wait
+        pause 10
+
+        # run kickstart script
+        echo "aif -p automatic -c aif.cfg"
+        putscancode $ka $ki $kf && space && putscancode $kminus $kp && space
+        putscancode $ka $ku $kt $ko $km $ka $kt $ki $kc && space
+        putscancode $kminus $kc && space && putscancode $ka $ki $kf $kperiod $kc $kf $kg
+        enter
+
+        ;;
+        Ubuntu*)
+
+        echo "Beginning Ubuntu install."
+        esc
+        esc
+        enter
+        pause 20
+        putscancode $kforwardslash $ki $kn $ks $kt $ka $kl $kl
+        putscancode $kforwardslash $kv $km $kl $ki $kn $ku $kz && space
+        putscancode $kn $ko $ka $kp $ki $kc && space
+        putscancode $kp $kr $ke $ks $ke $ke $kd
+        putscancode $kforwardslash $ku $kr $kl $kequals
+        putscancode $kh $kt $kt $kp $kcolon $kforwardslash $kforwardslash
+        putchars "$kickstart_listen_host:$kickstart_listen_port"
+        putscancode $kforwardslash $kp $kr $ke $ks $ke $ke $kd
+        putscancode $kperiod $kc $kf $kg && space
+        putscancode $kd $ke $kb $ki $ka $kn $kminus $ki $kn $ks $kt $ka $kl $kl $ke $kr
+        putscancode $kequals $ke $kn $kunderscore $kU $kS && space
+        putscancode $ka $ku $kt $ko && space
+        putscancode $kl $ko $kc $ka $kl $ke $kequals $ke $kn $kunderscore $kU $kS && space
+        putscancode $kk $kb $kd $kminus $kc $kh $ko $ko $ks $ke $kr
+        putscancode $kforwardslash $km $ke $kt $kh $ko $kd $kequals
+        putscancode $ku $ks && space
+        putscancode $kh $ko $ks $kt $kn $ka $km $ke $kequals
+        putscancode $kv $kb $ko $kx $kn && space
+        putscancode $kf $kb $kequals $kf $ka $kl $ks $ke && space
+        putscancode $kd $ke $kb $kc $ko $kn $kf $kforwardslash
+        putscancode $kf $kr $ko $kn $kt $ke $kn $kd $kequals
+        putscancode $kn $ko $kn $ki $kn $kt $ke $kr $ka $kc $kt $ki $kv $ke && space
+        putscancode $kk $ke $ky $kb $ko $ka $kr $kd $kminus
+        putscancode $kc $ko $kn $kf $ki $kg $ku $kr $ka $kt $ki $ko $kn $kforwardslash
+        putscancode $kl $ka $ky $ko $ku $kt $kequals $kU $kS $kA && space
+        putscancode $kk $ke $ky $kb $ko $ka $kr $kd $kminus
+        putscancode $kc $ko $kn $kf $ki $kg $ku $kr $ka $kt $ki $ko $kn $kforwardslash
+        putscancode $kv $ka $kr $ki $ka $kn $kt $kequals $kU $kS $kA && space
+        putscancode $kn $ke $kt $kc $kf $kg $kforwardslash
+        putscancode $kc $kh $ko $ko $ks $ke $kunderscore
+        putscancode $ki $kn $kt $ke $kr $kf $ka $kc $ke
+        putscancode $kequals $ke $kt $kh $k0 && space
+        putscancode $kc $ko $kn $ks $ko $kl $ke $kminus $ks $ke $kt $ku $kp $kforwardslash
+        putscancode $ka $ks $kk $kunderscore $kd $ke $kt $ke $kc $kt $kequals
+        putscancode $kf $ka $kl $ks $ke && space
+        putscancode $ki $kn $ki $kt $kr $kd $kequals
+        putscancode $kforwardslash $ki $kn $ks $kt $ka $kl $kl $kforwardslash
+        putscancode $ki $kn $ki $kt $kr $kd $kperiod $kg $kz && space
+        putscancode $kminus $kminus
+        enter
+        wait
+        pause 10
+
+        ;;
+    esac
+
+    echo "The guest OS is now being installed. Be patient and don't type in"
+    echo "the GUI window until you're sure the installation has finished."
+    echo ""
+    echo "Once complete, make sure to power off the virtual machine before"
+    echo "running the postinstall script:"
+    echo ""
+    echo "    $ vboxn-postinstall $vm"
+    echo ""
+
+fi
+
+
