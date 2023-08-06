@@ -1,0 +1,172 @@
+Metadata-Version: 1.1
+Name: rfc3987
+Version: 1.3.0
+Summary: 
+Parsing and validation of URIs (RFC 3896) and IRIs (RFC 3987)
+Home-page: http://pypi.python.org/pypi/rfc3987
+Author: Daniel Gerber
+Author-email: daniel.g.gerber@gmail.com
+License: UNKNOWN
+Download-URL: https://github.com/dgerber/rfc3987
+Description: This module provides regular expressions according to `RFC 3986 "Uniform 
+        Resource Identifier (URI): Generic Syntax"
+        <http://tools.ietf.org/html/rfc3986>`_ and `RFC 3987 "Internationalized
+        Resource Identifiers (IRIs)" <http://tools.ietf.org/html/rfc3987>`_, and
+        utilities for composition and relative resolution of references.
+        
+        
+        API
+        ---
+        
+        `patterns`
+            A dict of regular expressions (patterns) keyed by `rule names for URIs`_
+            and `rule names for IRIs`_.
+            
+            Patterns are `str` instances (be it in python 2.x or 3.x) containing ASCII
+            characters only. They can be compiled with regex_, without need for 
+            any particular compilation flag::
+            
+                >>> import regex
+                >>> uri = regex.compile('^%s$' % patterns['URI'])
+                >>> m = uri.match('http://tools.ietf.org/html/rfc3986#appendix-A')
+                >>> d = m.groupdict()
+                >>> assert all([ d['scheme'] == 'http',
+                ...              d['authority'] == 'tools.ietf.org',
+                ...              d['path'] == '/html/rfc3986',
+                ...              d['query'] == None,
+                ...              d['fragment'] == 'appendix-A' ])
+                >>> from unicodedata import lookup
+                >>> smp = 'urn:' + lookup('OLD ITALIC LETTER A')  # U+00010300
+                >>> assert not uri.match(smp)
+                >>> assert regex.match('^%s$' % patterns['IRI'], smp)
+                >>> assert not regex.match('^%s$' % patterns['relative_ref'], '#f#g')
+        
+                
+            Alternatively, the standard library re_ module can be used *provided that*:
+        
+              - ``\u`` and ``\U`` escapes are preprocessed (see `issue3665
+                <http://bugs.python.org/issue3665>`_)::
+                
+                  >>> import re, sys, ast
+                  >>> re.compile(patterns['ucschar']) #doctest:+IGNORE_EXCEPTION_DETAIL
+                  Traceback (most recent call last):
+                    ...
+                    File "/usr/lib/python2.6/re.py", line 245, in _compile
+                      raise error, v # invalid expression
+                  error: bad character range
+                  >>> tpl = 'u"%s"' if sys.version_info[0] < 3 else '"%s"'
+                  >>> utext_pattern = ast.literal_eval(tpl % patterns['ucschar'])
+                  >>> assert re.compile(utext_pattern)
+        
+              - named capture groups do not occur on multiple branches of an
+                alternation::
+        
+                  >>> re.compile(patterns['path']) #doctest:+IGNORE_EXCEPTION_DETAIL
+                  Traceback (most recent call last):
+                    ...
+                    File "/usr/lib/python2.6/re.py", line 245, in _compile
+                      raise error, v # invalid expression
+                  error: redefinition of group name 'path' as group 2; was group 1
+                  >>> pat = format_patterns(path='outermost_group_name')['path']
+                  >>> assert re.compile(pat)
+        
+                
+        `format_patterns`
+            Returns a dict of regular expressions keyed by rule name.
+        
+            By default, the formatted patterns contain no named capture groups.
+            To wrap the pattern of a rule in a named group, pass a keyword 
+            argument of the form rule_name='group_name'.
+            For a useful set of group names, see also `patterns`.
+            
+                
+        `compose`
+            Returns an URI composed_ from named parts.
+        
+            .. _composed: http://tools.ietf.org/html/rfc3986#section-5.3
+            
+        
+        `resolve`
+            Resolves_ an `URI reference` relative to a `base` URI.
+            
+            `Test cases <http://tools.ietf.org/html/rfc3986#section-5.4>`_::
+            
+                >>> base = "http://a/b/c/d;p?q"
+                >>> for relative, resolved in {
+                ...     "g:h"           :  "g:h",
+                ...     "g"             :  "http://a/b/c/g",
+                ...     "./g"           :  "http://a/b/c/g",
+                ...     "g/"            :  "http://a/b/c/g/",
+                ...     "/g"            :  "http://a/g",
+                ...     "//g"           :  "http://g",
+                ...     "?y"            :  "http://a/b/c/d;p?y",
+                ...     "g?y"           :  "http://a/b/c/g?y",
+                ...     "#s"            :  "http://a/b/c/d;p?q#s",
+                ...     "g#s"           :  "http://a/b/c/g#s",
+                ...     "g?y#s"         :  "http://a/b/c/g?y#s",
+                ...     ";x"            :  "http://a/b/c/;x",
+                ...     "g;x"           :  "http://a/b/c/g;x",
+                ...     "g;x?y#s"       :  "http://a/b/c/g;x?y#s",
+                ...     ""              :  "http://a/b/c/d;p?q",
+                ...     "."             :  "http://a/b/c/",
+                ...     "./"            :  "http://a/b/c/",
+                ...     ".."            :  "http://a/b/",
+                ...     "../"           :  "http://a/b/",
+                ...     "../g"          :  "http://a/b/g",
+                ...     "../.."         :  "http://a/",
+                ...     "../../"        :  "http://a/",
+                ...     "../../g"       :  "http://a/g",
+                ...     "../../../g"    :  "http://a/g",
+                ...     "../../../../g" :  "http://a/g",
+                ...     "/./g"          :  "http://a/g",
+                ...     "/../g"         :  "http://a/g",
+                ...     "g."            :  "http://a/b/c/g.",
+                ...     ".g"            :  "http://a/b/c/.g",
+                ...     "g.."           :  "http://a/b/c/g..",
+                ...     "..g"           :  "http://a/b/c/..g",
+                ...     "./../g"        :  "http://a/b/g",
+                ...     "./g/."         :  "http://a/b/c/g/",
+                ...     "g/./h"         :  "http://a/b/c/g/h",
+                ...     "g/../h"        :  "http://a/b/c/h",
+                ...     "g;x=1/./y"     :  "http://a/b/c/g;x=1/y",
+                ...     "g;x=1/../y"    :  "http://a/b/c/y",
+                ...     }.items():
+                ...     assert resolve(base, relative) == resolved
+        
+            
+            If `return_parts` is True, returns a dict of named parts instead of
+            a string.
+                
+            .. _Resolves: http://tools.ietf.org/html/rfc3986#section-5.2
+        
+            
+        
+        
+        What's new
+        ----------
+        
+        version 1.3.0:
+        
+        - python 3.x compatibility
+        - format_patterns 
+        
+        version 1.2.1:
+        
+        - compose, resolve
+        
+              
+        .. _re: http://docs.python.org/library/re
+        .. _regex: http://pypi.python.org/pypi/regex
+        .. _rule names for URIs: http://tools.ietf.org/html/rfc3986#appendix-A
+        .. _rule names for IRIs: http://tools.ietf.org/html/rfc3987#section-2.2
+        
+        
+Keywords: URI IRI URL rfc3986 rfc3987 validation
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License (GPL)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet
+Requires: regex
