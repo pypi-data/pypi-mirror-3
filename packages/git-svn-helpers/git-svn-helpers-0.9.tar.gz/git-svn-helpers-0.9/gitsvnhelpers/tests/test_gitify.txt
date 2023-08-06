@@ -1,0 +1,186 @@
+NOTE: to run this test requires both `svn` and `git` to be on `$PATH`.
+
+Basic Argument handling
+=======================
+
+An unknown command raises a SystemExit:
+
+  >>> import os
+  >>> from gitsvnhelpers.gitify import gitify
+  >>> gitify(args=['xxx', '-v'])
+  Traceback (most recent call last):
+  ...
+  SystemExit: 1
+
+A known command doesn't:
+
+  >>> gitify(args=['help'])
+  usage: gitify <command> [options] [args]
+  ...
+
+Initial execution
+=================
+
+Running gitify on a directory that does not contain a .svn repository raises an error:
+
+  >>> os.chdir(self.tempdir)
+  >>> gitify(args=['init'])
+  Traceback (most recent call last):
+  ... 
+  SystemExit: 1
+
+However, using gitify on a fresh svn checkout which hasn't been cloned before will
+initiate cloning of that repository:
+
+  >>> self.checkout('trunk')
+  >>> gitify(args=['init'])
+  No git repository found in...
+  Initiating cloning into cache.
+  Analyzing svn log...
+  Cloning file:///...
+  Initialized empty Git repository in ...
+  ...
+  Git branch 'local/trunk' is now following svn branch 'trunk':
+  # On branch local/trunk
+  nothing to commit (working directory clean)
+
+Subsequent execution
+====================
+
+Checking out the trunk to another location and then gitifying that will re-use
+the cloned repository:
+
+  >>> trunk_checkout = self.checkoutdir
+  >>> self.checkout('trunk', target="foo")
+  >>> gitify(args=['init'])
+  Updating existing cache:
+  fetching .../.gitcache/testpackage
+  Done. 1 packages updated.
+  Git branch 'local/trunk' is now following svn branch 'trunk':
+  # On branch local/trunk
+  nothing to commit (working directory clean)
+
+Switching branches between checkouts
+====================================
+
+Gitify refuses to work on tags (because working on tags is evil!):
+
+  >>> self.checkout('tags/0.1', target="atag")
+  >>> gitify(args=['init'])
+  Traceback (most recent call last):
+  ...
+  SystemExit: 1
+
+But it will work on branches:
+
+  >>> self.checkout('branches/feature-bar', target="bar")
+  >>> gitify(args=['init'])
+  Updating existing cache:
+  fetching .../.gitcache/testpackage
+  Done. 1 packages updated.
+  Git branch 'local/feature-bar' is now following svn branch 'feature-bar':
+  # On branch local/feature-bar
+  nothing to commit (working directory clean)
+
+Let's remember where we checked out this branch, so we can revisit it later:
+
+  >>> branch_checkout = self.checkoutdir
+
+Having gitified the branch checkout, if we now re-visit the trunk checkout,
+we will find that the git index still matches the filesystem, as each is an
+independant copy:
+
+  >>> os.chdir(trunk_checkout)
+  >>> do('git status')
+  # On branch local/trunk
+  nothing to commit (working directory clean)
+
+Committing changes
+==================
+
+Let's change a file:
+
+  >>> do('echo "Updated trunk" >> README.txt')
+
+As expected, git will report the modification:
+
+  >>> do('git status')
+  # On branch local/trunk
+  # Change...:
+  #   (use "git add <file>..." to update what will be committed)
+  #   (use "git checkout -- <file>..." to discard changes in working directory)
+  #
+  # modified:   README.txt
+  #
+  no changes added to commit (use "git add" and/or "git commit -a")
+
+and subversion, too:
+
+  >>> do('svn status')
+  M      README.txt
+
+Let's commit the change to git... afterall, that's what the whole point of this
+tool is :)
+
+  >>> do('git add README.txt')
+  >>> do('git commit -a -m "Updated README" ')
+  [local/trunk...] Updated README
+   1 files changed, 1 insertions(+), 0 deletions(-)
+
+For svn, the file still appears modified:
+
+  >>> do('svn status')
+  M      README.txt
+
+Let's make another git commit before pushing our changes to svn:
+
+  >>> do('echo "# TODO: implement fooberizing" >> foo.py')
+  >>> do('git commit -a -m "Added TODO" ')
+  [local/trunk...] Added TODO
+   1 files changed, 1 insertions(+), 0 deletions(-)
+
+Now we can push our commits to svn using the ``gitify push`` command:
+
+  >>> gitify(args=['push'])
+  Committing to file:///...testpackage/trunk ...
+  	M	README.txt
+  Committed r7
+  	M	README.txt
+  r7 = ... (refs/remotes/trunk)
+  No changes between current HEAD and refs/remotes/trunk
+  Resetting to the latest refs/remotes/trunk
+  Unstaged changes after reset:
+  M	foo.py
+  	M	foo.py
+  Committed r8
+  	M	foo.py
+  r8 = ... (refs/remotes/trunk)
+  No changes between current HEAD and refs/remotes/trunk
+  Resetting to the latest refs/remotes/trunk
+  Updating '.':
+  G    foo.py
+  G    README.txt
+  Updated to revision 8.
+  Pushed local changes to svn.
+
+Now git and svn are 'in sync' IOW they both agree that there are no uncommitted
+local changes:
+
+  >>> do('svn status')
+  >>> do('git status')
+  # On branch local/trunk
+  nothing to commit (working directory clean)
+
+Not only that, but svn's log now also contains our two commits:
+
+  >>> do('svn log --limit=2')
+  ------------------------------------------------------------------------
+  r8 | ... | 1 line
+  <BLANKLINE>
+  Added TODO
+  ------------------------------------------------------------------------
+  r7 | ... | 1 line
+  <BLANKLINE>
+  Updated README
+  ------------------------------------------------------------------------
+
