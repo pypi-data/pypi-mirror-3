@@ -1,0 +1,69 @@
+<!--
+Dorrie - Web interface for building Fedora Spins/Remixes. 
+Copyright (C) 2009 Red Hat Inc.
+Author: Shreyank Gupta <sgupta@redhat.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+-->
+{% extends "base.html" %}
+
+{% block content %}
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $("#packages").hide();
+    $("#download-link").hide();
+    $("#progress-bar").progressbar( { value: 0 } );
+});
+
+function build(id) {
+    $.post("/process/", { spin_id: id });
+    $('#packages').slideDown("normal");
+    setInterval(show_log, 2000); 
+}
+
+var show_log = function() {
+    $.post("/tail/", { spin_id: {{ spin.id }} }, 
+      function(data) {
+        $("#progress-bar").progressbar( "option", "value", data['percent'] ); 
+        $("#progress-string").html(data['string']);
+        if (data['link']) {
+            $("#download-link").html(data['link']);
+            $("#download-link").slideDown("normal")
+        }
+      }, "json"
+    );
+}
+
+</script>
+
+<h1>Image : {{ spin.name }}</h1>
+
+    <div id="group-list">
+    <h3 style="padding:10px; background-color:lightBlue"><a href="{{ ks }}">Download Kickstart</a></h3>
+    <pre>        <a class="helptip" title="A kickstart file defines how the distrobution image is built. It can be given to creation tools to make your own disk image.">What is a kickstart file?</a></pre>
+
+    <h3 style="padding:10px; background-color:lightBlue"><a href="javascript:build({{ spin.id }})">Build Spin</a></h3>
+    <h3 id="download-link" style="padding:10px; background-color:lightBlue"></h3>
+<pre>        <a class="helptip" title="Building the spin will take all the options given up to this point, and create your own disk image in the form of an ISO. This can be burned to a dvd, put on a flash drive, or used to create a VM.">What does this do?</a></pre>
+    </div>
+
+    <div id="packages">
+    <h3>Building spin {{ spin.name }}...</h3> This could take a while. Get a sandwich or something.
+    <div id="progress-bar"></div>
+    <div id="progress-string"></div>
+    </div>
+
+{% endblock %}
