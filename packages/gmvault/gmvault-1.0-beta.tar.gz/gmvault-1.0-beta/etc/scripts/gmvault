@@ -1,0 +1,60 @@
+#!/bin/sh
+#set -x
+
+# force a friendly umask
+umask 002
+
+# Runs on Linux
+#################################
+## GMVAULT Distribution home directory
+#################################
+GMVAULT_HOME=..
+
+#################################
+## if GMVAULT_HOME is relative,
+## build the absolute path
+#################################
+D=`dirname "$GMVAULT_HOME"`
+B=`basename "$GMVAULT_HOME"`
+GMVAULT_HOME="`cd \"$D\" 2>/dev/null && pwd || echo \"$D\"`/$B"
+
+#################################
+## setup PYTHON_BIN
+#################################
+#look as if it was the packaged binary distribution
+if [ -f "$GMVAULT_HOME/lib/python-lib/bin/python" ]; then
+   PYTHON_BIN=$GMVAULT_HOME/lib/python-lib/bin/python
+   export PYTHONPATH=$GMVAULT_HOME/lib:$PYTHONPATH
+
+elif [ -f "$GMVAULT_HOME/bin/python" ]; then
+   #installed from src distribution (python bin is in the same dir as gmvault script)
+   PYTHON_BIN=$GMVAULT_HOME/bin/python
+else
+   echo "Cannot find the python executable to set env var PYTHON_BIN."
+   echo "Please check where your python binary is."
+   exit 1
+fi
+
+###################################
+## create bootstrap and launch program
+## the bootstrap is always under
+## /tmp/rnpicker.bootstrap
+###################################
+
+
+# keep args in variables
+ARGS="$@"
+
+cat > /tmp/gmvault.bootstrap.$$ << EOF
+import gmv.gmv_cmd as runner
+runner.bootstrap_run()
+EOF
+
+#call gmvault bootstrap
+$PYTHON_BIN /tmp/gmvault.bootstrap.$$ $ARGS
+res="$?"
+
+rm -f /tmp/gmvault.bootstrap.$$
+
+exit $res
+
