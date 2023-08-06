@@ -1,0 +1,109 @@
+{% extends 'enre/qx/qooxdoo.html' %}
+{% load run_application from qooxdoo %}
+{% load i18n %}
+
+{% block head %}
+    {{ block.super }}
+    {% block theme_src %}{% endblock %}
+    <script type="text/javascript">
+        {% block theme %}{% endblock %}
+        qx.Class.define('enre.erp.core.Login', {
+
+            extend:qx.application.Inline,
+            include:[qx.locale.MTranslation],
+
+            members:{
+                __window:null,
+
+                main:function () {
+                    this.base(arguments);
+                    var iconPath = enre.utils.Theme.getIconUrl();
+                    var win = new qx.ui.window.Window(this.tr('Login'), iconPath + '/16/status/dialog-password.png').set({
+                        showMaximize:false,
+                        showMinimize:false,
+                        showClose:false,
+                        resizable:false
+                    });
+                    win.addListener('appear', win.center);
+                    win.addListener('changeActive', function (e) {
+                        if (e.getData()) {
+                            userName.focus();
+                        }
+                    }, this);
+                    win.setLayout(new qx.ui.layout.Dock());
+                    var img = new qx.ui.basic.Image(iconPath + '/64/status/dialog-password.png').set({
+                        margin:[8, 10, 0, 0]
+                    });
+                    win.add(img, {edge:'west'});
+
+                    var form = new qx.ui.form.Form();
+                    var userName = new qx.ui.form.TextField().set({width:150, required:true});
+                    form.add(userName, this.tr('User Id'));
+                    var password = new qx.ui.form.PasswordField().set({required:true});
+                    form.add(password, this.tr('Password'));
+
+                    {% get_current_language as LANGUAGE_CODE %}
+                    {% get_available_languages as LANGUAGES %}
+                    var data = [
+                        {% for lang_code, lang_name in LANGUAGES %}
+                            { label:'{{ lang_name }}', data:'{{ lang_code }}'},
+                        {% endfor %}
+                    ];
+                    var model = qx.data.marshal.Json.createModel(data);
+                    var langSelect = new qx.ui.form.SelectBox();
+                    var controller = new qx.data.controller.List(null, langSelect);
+                    controller.setDelegate({bindItem:function (controller, item, index) {
+                        controller.bindProperty("label", "label", null, item, index);
+                        controller.bindProperty("data", "model", null, item, index);
+                    }});
+                    controller.setModel(model);
+                    var items = langSelect.getChildren();
+                    for (var i = 0; i < items.length; i++) {
+                        if (items[i].getModel() == '{{ LANGUAGE_CODE }}') {
+                            langSelect.setSelection([items[i]]);
+                            break;
+                        }
+                    }
+                    langSelect.addListener('changeSelection', function (e) {
+                        var lang = langSelect.getSelection()[0].getModel();
+                        var rpc = new enre.remote.Rpc('enre.qx.services.LanguageService');
+                        try {
+                            rpc.callSync('set_language', lang);
+                            location.reload();
+                        } catch (ex) {
+                            enre.ui.dialog.Dialog.error(ex.toString()).show();
+                        }
+                    }, this);
+                    form.add(langSelect, this.tr('Language'));
+                    var btn = new qx.ui.form.Button(this.tr('Login'), iconPath + '/16/actions/dialog-ok.png');
+                    btn.addListener("execute", function () {
+                        if (!form.validate()) {
+                            return;
+                        }
+                        var rpc = new enre.remote.Rpc('enre.qx.services.AuthService');
+                        try {
+                            var result = rpc.callSync("login", userName.getValue(), password.getValue());
+                            document.location.href = '{{ next }}';
+                        } catch (ex) {
+                            var msg = ex.toString();
+                            msg = msg.substring(msg.lastIndexOf(': ') + 2);
+                            enre.ui.dialog.Dialog.error(msg, 'ok').show();
+                        }
+
+                    }, this);
+                    form.addButton(btn);
+                    win.add(new enre.ui.form.SingleRenderer(form), {edge:'center'});
+                    win.addListener('keypress', function (e) {
+                        if (e.getKeyIdentifier() == 'Enter') {
+                            btn.fireEvent('execute');
+                        }
+                    }, this);
+                    win.show();
+                }
+            }
+        });
+        {% block application %}
+            {% run_application 'enre.erp.core.Login' %}
+        {% endblock %}
+    </script>
+{% endblock %}
