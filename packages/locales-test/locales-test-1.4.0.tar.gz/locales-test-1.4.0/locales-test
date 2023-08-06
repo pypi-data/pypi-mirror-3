@@ -1,0 +1,249 @@
+#!/usr/bin/python
+
+# wt-classes, utility classes used by Wt applications
+# Copyright (C) 2011 Boris Nagaev
+#
+# See the LICENSE file for terms of use.
+
+import codecs
+import os.path
+from xml.etree.ElementTree import parse
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+import fnmatch
+import os
+import sys
+import re
+import argparse
+import glob
+from functools import partial
+try:
+    from functools import reduce
+except ImportError:
+    pass
+
+ampersand = '-locales_test_ampersand'
+cleaner = re.compile(r'{.+}|<.+>|%s.{1,8};' % ampersand)
+
+error_code = 0
+
+def error(stream, message, type='error', file=None, line=None, id=None,
+        warnings=True):
+    if type == 'warning' and not warnings:
+        return
+    if type == 'error':
+        globals()['error_code'] = 10
+    if id:
+        if file:
+            stream.write(file + ': ')
+        stream.write('In message "%s":\n' % id)
+    if file:
+        stream.write(file + ':')
+        if line:
+            stream.write(str(line + 1) + ':')
+        stream.write(' ')
+    stream.write(type + ': ' + message + "\n")
+
+def get_wt_ids(wt_files, e):
+    wt_ids = set()
+    for wt_xml in wt_files:
+        try:
+            wt_messages = parse(wt_xml).getroot()
+            if wt_messages.tag != 'messages':
+                e('incorrect Wt XML file', file=wt_xml.name)
+            for message in wt_messages:
+                wt_ids.add(message.get('id'))
+        except:
+            e('incorrect Wt XML file', file=wt_xml.name)
+    return wt_ids
+
+def get_messages(filename, e):
+    xml_file = codecs.open(filename, 'r', 'utf-8')
+    if xml_file.read().count('\t'):
+        e('no tabs are allowed', file=filename)
+    xml_file.seek(0)
+    for line_index, line in enumerate(xml_file):
+        if len(line) > 120:
+            e('the line is too long', file=filename, line=line_index)
+    contents = open(filename).read().replace('&', ampersand).replace('if:', '')
+    xml_file = StringIO(contents)
+    messages = parse(xml_file).getroot()
+    return messages
+
+def full(message):
+    result = []
+    def traverse(elem):
+        if elem.text:
+            result.append(elem.text)
+        for child in elem:
+            traverse(child)
+        if elem is not message and elem.tail:
+            result.append(elem.tail)
+    traverse(message)
+    return ''.join(result)
+
+def analyze_message(message, prev_message, ids, wt_ids, prefix, sections, e,
+        filename='', tr='', used_ids=None):
+    Id = message.get('id')
+    text = full(message)
+    if message.tag != 'message':
+        e('wrong tag "%s"' % message.tag, file=filename, id=Id)
+    if text and '\n' not in text and (text[0] == ' ' or text[-1] == ' '):
+        e('message should not start or end with space')
+    if Id in ids:
+        e('duplicate message')
+    ids.add(Id)
+    if not Id.startswith('Wt.') and not Id.startswith(prefix):
+        e('message id should start with Wt. or %s' % prefix)
+    if Id.startswith('Wt.'):
+        if Id not in wt_ids:
+            if wt_ids:
+                e('unknown Wt message (old wt.xml?)')
+            else:
+                e('unknown Wt message (provide --wt option)')
+    else:
+        try:
+            prefix_copy, section, id = Id.split('.')
+        except:
+            e("can't match to %s.section.id" % prefix)
+        message.section = section
+        if section not in sections:
+            e('unknown section "%s"' % section)
+        if '-' in id:
+            e('id should not contain "-"')
+        if text and id[0].islower() != text[0].islower() and \
+                text[0].isalpha():
+            e('id should start with letter of same case as message')
+        if '${' in text and not id.endswith('_template'):
+            e('id of template message should end with "_template"')
+        if hasattr(prev_message, 'section'):
+            if prev_message.section != section and \
+                    '\n\n' not in prev_message.tail:
+                e('separate sections %s and %s with empty line' %
+                        (prev_message.section, section))
+            elif prev_message.section == section:
+                if '\n\n' in prev_message.tail:
+                    e('do not separate section %s' % section)
+                if '\n' in full(prev_message) and '\n' not in full(message):
+                    e('non-multiline message after multiline messages')
+                if '\n' in full(prev_message) and '\n' in full(message) \
+                    and prev_message.get('id') > Id and not 'board' in Id:
+                    e('multiline messages %s and %s are unordered' %
+                            (prev_message.get('id'), Id))
+    if tr:
+        for used_id in re.findall(r'\$\{%s:([\w.]+)\}' % tr, text):
+            used_ids[used_id] = used_ids.get(used_id, []) + [filename]
+
+def analyze_messages(messages, ids, id2text, wt_ids, prefix, sections, e,
+        filename='', tr='', used_ids=None):
+    prev_message = None
+    for message in messages:
+        Id = message.get('id')
+        text = full(message)
+        id2text[Id] = text
+        analyze_message(message, prev_message, ids, wt_ids, prefix,
+                sections, partial(e, id=Id), filename=filename,
+                tr=tr, used_ids=used_ids)
+        prev_message = message
+    short_messages = [m.get('id').lower() for m in messages
+        if full(m) and '\n' not in full(m) and
+            m.get('id').startswith(prefix)]
+    for m1, m2 in zip(short_messages, sorted(short_messages)):
+        if m1 != m2:
+            e('messages are unsorted, started from %s != %s' % (m1, m2))
+            break
+
+def get_file_names(masks, default_dir, default_mask):
+    if masks:
+        return reduce(lambda a,b:a+b, map(glob.glob, masks))
+    else:
+        return reduce(lambda a,b:a+b,
+            [[os.path.join(root, filename) for filename in
+                fnmatch.filter(filenames, default_mask)]
+            for root, dirnames, filenames in os.walk(default_dir)])
+
+def locales_test(prefix, sections, wt=None, sources=None, locales=None,
+        warnings=True, tr=''):
+    def e(*args, **kwargs):
+        kwargs['warnings'] = warnings
+        error(sys.stderr, *args, **kwargs)
+
+    wt_ids = get_wt_ids(wt or [], e)
+
+    filename2ids = {}
+    id2text = {}
+    used_ids = dict()
+
+    for filename in get_file_names(locales, 'locales', '*.xml'):
+        ids = filename2ids[filename] = set()
+        messages = get_messages(filename, e)
+        analyze_messages(messages, ids, id2text, wt_ids, prefix, sections,
+                partial(e, file=filename), filename=filename,
+                tr=tr, used_ids=used_ids)
+
+    all_ids = reduce(lambda a,b:a|b, filename2ids.values(), set())
+
+    groups = {}
+    for filename in filename2ids:
+        group = re.sub(r'(_\w\w)?\.xml', '', filename)
+        if group not in groups:
+            groups[group] = set()
+        groups[group].add(filename)
+
+    for group, filenames in groups.items():
+        group_ids = set()
+        for filename in filenames:
+            group_ids |= filename2ids[filename]
+        for filename in filenames:
+            for Id in group_ids - filename2ids[filename]:
+                if Id.startswith("Wt."):
+                    continue
+                if not any(c.isalpha() for c
+                        in re.sub(cleaner, "", id2text[Id])):
+                    continue
+                e('the id not found in some .xml files', type='warning',
+                        file=filename, id=Id)
+
+    l9n_re = re.compile(r'"(%s\.[^"]+)"' % re.escape(prefix))
+
+    for path in get_file_names(sources, 'src', '*.?pp'):
+        for match in re.findall(l9n_re, open(path).read()):
+            used_ids[match] = used_ids.get(match, []) + [path]
+    for match in used_ids:
+        if match not in all_ids:
+            for path in used_ids[match]:
+                e("can't find message for the id", file=path, id=match)
+
+    for Id in all_ids - set(used_ids):
+        if not Id.startswith('Wt.'):
+            e('the id defined but not used', type='warning', id=Id)
+
+def main():
+    p = argparse.ArgumentParser(description='Wt l9n checker version 1.4.0')
+    p.add_argument('-v','--version', action='version', version='1.4.0')
+    p.add_argument('--wt', help='path to wt.xml', metavar='FILE', nargs='*',
+            type=argparse.FileType('r'))
+    p.add_argument('--prefix', help='Current project prefix', metavar='STR',
+            required=True)
+    p.add_argument('--sections', help='The list of allowed sections', nargs='+',
+            required=True)
+    p.add_argument('--sources', help='C++ sources', metavar='FILE', nargs='*')
+    p.add_argument('--locales', help='Locale files', metavar='FILE', nargs='*')
+    p.add_argument('--tr', help='WTemplate localized strings resolver function',
+            default='tr')
+    p.add_argument('--no-warn', help='Turn warnings off', action='store_true')
+    args = p.parse_args()
+    locales_test(args.prefix, args.sections, wt=args.wt, sources=args.sources,
+            locales=args.locales, tr= args.tr, warnings=not args.no_warn)
+    if globals()['error_code']:
+        sys.exit(globals()['error_code'])
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (Exception,):
+        e = sys.exc_info()[1]
+        print(e)
+
