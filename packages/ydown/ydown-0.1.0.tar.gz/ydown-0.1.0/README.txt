@@ -1,0 +1,64 @@
+=====
+YDOWN
+=====
+
+ydown is a complete library for downloading youtube videos. It can show the title of the video and the url of the file video.
+It also have a good download function that shows you the download status::
+
+    import time
+    from ydown import ydownlib
+    
+    #THIS IS AN EXAMPLE OF THE USE OF ydownlib
+    #OPEN THE VIDEO
+    video=ydownlib.yvideo("http://www.youtube.com/watch?v=1T__uN5xmC0")
+    
+    #DISPLAY THE VIDEO TITLE
+    print video.getTitle()
+    
+    #DISPLAY THE FILE VIDEO URL
+    print video.getUrl()
+    
+    #START DOWNLOAD IN ANOTHER THREAD
+    video.download()
+    
+    #THIS WHILE DISPLAY THE DOWNLOAD STATUS
+    while(1):
+        if video.isStarted(): #START TRACING WHEN THE DOWNLOAD IN STARTED
+        
+            #DISPLAY THE PERCENT
+            print str(video.getPercent()) + "%"
+            
+            #DISPLAY DOWNLOADED AND TOTAl FILE SIZE
+            print str(video.getDownloaded()) + "/" + str(video.getTotalSize())
+            
+            time.sleep(1) #SLEEP 1 SECOND AFTER EACH REPORT
+            #IF THE DOWNLOAD IS FINISHED, QUIT
+            if video.getPercent()==100:
+                break
+
+USAGE
+=====
+
+Using ydown is very simple:
+
+* FIRST CREATE A yvideo OBJECT
+
+    form ydown import ydownlib
+    video=ydownlib.yvideo("YOUTUBE URL")
+
+* NOW YOU CAN USE ALL THE ydown FUNCTION
+
+FUNCTIONS
+=========
+
+This is the complete function list:
+
+``getTitle()`` this function return the name of the yvideo object loaded
+``getUrl()`` this function return the file's url of the yvideo object loaded
+``download()`` this function start the download in another thread
+``isStarted()`` return true if the download is started
+``getPercent()`` return the current download percent
+``getTotalSize()`` return the total file size of the video in bytes
+``getDownloaded()`` return the downloaded part of file in bytes
+
+Visit the sourceforge page https://sourceforge.net/projects/ydown/
