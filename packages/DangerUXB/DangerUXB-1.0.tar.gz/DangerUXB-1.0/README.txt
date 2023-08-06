@@ -1,0 +1,69 @@
+
+==========
+Danger UXB
+==========
+
+An implementation of the well-known 'Mines' game in pure Python (using the 
+native tkinter/ttk graphics and nothing else).
+
+There are no instructions on how to play. If it isn't self-evident from the UI
+then I have failed. Please email me (see below) to tell me how to make it 
+better.
+
+There is no written language in the game, so there is no translation.
+
+There are also no timers, clocks, or high-score charts. That way, every time you 
+finish is an achievement. The emphasis is on the fun of playing the game rather 
+than 'winning'.
+
+Installation
+============
+
+For Version 1.0 the only supported platform is Linux, although *in theory* this
+game should play equally well on Windows or Mac. I would like to hear from
+anyone who can help with porting.
+
+System Requirements:
+--------------------
+
+    *   Python 3
+
+Installation (Linux):
+---------------------
+
+    1.  Unzip the tar.gz somewhere.
+
+    2.  In a console window navigate to the DangerUXB-1.0 directory and run the
+        following command as root (on Ubuntu/Debian use sudo):
+
+            ``[sudo] python3 setup.py install``
+
+    3.  On Ubuntu a desktop launcher is installed, which you should be able to
+        find in the Dash and drag to the launcher bar.
+
+Design Notes and Plans
+======================
+
+I had intended to make this mimic of the well-known 'Mines' game using Python
+GTK3+ introspection. This was not to be. After finding at least 3 different bugs
+in about as many lines of code, with the code failing silently, I decided that
+maybe the introspection libraries are not sufficiently developed at the present
+time (August, 2012).
+
+I still hope at some later time to make a GTK implementation in Python, but this
+will have to wait for a new release of the Python introspection libraries, or 
+until enough of my hair has grown back that I can tear it out again...
+
+The implementation here is in tkinter/ttk. The only major drawback to this that
+I am aware of (at the moment) is that the gifs on the buttons cannot be made to
+re-size nicely without help from some other package (most likely PIL). To keep 
+non-core packages to a minimum (i.e., zero) I have opted for the more kludgy 
+way, having different sizes of the gif files to load in according to the screen 
+size. The impact here is mostly on memory footprint, especially if you keep 
+re-sizing the window, as the images are cached in memory.
+
+Author:
+=======
+
+Bob Bowles <bobjohnbowles@gmail.com>
+
