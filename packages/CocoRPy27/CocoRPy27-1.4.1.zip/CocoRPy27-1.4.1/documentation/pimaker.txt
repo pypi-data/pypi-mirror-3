@@ -1,0 +1,160 @@
+CONTENTS
+--------
+
+   Setup
+   Using
+   makepi.how files
+   The Interactive Menu
+   Macros
+
+
+Setup
+-----
+
+Pimaker is written in Coco as a practical example of a Coco application.
+
+To setup pimaker it must furst be compiled by coco as follows:
+
+      > python ../Coco.py -c pimaker.atg
+
+This will generate pimaker.py, Pimaker's main module.
+
+
+Using
+-----
+
+Pimaker reads in a file that is very much like a makefile.  It then
+creates a menu of targets.  Below the menu is a prompt.
+
+If the user types the name of a target, then the actions associated
+with that rule will be executed.  If the user types 'showall', then all
+available targets will be lsited.
+
+If the user types 'exit', then pimaker will exit.
+
+Pimaker is launched using the following command line syntax:
+
+   > python pimaker.py [ pimakerFile ]
+
+When pimaker first launches it loads and parses the pimakerFile.  If no
+filename argument is supplied, pimaker searches for a file named
+makepi.how in the current directory.
+
+
+makepi.how files
+----------------
+
+This file is much like a makefile.  Every makepi.how file has the following
+structure.
+
+   <Python Initialization Code>
+
+   <Rules>
+
+The python initialization code is arbitrary.  It will be executed by pimaker
+as soon as it load the file.  Rules have two forms.
+
+   'target:'   <TargetName> '(' <description> ')'
+   'needs:'    <list of dependencies separated by whitespace>
+   'todo:'     <arbitrary Python code>
+   '$$$'
+
+   
+   'target:'   <list of targets separated by whitespace>
+   'needs:'    <list of dependencies separated by whitespace>
+   'todo:'     <arbitrary Python code>
+   '$$$'
+
+Targets and dependencies are separated by spaces and are not enclosed in
+quotes.  They may span multiple lines.  In the first form, <description> is
+any arbitrary text.
+
+<arbitrary Python code> is any number of lines of Python code.  This code
+will get executed if the target is to be built.  Every rule must be terminated
+by the '$$$' token.
+
+All paths specified in 'target:' and 'needs:' should be specified using
+the UNIX convention where '/' separates directories.  Pimaker will convert
+these paths to platform specific forms before making use of them.
+
+Comments are permitted in pimaker files; anything from '#' to the end of the
+line.  If a comment is part of a Python <Python Initialization Code> or
+<arbitrary Python code> then Python-style commenting should be used.
+
+The Interactive Menu
+--------------------
+
+The builder determines which of the targets in the makepi.how file are top-level,
+those upon which no other rules depend.  These top-level targets are the items
+used to construct the interactive menu.  If a top-level target is of the first
+form (includes a description), the description will appear in the interactive
+menu after the name of the target.  All other targets will be hidden unless
+the user types 'showall' at the build prompt.
+
+Macros
+------
+
+Pimaker also has a limited macro capability.  Macros may be used in the
+'target' and 'todo sections rules.  A macro takes the following
+form.
+
+   '${' MacroName [ '.' ElementSelector ] { ',' Mutation } '}'
+
+MacroName can be any python global variable.  Generally you will want to
+limit this to something declared in the initialization section of the
+makepi.how file, or one of the 'special' variable names (see below).  Any
+variable used for MacroName must expand into a string or python sequence of
+strings.
+
+If element selector is specified, it selects only a portion of the value
+specified by MacroName.  Currently, the only elements possible are for
+cases where MacroName expands into a filename path.  
+
+   dir    - the directory in which the named file exists.
+   name   - the filename without the path.
+   ext    - the extension portion of the filename.
+   base   - the filename without the path or extension.
+
+   In future implementations, additional elements may be possible.
+
+Mutation specifies a mutation on the string value selected by
+MacroName.ElementSelector.  The following mutations are currently supported.
+
+
+   findSubstring '=' replaceValue
+      Having selected string, this mutation changes the first occurance of
+      findSubstring with replaceValue.
+
+Special Variables
+
+   TARGET - the target string for this rule.
+   NEEDS  - the list of dependencies.
+
+Recursive Macros
+
+Replacement strings for macros can themselves use macros.  Macros cannot be nested.
+
+Examples of Macros
+
+
+   TARGET = '/home/myProject/myFile.py'
+
+
+   ${TARGET}                 expands to:   '/home/myProject/myFile.py'
+   ${TARGET.dir}             expands to:   '/home/myProject'
+   ${TARGET.name}            expands to:   'myFile.py'
+   ${TARGET.ext}             expands to:   'py'
+   ${TARGET.base}            expands to:   'myFile'
+
+   ${TARGET.base}.atg        expands to:   'myFile.atg'
+   ${TARGET.name,py=atg}     expands to:   'myFile.atg'
+
+
+   COCO_ROOT    = '/bin/cocopy'
+   CC           = 'python ${COCO_ROOT}/coco.py'
+   CFLAGS       = '-c'
+   CC_ATG       = '${CC} ${CFLAGS}'
+   COMPILE_COCO = '${CC_ATG} coco.atg'
+
+   Now if the sequence ${COMPILE_COCO} appears in a TODO section of a rule,
+   it will be expanded to 'python /bin/cocopy/coco.py -c coco.atg'

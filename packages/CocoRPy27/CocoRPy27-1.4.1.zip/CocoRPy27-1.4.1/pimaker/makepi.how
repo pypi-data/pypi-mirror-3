@@ -1,0 +1,213 @@
+import os
+import os.path
+import sys
+from fileTools import *
+
+os.chdir( '..' )
+COCORoot = os.getcwd()
+sys.path.append( COCORoot )
+
+import CocoR_Tester
+import exampleTestSuite
+import functionalityTestSuite
+
+ROOT_DIR      = os.getcwd( )
+SOURCES_DIR   = os.path.join( ROOT_DIR, 'sources'   )
+PIMAKER_DIR   = os.path.join( ROOT_DIR, 'pimaker'   )
+TESTSUITE_DIR = os.path.join( ROOT_DIR, 'testSuite' )
+EXAMPLES_DIR  = os.path.join( ROOT_DIR, 'examples'  )
+
+RFLAGS        = '-cn'
+DFLAGS        = '-acfgijmnpsx'
+FLAGS         = DFLAGS
+SUBDIRS       = [ 'pimaker', 'examples', 'frames', 'sources', 'testSuite' ]
+GENERATED     = [ 'Coco.py', 'Parser.py', 'Scanner.py' ]
+COCO          = 'python %s/Coco.py' % ROOT_DIR
+
+cocoRTester   = CocoR_Tester.CocoR_Tester( COCO )
+
+
+target: clean (Delete all generated files.)
+needs:
+todo:
+   print 'Deleting all generated files...'
+   for dir in [ ROOT_DIR, 'pimaker' ]:
+      changeDir( dir )
+      deleteFiles( '*.pyc', 'trace.txt', 'listing.txt' )
+      changeDir( ROOT_DIR )
+
+   changeDir( 'pimaker' )
+   deleteFiles( '*.pyc', 'trace.txt', 'listing.txt' )
+   changeDir( ROOT_DIR )
+
+   changeDir( 'testSuite' )
+   deleteFiles( '*.pyc', 'trace.txt', 'listing.txt', 'stdout.txt' )
+   changeDir( ROOT_DIR )
+
+   for dir in [ 'sources', 'frames', 'examples' ]:
+      changeDir( dir )
+      deleteFiles( '*.py', '*.pyc', 'trace.txt', 'listing.txt', '*.diff.html', 'stdout.txt' )
+      changeDir( ROOT_DIR )
+   $$$
+
+
+target: purge (Delete old Coco files and local backups.)
+needs:
+todo:
+   print 'Deleting all -save.py, *.old and *.*~ files...'
+   changeDir( ROOT_DIR )
+   deleteFiles( '*-save.py', '*.old', '*.*~' )
+
+   for dir in SUBDIRS:
+      changeDir( dir )
+      deleteFiles( '*-save.py', '*.old', '*.*~' )
+      changeDir( ROOT_DIR )
+   $$$
+
+target: scrub (clean and purge)
+needs:
+todo:
+   buildTarget( 'clean' )
+   buildTarget( 'purge' )
+   $$$
+
+
+target: backup (Backup all coco sources files.)
+needs:
+todo:
+   print 'Copying coco/r main distribution files (*.py, MANIFEST.in, README.txt) to backup directory.'
+   changeDir( ROOT_DIR )
+   deleteFiles( 'backup/*.py', 'backup/MANIFESST.in', 'backup/README.txt' )
+   copyFilesTo( 'backup', '*.py', 'MANIFEST.in', 'README.txt' )
+   $$$
+
+
+target: restore (Restore the backup)
+needs:  backup/Coco.py backup/Parser.py backup/Scanner.py
+todo:
+   print 'Restoring coco/r main distribution files from backup directory.'
+   changeDir( ROOT_DIR )
+   deleteFiles( '*.py', 'MANIFEST.in', 'README.txt' )
+   copyFilesTo( '.', 'backup/*.py', 'backup/MANIFEST.in', 'backup/README.txt' )
+   $$$
+
+
+target: bootstrapMake (Rebuild everything.)
+needs:  sources/Coco.py sources/Parser.py sources/Scanner.py
+todo:
+   $$$
+
+
+target: bootstrapDiff (Compare bootstrapped files to current Coco files.)
+needs:  sources/Coco.py sources/Parser.py sources/Scanner.py
+todo:
+   print 'Comparing newly generated coco files to existing ones.\n'
+
+   changeDir( ROOT_DIR )
+   failed = False
+   for name in [ 'Coco.py', 'Parser.py', 'Scanner.py' ]:
+      print '   Checking %s...' % name
+      orig = name
+      generated = 'sources/' + name
+      if len(compareFiles( orig, generated )) != 0:
+         print '   - !!! Failed !!!'
+         try:
+            diffFile = 'sources/' + name + '.diff.html'
+            genHTMLDiff( orig, generated, diffFile )
+            print '   - See difference in', diffFile
+         except:
+            print '   - Failed to generate diff.'
+         failed = True
+      else:
+         print '   - Passed.'
+         
+   if not failed:
+      print 'Congratulations! All generated files verified.\n'
+   $$$
+
+
+target: bootstrapInstall (Install newly generated bootstrapped files.)
+needs:  sources/Coco.py sources/Parser.py sources/Scanner.py
+todo:
+   print 'Installing bootstrap...'
+   changeDir( ROOT_DIR )
+   renameFile( 'Coco.py', 'Coco-save.py' )
+   renameFile( 'Parser.py', 'Parser-save.py' )
+   renameFile( 'Scanner.py', 'Scanner-save.py' )
+   moveFilesTo( '.', 'sources/*.py' )
+   changeDir( 'sources' )
+   $$$
+
+
+target: bootstrapUninstall (Uninstall newly generated bootstrapped files.)
+needs:  Coco-save.py Parser-save.py Scanner-save.py
+todo:
+   print 'Uninstalling bootstrap...'
+   changeDir( ROOT_DIR )
+   deleteFiles( 'Coco.py', 'Parser.py', 'Scanner.py' )
+   renameFile( 'Coco-save.py', 'Coco.py' )
+   renameFile( 'Parser-save.py', 'Parser.py' )
+   renameFile( 'Scanner-save.py', 'Scanner.py' )
+   moveFilesTo( '.', 'sources/*.py' )
+   changeDir( 'sources' )
+   $$$
+
+
+target: testFunctions (Test the features of CocoRPy using the test suite.)
+needs:  sources/Coco.py sources/Parser.py sources/Scanner.py
+todo:
+   changeDir( TESTSUITE_DIR )
+   cocoRTester.checkAll( functionalityTestSuite.info )
+   deleteFiles( '*.py.old', 'stdout.txt', 'trace.txt', 'listing.txt', 'Parser.py', 'Scanner.py' )
+   changeDir( ROOT_DIR )
+   $$$
+
+
+target: testExamples (Test the the example projects)
+needs:  sources/Coco.py sources/Parser.py sources/Scanner.py
+todo:
+   changeDir( EXAMPLES_DIR )
+   cocoRTester.checkAll( exampleTestSuite.info )
+   deleteFiles( '*.py.old', 'stdout.txt', 'trace.txt', 'listing.txt', 'Parser.py', 'Scanner.py' )
+   changeDir( ROOT_DIR )
+   $$$
+
+
+target: dist_test (Create a distribution for testing)
+needs:  sources/Coco.atg
+        sources/Coco.frame sources/Parser.frame sources/Scanner.frame
+        Coco.py Parser.py Scanner.py CharClass.py
+        CodeGenerator.py Core.py DriverGen.py Errors.py
+        ParserGen.py Trace.py
+        pimaker/pimaker.py pimaker/fileTools.py pimaker/piBuilder.py pimaker/makepi.how
+        setup.py setupInfo.py MANIFEST.in README.txt
+todo:
+   changeDir( ROOT_DIR )
+   shell( 'python setup.py sdist' )
+   $$$
+
+
+target: dist_make_and_upload (Create and upload the cocop distribution.)
+needs:  sources/Coco.atg
+        sources/Coco.frame sources/Parser.frame sources/Scanner.frame
+        Coco.py Parser.py Scanner.py CharClass.py
+        CodeGenerator.py Core.py DriverGen.py Errors.py
+        ParserGen.py Trace.py
+        pimaker/pimaker.py pimaker/fileTools.py pimaker/piBuilder.py pimaker/makepi.how
+        setup.py setupInfo.py MANIFEST.in README.txt
+todo:
+   changeDir( ROOT_DIR )
+   os.environ[ 'HOME' ] = 'C:/Documents and Settings/ron'
+   shell( 'python setup.py sdist upload' )
+   $$$
+
+
+target: sources/Coco.py sources/Parser.py sources/Scanner.py
+needs:  sources/Coco.atg
+        sources/Coco.frame sources/Parser.frame sources/Scanner.frame
+todo:
+   changeDir( SOURCES_DIR )
+   shell( '${COCO} ${FLAGS} Coco.atg' )
+   changeDir( ROOT_DIR )
+   $$$
+
