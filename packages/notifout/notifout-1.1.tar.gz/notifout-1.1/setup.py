@@ -1,0 +1,20 @@
+from setuptools import setup, find_packages
+
+
+import os.path
+here = os.path.dirname(os.path.abspath(__file__))
+
+
+setup(
+  name = 'notifout',
+  version = '1.1',
+  author = 'Sergey Kirilov',
+  author_email = 'sergey.kirillov@gmail.com',
+  url='https://github.com/pistolero/notifout-python', 
+  install_requires=['simplejson'],
+  license="Apache License 2.0",   
+  keywords="python notifout",
+  description='Python API for Notifout.com',
+  long_description=open(os.path.join(here, 'README.rst')).read().decode('utf-8'),
+  py_modules=['notifout']
+)
