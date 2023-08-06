@@ -1,0 +1,93 @@
+# jsb/datadir.py
+#
+#
+
+""" the data directory of the bot. """
+
+## jsb imports
+
+from jsb3.utils.source import getsource
+
+## basic imports
+
+import re
+import os
+import shutil
+import logging
+import os.path
+import getpass
+
+## the global datadir
+
+try: homedir = os.path.abspath(os.path.expanduser("~"))
+except: homedir = os.getcwd()
+
+datadir = "jsb3-data"
+
+## helper functions
+
+def touch(fname):
+    """ touch a file. """
+    fd = os.open(fname, os.O_WRONLY | os.O_CREAT)
+    os.close(fd)
+
+def doit(ddir, mod, target=None):
+    source = getsource(mod)
+    if not source: raise Exception("can't find %s package" % mod)
+    shutil.copytree(source, ddir + os.sep + (target or mod.replace(".", os.sep)))
+
+
+## makedir function
+
+def makedirs(ddir=None):
+    """ make subdirs in datadir. """
+    global datadir
+    datadir = ddir or getdatadir()
+    logging.warn("datadir - set to %s" % datadir)
+    if not os.path.isdir(ddir):
+        try: os.mkdir(ddir)
+        except:
+             raise Exception("can't make %s dir" % ddir)
+        logging.info("making dirs in %s" % ddir)
+    try: os.chmod(ddir, 0o700)
+    except: pass
+    if ddir: setdatadir(ddir)
+    last = datadir.split(os.sep)[-1]
+    try: touch(ddir + os.sep + "__init__.py")
+    except: pass
+    try:
+        os.mkdir(ddir + os.sep + "config")
+        touch(ddir + os.sep + "config" + os.sep + "__init__.py")
+    except: pass
+    # myplugs
+    if not os.path.isdir('jsb3-myplugs'): os.mkdir('jsb3-myplugs')
+    initsource = getsource("jsb3.plugs")
+    if not initsource: raise Exception("can't find jsb3.plugs package")
+    initsource = initsource + os.sep + "__init__.py"
+    try: shutil.copy(initsource, "jsb3-myplugs" + os.sep + "__init__.py")
+    except: pass
+    if not os.path.isdir('jsb3-botlogs'): os.mkdir('jsb3-botlogs')
+    if not os.path.isdir(ddir + '/run/'): os.mkdir(ddir + '/run/')
+    if not os.path.isdir(ddir + '/users/'): os.mkdir(ddir + '/users/')
+    if not os.path.isdir(ddir + '/channels/'): os.mkdir(ddir + '/channels/')
+    if not os.path.isdir(ddir + '/fleet/'): os.mkdir(ddir + '/fleet/')
+    if not os.path.isdir(ddir + '/pgp/'): os.mkdir(ddir + '/pgp/')
+    if not os.path.isdir(ddir + '/plugs/'): os.mkdir(ddir + '/plugs/')
+    if not os.path.isdir(ddir + '/old/'): os.mkdir(ddir + '/old/')
+    if not os.path.isdir(ddir + '/containers/'): os.mkdir(ddir + '/containers/')
+    if not os.path.isdir(ddir + '/chatlogs/'): os.mkdir(ddir + '/chatlogs/')
+    if not os.path.isdir(ddir + '/botlogs/'): os.mkdir(ddir + '/botlogs/')
+    if not os.path.isdir(ddir + '/spider/'): os.mkdir(ddir + '/spider/')
+    if not os.path.isdir(ddir + '/spider/data/'): os.mkdir(ddir + '/spider/data')
+    if os.path.isfile(ddir + '/globals'):
+        try: os.rename(ddir + '/globals', ddir + '/globals.old')
+        except: pass
+    if not os.path.isdir(ddir + '/globals/'): os.mkdir(ddir + '/globals/')
+
+def getdatadir():
+    global datadir
+    return datadir
+
+def setdatadir(ddir):
+    global datadir
+    datadir = ddir
