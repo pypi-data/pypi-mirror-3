@@ -1,0 +1,300 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+import sys, os, time, errno, datetime, json, urllib, requests
+from stat import S_IWUSR, S_IRUSR
+api_version = 1
+
+headers = {
+  'User-Agent': 'metrica-cli/%d' % api_version
+}
+
+if len(sys.argv) > 0:
+  hash_char = ':'
+else:
+  hash_char = '#'
+
+api_protoc = "http://"
+api_url = "metri.ca"
+
+def normalize_argv(argv):
+  if argv[0] is 'python':
+    argv.remove(0)
+  if len(argv) > 1:
+    if argv[1] == "log":
+      argv = [argv[0], argv[1], argv[2:]]
+  return argv
+
+def display_help():
+  print "Valid commands:"
+  print "  log [*event-string]"
+  print "  list"
+  print "  delete [event-id]"
+  print "  rekey [email-address]"
+  print "  login"
+  print "  timeseries [variable-name]"
+  print "  polls"
+  print "  polls:add [pollname] [interval] [optional: custom prompt]"
+  print "  polls:remove [pollname]"
+  print "  snippets"
+  print "  snippets:add [name] [*event-string]"
+  print "  snippets:remove [name]"
+  print "  quiet"
+  print "  quiet:set [from] [to]"
+  print 
+  print "Examples:"
+  print "  metrica log drove 10 miles"
+  print "  metrica log ran 5 miles at 7am"
+  print "  metrica log drank 1 coffee at starbucks given type=mocha size=tall"
+  print "  metrica log drank 1 can of soda given brand=coke"
+  print
+  print "See http://metri.ca for help."
+
+def build_url(path):
+  return api_protoc + api_url + path
+
+def authenticate(auth_token):
+  r = requests.post(build_url('/auth/login'), data = {'auth_token': auth_token}, headers = headers)
+  if handle_response(r) and 'user_id' in r.cookies:
+    return r.cookies
+  return False
+
+def deauthenticate():
+  r = requests.delete(build_url('/auth/login'), headers = headers)
+  if r.status_code is 200:
+    return True
+  else:
+    return False
+
+def process_request(auth_token, method, args = {}):
+  if auth_token:
+    session = authenticate(auth_token)
+    if not session:
+      return
+    return method(args, session = session) and deauthenticate()
+  else:
+    return method(args)
+
+def handle_response(r, expected = 200):
+  if r.status_code == expected:
+    return True
+  elif r.status_code == 404:
+    print "Specified event not found."
+    return False
+  elif r.status_code == 401:
+    print "Authentication error."
+    return False
+  else:
+    resp = json.loads(r.text)
+    print "Unknown error.  Received status code %d from server:\n %s: %s" % \
+      (r.status_code, resp['error'], resp['message'])
+    return False
+
+def read_credentials_file():
+  try:
+    f = open(os.path.expanduser("~/.metrica"), 'r')
+  except IOError:
+    print "! No credentials file found.  Login first using:"
+    print "  metrica login"
+    return False
+  return f.read()
+
+def write_credentials_file(auth_token):
+  if authenticate(auth_token) == False:
+    print "! Bad auth token.  Authentication failed."
+    return False
+  deauthenticate()
+  path = os.path.expanduser("~/.metrica")
+  f = open(path, 'w')
+  f.write(auth_token)
+  f.close()
+  os.chmod(path, S_IRUSR | S_IWUSR)
+  return True
+
+def create_event(event_data, session = {}):
+  r = requests.post(build_url('/events/new'), cookies = session, data = {"event_text": event_data}, headers = headers)
+  if handle_response(r, expected = 201):
+    print r.text
+
+def rekey(email, session = {}):
+  r = requests.post(build_url('/auth/rekey'), data = {"email": email}, headers = headers)
+  if handle_response(r, expected = 200):
+    resp = json.loads(r.text)
+    print resp['message']
+
+def timeseries(event_name, session = {}):
+  r = requests.get(build_url('/timeseries/%s' % event_name), cookies = session, headers = headers)
+  if handle_response(r, expected = 200):
+    print r.text
+
+def delete_poll(pollname, session = {}):
+  print "! Warning: Destructive Action"
+  print "!"
+  print "! To confirm stopping poll %s, type in '%s' again below:" % (pollname, pollname)
+  if raw_input("> ") == pollname:
+    r = requests.delete(build_url('/polls/%s' % pollname), cookies = session, headers = headers)
+    if handle_response(r, expected = 200):
+      resp = json.loads(r.text)
+      print resp['message']
+  else:
+    print "Aborted."
+
+def add_poll(data, session = {}):
+  r = requests.post(build_url('/polls'), cookies = session, data = data, headers = headers)
+  if handle_response(r, expected = 200):
+    resp = json.loads(r.text)
+    print resp['message']
+
+def list_polls(args, session = {}):
+  r = requests.get(build_url('/polls'), cookies = session, headers = headers)
+  if handle_response(r, expected = 200):
+    print r.text
+
+def list_events(args, session = {}):
+  r = requests.get(build_url('/events'), cookies = session, headers = headers)
+  if handle_response(r):
+    print r.text
+
+def delete_event(event_id, session = {}):
+  print "! Warning: Destructive Action"
+  print "!"
+  print "! To confirm the deletion of event ID %s, type in the event ID again below:" % event_id
+  if raw_input("> ") == event_id:
+    r = requests.delete(build_url('/events/%s' % event_id), cookies = session, headers = headers)
+    if handle_response(r):
+      print "Event deleted"
+  else:
+    print "Aborted."
+
+def add_snippet(data, session = {}):
+  r = requests.post(build_url('/snippets'), cookies = session, data = data, headers = headers)
+  if handle_response(r, expected = 200):
+    resp = json.loads(r.text)
+    print resp['message']
+
+def list_snippets(args, session = {}):
+  r = requests.get(build_url('/snippets'), cookies = session, headers = headers)
+  if handle_response(r):
+    print r.text
+
+def delete_snippet(name, session = {}):
+  print "! Warning: Destructive Action"
+  print "!"
+  print "! To confirm the deletion of snippet %s, type in the snippet name again below:" % name
+  if raw_input("> ") == name:
+    r = requests.delete(build_url('/snippets/%s' % name), cookies = session, headers = headers)
+    if handle_response(r):
+      print "Snippet deleted"
+  else:
+    print "Aborted."
+
+def get_quiet(args, session = {}):
+  r = requests.get(build_url('/conf/quiet'), cookies = session, headers = headers)
+  if handle_response(r, expected = 200):
+    resp = json.loads(r.text)
+    if 'conf' in resp and 'quiet' in resp['conf']:
+      print "Quiet period: %s - %s" % (resp['conf']['quiet']['from'], resp['conf']['quiet']['to'])
+    else:
+      print "No quiet period set."
+
+def delete_quiet(args, session = {}):
+  r = requests.delete(build_url('/conf/quiet'), cookies = session, headers = headers)
+  if handle_response(r, expected = 200):
+    print "Quiet period disabled."
+
+def set_quiet(args, session = {}):
+  r = requests.post(build_url('/conf/quiet'), cookies = session, data = {"value": json.dumps(args)}, headers = headers)
+  if handle_response(r, expected = 200):
+    print "Quiet period set: %s - %s" % (args['from'], args['to'])
+
+def vocabulary(args, session = {}):
+  r = requests.get(build_url('/vocabulary'), cookies = session, headers = headers)
+  if handle_response(r):
+    print r.text
+
+def return_cli(success):
+  if success == True:
+    return 0
+  else:
+    return 1
+
+def main(argv = None):
+  if argv is None:
+    argv = normalize_argv(sys.argv)
+  
+  if len(argv) < 2:
+    display_help()
+    sys.exit(2)
+  
+  if argv[1] == 'login':
+    if len(argv) != 3:
+      print "Usage: login [auth_token]"
+      print "  Example: login fb20b3fddf222726d45b5c15f3e821a1a364faa25eb94a19a71719247b101f37"
+      print ""
+      print "If you don't have an auth token, or have forgotten or lost it, use:"
+      print "  metrica rekey [emailaddress]"
+      return
+    return return_cli(write_credentials_file(argv[2]))
+  else:
+    auth_token = read_credentials_file()
+    if auth_token == False:
+      sys.exit(1)
+  
+  if argv[1] == 'log':
+    return return_cli(process_request(auth_token, create_event, " ".join(argv[2])))
+  elif argv[1] == 'list':
+    return return_cli(process_request(auth_token, list_events))
+  elif argv[1] == 'rekey':
+    return return_cli(process_request(None, rekey, argv[2]))
+  elif argv[1] == 'timeseries':
+    return return_cli(process_request(auth_token, timeseries, argv[2]))
+  elif argv[1] == 'polls':
+    return return_cli(process_request(auth_token, list_polls))
+  elif argv[1] == 'polls:add':
+    if len(argv) < 4:
+      print "Usage: polls:add [pollname] [interval] [optional:custom-prompt] [optional:custom-units]"
+      print "  interval is the lambda parameter of a poisson distribution, k is normalized for 1 day (12 hours)."
+      return 1
+    args = {"name": argv[2], "interval": argv[3]}
+    if len(argv) > 4:
+      if len(argv) != 6:
+        print "If specifying a custom poll, include both a prompt and units."
+        print "Usage: polls:add [pollname] [interval] [optional:custom-prompt] [optional:custom-units]"
+        return 1
+      args["prompt"] = argv[4]
+      args["units"] = argv[5]
+    return return_cli(process_request(auth_token, add_poll, args))
+  elif argv[1] == 'polls:remove':
+    return return_cli(process_request(auth_token, delete_poll, argv[2]))
+  elif argv[1] == 'snippets':
+    return return_cli(process_request(auth_token, list_snippets))
+  elif argv[1] == 'snippets:add':
+    if len(argv) < 4:
+      print "Usage: snippets:add [name] [expansion]"
+      return 1
+    args = {"name": argv[2], "snippet": " ".join(argv[3:])}
+    return return_cli(process_request(auth_token, add_snippet, args))
+  elif argv[1] == 'snippets:remove':
+    return return_cli(process_request(auth_token, delete_snippet, argv[2]))
+  elif argv[1] == 'quiet':
+    return return_cli(process_request(auth_token, get_quiet))
+  elif argv[1] == 'quiet:off':
+    return return_cli(process_request(auth_token, delete_quiet))
+  elif argv[1] == 'quiet:set':
+    if len(argv) < 4:
+      print "Usage: quiet:set [from] [to]"
+      print "  Example: quiet:set 11:00pm 6:00am"
+      return 1
+    args = {"from": argv[2], "to": argv[3]}
+    return return_cli(process_request(auth_token, set_quiet, args))
+  elif argv[1] == 'vocabulary':
+    return return_cli(process_request(auth_token, vocabulary))
+  elif argv[1] == 'delete':
+    return return_cli(process_request(auth_token, delete_event, argv[2]))
+  else:
+    print "Unrecognized command '%s'." % argv[1]
+    display_help()
+    sys.exit(2)
+
+if __name__ == "__main__":
+  sys.exit(main())
