@@ -1,0 +1,113 @@
+var __hasProp = Object.prototype.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor; child.__super__ = parent.prototype; return child; };
+
+define(['backbone', 'common/models/polling'], function(Backbone, polling) {
+  var Report, ReportCollection, SessionReport;
+  Report = (function(_super) {
+
+    __extends(Report, _super);
+
+    function Report() {
+      Report.__super__.constructor.apply(this, arguments);
+    }
+
+    Report.prototype.url = function() {
+      var url;
+      url = Report.__super__.url.apply(this, arguments);
+      if (!/\/$/.test(url)) url += '/';
+      return url;
+    };
+
+    Report.prototype.initialize = function() {
+      return this.bind('change', function() {
+        return App.hub.publish('report/change', this);
+      });
+    };
+
+    return Report;
+
+  })(Backbone.Model);
+  ReportCollection = (function(_super) {
+
+    __extends(ReportCollection, _super);
+
+    function ReportCollection() {
+      ReportCollection.__super__.constructor.apply(this, arguments);
+    }
+
+    ReportCollection.prototype.url = App.endpoints.reports;
+
+    ReportCollection.prototype.model = Report;
+
+    ReportCollection.prototype.comparator = function(model) {
+      return -Number(new Date(model.get('modified')));
+    };
+
+    return ReportCollection;
+
+  })(polling.Collection);
+  SessionReport = (function(_super) {
+
+    __extends(SessionReport, _super);
+
+    function SessionReport() {
+      SessionReport.__super__.constructor.apply(this, arguments);
+    }
+
+    SessionReport.prototype.url = App.endpoints.session.report;
+
+    SessionReport.prototype.defaults = {
+      name: 'click to give your report a name...',
+      description: 'click to give your report a description...'
+    };
+
+    SessionReport.prototype.initialize = function() {
+      var _this = this;
+      SessionReport.__super__.initialize.apply(this, arguments);
+      App.hub.subscribe('report/clear', function() {
+        _this.clear({
+          silent: true
+        });
+        return _this.save(null, {
+          success: function() {
+            return window.location = App.endpoints.define;
+          }
+        });
+      });
+      return App.hub.subscribe('report/change', function(model) {
+        if (model.id === _this.get('reference_id')) {
+          return _this.set(model.toJSON());
+        }
+      });
+    };
+
+    SessionReport.prototype.push = function() {
+      return this.save(null, {
+        url: this.get('permalink'),
+        success: function() {
+          return App.hub.publish('report/push', this);
+        }
+      });
+    };
+
+    SessionReport.prototype.revert = function() {
+      return this.save(null, {
+        data: JSON.stringify({
+          revert: true
+        }),
+        contentType: 'application/json',
+        success: function() {
+          return App.hub.publish('report/revert', this);
+        }
+      });
+    };
+
+    return SessionReport;
+
+  })(polling.Model);
+  return {
+    Model: Report,
+    Collection: ReportCollection,
+    Session: SessionReport
+  };
+});
