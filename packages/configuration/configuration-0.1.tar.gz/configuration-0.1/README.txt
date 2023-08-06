@@ -1,0 +1,61 @@
+configuration
+===========
+
+multi-level unified configuration for python consumption
+
+- you have a (python) program that wants to read configuration from
+  configuration files (I currently support JSON and YAML) and also
+  from the command line
+- you want to be able to serialize and deserialize configuration
+
+API
+---
+
+The ``configuration.Configuration`` class implements an abstract base
+class that extends ``optparse.OptionParser``.  The form of the
+configuration is dictated by setting the ``options`` attribute on your
+subclass.  ``options`` is a dictionary of the form::
+
+  {'name': {<value>}}
+
+``name`` is the name of the configuration option, and ``value`` is a
+``dict`` that gives the form of the option.
+
+``Configuration`` transforms these options into ``OptionParser`` options.
+
+Options for ``value`` include:
+
+ * help : what the option is about (translated to command line help)
+ * default: default value for the option
+ * required: if a true value, this option must be present in the
+   configuration. If ``required`` is a string, it will be displayed if
+   the option is not present. If the default is defined, you won't
+   need required as the default value will be used
+ * type: type of the option. Used to control the parsing of the option
+ * flags: a list that, if present, will be used for the command line
+   flags. Othwise, the option name prepended by ``--`` will be used.
+   To disable as a command line option, use an empty list ``[]``
+
+In addition, you may extend ``Configuration`` and have additional
+useful items in the ``value`` dict for ``options``.
+
+For an example, see
+http://k0s.org/mozilla/hg/configuration/file/c831eb58fb52/tests/example.py#l7
+
+
+Configuration Files
+-------------------
+
+Config files are useful for (IMHO) A. complicated setup;
+B. reproducibility; C. being able to share run time configurations
+The latter is only useful if the configuration contains nothing
+machine-specific (e.g. the path to an executable might vary from
+machine to machine) or if the configuration is overridable from the
+command line.
+
+----
+
+Jeff Hammel
+
+http://k0s.org/mozilla/hg/configuration
+
