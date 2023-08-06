@@ -1,0 +1,408 @@
+Metadata-Version: 1.0
+Name: collective.z3cform.grok
+Version: 1.15
+Summary: A small integration of z3cform using grok magic on plone by Makina Corpus.
+Home-page: http://svn.plone.org/svn/collective/collective.z3cform.grok
+Author: Mathieu Pasquet
+Author-email: kiorky@cryptelium.net
+License: GPL
+Description: Introduction
+        =============
+        
+            This package enables the use of z3c forms in grok.View style inside a plone environment.
+        
+            Note that you have two wrappers and a basic form class:
+        
+            - *FormWrapper* to use the basic ``z3c.form`` template
+            - *PloneFormWrapper*  is a basic z3c.form wrapper with some plone integration (fieldsets & kss) (from ``plone.app.z3cform``)
+            - *PloneForm*  is a basic z3c.form with some plone integration (fieldsets & groups) (from plone.app.z3cform)
+            - A *TestCase* to test your code with z3cform.grok with either using directly itself or by sublassing it
+        
+        .. contents::
+        
+        Credits
+        ======================================
+        |makinacom|_
+        
+        * `Planet Makina Corpus <http://www.makina-corpus.org>`_
+        * `Contact us <mailto:python@makina-corpus.org>`_
+        
+        .. |makinacom| image:: http://depot.makina-corpus.org/public/logo.gif
+        .. _makinacom:  http://www.makina-corpus.com
+        
+        Basic Usage
+        =============
+        
+        Declare a form in 'foo.py' module
+        ::
+        
+        
+            >>> import plone.z3cform.fieldsets.extensible.ExtensibleForm$
+            >>> import z3c.form.form.Form
+            >>> class Myform(plone.z3cform.fieldsets.extensible.ExtensibleForm, z3c.form.form.Form):
+            ...    """A z3c.form"""
+            ...    ingoreContext = True or False # override me
+        
+        Note that ``collective.z3cform.grok.grok.PloneForm`` is a shortcut to the previous declaration, see implementation.
+        
+        Then a Wrapper
+        ::
+        
+            >>> from collective.z3cform.grok.grok import PloneFormWrapper
+            >>> class myview(PloneFormWrapper):
+            ...     form = Myform
+        
+        
+        Write a basic template, in foo_templates/myview.py, for example:
+        ::
+        
+            <tal metal:use-macro="context/main_template/macros/master">
+              <html xmlns="http://www.w3.org/1999/xhtml"
+                xmlns:tal="http://xml.zope.org/namespaces/tal"
+                xmlns:metal="http://xml.zope.org/namespaces/metal"
+                xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+                i18n:domain="nmd.sugar.forms"
+                xml:lang="en" lang="en"
+                tal:define="lang language"
+                tal:attributes="lang lang; xml:lang lang">
+                <body>
+                  <metal:main fill-slot="body">
+                    <tal:block tal:content="structure python:view.render_form()"></tal:block>
+                  </metal:main>
+                </body>
+              </html>
+            </tal>
+        
+        
+        Et voila, you can access your form @
+        
+            - http://url/@@myview
+        
+        Basic grok testing in a third party package
+        =============================================
+        
+        Import the basic testcase
+        ::
+        
+            >>> from collective.z3cform.grok.tests.test_doctests import DocTestCase as dt
+            >>> from collective.z3cform.grok.tests.test_doctests import collective_z3cform_grok_setUp
+            >>> from collective.z3cform.grok.tests.test_doctests import collective_z3cform_grok_tearDown
+        
+        Compose a testcase with one of your favourite testcases
+        ::
+        
+            >>> class DocTestCase(MyFunctionalTestCase, dt):
+            ...    def setUp_hook(self, *args, **kwargs):
+            ...        MyFunctionalTestCase.setUp(self)
+            ...    def tearDown_hook(self, *args, **kwargs):
+            ...        MyFunctionalTestCase.tearDown(self)
+            ...    def afterSetUp(self):
+            ...        """."""
+            ...        MyFunctionalTestCase.afterSetUp(self)
+            ...
+        
+        Make a doc_suite soap assembling the whole
+        ::
+        
+            >>> def test_doctests_suite(directory=None, globs=None, suite=None, testklass=None):
+            ...     if not testklass: testklass=DocTestCase
+            ...     if not directory:
+            ...         directory, _f = os.path.split(os.path.abspath(__file__))
+            ...     elif os.path.isfile(directory):
+            ...         directory = os.path.dirname(directory)
+            ...     files = [os.path.join(directory, f) for f in os.listdir(directory)
+            ...                                   if f.endswith('.txt')]
+            ...     if not globs:
+            ...         globs={}
+            ...     g = globals()
+            ...     for key in g:
+            ...         globs.setdefault(key, g[key])
+            ...     directory = directory
+            ...
+            ...     if not suite:
+            ...         suite = unittest.TestSuite()
+            ...     if files:
+            ...         options = doctest.REPORT_ONLY_FIRST_FAILURE |\
+            ...                   doctest.NORMALIZE_WHITESPACE | doctest.ELLIPSIS
+            ...         for test in files:
+            ...             ft = ztc.ZopeDocFileSuite(
+            ...                 test,
+            ...                 test_class=testklass,
+            ...                 optionflags=options,
+            ...                 globs=globs,
+            ...                 setUp=collective_z3cform_grok_setUp,
+            ...                 tearDown=collective_z3cform_grok_tearDown,
+            ...                 module_relative = False,
+            ...             )
+            ...             suite.addTest(ft)
+            ...     return suite
+            >>> def test_suite():
+            ...     """."""
+            ...     suite = unittest.TestSuite()
+            ...     return test_doctests_suite(suite=suite)
+        
+        
+         Et voila, all files ending with txt in the tests directory will be tested with that magic TestCase.
+        
+        
+        
+        
+        
+        Using grok.View to display z3c.forms in plone
+        ========================================================
+        
+        The goal of this package was to make a very minimal integration of z3c.form and plone.
+        Far from plone.app.directive, my goal was to be light.
+        
+        Do a simple naming schema
+        ::
+        
+            <<< import collective;from five import grok
+            <<< import zope, z3c
+            <<< class IMyFormSchema(zope.interface.Interface):
+            ...     name = zope.schema.Text(title=u"Name", description = u'Name', required=False)
+            <<< class MyForm(z3c.form.form.Form):
+            ...     ignoreContext = True
+            ...     fields = z3c.form.field.Fields(IMyFormSchema)
+            ...     @z3c.form.button.buttonAndHandler(u'Ok', name='Ok')
+            ...     def ok(self, action, *args, **kwargs):
+            ...         msg = u'me Grok NameField <> @name == %s' % self.widgets['name'].value
+            ...         from Products.statusmessages.interfaces import IStatusMessage
+            ...         IStatusMessage(self.request).addStatusMessage(msg, type='info')
+        
+        The grok.View wrapping form can be looking like that
+        ::
+        
+            <<< class myview(collective.z3cform.grok.grok.FormWrapper):
+            ...     grok.context(zope.interface.Interface)
+            ...     form = MyForm
+        
+        Note that this grok style class support those attributes:
+        
+            - layer: the Form Layer
+            - Any grok directive (require, template, context, etc.)
+            - form: The form class
+            - Think that you can add some directives also on your form like ignoreContext
+        
+        - As we know how grok works, telling that we want an Interface as a context says that this form applys everywhere.
+        - ``ignoreContext`` is used just to drop context mapping.
+        - All that we have to do now is to instantiate and render our view and our form.
+          And with grok magic, the view is already registered on our portal
+          Note that its template will automaticly resolve to ``module_templates/lower_view_name.pt``, and here: ``form_templates/bar.bt``
+        
+        ::
+        
+            >>> request = make_request()
+            >>> interface.alsoProvides(request, z3c.form.interfaces.IFormLayer)
+            >>> interface.alsoProvides(request, zope.annotation.interfaces.IAttributeAnnotatable)
+            >>> pv = getMultiAdapter((portal, request), name='myview')
+            >>> pv.template.__grok_location__.endswith('form_templates/myview.pt')
+            True
+            >>> print open(pv.template.__grok_location__).read()
+            <html xmlns="http://www.w3.org/1999/xhtml"
+              xmlns:tal="http://xml.zope.org/namespaces/tal"
+              xmlns:metal="http://xml.zope.org/namespaces/metal"
+              xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+              lang="en" xml:lang="en"
+              metal:use-macro="context/main_template/macros/master">
+              <body>
+                <metal:main fill-slot="main">
+                  <tal:main-macro metal:define-macro="main">
+                    <p>my grokky template</p>
+                    <p>The form is:</p>
+                    <tal:block tal:content="structure python:view.render_form()"></tal:block>
+                  </tal:main-macro>
+                </metal:main>
+              </body>
+            </html>
+            <BLANKLINE>
+        
+        We need to call the update method to manually trigger the form.update() process
+        ::
+        
+            >>> pv.compute_widgets()
+            >>> print '\n'.join([a.rstrip() for a in pv.render_form().split('\n') if a.strip()])
+                    <form action="http://nohost/@@myview" method="post"
+                       enctype="multipart/form-data">
+                              <div class="row">
+                                  <div class="field">
+                                    <label for="form-widgets-name">
+                                      <span>Name</span>
+                                    </label>
+                                    <div class="formHelp">Name</div>
+                                    <div class="widget">
+                                      <textarea id="form-widgets-name" name="form.widgets.name"
+                          class="textarea-widget text-field"></textarea>
+                                    </div>
+                                  </div>
+                              </div>
+                            <div class="action">
+                              <input type="submit" id="form-buttons-Ok"
+                       name="form.buttons.Ok"
+                       class="submit-widget button-field" value="Ok" />
+                            </div>
+                    </form>
+            >>> pv.__class__
+            <class 'collective.z3cform.grok.tests.form.myview'>
+        
+        Verify the authenticity of our grok.View
+        ::
+        
+            >>> from zope.interface.verify import verifyObject
+            >>> from grokcore.view.interfaces import IGrokView
+            >>> pv.request is request
+            True
+            >>> verifyObject(IGrokView, pv)
+            True
+        
+        We can also test that all is in place through the web and that our view is registered and the ``switch_on`` cruft works. Note that it uses the plone.app.z3cform ``form.pt`` template.
+        ::
+        
+            >>> browser.open(portal.absolute_url()+"/@@myview")
+            >>> print '\n'.join([a.rstrip() for a in browser.contents.split('\n') if a.strip()])
+            <...<p>my grokky template</p>...<p>The form is:</p>
+            ...<p class="discreet"></p>
+            ...<form class="rowlike enableUnloadProtection  kssattr-formname-@@myview"...action="http://nohost/plone/@@myview"...
+            ...id="form-widgets-name"...
+            ...id="form-buttons-Ok"...
+            ...</form>...
+        
+        Testing that the form submission & actions are working
+        ::
+        
+            >>> browser.handleErrors = False
+            >>> browser.open(portal.absolute_url()+"/@@myview")
+            >>> browser.getControl(name='form.widgets.name').value = 'foo'
+            >>> browser.getControl(name='form.buttons.Ok').click()
+            >>> browser.url
+            'http://nohost/plone/@@myview'
+            >>> 'class="textarea-widget text-field">foo</textarea>' in browser.contents
+            True
+        
+        Opening again with our StatusMessage cookie which has been set by previous request
+        ::
+        
+            >>> '<dd>me Grok NameField &lt;&gt; @name == foo</dd>' in browser.contents
+            True
+        
+        
+        
+        collective.z3cform.grok Installation
+        ==============================================
+        
+        To install collective.z3cform.grok into the global Python environment (or a workingenv),
+        using a traditional Zope 2 instance, you can do this:
+        
+         * When you're reading this you have probably already run 
+           ``easy_install collective.z3cform.grok``. Find out how to install setuptools
+           (and EasyInstall) here:
+           http://peak.telecommunity.com/DevCenter/EasyInstall
+        
+         * If you are using Zope 2.9 (not 2.10), get `pythonproducts`_ and install it 
+           via::
+        
+               python setup.py install --home /path/to/instance
+        
+           into your Zope instance.
+        
+         * Create a file called ``collective.z3cform.grok-configure.zcml`` in the
+           ``/path/to/instance/etc/package-includes`` directory.  The file
+           should only contain this::
+        
+               <include package="collective.z3cform.grok" />
+        
+        .. _pythonproducts: http://plone.org/products/pythonproducts
+        
+        
+        Alternatively, if you are using zc.buildout and the plone.recipe.zope2instance
+        recipe to manage your project, you can do this:
+        
+         * Add ``collective.z3cform.grok`` to the list of eggs to install, e.g.::
+         
+            [buildout]
+            ...
+            eggs =
+                ...
+                collective.z3cform.grok
+                
+         * Tell the plone.recipe.zope2instance recipe to install a ZCML slug::
+          
+            [instance]
+            recipe = plone.recipe.zope2instance
+            ...
+            zcml =
+                collective.z3cform.grok
+                
+         * Re-run buildout, e.g. with::
+          
+            $ ./bin/buildout
+                
+        You can skip the ZCML slug if you are going to explicitly include the package
+        from another package's configure.zcml file.
+        
+        
+        
+        Changelog
+        =========
+        
+        1.15 (2012-08-08)
+        -----------------
+            - fix utf-8 header
+            - fix interfaces import
+        
+            - remove useless dependencies
+            
+            - changed plone.z3cform.z2.decode in grok.py to reflect the existing plone.z3cform - maybe was a version difference [miohtama]
+        
+        
+        1.10
+        ----
+        
+            - Add other forms helpers (contextless, subform)
+            - Externalize some glue to deal with zope2 requests for reuse in other code.
+        
+        1.9
+        -----
+        
+            - remove useless call
+        
+        1.6 - 1.7 - 1.8
+        ------------------
+        
+            - rework the tests infra.
+        
+        1.4-1.5
+        ---------
+        
+            - fix packaing & reload function
+        
+        1.3
+        -----
+        
+            - add plone form
+            - yet better support for layers
+        
+        1.2
+        -----
+        
+            - handle better group forms and layers
+        
+        1.1
+        ----
+        
+            * bugfix: misunderstood something about the form.updateWidgets method.
+        
+        1.0
+        ----------------
+        
+            * Initial release
+        
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development
+Classifier: Framework :: Plone
+Classifier: Programming Language :: Zope
+Classifier: Framework :: Zope2
+Classifier: Framework :: Zope3
+Classifier: Topic :: Software Development :: Libraries :: Python Modules

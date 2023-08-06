@@ -1,0 +1,137 @@
+Using grok.View to display z3c.forms in plone
+========================================================
+
+The goal of this package was to make a very minimal integration of z3c.form and plone.
+Far from plone.app.directive, my goal was to be light.
+
+Do a simple naming schema
+::
+
+    <<< import collective;from five import grok
+    <<< import zope, z3c
+    <<< class IMyFormSchema(zope.interface.Interface):
+    ...     name = zope.schema.Text(title=u"Name", description = u'Name', required=False)
+    <<< class MyForm(z3c.form.form.Form):
+    ...     ignoreContext = True
+    ...     fields = z3c.form.field.Fields(IMyFormSchema)
+    ...     @z3c.form.button.buttonAndHandler(u'Ok', name='Ok')
+    ...     def ok(self, action, *args, **kwargs):
+    ...         msg = u'me Grok NameField <> @name == %s' % self.widgets['name'].value
+    ...         from Products.statusmessages.interfaces import IStatusMessage
+    ...         IStatusMessage(self.request).addStatusMessage(msg, type='info')
+
+The grok.View wrapping form can be looking like that
+::
+
+    <<< class myview(collective.z3cform.grok.grok.FormWrapper):
+    ...     grok.context(zope.interface.Interface)
+    ...     form = MyForm
+
+Note that this grok style class support those attributes:
+
+    - layer: the Form Layer
+    - Any grok directive (require, template, context, etc.)
+    - form: The form class
+    - Think that you can add some directives also on your form like ignoreContext
+
+- As we know how grok works, telling that we want an Interface as a context says that this form applys everywhere.
+- ``ignoreContext`` is used just to drop context mapping.
+- All that we have to do now is to instantiate and render our view and our form.
+  And with grok magic, the view is already registered on our portal
+  Note that its template will automaticly resolve to ``module_templates/lower_view_name.pt``, and here: ``form_templates/bar.bt``
+
+::
+
+    >>> request = make_request()
+    >>> interface.alsoProvides(request, z3c.form.interfaces.IFormLayer)
+    >>> interface.alsoProvides(request, zope.annotation.interfaces.IAttributeAnnotatable)
+    >>> pv = getMultiAdapter((portal, request), name='myview')
+    >>> pv.template.__grok_location__.endswith('form_templates/myview.pt')
+    True
+    >>> print open(pv.template.__grok_location__).read()
+    <html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      lang="en" xml:lang="en"
+      metal:use-macro="context/main_template/macros/master">
+      <body>
+        <metal:main fill-slot="main">
+          <tal:main-macro metal:define-macro="main">
+            <p>my grokky template</p>
+            <p>The form is:</p>
+            <tal:block tal:content="structure python:view.render_form()"></tal:block>
+          </tal:main-macro>
+        </metal:main>
+      </body>
+    </html>
+    <BLANKLINE>
+
+We need to call the update method to manually trigger the form.update() process
+::
+
+    >>> pv.compute_widgets()
+    >>> print '\n'.join([a.rstrip() for a in pv.render_form().split('\n') if a.strip()])
+            <form action="http://nohost/@@myview" method="post"
+               enctype="multipart/form-data">
+                      <div class="row">
+                          <div class="field">
+                            <label for="form-widgets-name">
+                              <span>Name</span>
+                            </label>
+                            <div class="formHelp">Name</div>
+                            <div class="widget">
+                              <textarea id="form-widgets-name" name="form.widgets.name"
+                  class="textarea-widget text-field"></textarea>
+                            </div>
+                          </div>
+                      </div>
+                    <div class="action">
+                      <input type="submit" id="form-buttons-Ok"
+               name="form.buttons.Ok"
+               class="submit-widget button-field" value="Ok" />
+                    </div>
+            </form>
+    >>> pv.__class__
+    <class 'collective.z3cform.grok.tests.form.myview'>
+
+Verify the authenticity of our grok.View
+::
+
+    >>> from zope.interface.verify import verifyObject
+    >>> from grokcore.view.interfaces import IGrokView
+    >>> pv.request is request
+    True
+    >>> verifyObject(IGrokView, pv)
+    True
+
+We can also test that all is in place through the web and that our view is registered and the ``switch_on`` cruft works. Note that it uses the plone.app.z3cform ``form.pt`` template.
+::
+
+    >>> browser.open(portal.absolute_url()+"/@@myview")
+    >>> print '\n'.join([a.rstrip() for a in browser.contents.split('\n') if a.strip()])
+    <...<p>my grokky template</p>...<p>The form is:</p>
+    ...<p class="discreet"></p>
+    ...<form class="rowlike enableUnloadProtection  kssattr-formname-@@myview"...action="http://nohost/plone/@@myview"...
+    ...id="form-widgets-name"...
+    ...id="form-buttons-Ok"...
+    ...</form>...
+
+Testing that the form submission & actions are working
+::
+
+    >>> browser.handleErrors = False
+    >>> browser.open(portal.absolute_url()+"/@@myview")
+    >>> browser.getControl(name='form.widgets.name').value = 'foo'
+    >>> browser.getControl(name='form.buttons.Ok').click()
+    >>> browser.url
+    'http://nohost/plone/@@myview'
+    >>> 'class="textarea-widget text-field">foo</textarea>' in browser.contents
+    True
+
+Opening again with our StatusMessage cookie which has been set by previous request
+::
+
+    >>> '<dd>me Grok NameField &lt;&gt; @name == foo</dd>' in browser.contents
+    True
+
