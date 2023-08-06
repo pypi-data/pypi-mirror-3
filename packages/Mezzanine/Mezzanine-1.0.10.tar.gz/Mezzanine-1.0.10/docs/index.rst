@@ -1,0 +1,57 @@
+=========
+Mezzanine
+=========
+
+Welcome to the Mezzanine project. To learn more about Mezzanine please
+read the :doc:`overview` which contains a feature list, installation
+guide and other general information.
+
+.. note::
+    A working knowledge of `Django <https://www.djangoproject.com/>`_
+    is required to work with Mezzanine and the documentation assumes as
+    much. If you're new to Django, you'll need to work through the
+    `Django tutorial <https://docs.djangoproject.com/en/dev/intro/tutorial01/>`_
+    before being able to understand the concepts used throughout the
+    Mezzanine documentation.
+
+**Front-end developers** can read about how to set up templates for
+specific :doc:`device-handling` such as phones and tablets. Mezzanine
+also comes with the ability for content authors to edit content directly
+within a page while viewing it on the website. You can read about this
+and how to implement this feature within templates under
+:doc:`inline-editing`.
+
+**Back-end developers** can get a better technical overview of how
+content is managed and how to customize Mezzanine in general by
+reading about Mezzanine's :doc:`content-architecture` which describes
+the main components and how to extend them with your own custom
+content types, or by reading about :doc:`model-customization` for
+implementing more low-level customizations as required. There is also
+a section on the :doc:`admin-customization` provided by Mezzanine, as
+well as a :doc:`model-graph` depicting the relationships between all
+the models.
+
+**Further reading** includes :doc:`frequently-asked-questions`,
+information about Mezzanine's :doc:`search-engine`, a section on
+Mezzanine's :doc:`configuration` which outlines the various settings
+for configuring Mezzanine, and some notes on :doc:`deployment`. Lastly,
+you can learn about :doc:`blog-importing` into Mezzanine, or just browse
+the auto-generated docs for each of Mezzanine's :doc:`packages`.
+
+.. toctree::
+    :maxdepth: 2
+
+    overview
+    content-architecture
+    model-customization
+    admin-customization
+    model-graph
+    device-handling
+    inline-editing
+    frequently-asked-questions
+    search-engine
+    configuration
+    deployment
+    blog-importing
+    packages
+    colophon
