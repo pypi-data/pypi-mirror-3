@@ -1,0 +1,35 @@
+============================================
+Nova-specific Rate Limit Class for Turnstile
+============================================
+
+This package provides the ``nova_limits`` Python module, which
+contains the ``nova_preprocess()`` preprocessor and the
+``NovaClassLimit`` limit class for use with Turnstile.  These two
+pieces work together to provide class-based rate limiting integration
+with nova.  To use, you must configure the Turnstile middleware with
+the following configuration::
+
+    [filter:turnstile]
+    paste.filter_factory = turnstile.middleware:turnstile_filter
+    preprocess = nova_limits:nova_preprocess
+    redis.host = <your Redis database host>
+
+Then, simply use the ``nova_limits:NovaClassLimit`` rate limit class
+in your configuration.
+
+Using ``NovaClassLimit``
+========================
+
+In addition to the other attributes provided by
+``turnstile.limits:Limit``, the ``NovaClassLimit`` limit class
+provides one additional required argument: the ``rate_class``.  Each
+tenant is associated with a given rate-limit class through the Redis
+database.  (If no such association is present, the rate-limit class
+for a tenant is ``default``.)  Setting ``rate_class`` on
+``NovaClassLimit`` restricts the limiting action to only those tenants
+in the given rate-limit class.
+
+Also note that, for nova, the URIs used in configuring rate limiting
+come after the version identifier.  For instance, to limit the rate at
+which accesses to "/v2/{tenant}/servers/detail" can be made, the URI
+to configure is "/{tenant}/servers/detail".
