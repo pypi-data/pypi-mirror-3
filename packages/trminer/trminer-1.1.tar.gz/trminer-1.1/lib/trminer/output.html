@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>TRMiner</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<style type="text/css">
+body {
+	font-family: sans-serif;
+	color: #303030;
+}
+
+a {
+	color: inherit;
+	font-weight: bold;
+	text-decoration: none;
+	-webkit-transition: opacity 0.5s;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+span.token {
+	color: red;
+}
+
+.paper {
+	width: 80%;
+	margin: auto;
+	margin-bottom: 5px;
+}
+
+.paper table {
+	border: 0;
+	background-color: #EEEEEE;
+	-webkit-transition: background-color 0.5s;
+	border-radius: 10px;
+	border-spacing: 0;
+	padding: 0px;
+	width: 100%;
+}
+
+.paper table:hover {
+	background-color: #DDDDDD;
+	-webkit-transition: background-color 0.5s;
+}
+
+.paper.useful table {
+	background-color: #CCFFCC;
+}
+
+.paper.notuseful table {
+	background-color: #FFCCCC;
+}
+
+.paper.unsure table {
+	background-color: #F5FFA4;
+}
+
+.paper.useful[conflict=notuseful] {
+	background-color: #FFCCCC;
+}
+.paper.useful[conflict=notuseful]:before {
+	content: "previously marked as not useful";
+}
+
+.paper th.controls {
+	width: 50%;
+	text-align: right;
+	background-color: white;
+	border-bottom-left-radius: 10px;
+}
+
+.paper th.controls {
+	opacity: 0;
+	-webkit-transition: opacity 0.5s;
+}
+
+.paper.useful th.controls a.markUseful {
+	opacity: 0.2;
+}
+
+.paper.notuseful th.controls a.markNotuseful {
+	opacity: 0.2;
+}
+
+.paper.unsure th.controls a.markUnsure {
+	opacity: 0.2;
+}
+
+.paper table:hover th.controls {
+	opacity: 1;
+	-webkit-transition: opacity 0.5s;
+}
+
+th {
+	padding: 5px;
+	text-align: left;
+}
+
+td {
+	text-align: justify;
+	padding: 5px;
+}
+
+#header {
+	margin: auto;
+	margin-bottom: 5px;
+	padding: 5px;
+	position: fixed;
+	top: 0px;
+	left: 5%;
+	background-color: #DDDDDD;
+	width: 90%;
+	z-index: 5;
+	border-bottom-left-radius: 10px;
+	border-bottom-right-radius: 10px;
+}
+
+#header:hover {
+	
+}
+
+#header #heading {
+	font-size: 2em;
+}
+
+#headerspacer {
+	height: 5em;
+}
+
+#header .controls {
+	padding: 5px;
+	position: absolute;
+	bottom: 0px;
+	right: 0px;
+	background-color: white;
+	border-top-left-radius: 10px;
+}
+
+/*.dialog {
+	position: fixed;
+	top: 0px;
+	left: 0px;
+	width: 100%;
+	height: 100%;
+	z-index: 4;
+	background-color: white;
+}*/
+table {
+	margin: auto;
+	margin-bottom: 5px;
+	border-radius: 10px;
+	background-color: #DDDDDD;
+}
+
+.filtered {
+	display: none;
+}
+
+a.active {
+	opacity: 0.2;
+}
+
+td.numeric {
+	text-align: right;
+}
+
+</style>
+<script type="text/javascript">
+    /*<![CDATA[*/
+/** Start prerequesites */
+
+/**
+*
+*  Javascript trim, ltrim, rtrim
+*  http://www.webtoolkit.info/
+*
+**/
+ 
+function trim(str, chars) {
+	return ltrim(rtrim(str, chars), chars);
+}
+ 
+function ltrim(str, chars) {
+	chars = chars || "\\s";
+	return str.replace(new RegExp("^[" + chars + "]+", "g"), "");
+}
+ 
+function rtrim(str, chars) {
+	chars = chars || "\\s";
+	return str.replace(new RegExp("[" + chars + "]+$", "g"), "");
+}
+/** End prerequesites */
+               
+               
+classes = new Array('useful', 'notuseful', 'unsure');
+
+function getPaperElement(element) {
+	while(!element.classList.contains('paper')) {
+		element = element.parentNode;
+	}
+	return element;
+}
+
+function loadStorage() {
+	if(localStorage.created) {
+		markFromStorage();
+	} else {
+		localStorage.setItem('created', true);
+	}
+}
+
+function markFromStorage() {
+	var toMark = document.getElementsByClassName('paper');
+	for(var i=0; i<toMark.length; i++) {
+		var theclass = localStorage.getItem(toMark[i].id);
+		if(theclass) {
+			if(!toMark[i].classList.contains(theclass)) {
+				unmark(toMark[i]);
+				markElement(toMark[i], theclass, true);
+			}
+		}
+	}
+}
+
+function markElement(element, theclass, notstore) {
+	if(theclass == null) {
+		return;
+	}
+	if(!element.classList.contains(theclass)) {
+		element.classList.add(theclass);
+		if(notstore == null) {
+			localStorage.setItem(element.id, theclass);
+		}
+	} else {
+		element.classList.remove(theclass);
+		localStorage.removeItem(element.id);
+	}
+}
+
+function unmark(element) {
+	for(var i=0; i<classes.length; i++) {
+		element.classList.remove(classes[i]);
+	}
+}
+
+function mark(element, theclass) {
+	for(var i=0; i<classes.length; i++) {
+		if(classes[i] != theclass)
+			element.classList.remove(classes[i]);
+	}
+	markElement(element, theclass);
+}
+
+function getTable(cellcontent) {
+	return cellcontent.parentNode.parentNode.parentNode.parentElement;
+}
+
+function unfilter() {
+	unfilterElements(document.getElementsByClassName('paper'));
+}
+
+function unfilterElements(elements) {
+	for(var i=0; i<elements.length; i++) {
+		elements[i].classList.remove('filtered');
+	}
+}
+
+function filter(theclass) {
+	filterElements(document.getElementsByClassName('paper'), theclass, false);
+}
+
+function filterElements(elements, theclass) {
+	unfilter(elements);
+	for(var i=0; i<elements.length; i++) {
+		if(!elements[i].classList.contains(theclass))
+			elements[i].classList.add('filtered');
+	}
+}
+
+function filterlinks(element) {
+	var links = document.getElementsByClassName('mutexfilter');
+	for(var i=0; i<links.length; i++) {
+		if(links[i] == element)
+			activate(links[i]);
+		else
+			deactivate(links[i]);
+	}
+}
+
+function toggleActive(element) {
+	element.classList.toggle('active');
+}
+
+function activate(element) {
+	element.classList.add('active');
+}
+
+function deactivate(element) {
+	element.classList.remove('active');
+}
+
+function patternfilter(pattern, active) {
+	var papers = document.getElementsByClassName('paper');
+	for(var i=0; i<papers.length; i++) {
+		var matches = papers[i].getElementsByClassName('match'); // all match cells
+		var notfiltered = 0;
+		for(var j=0; j<matches.length; j++) {
+			if(matches[j].getAttribute('pattern') == pattern) {
+				if(active) {
+					matches[j].classList.remove('filtered');
+				} else {
+					matches[j].classList.add('filtered');
+				}
+			}
+			if(!matches[j].classList.contains('filtered'))
+				notfiltered++;
+		}
+		if(notfiltered == 0)
+			papers[i].classList.add('filtered');
+		else
+			papers[i].classList.remove('filtered');
+	}
+}
+
+function notfilteredMatches(paper) {
+	var matches = paper.getElementsByClassName('match');
+	var notfiltered = 0;
+	for(var j=0; j<matches.length; j++) {
+		if(!matches[j].classList.contains('filtered'))
+			notfiltered++;
+	}
+	return notfiltered;
+}
+
+function filterEmptyPapers() {
+	var papers = document.getElementsByClassName('paper');
+	for(var i=0; i<papers.length; i++) {
+		if(notfilteredMatches(papers[i]) == 0)
+			papers[i].classList.add('filtered');
+	}
+}
+
+function toggleDialog(link, theid) {
+	var dialog = document.getElementById(theid);
+	if(dialog.classList.contains('filtered')) {
+		hideDialogs();
+		dialog.classList.remove('filtered');
+		activate(link);
+	}
+	else {
+		dialog.classList.add('filtered');
+		deactivate(link);
+		showDefaultDialog();
+	}
+}
+
+function hideDialogs() {
+	var dialogs = document.getElementsByClassName('dialog');
+	for(var i=0; i<dialogs.length; i++) {
+		dialogs[i].classList.add('filtered');
+	}
+	var dialoglinks = document.getElementsByClassName('dialoglink');
+	for(var i=0; i<dialoglinks.length; i++) {
+		deactivate(dialoglinks[i]);
+	}
+}
+
+function showDefaultDialog() {
+	var papers = document.getElementById('papers');
+	papers.classList.remove('filtered');
+}
+
+function exportHTML() {
+	var data = "<!DOCTYPE html>\n<html>\n"+encodeURIComponent(document.documentElement.innerHTML)+"\n</html>";
+	window.open('data:application/x-download;charset=utf-8,' + data, '_blank');
+}
+
+function exportCSV() {
+	var papers = document.getElementsByClassName('paper');
+	var data = "paper\trating\tmatch\n";
+	for(var i=0; i<papers.length; i++) {
+		if(!papers[i].classList.contains("filtered")) {
+			var state = "";
+			if(papers[i].classList.contains("useful"))
+				state = "useful";
+			else if(papers[i].classList.contains("notuseful"))
+				state = "notuseful";
+			else if(papers[i].classList.contains("unsure"))
+				state = "unsure";
+			paper = papers[i].id + "\t" + state + "\t";
+			var matches = papers[i].getElementsByTagName("td");
+			for(var j=0; j<matches.length; j++) {
+				if(!matches[j].classList.contains("filtered")) {
+					var match = "";
+					var child = matches[j].firstChild;
+					while(child) {
+						text = child.data
+						if(child.nodeType != Node.TEXT_NODE) {
+							text= "*" + child.firstChild.data + "*";
+						}
+						match += text
+						child = child.nextSibling;
+					}
+					data += paper + trim(match) + "\n";
+				}
+			}
+		}
+	}
+	window.open('data:text/csv;charset=utf-8,' + encodeURIComponent(data), '_blank');
+}
+
+/*]]>*/
+ </script>
+</head>
+<body onload="loadStorage();">
+<div id="header"><span id="heading">TRMiner</span>
+<div class="controls"> 
+<a class="dialoglink" id="showexport" href="javascript:void(0)" onclick="exportHTML();" title="Export current state of the document as .html, e.g. to share with others.">Export HTML</a> |
+<a class="dialoglink" id="showexportcsv" href="javascript:void(0)" onclick="exportCSV();" title="Export the current view as .csv">Export CSV</a> | 
+<a class="dialoglink" id="showstatistics" href="javascript:void(0)"
+	onclick="toggleDialog(this, 'statistics');">Statistic</a>
+| show: <a class="mutexfilter filter all active" href="javascript:void(0)"
+	onclick="unfilter(); filterEmptyPapers(); filterlinks(this);hideDialogs();showDefaultDialog();" title="Show all papers">all</a>
+| <a class="mutexfilter filter useful" href="javascript:void(0)"
+	onclick="filter('useful'); filterEmptyPapers(); filterlinks(this);hideDialogs();showDefaultDialog();"  title="Show only papers that are marked as useful">useful</a>
+| <a class="mutexfilter filter notuseful" href="javascript:void(0)"
+	onclick="filter('notuseful'); filterEmptyPapers(); filterlinks(this);hideDialogs();showDefaultDialog();" title="Show only papers that are marked as not useful">not
+useful</a> | <a class="mutexfilter filter unsure" href="javascript:void(0)"
+	onclick="filter('unsure'); filterEmptyPapers(); filterlinks(this);hideDialogs();showDefaultDialog();" title="Show only papers that are marked as unsure">unsure</a> | <a class="dialoglink" id="morefilters"
+	href="javascript:void(0)" onclick="toggleDialog(this, 'filter')" title="Exclude matches derived from certain patterns from being displayed.">exclude patterns</a>
+</div>
+</div>
+<div id="headerspacer"><!--  --></div>
+
+<div id="statistics" class="dialog filtered">
+<table id="patternhist">
+	<tr>
+		<th>Pattern</th>
+		<th>Matches</th>
+	</tr>
+	{% for pattern in patterns %}
+	<tr>
+		<th>{{ pattern }}</th>
+		<td class="numeric">{{ patterns[pattern] }}</td>
+	</tr>
+	{% endfor %}
+	<tr>
+		<th></th>
+		<td class="numeric">{{ allpatterns }}</td>
+	</tr>
+</table>
+
+<table>
+	<tr>
+		<th>Papers containing matches</th>
+		<td class="numeric">{{ numpapers }}</td>
+	</tr>
+</table>
+
+<table>
+	{% for token in tokens %}
+	<tr>
+		<th>{{ token }}</th>
+		<td>{{ ", ".join(tokens.words(token)) }}</td>
+	</tr>
+	{% endfor %}
+</table>
+</div>
+
+<div id="filter" class="dialog filtered">
+<table id="patterns">
+	<tr>
+		<th>Patterns</th>
+	</tr>
+	
+	{% for pattern in patterns %}
+	<tr>
+		<th><a class="filter active" href="javascript:void(0)"
+			onclick="toggleActive(this);patternfilter('{{ pattern }}',this.classList.contains('active'));">{{ pattern }}</a></th>
+	</tr>
+	{% endfor %}
+</table>
+
+<table>
+	{% for token in tokens %}
+	<tr>
+		<th>{{ token }}</th>
+		<td>{{ ", ".join(tokens.words(token)) }}</td>
+	</tr>
+	{% endfor %}
+</table>
+</div>
+
+<div id="papers" class="dialog">
+{% for paper in papers %}
+<div class="paper" id="{{ paper.filename }}"
+	path="{{ paper.filepath }}">
+<table>
+	<tr>
+		<th>{{ paper.text }}</th>
+		<th class="controls"><a href="{{ paper.filepath }}">Open File</a> | <a
+			target="_blank"
+			href="http://www.ncbi.nlm.nih.gov/pubmed?term={{ paper.searchterm }}">Pubmed</a>
+		| <a class="markUseful" href="javascript:void(0)"
+			onclick="mark(getPaperElement(this), 'useful')">useful</a> | <a
+			class="markNotuseful" href="javascript:void(0)"
+			onclick="mark(getPaperElement(this), 'notuseful')">not useful</a> | <a
+			class="markUnsure" href="javascript:void(0)"
+			onclick="mark(getPaperElement(this), 'unsure')">unsure</a></th>
+	</tr>
+	{% for match in paper.matches %}
+	<tr>
+		<td colspan="2" class="match" pattern="{{ match.pattern }}">
+		{{ match.text }}</td>
+	</tr>
+	{% endfor %}
+</table>
+</div>
+{% endfor %}
+</div>
+</body>
+</html>

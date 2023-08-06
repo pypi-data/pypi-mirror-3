@@ -1,0 +1,221 @@
+#!/usr/bin/env python
+
+from __future__ import print_function, division
+import os.path
+import sys
+
+# If running from within source directory,
+# add 'lib' to sys.path.
+_libdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'lib')
+if os.path.isfile(os.path.join(_libdir, 'trminer', '__init__.py')):
+	sys.path.insert(0, _libdir)
+
+from optparse import OptionParser
+from trminer.tokens import Tokens
+from trminer.tokenizer import Tokenizer
+from trminer.patternmatcher import PatternMatcher
+from trminer.patterns import *
+from trminer.output import HTMLOutput
+from trminer.xmltotext import XML_to_text
+from threading import Thread
+from pyPdf import PdfFileReader
+
+def main():
+	usage = "usage: %prog [options] [--mine|--tokenize|-m|-t] <.pdf or .html files>"
+	parser = OptionParser(usage=usage, version="%prog 1.0")
+	parser.add_option("-z", "--tokenize", action="store_true", default=False, dest="tokenize", 
+		help="Tokenize given files.")
+	parser.add_option("-m", "--mine", action="store_true", default=False, dest="mine", 
+		help="Mine given files.")
+	parser.add_option("-p", "--patterns", action="store", dest="patterns", 
+		help="A pattern definitions file.")
+	parser.add_option("-t", "--tokens", action="store", dest="tokens", 
+		help="A token definitions file.")
+	parser.add_option("-o", "--matches", action="store", dest="matches", 
+		help="An HTML file summarizing all matches.")
+	parser.add_option("-s", "--storage", action="store", dest="storage", 
+		help="A path to a storage directory.")
+	parser.add_option("-j", "--threads", action="store", dest="threads", default="1",
+		help="How many parallel threads should be used.")
+		
+	(options, args) = parser.parse_args()
+	
+	if options.tokenize == options.mine or not options.storage:
+		parser.print_help()
+		exit(1)
+	
+	threadnum = int(options.threads)
+	
+	tokens = Tokens(options.tokens)
+	
+	progress_width = 50
+	
+	files = list(get_files(args, options))
+	
+	n = int(len(files) / threadnum)
+	if n < 1:
+		n = len(files)
+	files_chunks = [files[i: (i+n if i+n <= len(files) else len(files)) ] for i in range(0, len(files), n)]
+	
+	if options.tokenize:
+		progress = Progress(progress_width, len(files))
+		threadpool = Threadpool()
+		for chunk in files_chunks:
+			threadpool.add(Convert(chunk, parser, progress))
+		threadpool.join()
+		
+		tokenizer = Tokenizer(tokens)
+		
+		progress = Progress(progress_width, len(files))
+		threadpool = Threadpool()
+		for chunk in files_chunks:
+			threadpool.add(Tokenize(tokenizer, chunk, progress))
+		threadpool.join()
+		
+	else:
+		patterns = Patterns(options.patterns, tokens)
+		patternmatcher = PatternMatcher(patterns, tokens)
+		output = HTMLOutput(options.matches, tokens, patterns)
+		
+		progress = Progress(progress_width, len(files))
+		threadpool = Threadpool()
+		for chunk in files_chunks:
+			threadpool.add(Match(patternmatcher, output, chunk, progress))
+		threadpool.join()
+		output.write()
+	print("")
+
+class Convert(Thread):
+	def __init__(self, files, parser, progress):
+		Thread.__init__(self)
+		self.daemon = True
+		self.__files = files
+		self.__parser = parser
+		self.__progress = progress
+	
+	def run(self):
+		for textfilepath, _, _, _, _, filepath, _ in self.__files:
+			if not os.path.exists(textfilepath):
+				if filepath.endswith(".html") or filepath.endswith(".htm"):
+					os.system("html2text -o {1} {0}".format(filepath, textfilepath))
+				elif filepath.endswith(".pdf"):
+					#os.system("pdftotext -q {0} {1}".format(filepath, textfilepath))
+					 pdftotext(filepath, textfilepath)
+				elif filepath.endswith("xml"):
+					XML_to_text(filepath, textfilepath)
+				else:
+					self.__parser.print_help()
+					exit(1)
+			self.__progress.increment()
+		
+def pdftotext(filepath, textfilepath):
+	pdffile = PdfFileReader(open(filepath, "rb"))
+	
+
+def error_filenotfound(filepath):
+	print("Error: {} does not exist".format(filepath), file=sys.stderr)
+
+class Tokenize(Thread):
+	def __init__(self, tokenizer, files, progress):
+		Thread.__init__(self)
+		self.daemon = True
+		self.__tokenizer = tokenizer
+		self.__files = files
+		self.__progress = progress
+	
+	def run(self):
+		for textfilepath, tokenizedfilepath, indexfilepath, lastindexfilepath, tokenlengthindexfilepath, filepath, _ in self.__files:
+			if not os.path.exists(textfilepath):
+				error_filenotfound(textfilepath)
+				continue
+			self.__tokenizer.tokenize(textfilepath, tokenizedfilepath, indexfilepath, lastindexfilepath, tokenlengthindexfilepath)
+			self.__progress.increment()
+
+class Match(Thread):
+	def __init__(self, patternmatcher, output, files, progress):
+		Thread.__init__(self)
+		self.daemon = True
+		self.__patternmatcher = patternmatcher
+		self.__output = output
+		self.__files = files
+		self.__progress = progress
+	
+	def run(self):
+		for textfilepath, tokenizedfilepath, indexfilepath, lastindexfilepath, tokenlengthindexfilepath, filepath, _ in self.__files:
+			if not os.path.exists(textfilepath) or not os.path.exists(tokenizedfilepath):
+				error_filenotfound(textfilepath)
+				continue
+			paper = None
+			for matchtext, pattern, to_mark in self.__patternmatcher.match(textfilepath, tokenizedfilepath, indexfilepath, lastindexfilepath, tokenlengthindexfilepath):
+				if not paper:
+					name = os.path.splitext(os.path.basename(filepath))[0]
+					paper = self.__output.add_paper(os.path.basename(filepath), filepath, name)
+				match = paper.add_match(pattern, matchtext)
+				match.mark(to_mark)
+				match.trim()
+			self.__progress.increment()
+
+class Progress:
+	def __init__(self, width, todo):
+		self.__progress = 0
+		self.__todo = todo
+		self.__width = width
+	
+	def increment(self):
+		self.__progress += 1
+		display_progress(self.__width, self.__progress / self.__todo * 100)
+
+def file_count(args):
+	return len(args)
+
+def get_files(filepaths, options):
+	"""
+	Generate target files for each file in filepaths.
+	"""
+	ending = re.compile("\..+\Z")
+	count = len(filepaths)
+	i = 1
+	for filepath in filepaths:
+		name = ending.sub("", os.path.basename(filepath))
+		dir = name[-3:]
+		dir = "{0}/{1}".format(options.storage, name[-3:])
+		if not os.path.exists(dir):
+			os.mkdir(dir)
+		storage = "{0}/{1}".format(dir, name) + "{0}"
+		
+		textfilepath = storage.format(".txt")
+		tokenizedfilepath = storage.format(".tok")
+		indexfilepath = storage.format(".idx")
+		lastindexfilepath = storage.format(".ldx")
+		tokenlengthindexfilepath = storage.format(".tlx")
+		
+		yield textfilepath, tokenizedfilepath, indexfilepath, lastindexfilepath, tokenlengthindexfilepath, filepath, 100.0*i/count
+		i += 1
+
+def display_progress(width, percent):
+	"""
+	Display the progress in the terminal.
+	
+	Arguments:
+	width -- defines bar width
+	percent -- defines current percentage
+	"""
+	marks = int(width * (percent / 100.0))
+	spaces = int(width - marks)
+	loader = '[' + ('=' * marks) + (' ' * spaces) + ']'
+	sys.stdout.write("%s %d%%\r" % (loader, percent))
+	if percent >= 100:
+			sys.stdout.write("\n")
+	sys.stdout.flush()
+
+class Threadpool:
+	def __init__(self):
+		self.__threads = []
+	def add(self, thread):
+		self.__threads.append(thread)
+		thread.start()
+	def join(self):
+		for thread in self.__threads: thread.join()
+
+if __name__ == "__main__":
+	main()
