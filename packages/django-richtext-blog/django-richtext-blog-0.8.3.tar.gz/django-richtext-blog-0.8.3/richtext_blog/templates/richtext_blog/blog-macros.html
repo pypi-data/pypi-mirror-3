@@ -1,0 +1,162 @@
+{% load macros %}
+{% load blog_extras %}
+
+{# blog_back_to_all macro. Defines a link that goes back to the page with all posts #}
+{% macro blog_back_to_all %}
+<div class="nav-link">
+  &larr;&nbsp;<a href="{% url posts_all %}">Back to all posts</a>
+</div>
+{% endmacro %}
+
+{# blog_post macro. Requires that post already be a Post object and that this macro be
+   called in a <ul> tag #}
+{% macro blog_post %}
+<li class="post">
+  <div class="heading">
+    <div class="title"><h1><a href="{{ post.get_absolute_url }}">{{ post.title }}</a></h1></div>
+  </div>
+  {% if post.has_edits %}
+    <div class="time float-right">Last modified {{ post.modified }}</div>
+  {% endif %}
+  <span class="time">Posted {{ post.created }} by {{ post.author }}</span>
+  <hr />
+  <div class="tags">
+      <div class="comments-link">
+	{% if post_list %}
+	  <a href="{{ post.get_absolute_url }}#comment-section">{{ post.get_number_of_comments }} comments</a>
+	{% else %}{# We're on a single post page #}
+	  {% if post.get_number_of_comments %}
+	    <a href="{{ post.get_absolute_url }}#comment-section">View comments</a>
+	  {% endif %}
+	{% endif %}
+      </div>
+  {% if post.tags %}
+    <ul>
+      <li class="not-tag">Filed under:</li>
+      {% for tag in post.tags.all %}
+        <li><a href="{{ tag.get_absolute_url }}">{{ tag.name }}</a></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  </div>
+  <div class="post-content">
+    {{ post.content|pygmentize }}
+  </div>
+</li>
+{% endmacro %}
+
+{# blog_pagination macro. Requires that it be used on a ListView template, that or standard
+   pagination context objects are available. post_list should also be defined as the
+   queryset/list of objects to display on the page #}
+{% macro blog_pagination %}
+{% if is_paginated %}
+  <div class="pagination">
+    <span class="page-links">
+      <ul>
+	{% if page_obj.has_previous %}
+	  <li>
+	    <a href="{{ post_list.get_absolute_url }}?page={{ page_obj.previous_page_number }}">&larr;</a>
+	  </li>
+	{% endif %}
+	{% for page_num in paginator.page_range %}
+	  <li>
+	    <a class="{% if page_num == page_obj.number %}active{% else %}inactive{% endif %}" href="{{ post_list.get_absolute_url }}?page={{ page_num }}">{{ page_num }}</a>
+	  </li>
+	{% endfor %}
+	{% if page_obj.has_next %}
+	  <li>
+	    <a href="{{ post_list.get_absolute_url }}?page={{ page_obj.next_page_number }}">&rarr;</a>
+	  </li>
+	{% endif %}
+      </ul>
+    </span>
+  </div>
+{% endif %}
+{% endmacro %}
+
+{# blog_archive_links macro. Provides a list of links to the monthly post archives
+   Requires that ARCHIVE_LINKS be defined in the context (currently implemented in 
+   context_processors.py) #}
+{% macro blog_archive_links %}
+<div class="blog-archive-links">
+  <ul>
+    <li class="blog-archive-all-posts"><a href="{% url posts_all %}">All posts</a></li>
+    {% for link in BLOG_ARCHIVE_LINKS %}
+      <li><a href="{{ link.link }}">{{ link.link_text }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endmacro %}
+
+{# blog_feed_links macro. Provides a list of links to the RSS and Atom feeds provided
+   by the blog. #}
+{% macro blog_feed_links %}
+<div class="blog-feed-links">
+  <ul>
+    <li>
+      <a href="{% url posts_all_rss %}">
+	<img src="{{ STATIC_URL }}rss_24x24.png" alt="RSS" />
+      </a>
+      <a class="text-link" href="{% url posts_all_rss %}">RSS Feed</a>
+    </li>
+    <li>
+      <a href="{% url posts_all_atom %}">
+	<img src="{{ STATIC_URL }}rss_24x24.png" alt="Atom" />
+      </a>
+      <a class="text-link" href="{% url posts_all_atom %}">Atom Feed</a>
+    </li>
+  </ul>
+</div>
+{% endmacro %}
+
+{# blog_tag_links macro. Provides a list of links to the posts by tag pages along with
+   the number of posts that use that tag. Requires that TAG_COUNTS be defined in the
+   context (currently implemented in context_processors.py) #}
+{% macro blog_tag_links %}
+<div class="blog-tag-links">
+  <ul>
+    {% for tag in BLOG_TAG_COUNTS %}
+    <li>
+      <a href="{% url posts_tag tag.slug %}">{{ tag.name }} ({{ tag.count }})</a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endmacro %}
+
+{# blog_recent_posts macro. Provides a list of most recent posts as links.
+   Requires that BLOG_RECENT_POSTS be defined in the context (currently
+   implemented in context_processors.py) #}
+{% macro blog_recent_posts %}
+<div class="blog-recent-posts">
+  <ul>
+    {% for link in BLOG_RECENT_POSTS %}
+    <li>
+      <a href="{{ link.link }}" title="{{ link.date }}">{{ link.title }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endmacro %}
+
+{# blog_jquery_selectall. Jquery that should be added to an existing
+   <script type="text/javascript"> tag. Contains a function definition to
+   select all text on an element.
+   Thanks to http://jsfiddle.net/edelman/KcX6A/339/ #}
+{% macro blog_jquery_selecttext %}
+function selectText(element) {
+    var doc = document;
+    var text = element;
+    if (doc.body.createTextRange) {
+        var range = document.body.createTextRange();
+        range.moveToElementText(text);
+        range.select();
+    } else if (window.getSelection) {
+        var selection = window.getSelection();        
+        var range = document.createRange();
+        range.selectNodeContents(text);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+}
+{% endmacro %}

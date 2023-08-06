@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load macros %}
+{% loadmacros richtext_blog/blog-macros.html %}
+
+{# Javascript (jquery) to allow the page to be auto-scrolled to the form
+   or comments section if there are user messages there #}
+{% block page_javascript %}
+  <script type="text/javascript" src="{{ STATIC_URL }}jquery-1.7.2.min.js"></script>
+  <script type="text/javascript">
+    {% usemacro blog_jquery_selecttext %}
+    $(document).ready(function() {
+        var jumpTo = $('#jump-to-me');
+
+        if (jumpTo) {
+            offset = jumpTo.offset();
+            if (offset) {
+                window.scrollTo(0, offset.top);
+            }
+        }
+
+       $('pre').click(function() {
+           selectText(this);
+       });
+    });
+  </script>
+{% endblock %}
+
+{% block page_css %}
+  <link rel="stylesheet" href="{{ STATIC_URL }}pygments.css" />
+{% endblock %}
+
+{% block title %}
+{{ SITE.name }} &mdash; {{ post.title }}
+{% endblock %}
+
+{# clear default messages section since on this template we want them
+    appearing at the bottom of the page near the comments #}
+{% block messages_section %}
+{% endblock %}
+
+{% block content %}
+  <div class="content">
+    <div id="posts">
+      {% usemacro blog_back_to_all %}
+      <ul>
+	{% usemacro blog_post %}
+      </ul>
+      {% usemacro blog_back_to_all %}
+    </div>
+    <hr />
+    {% if messages %}
+      <ul class="messages" id="jump-to-me">
+	{% for message in messages %}
+	  <li {% if message.tags %}class="{{ message.tags }}"{% endif %}>
+	    {{ message }}
+	  </li>
+	{% endfor %}
+      </ul>
+    {% endif %}
+    <div id="comments-section">
+      <a name="comment-section"></a>
+      <h3>{{ comments|length }} Comments</h3>
+      {% if comments %}
+	<ul class="comments">
+	  {% for comment in comments %}
+	    <li class="comment">
+	      <div class="title">
+		<h4 class="{% if comment.show_user_registered %}name user-registered{% else %}name{% endif %}">
+		  {% if comment.author %}{{ comment.author }}{% else %}Anonymous{% endif %}
+		</h4>
+		&mdash;
+		<span class="created">{{ comment.created }}</span>
+	      </div>
+	      <div class="message">{{ comment.comment }}</div>
+	    </li>
+	  {% endfor %}
+	</ul>
+      {% endif %}
+      {% if post.comments_closed %}
+	<h3>Comments are closed</h3>
+      {% else %}
+	<h3>Leave a comment</h3>
+	<form method="POST" action="">
+	  {% if form.errors %}
+	    <ul class="errors" id="jump-to-me">
+	      <li>
+		{% if form.non_field_errors %}
+		  Please correct the following: {{ form.non_field_errors }}
+		{% else %}
+		  There was a problem with your submission. Please correct the errors below.
+		{% endif %}
+	      </li>
+	    </ul>
+	  {% endif %}
+	  
+	  <ul class="form-fields">
+	    {% for field in form %}
+	      <li class="{{ field.css_classes }}">
+		<div class="field-label">
+		  <label for="id_{{ field.name }}">{{ field.label }}</label>:
+		  {{ field.errors }}
+		  <p class="page-help">
+		    {{ field.help_text }}
+		  </p>
+		</div>
+		<div class="field-input">
+		  {{ field }}
+		</div>
+	      </li>
+	    {% endfor %}
+	  </ul>
+	  <div class="form-button">
+	    <input type="submit" value="Submit Comment" />
+	  </div>
+	  {% csrf_token %}
+	</form>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
