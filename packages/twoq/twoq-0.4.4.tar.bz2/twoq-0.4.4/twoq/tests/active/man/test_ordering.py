@@ -1,0 +1,28 @@
+# -*- coding: utf-8 -*-
+
+try:
+    import unittest2 as unittest
+except ImportError:
+    import unittest
+
+#pylint: disable-msg=w0614,w0401
+from twoq.tests.mixins.man.ordering import *  # @UnusedWildImport
+from twoq.tests.mixins.man.manning import Manning
+from twoq.tests.mixins.man.queuing import MQMixin
+
+
+class TestManOrderQ(Manning, MQMixin, MOrderQMixin):
+
+    def setUp(self):
+        from twoq.active.ordering import morderq
+        self.qclass = morderq
+
+
+class TestManRandomQ(Manning, MQMixin, MRandomQMixin):
+
+    def setUp(self):
+        from twoq.active.ordering import mrandomq
+        self.qclass = mrandomq
+
+if __name__ == '__main__':
+    unittest.main()
