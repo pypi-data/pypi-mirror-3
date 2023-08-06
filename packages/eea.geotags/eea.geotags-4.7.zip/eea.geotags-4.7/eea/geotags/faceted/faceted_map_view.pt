@@ -1,0 +1,95 @@
+<metal:map define-macro="map">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"
+  xmlns:tal="http://xml.zope.org/namespaces/tal"
+  xmlns:metal="http://xml.zope.org/namespaces/metal"
+  xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+  metal:use-macro="context/main_template/macros/master"
+  i18n:domain="eea">
+
+<body>
+  <metal:content-core fill-slot="content-core">
+    <metal:block define-macro="content-core">
+      <div metal:use-macro="context/map_macros/macros/geotags_map" />
+
+      <div tal:define="
+        contentFilter contentFilter|request/contentFilter|nothing;
+        contentFilter python:contentFilter and dict(contentFilter) or {};
+        isAnon context/@@plone_portal_state/anonymous;
+        limit_display limit_display|request/limit_display|nothing;
+        limit_display python:limit_display and int(limit_display) or None;
+        contentFilter python: { 'review_state' : 'published' } if isAnon else contentFilter;
+        is_a_topic python:context.portal_type in ['Topic'];
+        folderContents folderContents|nothing; folderContents python:folderContents or is_a_topic and context.queryCatalog(batch=True, **contentFilter) or context.getFolderContents(contentFilter, batch=True, b_size=limit_display or 100);
+        Batch python:modules['Products.CMFPlone'].Batch;
+        b_start python:request.get('b_start', 0);
+        batch python:isinstance(folderContents, Batch) and folderContents or Batch(folderContents, limit_display or 100, int(b_start), orphan=1);
+        self nocall:context/@@faceted-map-view;
+        res python:self.map_points(batch);
+        portal_url context/@@plone_portal_state/portal_url;
+        ">
+        <div id="map_points" tal:content="res" class="visualHidden" />
+        <div id="portal_url" tal:content="portal_url" class="visualHidden" />
+        <div metal:use-macro="context/batch_macros/macros/navigation" />
+        <div tal:attributes="data-modal string:False">
+
+                <table class="listing"
+
+                        tal:define="vocab python:here.listMetaDataFields(False); topicContents folderContents">
+                     <caption class="hiddenStructure" i18n:translate="">Content listing</caption>
+                     <thead>
+                        <tr>
+                            <th tal:repeat="field here/getCustomViewFields"
+                                tal:content="python:vocab.getValue(field, field)"
+                                i18n:translate=""/>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        <tal:brain tal:repeat="obj topicContents">
+                        <tr tal:define="oddrow repeat/obj/odd;"
+                            tal:attributes="class python:'even' if oddrow else 'odd'">
+                            <tal:fields repeat="field here/getCustomViewFields"
+                                        define="urlview context/@@url;
+                                                url python: urlview.listing_url(brain=obj);
+                                                obj_description obj/Description;
+                                                obj_icon python:plone_view.getIcon(obj);
+                                                title_or_id obj/pretty_title_or_id">
+                            <tal:block define="value python: getattr(obj, field, None)">
+                                <td tal:condition="python: field != 'Title'"
+                                  tal:define="format_view nocall:context/@@format_catalog_metadata"
+                                    tal:content="python:format_view(value)"
+                                    i18n:translate="" tal:on-error="python:value"/>
+                                <td tal:condition="python: field == 'Title'">
+                                    <a href="#" tal:attributes="href url;
+                                                                title obj_description;">
+                                        <img src="#"
+                                             height="16"
+                                             width="16"
+                                             tal:condition="obj_icon/url"
+                                             tal:attributes="src obj_icon/url;
+                                                             alt obj_icon/description;
+                                                             title obj_icon/title;
+                                                             width obj_icon/width;
+                                                             height obj_icon/height;"/>
+                                    </a>
+                                     <a href="#" tal:attributes="href url;
+                                                                class python:'link-plain' if urlview.is_external() else None"
+                                                tal:content="title_or_id" />
+
+                                </td>
+                            </tal:block>
+                            </tal:fields>
+                        </tr>
+                        </tal:brain>
+                     </tbody>
+                </table>
+        </div>
+
+        <div metal:use-macro="context/batch_macros/macros/navigation" />
+        <div class="listingBar" style="display: none"></div>
+
+      </div>
+    </metal:block>
+  </metal:content-core>
+</body>
+</html>
+</metal:map>
