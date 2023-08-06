@@ -1,0 +1,514 @@
+import unittest
+import time
+import matplotlib
+import matplotlib.pyplot
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+import netCDF4
+from datetime import datetime, timedelta
+from paegan.transport.models.transport import Transport
+from paegan.transport.particles.particle import LarvaParticle
+from paegan.transport.location4d import Location4D
+from paegan.utils.asarandom import AsaRandom
+from paegan.transport.shoreline import Shoreline
+from paegan.transport.bathymetry import Bathymetry
+from shapely.geometry import Point
+from shapely.geometry import MultiLineString
+from multiprocessing import Value
+import multiprocessing
+import paegan.transport.parallel_manager as parallel
+import os
+import uuid
+from paegan.external import shapefile as shp
+
+def unique_filename(prefix=None, suffix=None):
+    fn = []
+    if prefix: fn.extend([prefix, '-'])
+    fn.append(str(uuid.uuid4()))
+    if suffix: fn.extend(['.', suffix.lstrip('.')])
+    return ''.join(fn)
+
+class ModelController(object):
+    """
+        Controls the models
+    """
+    def __init__(self, **kwargs):
+
+        """ 
+            Mandatory named arguments:
+            * point (Shapely Point Object) no default
+            * depth (meters) default 0
+            * start (DateTime Object) none
+            * step (seconds) default 3600
+            * npart (number of particles) default 1
+            * nstep (number of steps) no default
+            * models (list object) no default, so far there is a transport model and a behavior model
+            point is interchangeable with:
+            * latitude (DD) no default
+            * longitude (DD) no default
+            * depth (meters) default 0
+        """
+
+        # Dataset
+        self._dataset = None
+
+        # Defaults
+        self._use_shoreline = kwargs.pop('use_shoreline', True)
+        self._use_bathymetry = kwargs.pop('use_bathymetry', True)
+        self._use_seasurface = kwargs.pop('use_seasurface', True)
+        self.depth = kwargs.pop('depth', 0)
+        self.npart = kwargs.pop('npart', 1)
+        self.start = kwargs.pop('start', None)
+        self.step = kwargs.pop('step', 3600)
+        self.models = kwargs.pop('models', None)
+        self._dirty = True
+        self._particles = []
+        self._time_chunk = kwargs.get('time_chunk', 10)
+        self._horiz_chunk = kwargs.get('horiz_chunk', 4)
+        
+        # Inerchangeables
+        if "point" in kwargs:
+            self.point = kwargs.pop('point')
+        elif "latitude" and "longitude" in kwargs:
+            self.latitude = kwargs.pop('latitude')
+            self.longitude = kwargs.pop('longitude') 
+        else:
+            raise TypeError("must provide a point geometry object or latitude and longitude")
+
+        # Create shoreline
+        if self._use_shoreline == True:
+            self._shoreline = Shoreline(point=self.point)
+        else:
+            self._shoreline = None
+
+        # Create Bathymetry
+        if self.use_bathymetry == True:
+            self._bathymetry = Bathymetry(point=self.point)
+        else:
+            self._bathymetry = None
+
+        # Errors
+        if "nstep" in kwargs:
+            self._nstep = kwargs.pop('nstep')
+        else:
+            raise TypeError("must provide the number of timesteps")
+
+    def set_point(self, point):
+        self._point = point
+        self._dirty = False
+    def get_point(self):
+        if self._dirty:
+            self.point = Point(self._longitude, self._latitude, self._depth)
+        return self._point
+    point = property(get_point, set_point)
+
+    def set_latitude(self, lat):
+        self._latitude = lat
+        self._dirty = True
+    def get_latitude(self):
+        return self._latitude
+    latitude = property(get_latitude, set_latitude)
+
+    def set_longitude(self, lon):
+        self._longitude = lon
+        self._dirty = True
+    def get_longitude(self):
+        return self._longitude
+    longitude = property(get_longitude, set_longitude)
+
+    def set_depth(self, dep):
+        self._depth = dep
+        self._dirty = True
+    def get_depth(self):
+        return self._depth
+    depth = property(get_depth, set_depth)
+
+    def set_start(self, sta):
+        self._start = sta
+    def get_start(self):
+        return self._start
+    start = property(get_start, set_start)
+
+    def set_step(self, ste):
+        self._step = ste
+    def get_step(self):
+        return self._step
+    step = property(get_step, set_step)
+
+    def set_nstep(self, nst):
+        self._nstep = nst
+    def get_nstep(self):
+        return self._nstep
+    nstep = property(get_nstep, set_nstep)
+
+    def set_use_shoreline(self, sho):
+        self._use_shoreline = sho
+    def get_use_shoreline(self):
+        return self._use_shoreline
+    use_shoreline = property(get_use_shoreline, set_use_shoreline)
+
+    def set_use_bathymetry(self, bat):
+        self._use_bathymetry = bat
+    def get_use_bathymetry(self):
+        return self._use_bathymetry
+    use_bathymetry = property(get_use_bathymetry, set_use_bathymetry)
+
+    def set_use_seasurface(self, sea):
+        self._use_seasurface = sea
+    def get_use_seasurface(self):
+        return self._use_seasurface
+    use_seasurface = property(get_use_seasurface, set_use_seasurface)
+
+    def set_npart(self, npa):
+        self._npart = npa
+    def get_npart(self):
+        return self._npart
+    npart = property(get_npart, set_npart)
+
+    def set_models(self, mod):
+        self._models = mod
+    def get_models(self):
+        return self._models
+    models = property(get_models, set_models)
+
+    def set_particles(self, parts):
+        self._particles = parts
+    def get_particles(self):
+        return self._particles
+    particles = property(get_particles, set_particles)
+
+    def __str__(self):
+        return  " *** ModelController *** " + \
+                "\nlatitude: " + str(self.latitude) + \
+                "\nlongitude: " + str(self.longitude) + \
+                "\ndepth: " + str(self.depth) + \
+                "\nstart: " + str(self.start) +\
+                "\nstep: " + str(self.step) +\
+                "\nnstep: " + str(self.nstep) +\
+                "\nnpart: " + str(self.npart) +\
+                "\nmodels: " + str(self.models) +\
+                "\nuse_bathymetry: " + str(self.use_bathymetry) +\
+                "\nuse_shoreline: " + str(self.use_shoreline)
+
+    def boundary_interaction(self, **kwargs):
+        """
+            Returns a list of Location4D objects
+        """
+
+        particle = kwargs.pop('particle')
+        starting = kwargs.pop('starting')
+        ending = kwargs.pop('ending')
+
+        # bathymetry
+        if self.use_bathymetry:
+            pt = self._bathymetry.intersect(start_point=starting.point,
+                                            end_point=ending.point,
+                                            distance=kwargs.get('vertical_distance'),
+                                            angle=kwargs.get('vertical_angle'))
+            if pt:
+                ending.latitude = pt.latitude
+                ending.longitude = pt.longitude
+                ending.depth = pt.depth
+
+        # shoreline
+        if self.use_shoreline:
+            intersection_point = self._shoreline.intersect(start_point=starting.point, end_point=ending.point)
+            if intersection_point:
+                # Set the intersection point
+                hitpoint = Location4D(point=intersection_point['point'])
+                particle.location = hitpoint
+                resulting_point = self._shoreline.react(start_point=starting,
+                                                        end_point=ending,
+                                                        hit_point=hitpoint,
+                                                        feature=intersection_point['feature'],
+                                                        distance=kwargs.get('distance'),
+                                                        angle=kwargs.get('angle'),
+                                                        azimuth=kwargs.get('azimuth'),
+                                                        reverse_azimuth=kwargs.get('reverse_azimuth'))
+                ending.latitude = resulting_point.latitude
+                ending.longitude = resulting_point.longitude
+                ending.depth = resulting_point.depth
+
+        # sea-surface
+        if self.use_seasurface:
+            if ending.depth > 0:
+                ending.depth = 0
+
+        particle.location = ending
+
+    def generate_map(self, point):
+        fig = matplotlib.pyplot.figure(figsize=(20,16)) # call a blank figure
+        ax = fig.gca(projection='3d') # line with points
+        
+        tracks = []
+
+        #for x in range(len(arr)):
+        for particle in self.particles:
+            tracks.append(particle.linestring())
+            p_proj_lats = map(lambda la: la.latitude, particle.locations)
+            p_proj_lons = map(lambda lo: lo.longitude, particle.locations)
+            p_proj_depths = map(lambda dp: dp.depth, particle.locations)
+
+            ax.plot(p_proj_lons, p_proj_lats, p_proj_depths, marker='o', c='red') # particles
+
+        #add shoreline
+        #tracks = MultiLineString(tracks)
+        midpoint = point#tracks.centroid
+
+        #bbox = tracks.bounds
+        visual_bbox = (point.x-1.5, point.y-1.5, point.x+1.5, point.y+1.5)#tracks.buffer(1).bounds
+
+        #max_distance = max(abs(bbox[0] - bbox[2]), abs(bbox[1] - bbox[3])) + 0.25
+
+        coast_line = Shoreline(point=midpoint, spatialbuffer=1.5).linestring
+
+        c_lons, c_lats = coast_line.xy
+        c_lons = np.array(c_lons)
+        c_lats = np.array(c_lats)
+        c_lons = np.where((c_lons >= visual_bbox[0]) & (c_lons <= visual_bbox[2]), c_lons, np.nan)
+        c_lats = np.where((c_lats >= visual_bbox[1]) & (c_lats <= visual_bbox[3]), c_lats, np.nan)
+
+        #add bathymetry
+        nc1 = netCDF4.Dataset(os.path.normpath(os.path.join(__file__,"../../resources/bathymetry/ETOPO1_Bed_g_gmt4.grd")))
+        x = nc1.variables['x']
+        y = nc1.variables['y']
+
+        x_indexes = np.where((x[:] >= visual_bbox[0]) & (x[:] <= visual_bbox[2]))[0]
+        y_indexes = np.where((y[:] >= visual_bbox[1]) & (y[:] <= visual_bbox[3]))[0]
+
+        x_min = x_indexes[0] 
+        x_max = x_indexes[-1]
+        y_min = y_indexes[0]
+        y_max = y_indexes[-1]
+
+        lons = x[x_min:x_max]
+        lats = y[y_min:y_max]
+        bath = nc1.variables['z'][y_min:y_max,x_min:x_max]
+
+        x_grid, y_grid = np.meshgrid(lons, lats)
+
+        mpl_extent = matplotlib.transforms.Bbox.from_extents(visual_bbox[0],visual_bbox[1],visual_bbox[2],visual_bbox[3])
+        
+        ax.plot_surface(x_grid,y_grid,bath, rstride=1, cstride=1,
+            cmap="gist_earth", shade=True, linewidth=0, antialiased=False,
+            edgecolors=None) # bathymetry
+
+        ax.plot(c_lons, c_lats, clip_box=mpl_extent, clip_on=True, color='c') # shoreline
+        ax.set_xlim3d(visual_bbox[0],visual_bbox[2])
+        ax.set_ylim3d(visual_bbox[1],visual_bbox[3])
+        ax.set_zmargin(0.1)
+        ax.view_init(85, -90)
+        ax.set_xlabel('Longitude')
+        ax.set_ylabel('Latitude')
+        ax.set_zlabel('Depth (m)')
+        matplotlib.pyplot.show()
+        return fig
+
+    def run(self, hydrodataset, **kwargs):
+
+        times = range(0,(self._step*self._nstep)+1,self._step)
+        start_lat = self._latitude
+        start_lon = self._longitude
+        start_depth = self._depth
+        start_time = self._start
+        time_chunk = self._time_chunk
+        horiz_chunk = self._horiz_chunk
+        hydrodataset = hydrodataset
+        low_memory = kwargs.get("low_memory", False)
+        self.cache_path = kwargs.get("cache",
+                                os.path.join(os.path.dirname(__file__), "_cache"))
+        
+        if start_time == None:
+            raise TypeError("must provide a start time to run the models")
+
+        startloc = Location4D(latitude=start_lat, longitude=start_lon, depth=start_depth, time=start_time)
+
+        # Initialize the particles
+        for x in xrange(0, self._npart):
+            p = LarvaParticle(id=x)
+            p.location = startloc
+            self.particles.append(p)
+
+        # This is where it makes sense to implement the multiprocessing
+        # looping for particles and models. Can handle each particle in 
+        # parallel probably.
+        #
+        # Get the number of cores (may take some tuning) and create that
+        # many workers then pass particles into the queue for the workers
+        mgr = multiprocessing.Manager()
+        nproc = multiprocessing.cpu_count()
+        request_lock = mgr.Lock()
+        nproc_lock = mgr.Lock()
+        
+        # Create the task and result queues
+        tasks = multiprocessing.JoinableQueue()
+        results = multiprocessing.Queue()
+        
+        # Create the shared state objects
+        get_data = mgr.Value('bool', True)
+        n_run = mgr.Value('int', 0)
+        updating = mgr.Value('bool', False)
+        particle_get = mgr.Value('bool', False)
+        point_get = mgr.Value('list', [0, 0, 0])
+        
+        # Create workers
+        procs = [ parallel.Consumer(tasks, results, n_run, nproc_lock)
+                  for i in xrange(nproc) ]
+        
+        # Start workers
+        for w in procs:
+            w.start()
+        
+        # Generate temp filename for dataset cache
+        temp_name = unique_filename(prefix=str(datetime.now().microsecond), suffix=".nc")
+        self.cache_path = os.path.join(self.cache_path, temp_name)
+        
+        # Add data controller to the queue first so that it 
+        # can get the initial data and is not blocked
+        tasks.put(parallel.DataController(
+                  hydrodataset, n_run, get_data, updating,
+                  time_chunk, horiz_chunk, particle_get, times,
+                  start_time, point_get, startloc,
+                  low_memory=low_memory,
+                  cache=self.cache_path))
+               
+	    # loop over particles
+        for part in self.particles:
+            tasks.put(parallel.ForceParticle(part, 
+                                            hydrodataset,
+                                            times, 
+                                            start_time,
+                                            self._models,
+                                            self.point,
+                                            self._use_bathymetry,
+                                            self._use_shoreline,
+                                            self._use_seasurface,
+                                            get_data,
+                                            n_run,
+                                            updating,
+                                            particle_get,
+                                            point_get,
+                                            request_lock,
+                                            cache=self.cache_path))
+        [tasks.put(None) for i in xrange(nproc)]
+
+        # Wait for all tasks to finish
+        tasks.join()
+        
+        # Get results back from queue
+        for i,v in enumerate(self.particles):
+            tempres = results.get()
+            self.particles[i] = tempres
+            while tempres == None:
+                tempres = results.get()
+                self.particles[i] = tempres
+                
+        os.remove(self.cache_path)
+    
+    
+    def export(self, filepath, **kwargs):
+        """
+            General purpose export method, gets file type 
+            from filepath extension
+        """
+        if filepath[-3:] == "shp":
+            self._export_shp(filepath)
+        elif filepath[-2:] == "nc":
+            self._export_nc(filepath)
+            
+    def _export_shp(self, filepath):
+        """
+            Export particle data to point type shapefile
+        """
+        # Create the shapefile writer
+        w = shp.Writer(shp.POINT)
+        # Create the attribute fields/columns
+        w.field('Particle')
+        w.field('Temp')
+        w.field('Salt')
+        w.field('Date')
+        w.field('Lat')
+        w.field('Lon')
+        w.field('Depth')
+        
+        # Loop through locations in particles,
+        # add as points to the shapefile
+        for particle in self.particles:
+            for loc, temp, salt in zip(particle.locations, particle.temps, particle.salts):
+                # Add point geometry
+                w.point(loc.longitude, loc.latitude)
+                # Add attribute records
+                w.record(particle.uid, temp, salt, loc.time.isoformat(), loc.latitude, loc.longitude, loc.depth)
+        # Write out shapefle to disk
+        w.save(filepath)
+        
+    def _export_nc(self, filepath, **kwargs):
+        """
+            Export particle data to CF trajectory convention
+            netcdf file
+        """
+        time_units = 'days since 1990-01-01 00:00:00'
+        
+        # Create netcdf file, overwrite existing
+        nc = netCDF4.Dataset(filepath, 'w')
+        # Create netcdf dimensions
+        nc.createDimension('time', None)
+        nc.createDimension('particle', None)
+        # Create netcdf variables
+        time = nc.createVariable('time', 'f', ('time',))
+        part = nc.createVariable('particle', 'i', ('particle',))
+        depth = nc.createVariable('depth', 'f', ('time','particle'))
+        lat = nc.createVariable('lat', 'f', ('time','particle'))
+        lon = nc.createVariable('lon', 'f', ('time','particle'))
+        salt = nc.createVariable('salt', 'f', ('time','particle'))
+        temp = nc.createVariable('temp', 'f', ('time','particle'))
+        
+        # Loop through locations in each particle,
+        # add to netcdf file
+        for j, particle in enumerate(self.particles):
+            part[j] = particle.uid
+            i = 0
+            for loc, _temp, _salt in zip(particle.locations, particle.temps, particle.salts):
+                if j == 0:
+                    time[i] = netCDF4.date2num(loc.time, time_units)
+                depth[i, j] = loc.depth
+                lat[i, j] = loc.latitude
+                lon[i, j] = loc.longitude
+                salt[i, j] = _salt
+                temp[i, j] = _temp
+                i += 1
+        # Variable attributes
+        depth.coordinates = "time particle lat lon"
+        depth.standard_name = "depth_below_sea_surface"
+        depth.units = "m"
+        depth.POSITIVE = "up"
+        depth.positive = "up"
+        salt.coordinates = "time particle lat lon"
+        salt.standard_name = "sea_water_salinity"
+        salt.units = "psu"
+        temp.coordinates = "time particle lat lon"
+        temp.standard_name = "sea_water_temperature"
+        temp.units = "degrees_C"
+        time.units = time_units
+        time.standard_name = "time"
+        lat.units = "degrees_north"
+        lon.units = "degrees_east"
+        part.cf_role = "trajectory_id"
+        
+        # Global attributes
+        nc.featureType = "trajectory"
+        nc.summary = str(self)
+        for key in kwargs:
+            nc.__setattr__(key, kwargs.get(key))
+        #nc.cdm_dataset_type = "trajectory"
+        nc.sync()
+        nc.close()
+                
+            
+        
+        
+        
+        
+
+        
