@@ -1,0 +1,42 @@
+Changes
+=======
+
+1.3 (2012-03-26)
+----------------
+
+Features:
+
+- Add support for configuring an RSS summary display of included
+  items.
+
+- Add support for Dexterity-based content.
+
+- Make content moderation requirement optional.
+
+
+1.2 (2012-03-09)
+----------------
+
+Features:
+
+- Add link to content for moderation.
+
+Bugfixes:
+
+- The moderation portlet now correctly gets the class
+  ``'portletModeration'``.
+
+1.1 (2012-03-08)
+----------------
+
+- Added simple approval system where items are explicitly made
+  available after some date, and separately approved (guarded by a
+  custom permission).
+
+  To upgrade, you must run the "catalog" setup step and perform the
+  require indexing.
+
+1.0 (2012-01-18)
+----------------
+
+- Initial public release.
