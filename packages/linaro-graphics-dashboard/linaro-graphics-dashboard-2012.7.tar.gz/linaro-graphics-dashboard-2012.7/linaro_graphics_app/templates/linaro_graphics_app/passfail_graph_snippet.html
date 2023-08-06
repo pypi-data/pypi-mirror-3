@@ -1,0 +1,203 @@
+<script type="text/javascript">
+/*
+ * Available Django template variables:
+ *
+ * data_url: the URL to send json requests for data
+ * point_selected_cb: the javascript callback function to call when a point
+ *                    in the graph is selected (clicked on).
+ * point_hovered_cb: the javascript callback function to call when a point
+ *                   in the graph is hovered over.
+ * show_tooltip: whether to show a default tooltip when a point is hovered
+ *               over.
+ */
+$(function () {
+    var data = [
+        {
+            label: "pass",
+            color: "#0f0",
+            hoverable: false,
+            clickable: false,
+            data: []
+        },
+        {
+            label: "fail",
+            color: "#f00",
+            hoverable: false,
+            clickable: false,
+            data: []
+        },
+        {
+            label: "unknown",
+            color: "#00f",
+            hoverable: false,
+            clickable: false,
+            data: []
+        },
+        {
+            color: 0,
+            points: {show: true},
+            data: []
+        }
+    ];
+
+    var options = {
+        series: {
+            stack: true,
+            lines: {show: true, fill: true, lineWidth: 0}
+        },
+        xaxis: {
+            mode: 'time',
+            timeformat: "%b %d",
+        },
+        grid: {
+            hoverable: true,
+            clickable: true,
+        },
+        legend: {position: "se"}
+    };
+
+    var choiceContainer = $("#{{choices}}");
+    var series = null;
+
+    $.get("{{data_url}}", {request_type: 'graph'},
+          function(response) {
+              json = jQuery.parseJSON(response);
+              series = json.graph;
+              // Create radio inputs from data series
+              $.each(series, function(i, v) {
+                  choiceContainer.append('<br/><input type="radio" name="graphchoices" id="' +
+                                         v.label + '" value="' + v.label + '"/><label for="'+
+                                         v.label + '">' + v.label + '</label>');
+              });
+
+              choiceContainer.find("input[name='graphchoices']").change(doPlot);
+              choiceContainer.find("input[name='graphchoices']:first").click();
+              doPlot();
+            });
+
+    function doPlot() {
+        var selectedLabel = null;
+        var selectedSeries = null;
+
+        // Get the id of the currently selected option
+        choiceContainer.find("input[name='graphchoices']:checked").each(function () {
+            selectedLabel = $(this).attr("value");
+        });
+
+        // Get the selected series based on the label
+        $.each(series, function(i, v) {
+            if (v.label == selectedLabel)
+                selectedSeries = v;
+        });
+
+        // Clear data
+        data[0].data = [];
+        data[1].data = [];
+        data[2].data = [];
+        data[3].data = [];
+
+        selectedData = selectedSeries.data;
+        for (i = 0; i < selectedData.length; i++) {
+            data[0].data.push([selectedData[i].time, selectedData[i].value.pass]);
+            data[1].data.push([selectedData[i].time, selectedData[i].value.fail]);
+            data[2].data.push([selectedData[i].time, selectedData[i].value.unknown]);
+            data[3].data.push([selectedData[i].time, 0]);
+        }
+
+        data[3].hidden_label = selectedSeries.label
+
+        plot = $.plot($("#{{placeholder}}"), data, options);
+        selectPoint(3, plot.getData()[3].data.length - 1);
+    }
+
+    /*
+     * Select a point in the graph.
+     */
+    function selectPoint(series, point) {
+        if (series < 0 || point < 0)
+            return;
+        // Highlight only the selected point
+        plot.unhighlight();
+        plot.highlight(series, point);
+        // Call the callback function if there is one
+        {% if point_selected_cb %}
+        seriesObj = plot.getData()[series]
+        {{point_selected_cb}}(seriesObj.hidden_label, seriesObj.data[point]);
+        {% endif %}
+    }
+
+    /*
+     * Functions to show and hide the tooltip.
+     */
+    function showTooltip(x, y, contents) {
+        $('<div id="tooltip">' + contents + '</div>').css( {
+            position: 'absolute',
+            display: 'none',
+            top: y + 5,
+            left: x + 5,
+            border: '1px solid #fdd',
+            padding: '2px',
+            'background-color': '#fee',
+            'color': 'black',
+            opacity: 0.80
+        }).appendTo("body").fadeIn(200);
+    }
+
+    function hideTooltip() {
+        $("#tooltip").remove();
+    }
+
+    var previousTooltipItem = {seriesIndex: -1, dataIndex: -1};
+
+    /*
+     * Handle mouse hovering over graph.
+     */
+    $("#{{placeholder}}").bind("plothover", function (event, pos, item) {
+        if (item) {
+            // Redraw the tooltip only if the pointed item changed
+            if (previousTooltipItem.dataIndex != item.dataIndex ||
+                previousTooltipItem.seriesIndex != item.seriesIndex)
+            {
+                previousTooltipItem = item;
+
+                var d = new Date(item.datapoint[0]);
+                var pass = plot.getData()[0].data[item.dataIndex][1];
+                var fail = plot.getData()[1].data[item.dataIndex][1];
+                var unknown = plot.getData()[2].data[item.dataIndex][1];
+
+                {% if show_tooltip %}
+                hideTooltip();
+                showTooltip(item.pageX, item.pageY,
+                            d.toUTCString() + " =" +
+                            " Pass: " + pass +
+                            " Fail: " + fail +
+                            " Unknown: " + unknown);
+
+                {% endif %}
+
+                {% if point_hovered_cb %}
+                {{point_hovered_cb}}(item.datapoint);
+                {% endif %}
+            }
+        }
+        else if (previousTooltipItem.seriesIndex != -1) {
+            {% if show_tooltip %}
+            hideTooltip();
+            {% endif %}
+            previousTooltipItem = {seriesIndex: -1, dataIndex: -1};
+        }
+    });
+
+    /*
+     * Handle mouse clicking in graph.
+     */
+    $("#{{placeholder}}").bind("plotclick", function (event, pos, item) {
+        if (item) {
+            selectPoint(item.seriesIndex, item.dataIndex);
+        }
+    });
+
+});
+</script>
+
+

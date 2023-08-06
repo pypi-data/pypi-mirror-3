@@ -1,0 +1,86 @@
+{% extends "layouts/content.html" %}
+
+
+{% block extension_navigation %}
+{% endblock %}
+
+{% block breadcrumbs %}
+{{ block.super }}
+{% endblock %}
+
+
+{% block content %}
+
+<h2>{{test_id}} - {{board_name}} </h2>
+
+<h3>Average score graph</h3>
+
+<script type="text/javascript" src="{{ STATIC_URL }}dashboard_app/js/jquery.flot.min.js"></script>
+
+{% url linaro_graphics_app.views.test board_name=board_name test_id=test_id as base_url %}
+
+{% include "linaro_graphics_app/measurement_graph_snippet.html" with data_url=base_url graph_element="graph" series_element="graphchoices" series_focus=session point_selected_cb="point_selected_cb" show_tooltip="true" %}
+
+{% include "linaro_graphics_app/update_table_snippet.html" %}
+
+<script type="text/javascript">
+/*
+ * Callback to handle point selection in the graph.
+ */
+function point_selected_cb(label, point) {
+    var test_run_date = new Date(point[0]);
+    var test_run_time_sec = point[0] / 1000;
+    var base_url = "{% url linaro_graphics_app.views.test board_name=board_name test_id=test_id %}";
+    // Get results
+    $.get(base_url,
+          { request_type: "results,packagediff", test_run_time_sec: test_run_time_sec, session: label},
+          function(data) {
+              json = jQuery.parseJSON(data)
+              update_table("results_table", "results_tbody", json.results,
+                           ["id,href:" + base_url + "%s/?session=" + label, "result,center", "status,status_icon,center"]);
+              $("#results_header").text("Results for " + test_run_date.toUTCString());
+              update_table("packagediff_table", "packagediff_tbody", json.packagediff,
+                           ["name", "old_version", "new_version"]);
+          }
+    );
+}
+</script>
+
+<table>
+  <tbody>
+    <tr>
+      <td><div id="graph" style="width:600px;height:300px;"></div></td>
+      <td><div id="graphchoices" /></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="results_header">Results for ...</h3>
+
+<table id="results_table">
+  <thead>
+    <tr>
+      <th>{{test_id}} scenario</th>
+      <th>score</th>
+      <th>status</th>
+    </tr>
+  </thead>
+  <tbody id="results_tbody">
+  </tbody>
+</table>
+
+<h3>Package diff</h3>
+
+<table id="packagediff_table">
+  <thead>
+    <tr>
+      <th>package name</th>
+      <th>old version</th>
+      <th>new version</th>
+    </tr>
+  </thead>
+  <tbody id="packagediff_tbody">
+  </tbody>
+</table>
+
+{% endblock %}

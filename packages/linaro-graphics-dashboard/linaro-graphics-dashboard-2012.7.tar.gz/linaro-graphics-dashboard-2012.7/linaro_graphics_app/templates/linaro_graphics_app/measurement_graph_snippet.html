@@ -1,0 +1,174 @@
+<script type="text/javascript">
+/*
+ * Available Django template variables:
+ *
+ * data_url: the URL to send json requests for data
+ * graph_element: the element to render the graph into
+ * series_element: the element to render the series checkboxes into
+ * series_focus: the series to focus
+ * point_selected_cb: the javascript callback function to call when a point
+ *                    in the graph is selected (clicked on).
+ * point_hovered_cb: the javascript callback function to call when a point
+ *                   in the graph is hovered over.
+ * show_tooltip: whether to show a default tooltip when a point is hovered
+ *               over.
+ */
+$(function () {
+    var options = {
+        series: {
+            lines: { show: true },
+            points: { show: true }
+        },
+        xaxis: {
+            mode: 'time',
+            timeformat: "%b %d",
+        },
+        yaxis: {
+            min: 0
+        },
+        grid: {
+            hoverable: true,
+            clickable: true,
+        },
+        legend: {position: "se"}
+    };
+    var plot = null;
+    var series = null;
+    var seriesContainer = $("#{{series_element}}");
+
+    $.get("{{data_url}}", {request_type: 'graph'},
+          function(response) {
+              json = jQuery.parseJSON(response);
+              series = json.graph;
+
+              // Create radio inputs from data series
+              $.each(series, function(i, v) {
+                  seriesContainer.append('<br/><input type="checkbox" name="' + v.label + '" id="' +
+                                         v.label + '" value="' + i + '"/><label for="'+
+                                         v.label + '">' + v.label + '</label>');
+              });
+
+              seriesContainer.find("input").click(doPlot);
+
+              // Show all the series by default
+              seriesContainer.find("input").attr("checked", true);
+
+              doPlot();
+
+              // If the user has specified a series focus, focus on that
+              {% if series_focus %}
+              var index = getDataIndex("{{series_focus}}");
+              if (index >= 0)
+                  selectPoint(index, plot.getData()[index].data.length - 1);
+              {% endif %}
+            });
+
+    function doPlot() {
+        var data = [];
+
+        seriesContainer.find("input:checked").each(function () {
+            var value = $(this).attr("value");
+            data.push(series[value]);
+        });
+
+        plot = $.plot($("#{{graph_element}}"), data, options);
+        selectPoint(0, plot.getData()[0].data.length - 1);
+    }
+
+    function getDataIndex(seriesName) {
+        var i = 0;
+        var foundIndex = -1;
+        seriesContainer.find("input:checked").each(function () {
+            var name = $(this).attr("name");
+            if (seriesName == name) {
+                foundIndex = i;
+            }
+            i++;
+        });
+
+        return foundIndex;
+    }
+
+    /*
+     * Select a point in the graph.
+     */
+    function selectPoint(series, point) {
+        if (series < 0 || point < 0)
+            return;
+        // Highlight only the selected point
+        plot.unhighlight();
+        plot.highlight(series, point);
+        // Call the callback function if there is one
+        {% if point_selected_cb %}
+        seriesObj = plot.getData()[series]
+        {{point_selected_cb}}(seriesObj.label, seriesObj.data[point]);
+        {% endif %}
+    }
+
+    /*
+     * Functions to show and hide the tooltip.
+     */
+    function showTooltip(x, y, contents) {
+        $('<div id="tooltip">' + contents + '</div>').css( {
+            position: 'absolute',
+            display: 'none',
+            top: y + 5,
+            left: x + 5,
+            border: '1px solid #fdd',
+            padding: '2px',
+            'background-color': '#fee',
+            'color': 'black',
+            opacity: 0.80
+        }).appendTo("body").fadeIn(200);
+    }
+
+    function hideTooltip() {
+        $("#tooltip").remove();
+    }
+
+    var previousTooltipItem = {seriesIndex: -1, dataIndex: -1};
+
+    /*
+     * Handle mouse hovering over graph.
+     */
+    $("#{{graph_element}}").bind("plothover", function (event, pos, item) {
+        if (item) {
+            // Redraw the tooltip only if the pointed item changed
+            if (previousTooltipItem.dataIndex != item.dataIndex ||
+                previousTooltipItem.seriesIndex != item.seriesIndex)
+            {
+                previousTooltipItem = item;
+
+                var d = new Date(item.datapoint[0]);
+                var result = item.datapoint[1];
+
+                {% if show_tooltip %}
+                hideTooltip();
+                showTooltip(item.pageX, item.pageY,
+                            d.toUTCString() + " = " + result.toFixed(3));
+                {% endif %}
+
+                {% if point_hovered_cb %}
+                {{point_hovered_cb}}(item.datapoint);
+                {% endif %}
+            }
+        }
+        else if (previousTooltipItem.seriesIndex != -1) {
+            {% if show_tooltip %}
+            hideTooltip();
+            {% endif %}
+            previousTooltipItem = {seriesIndex: -1, dataIndex: -1};
+        }
+    });
+
+    /*
+     * Handle mouse clicking in graph.
+     */
+    $("#{{graph_element}}").bind("plotclick", function (event, pos, item) {
+        if (item) {
+            selectPoint(item.seriesIndex, item.dataIndex);
+        }
+    });
+
+});
+</script>
