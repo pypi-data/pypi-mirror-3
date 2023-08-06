@@ -1,0 +1,143 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      lang="en"
+      metal:use-macro="here/main_template/macros/master"
+      i18n:domain="monet.calendar.extensions">
+
+<body>
+
+    <div metal:fill-slot="main">
+    <metal:main-macro define-macro="main"
+                      tal:define="kssClassesView context/@@kss_field_decorator_view;
+		                  getKssClasses nocall:kssClassesView/getKssClassesInlineEditable;
+                                  toLocalizedTime nocall:context/@@plone/toLocalizedTime;
+		                  normalizeString nocall:context/@@plone/normalizeString;
+                                  templateId template/getId">
+
+        <div tal:replace="structure provider:plone.abovecontenttitle" />
+
+        <h1 metal:use-macro="here/kss_generic_macros/macros/generic_title_view">
+            Title or id
+        </h1>
+
+        <div tal:replace="structure provider:plone.belowcontenttitle" />
+
+        <p metal:use-macro="here/kss_generic_macros/macros/generic_description_view">
+            Description
+        </p>
+
+        <div tal:replace="structure provider:plone.abovecontentbody" />
+
+        <div metal:define-macro="text-field-view"
+             id="parent-fieldname-text" class="stx"
+             tal:define="kss_class python:getKssClasses('text',
+                         templateId=templateId, macro='text-field-view');
+                         text here/aq_explicit/getText|nothing"
+             tal:condition="text"
+             tal:attributes="class python:'text/x-rst'">
+            <div metal:define-slot="inside" tal:replace="structure text">The body</div>
+        </div>
+
+        <metal:listingmacro define-macro="listing">
+        <tal:foldercontents define="contentFilter contentFilter|request/contentFilter|nothing;
+                            limit_display limit_display|request/limit_display|nothing;
+                            more_url more_url|request/more_url|string:folder_contents;
+                            folderContents python:here.portal_type=='Topic' and here.queryCatalog(contentFilter, batch=True) or here.getFolderContents(contentFilter, batch=True, b_size=limit_display or 100);
+                            use_view_action site_properties/typesUseViewActionInListings|python:();
+                            over_limit python: limit_display and len(folderContents) > limit_display;
+                            folderContents python: (over_limit and folderContents[:limit_display]) or folderContents;
+                            batch folderContents">
+        <tal:listing condition="folderContents">
+
+            <tal:block tal:repeat="item folderContents">
+                <div class="tileItem visualIEFloatFix vevent" 
+                     tal:define="item_url item/getURL|item/absolute_url;
+                                       item_id item/getId|item/id;
+                                       item_title_or_id item/pretty_title_or_id;
+                                       item_description item/Description;
+                                       item_type item/portal_type;
+                                       item_type_title item/Type;
+                                       item_type_class python: 'contenttype-' + normalizeString(item_type);
+                                       item_modified item/ModificationDate;
+                                       item_created item/CreationDate;
+                                       item_wf_state        item/review_state|python: wtool.getInfoFor(item, 'review_state', '');
+                                       item_wf_state_class python:'state-' + normalizeString(item_wf_state);
+                                       item_creator item/Creator;
+                                       item_start item/start/ISO|item/StartDate|nothing;
+                                       item_end item/end/ISO|item/EndDate|nothing;
+                                       item_object item/getObject;
+                                   "
+                     tal:attributes="class string:tileItem visualIEFloatFix vevent ${item_type_class}">
+
+                    <a href="#"
+                       tal:condition="python:item_type != 'Link'"
+                       tal:attributes="href item_url;">
+                        <img src="" alt=""
+                             tal:condition="exists:item_object/image_thumb"
+                             tal:replace="structure python: path('nocall:item_object/tag')(scale='thumb', css_class='tileImage')" />
+                    </a>
+
+                    <h2 class="tileHeadline"
+                        metal:define-macro="listitem">
+
+                        <a href="#"
+                           class="summary url"
+                           tal:condition="python:item_type != 'Link'"
+                           tal:attributes="href item_url;"
+                           tal:content="item_title_or_id">
+                            Item Title
+                        </a>
+
+                    </h2>
+					
+					<p class="tileBody" tal:condition="item_description">
+                        <span tal:omit-tag="" tal:condition="not:item_description">
+                            &nbsp;
+                        </span>
+                        <span class="description" tal:content="item_description">
+                            description
+                        </span>
+                    </p>
+					
+                    <div class="documentByLine">
+					<span tal:content="item/location" />
+					<tal:new_event on-error="nothing">
+						<span tal:condition="item/location" tal:replace="string: - " />
+						<span tal:content="item_object/getAddress" />
+					</tal:new_event>
+					<tal:data condition="python:item_start==item_end"> <span i18n:translate="event_on">on</span> <span tal:content="python:toLocalizedTime(item_start,long_format=0)" /> </tal:data>
+					<tal:periodo condition="python:item_start!=item_end"> <span i18n:translate="event_from">from</span> <span tal:content="python:toLocalizedTime(item_start,long_format=0)" /> <span i18n:translate="event_to">to</span> <span tal:content="python:toLocalizedTime(item_end,long_format=0)" /></tal:periodo>
+					
+                    </div>
+
+                    <div class="visualClear"><!-- --></div>
+
+                </div>
+            </tal:block>
+
+            <!-- Navigation -->
+            <div metal:use-macro="here/batch_macros/macros/navigation" />
+
+        </tal:listing>
+        <metal:empty metal:define-slot="no_items_in_listing">
+            <p class="discreet"
+               tal:condition="not: folderContents"
+               i18n:translate="description_no_items_in_folder">
+                There are currently no items in this folder.
+            </p>
+        </metal:empty>
+
+        </tal:foldercontents>
+        </metal:listingmacro>
+
+        <metal:subtopics use-macro="here/atct_topic_view/macros/folderlisting_macro" />
+
+        <div tal:replace="structure provider:plone.belowcontentbody" />
+
+    </metal:main-macro>
+    </div>
+
+</body>
+</html>
