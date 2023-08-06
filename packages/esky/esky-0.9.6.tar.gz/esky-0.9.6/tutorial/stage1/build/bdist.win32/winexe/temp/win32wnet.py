@@ -1,0 +1,14 @@
+
+def __load():
+    import imp, os, sys
+    try:
+        dirname = os.path.dirname(__loader__.archive)
+    except NameError:
+        dirname = sys.prefix
+    import sys
+    path = os.path.join(dirname, 'win32wnet.pyd')
+    #print "py2exe extension module", __name__, "->", path
+    mod = imp.load_dynamic(__name__, path)
+##    mod.frozen = 1
+__load()
+del __load
