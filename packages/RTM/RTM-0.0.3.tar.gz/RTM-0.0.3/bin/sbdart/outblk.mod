@@ -1,0 +1,92 @@
+GFORTRAN module version '6' created from drt.f on Wed Jul 25 12:03:09 2012
+MD5:a98978005d7f94e2e873087cd6246f9e -- If you edit this, you'll get what you deserve.
+
+(() () () () () () () () () () () () () () () () () () () () () () ()
+() () () ())
+
+()
+
+()
+
+()
+
+()
+
+()
+
+(2 '__convert_r4_r8' '(intrinsic)' '__convert_r4_r8' 1 ((PROCEDURE
+UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN UNKNOWN 0 0 FUNCTION ELEMENTAL PURE)
+(REAL 8 0 0 REAL ()) 0 0 () () 2 () () () 0 0)
+3 'botdir' 'outblk' 'botdir' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DATA) (REAL 8 0 0 REAL ()) 0 0 () () 0 () () ()
+0 0)
+4 'botdn' 'outblk' 'botdn' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DATA) (REAL 8 0 0 REAL ()) 0 0 () () 0 () () ()
+0 0)
+5 'botup' 'outblk' 'botup' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DATA) (REAL 8 0 0 REAL ()) 0 0 () () 0 () () ()
+0 0)
+6 'fxdir' 'outblk' 'fxdir' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DIMENSION DATA) (REAL 8 0 0 REAL ()) 0 0 () (
+1 0 EXPLICIT (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '1') (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '66')) 0 () () () 0 0)
+7 'fxdn' 'outblk' 'fxdn' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DIMENSION DATA) (REAL 8 0 0 REAL ()) 0 0 () (
+1 0 EXPLICIT (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '1') (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '66')) 0 () () () 0 0)
+8 'fxup' 'outblk' 'fxup' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DIMENSION DATA) (REAL 8 0 0 REAL ()) 0 0 () (
+1 0 EXPLICIT (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '1') (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '66')) 0 () () () 0 0)
+9 'kr' 'params' 'kr' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC UNKNOWN
+IMPLICIT-SAVE 0 0) (INTEGER 4 0 0 INTEGER ()) 0 0 () (CONSTANT (INTEGER
+4 0 0 INTEGER ()) 0 '8') () 0 () () () 0 0)
+10 'maxulv' 'outblk' 'maxulv' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 0 INTEGER ()) 0 0 () (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '66') () 0 () () () 0 0)
+11 'mxly' 'params' 'mxly' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 0 INTEGER ()) 0 0 () (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '65') () 0 () () () 0 0)
+12 'nstrms' 'params' 'nstrms' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 0 INTEGER ()) 0 0 () (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '40') () 0 () () () 0 0)
+13 'nu1' 'outblk' 'nu1' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 0 INTEGER ()) 0 0 () (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '1600') () 0 () () () 0 0)
+14 'nu2' 'outblk' 'nu2' 1 ((PARAMETER UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0) (INTEGER 4 0 0 INTEGER ()) 0 0 () (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '105600') () 0 () () () 0 0)
+15 'outblk' 'outblk' 'outblk' 1 ((MODULE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN UNKNOWN 0 0) (UNKNOWN 0 0 0 UNKNOWN ()) 0 0 () () 0 () () () 0 0)
+16 'params' 'params' 'params' 1 ((MODULE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN UNKNOWN 0 0) (UNKNOWN 0 0 0 UNKNOWN ()) 0 0 () () 0 () () () 0 0)
+17 'phidw' 'outblk' 'phidw' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DATA) (REAL 8 0 0 REAL ()) 0 0 () () 0 () () ()
+0 0)
+18 'topdir' 'outblk' 'topdir' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DATA) (REAL 8 0 0 REAL ()) 0 0 () () 0 () () ()
+0 0)
+19 'topdn' 'outblk' 'topdn' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DATA) (REAL 8 0 0 REAL ()) 0 0 () () 0 () () ()
+0 0)
+20 'topup' 'outblk' 'topup' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DATA) (REAL 8 0 0 REAL ()) 0 0 () () 0 () () ()
+0 0)
+21 'uurl' 'outblk' 'uurl' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DIMENSION DATA) (REAL 8 0 0 REAL ()) 0 0 () (
+3 0 EXPLICIT (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '1') (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '40') (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0
+'1') (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '40') (CONSTANT (INTEGER 4 0
+0 INTEGER ()) 0 '1') (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '66')) 0 ()
+() () 0 0)
+22 'uurs' 'outblk' 'uurs' 1 ((VARIABLE UNKNOWN-INTENT UNKNOWN-PROC
+UNKNOWN IMPLICIT-SAVE 0 0 DIMENSION DATA) (REAL 8 0 0 REAL ()) 0 0 () (
+2 0 EXPLICIT (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '1') (CONSTANT (
+INTEGER 4 0 0 INTEGER ()) 0 '40') (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0
+'1') (CONSTANT (INTEGER 4 0 0 INTEGER ()) 0 '40')) 0 () () () 0 0)
+)
+
+('__convert_r4_r8' 0 2 'botdir' 0 3 'botdn' 0 4 'botup' 0 5 'fxdir' 0 6
+'fxdn' 0 7 'fxup' 0 8 'kr' 0 9 'maxulv' 0 10 'mxly' 0 11 'nstrms' 0 12
+'nu1' 0 13 'nu2' 0 14 'outblk' 0 15 'params' 0 16 'phidw' 0 17 'topdir'
+0 18 'topdn' 0 19 'topup' 0 20 'uurl' 0 21 'uurs' 0 22)
