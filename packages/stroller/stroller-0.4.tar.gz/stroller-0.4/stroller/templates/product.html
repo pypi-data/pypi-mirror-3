@@ -1,0 +1,108 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+
+  <xi:include href="master.html" />
+  <xi:include href="stroller_commons.html" />
+
+<head>
+  <meta content="text/html; charset=UTF-8" http-equiv="content-type" py:replace="''"/>
+  <title>Product: ${product.name}</title>
+  <script>
+    function updateCart(data, status) {
+        jQuery("#cart-qty").html(data.quantity);
+        jQuery("#cart-amt").html(data.price.toFixed(2));
+    }
+  
+    function addToCart(productId) {
+        var val_field = jQuery('#create_number_form_quantity_select').val();
+        if (val_field == -1) 
+            val_field = jQuery('#create_number_form_quantity_other').val();
+        jQuery.getJSON('${h.stroller_url("/add_to_cart")}', {product:productId, qnt:val_field}, updateCart);
+    }
+
+    jQuery(document).ready(function() {
+        jQuery("#create_number_form").submit(function() { return false; });
+        jQuery('#product-preview-thumbs img').click(function() {
+            var photo = jQuery(this);
+            var photo_data = photo.attr('id').split('-');
+            var product_uid = photo_data[1];
+            var photo_uid = photo_data[2];
+            jQuery('#product-big-preview img').hide();
+            jQuery('#product-big-preview img').attr('src', '');            
+            jQuery('#product-big-preview img').load(function() {
+                jQuery('#product-big-preview img').fadeIn('slow');
+            });
+            jQuery('#product-big-preview img').attr('src', '${h.stroller_url("/product_image")}/'+product_uid+'/'+photo_uid);
+        });
+    });
+
+  </script>
+</head>
+
+<body>
+    <div id="stroller">
+        ${render_cart()}
+        ${stroller_search()}
+        <div id="manage" style="float: right; padding-bottom: 2px; padding-top: 6px; margin-right: 10px;" py:if="request.identity and 'stroller' in request.identity['groups']">
+          <a href="${h.stroller_url('/manage/list_orders')}">Manage Orders</a>
+          <a href="${h.stroller_url('/manage/usermanage')}">Manage Users</a>
+        </div>
+        ${breadcrumbs(product)}
+        <div style="clear: both;"></div>
+        
+        <div class="spacer"></div>
+        
+        <div id="product-preview">
+            <div id="product-big-preview">
+                <img src="${h.stroller_url('/product_image', uid=product.uid)}"/>
+            </div>
+            <div py:if="product.photos" id="product-preview-thumbs">
+                <div>
+                    <img src="${h.stroller_url('/product_thumb', uid=product.uid)}" id="photo-${product.uid}-main"/>
+                </div>
+                <div py:for="photo in product.photos">              
+                    <img id="photo-${product.uid}-${photo.uid}" src="${h.stroller_url('/product_thumb', uid=product.uid, photo=photo.uid)}"/>
+                    <div py:if="request.identity and 'stroller' in request.identity['groups']">
+                        <a href="${h.stroller_url('/manage/del_product_photo', product=product.uid, photo=photo.uid)}">DELETE</a>
+                    </div>
+                </div>
+            </div>
+            <div py:if="request.identity and 'stroller' in request.identity['groups']">
+                <a href="${h.stroller_url('/manage/add_product_photo', product=product.uid)}">Add Photo</a>
+            </div>
+        </div>
+        
+        <div id="product-buy">
+            <a href="#" onclick="return addToCart(${product.uid});">
+                ${Markup(h.icons['big-cart'])}
+                Add To Cart
+            </a>
+
+            <div py:replace="form()">Input Form</div>
+
+        </div>
+
+        <div id="product-info">
+            <h1><span py:replace="product.name"/></h1>
+            <div id="product-sku"><span py:replace="product.sku" /></div>
+	    <div class="product-price">
+              <span class="small">Price:</span>
+              <span class="price big">${'%.2f' % product.price} ${tg.config.get('currency', 'EUR')}</span>
+            </div>
+          <div py:if="product.stock" class="product-stock">
+            <span class="small">In Stock:</span>
+            <span class="price big">${product.stock}</span>
+          </div>
+          <div py:if="product.shiptime" class="product-shiptime">
+            <span class="small">Shipping Days:</span>
+            <span class="price big">${product.shiptime}</span>
+          </div>
+            <hr/>
+            <div>${Markup(product.description)}</div>
+        </div>
+    </div>
+</body>
+</html>
