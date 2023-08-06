@@ -1,0 +1,488 @@
+"""Tests for the vostok.archives.tests.matchers themselves."""
+
+import re
+
+import BeautifulSoup
+
+from testtools import TestCase
+from testtools import matchers as testtools_matchers
+
+import soupmatchers as matchers
+
+
+class TestResponse(object):
+
+    def __init__(self, status_code=200, content=None):
+        self.status_code = status_code
+        self.content = content
+
+
+class StatusCodeMismatchTests(TestCase):
+
+    def test_describe(self):
+        mismatch = matchers.StatusCodeMismatch(200, 404)
+        self.assertEqual(
+            "Got response code 404, expected 200", mismatch.describe())
+        mismatch = matchers.StatusCodeMismatch(404, 200)
+        self.assertEqual(
+            "Got response code 200, expected 404", mismatch.describe())
+
+
+class ResponseHasTests(TestCase):
+
+    def test_response_has_status_code_matches_200(self):
+        response = TestResponse(status_code=200)
+        match = matchers.ResponseHas(status_code=200).match(response)
+        self.assertEquals(None, match)
+        # Check the default value
+        match = matchers.ResponseHas().match(response)
+        self.assertEquals(None, match)
+
+    def test_response_has_status_code_matches_404(self):
+        response = TestResponse(status_code=404)
+        match = matchers.ResponseHas(status_code=404).match(response)
+        raise AssertionError()
+        self.assertEquals(None, match)
+
+    def test_response_has_wrong_status_code(self):
+        response = TestResponse(status_code=404)
+        match = matchers.ResponseHas(status_code=200).match(response)
+        self.assertEquals(
+            matchers.StatusCodeMismatch(200, 404).describe(),
+            str(match.describe()))
+
+    def test_response_has_content_matches(self):
+        response = TestResponse(content="foo")
+        match = matchers.ResponseHas(
+            content_matches=testtools_matchers.Equals("foo")).match(response)
+        self.assertEquals(None, match)
+
+    def test_response_has_content_mismatch(self):
+        response = TestResponse(content="foo")
+        match = matchers.ResponseHas(
+            content_matches=testtools_matchers.Equals("bar")).match(response)
+        # FIXME: a little brittle, define our own mismatcher for this
+        # test?
+        self.assertEquals(
+            testtools_matchers.EqualsMismatch("bar", "foo").describe(),
+            str(match.describe()))
+
+    def test_response_has_string_status_code(self):
+        response = TestResponse(status_code="404")
+        match = matchers.ResponseHas(status_code=404).match(response)
+        self.assertEquals(None, match)
+
+    def test_str(self):
+        matcher = matchers.ResponseHas(status_code=404)
+        self.assertEqual(
+            "ResponseHas(status_code=404, content_matches=None)",
+            str(matcher))
+        tag_matcher = matchers.Tag("a")
+        html_matcher = matchers.HTMLContains(tag_matcher)
+        matcher = matchers.ResponseHas(
+            status_code=200, content_matches=html_matcher)
+        self.assertEquals(
+            "ResponseHas(status_code=200, content_matches=%s)"
+            % str(html_matcher), str(matcher))
+
+
+class HTMLResponseHasTests(TestCase):
+
+    def test_str(self):
+        matcher = matchers.HTMLResponseHas(status_code=404)
+        self.assertEqual(
+            "HTMLResponseHas(status_code=404, content_matches=None)",
+            str(matcher))
+        tag_matcher = matchers.Tag("a")
+        matcher = matchers.HTMLResponseHas(
+            status_code=200, html_matches=tag_matcher)
+        html_matcher = matchers.HTMLContains(tag_matcher)
+        self.assertEquals(
+            "HTMLResponseHas(status_code=200, content_matches=%s)"
+            % str(html_matcher), str(matcher))
+
+
+class HTMLContainsTests(TestCase):
+
+    def test_zero_matchers(self):
+        html_matcher = matchers.HTMLContains()
+        self.assertEquals(None, html_matcher.match(""))
+
+    def test_one_matcher_matches(self):
+        html_matcher = matchers.HTMLContains(matchers.Tag("a"))
+        self.assertEquals(None, html_matcher.match("<a></a>"))
+
+    def test_two_matchers_match(self):
+        html_matcher = matchers.HTMLContains(
+            matchers.Tag("a"), matchers.Tag("image"))
+        self.assertEquals(None, html_matcher.match("<a></a><image></image>"))
+
+    def test_one_matcher_mismatches(self):
+        tag_matcher = matchers.Tag("a")
+        html_matcher = matchers.HTMLContains(tag_matcher)
+        content = "<image></image>"
+        match = html_matcher.match(content)
+        parsed_content = BeautifulSoup.BeautifulSoup(content)
+        self.assertEquals(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            str(match.describe()))
+
+    def test_two_matchers_one_mismatches(self):
+        tag_matcher1 = matchers.Tag("a")
+        tag_matcher2 = matchers.Tag("image")
+        html_matcher = matchers.HTMLContains(tag_matcher1, tag_matcher2)
+        content = "<image></image>"
+        match = html_matcher.match(content)
+        parsed_content = BeautifulSoup.BeautifulSoup(content)
+        self.assertEquals(
+            matchers.TagMismatch(tag_matcher1, parsed_content, 0).describe(),
+            str(match.describe()))
+
+    def test_two_matchers_two_mismatch(self):
+        tag_matcher1 = matchers.Tag("a")
+        tag_matcher2 = matchers.Tag("image")
+        html_matcher = matchers.HTMLContains(tag_matcher1, tag_matcher2)
+        content = "<b></b>"
+        match = html_matcher.match(content)
+        parsed_content = BeautifulSoup.BeautifulSoup(content)
+        self.assertEquals(
+            matchers.TagMismatch(tag_matcher1, parsed_content, 0).describe(),
+            str(match.describe()))
+
+    def test_str(self):
+        tag_matcher = matchers.Tag("a")
+        html_matcher = matchers.HTMLContains(tag_matcher)
+        self.assertEquals(
+            "HTML contains [%s]" % str(tag_matcher), str(html_matcher))
+        tag_matcher1 = matchers.Tag("a")
+        tag_matcher2 = matchers.Tag("image")
+        html_matcher = matchers.HTMLContains(tag_matcher1, tag_matcher2)
+        self.assertEquals(
+            "HTML contains [%s, %s]" % (
+                str(tag_matcher1), str(tag_matcher2)), str(html_matcher))
+
+
+class TagMismatchTests(TestCase):
+
+    def test_describe_zero(self):
+        tag_matcher = matchers.Tag("a")
+        content = "<image></image>"
+        parsed_content = BeautifulSoup.BeautifulSoup(content)
+        mismatch = matchers.TagMismatch(tag_matcher, parsed_content, 0)
+        self.assertEqual(
+            "%s was found 0 times in %s" % (tag_matcher, parsed_content),
+            mismatch.describe())
+
+    def test_describe_one(self):
+        tag_matcher = matchers.Tag("a")
+        content = "<image></image>"
+        parsed_content = BeautifulSoup.BeautifulSoup(content)
+        mismatch = matchers.TagMismatch(tag_matcher, parsed_content, 1)
+        self.assertEqual(
+            "%s was found 1 time in %s" % (tag_matcher, parsed_content),
+            mismatch.describe())
+
+    def test_describe_two(self):
+        tag_matcher = matchers.Tag("a")
+        content = "<image></image>"
+        parsed_content = BeautifulSoup.BeautifulSoup(content)
+        mismatch = matchers.TagMismatch(tag_matcher, parsed_content, 2)
+        self.assertEqual(
+            "%s was found 2 times in %s" % (tag_matcher, parsed_content),
+            mismatch.describe())
+
+
+class TagTests(TestCase):
+
+    def test_str_count_2(self):
+        tag_matcher = matchers.Tag("a", count=2)
+        self.assertEqual(
+            "<a ...>...</a> (expected 2 times)", str(tag_matcher))
+
+    def test_str_count_1(self):
+        tag_matcher = matchers.Tag("a", count=1)
+        self.assertEqual(
+            "<a ...>...</a> (expected 1 time)", str(tag_matcher))
+
+    def test_str_attrs(self):
+        tag_matcher = matchers.Tag("image", attrs={"foo": "bar"})
+        self.assertEqual(
+            "<image foo='bar' ...>...</image> (expected 1 time)",
+            str(tag_matcher))
+
+    def test_str_multiple_attrs(self):
+        tag_matcher = matchers.Tag(
+            "image", attrs={"foo": "bar", "zap": "bang"})
+        self.assertEqual(
+            "<image foo='bar' zap='bang' ...>...</image> (expected 1 time)",
+            str(tag_matcher))
+
+    def test_str_text(self):
+        tag_matcher = matchers.Tag("b", text="foo")
+        self.assertEqual("<b ...>foo ...</b> (expected 1 time)",
+            str(tag_matcher))
+
+    def test_str_re_text(self):
+        tag_matcher = matchers.Tag("b", text=re.compile("foo"))
+        self.assertEqual("<b ...>re.compile('foo') ...</b> (expected 1 time)",
+            str(tag_matcher))
+
+    def test_str_one_child(self):
+        child_matcher = matchers.Tag("a")
+        tag_matcher = matchers.Tag("b", descendents=[child_matcher])
+        self.assertEqual(
+            "<b ...>...\n  <a ...>...</a> (expected 1 time)"
+            "...\n</b> (expected 1 time)",
+            str(tag_matcher))
+
+    def test_str_two_children(self):
+        child_matcher1 = matchers.Tag("a")
+        child_matcher2 = matchers.Tag("image")
+        tag_matcher = matchers.Tag(
+            "b", descendents=[child_matcher1, child_matcher2])
+        self.assertEqual(
+            "<b ...>...\n  <a ...>...</a> (expected 1 time)...\n"
+            "  <image ...>...</image> (expected 1 time)...\n"
+            "</b> (expected 1 time)", str(tag_matcher))
+
+    def get_match(self, matcher, content):
+        parsed_content = BeautifulSoup.BeautifulSoup(content)
+        return matcher.match(parsed_content), parsed_content
+
+    def test_matches_one_instance(self):
+        content = '<a></a><image></image>'
+        tag_matcher = matchers.Tag("a", count=1)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_doesnt_match_two_in_one(self):
+        content = '<a></a><image></image>'
+        tag_matcher = matchers.Tag("a", count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEquals(
+            matchers.TagMismatch(tag_matcher, parsed_content, 1).describe(),
+            match.describe())
+
+    def test_matches_two_instances(self):
+        content = '<a></a><a></a><image><image/>'
+        tag_matcher = matchers.Tag("a", count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_doesnt_match_one_in_two(self):
+        content = '<a></a><a></a><image><image/>'
+        tag_matcher = matchers.Tag("a", count=1)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEquals(
+            matchers.TagMismatch(tag_matcher, parsed_content, 2).describe(),
+            match.describe())
+
+    def test_matches_attributes(self):
+        content = '<a href="/foo"></a>'
+        tag_matcher = matchers.Tag("a", attrs={"href": "/foo"})
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_doesnt_match_missing_attributes(self):
+        content = '<a href="/foo"></a>'
+        tag_matcher = matchers.Tag("a", attrs={"class": "/foo"})
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEquals(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            match.describe())
+
+    def test_matches_multiple_attributes(self):
+        content = '<a href="/foo" class="foo"></a>'
+        tag_matcher = matchers.Tag(
+            "a", attrs={"class": "foo", "href": "/foo"})
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_text(self):
+        content = '<a>Some text</a>'
+        tag_matcher = matchers.Tag("a", text="Some text")
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_doesnt_match_missing_text(self):
+        content = '<a>Some other text</a>'
+        tag_matcher = matchers.Tag("a", text="Some text")
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            str(match.describe()))
+        content = '<a></a>'
+        tag_matcher = matchers.Tag("a", text="Some text")
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            str(match.describe()))
+
+    def test_matches_children(self):
+        content = '<a><b></b></a>'
+        child_matcher = matchers.Tag("b")
+        tag_matcher = matchers.Tag("a", descendents=[child_matcher])
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_mismatches_wrong_children(self):
+        content = '<a><b></b></a>'
+        child_matcher = matchers.Tag("image")
+        tag_matcher = matchers.Tag("a", descendents=[child_matcher])
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            match.describe())
+
+    def test_mismatches_missing_children(self):
+        content = '<a></a>'
+        child_matcher = matchers.Tag("b")
+        tag_matcher = matchers.Tag("a", descendents=[child_matcher])
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            match.describe())
+
+    def test_matches_with_multiple_descendents(self):
+        content = '<a><image></image><b></b></a>'
+        child_matcher1 = matchers.Tag("b")
+        child_matcher2 = matchers.Tag("image")
+        tag_matcher = matchers.Tag(
+            "a", descendents=[child_matcher1, child_matcher2])
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_mismatches_if_one_decendent_mismatches(self):
+        content = '<a><b></b></a>'
+        child_matcher1 = matchers.Tag("b")
+        child_matcher2 = matchers.Tag("image")
+        tag_matcher = matchers.Tag(
+            "a", descendents=[child_matcher1, child_matcher2])
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            match.describe())
+
+    def test_mismatches_if_both_decendent_mismatches(self):
+        content = '<a></a>'
+        child_matcher1 = matchers.Tag("b")
+        child_matcher2 = matchers.Tag("image")
+        tag_matcher = matchers.Tag(
+            "a", descendents=[child_matcher1, child_matcher2])
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(
+            matchers.TagMismatch(tag_matcher, parsed_content, 0).describe(),
+            match.describe())
+
+    def test_matches_tag_name_regex(self):
+        content = '<body><a><b></b></a></body>'
+        tag_matcher = matchers.Tag(re.compile(r"^b"), count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_tag_name_list(self):
+        content = '<a></a><b></b>'
+        tag_matcher = matchers.Tag(["a", "b", "image"], count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_tag_name_dict(self):
+        content = '<a></a><b></b>'
+        tag_matcher = matchers.Tag(dict(a=True, b=True, image=True), count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_all_tags_on_true(self):
+        content = '<a></a><b></b>'
+        tag_matcher = matchers.Tag(True, count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_match_func(self):
+        content = '<a class="foo"></a><b></b>'
+        tag_matcher = matchers.Tag(lambda tag: len(tag.attrs) == 0)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_attrs_regex(self):
+        content = ('<p id="firstpara"></p><p id="secondpara">'
+                '</p><p id="other"></p>')
+        tag_matcher = matchers.Tag(
+            'p', attrs=dict(id=re.compile(r'para$')), count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_attrs_list(self):
+        content = '<p id="first"></p><p id="second"></p><p id="other"></p>'
+        tag_matcher = matchers.Tag(
+            'p', attrs=dict(id=["first", "second", "none"]), count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_attrs_dict(self):
+        content = '<p id="first"></p><p id="second"></p><p id="other"></p>'
+        tag_matcher = matchers.Tag(
+            'p', attrs=dict(id=dict(first=True, second=True, none=True)),
+                count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_attrs_true(self):
+        content = '<p id="first"></p><p id="second"></p><p></p>'
+        tag_matcher = matchers.Tag('p', attrs=dict(id=True), count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_attrs_none(self):
+        content = '<p id="first"></p><p id="second"></p><p></p>'
+        tag_matcher = matchers.Tag('p', attrs=dict(id=None), count=1)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_attrs_callable(self):
+        content = '<p id="first"></p><p id="second"></p><p></p>'
+        tag_matcher = matchers.Tag(
+            'p', attrs=dict(id=lambda attrs: attrs != None), count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_matches_text_and_tag(self):
+        content = '<a>foo</a><b>foo</b>'
+        tag_matcher = matchers.Tag('a', text="foo")
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(None, match)
+
+    def test_descendents_arent_checked_against_parent(self):
+        """Check that the descendents aren't evaluated against matched tag.
+
+        If we aren't careful then we can have a descendents clause matched
+        by the tag itself. This won't usually catch people out, but when
+        it does we should make sure we do the right thing.
+        """
+        content = '<div><div></div></div><div><span></span></div>'
+        child_matcher = matchers.Tag('div')
+        tag_matcher = matchers.Tag('div', descendents=[child_matcher], count=2)
+        match, parsed_content = self.get_match(tag_matcher, content)
+        self.assertEqual(
+            matchers.TagMismatch(tag_matcher, parsed_content, 1).describe(),
+            match.describe())
+
+
+def load_tests(loader, standard_tests, pattern):
+    import doctest
+    import os
+    import sys
+    import unittest
+    suite = unittest.TestSuite()
+    loader = unittest.TestLoader()
+    suite.addTest(loader.loadTestsFromName(__name__))
+    source_readme_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "README")
+    if os.path.exists(source_readme_path):
+        suite.addTest(
+            doctest.DocFileTest(os.path.relpath(
+                    source_readme_path, os.path.dirname(__file__)),
+                optionflags=doctest.NORMALIZE_WHITESPACE))
+    else:
+        sys.stderr.write("Warning: not testing README as it can't be found")
+    return suite

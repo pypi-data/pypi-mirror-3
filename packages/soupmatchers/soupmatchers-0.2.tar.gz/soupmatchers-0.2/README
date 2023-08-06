@@ -1,0 +1,353 @@
+Soupmatchers
+============
+
+This is a library to make writing tests for HTML content straightforward and
+robust.
+
+The naïve way of doing this would be to do things such as assert that your HTML
+contains the string
+
+  >>> html = ('<a href="https://launchpad.net/testtools" '
+  ...     'class="awesome">testtools <b>rocks</b></a>')
+
+which can easily break if you make small changes such as adding a CSS class
+which is irrelevant to the test, or your templating library changes to
+sort attributes in alphabetical order.
+
+Obviously working on the parse tree would be better, and BeautifulSoup is
+part of the way to do that.
+
+BeautifulSoup
+-------------
+
+  >>> import BeautifulSoup
+  >>> root = BeautifulSoup.BeautifulSoup(html)
+
+It is an HTML parsing library that includes
+a way to search the document for matching tags. If you had a parsed
+representation of your document you could find the above part by doing
+
+  >>> import re
+  >>> anchor_tags = root.findAll(
+  ...    "a", attrs={"href": "https://launchpad.net/testtools",
+  ...        "class": "awesome"})
+  >>> print anchor_tags
+  [<a href="https://launchpad.net/testtools" class="awesome">testtools <b>rocks</b></a>]
+
+which would return you a list with (lets assume) a single entry, the
+BeautifulSoup.Tag for the <a>. You can locate the nested tag with:
+
+  >>> anchor_tag = anchor_tags[0]
+  >>> anchor_tag.findAll("b")
+  [<b>rocks</b>]
+
+which will again return a single item list.
+
+While this is useful to be able to more robustly identify parts of the document
+it doesn't exactly lend itself to testing. For that we need some methods for
+checking a document against a specification.
+
+Matchers
+--------
+
+Here's where the beauty of testtools comes in. Instead of providing yet
+another TestCase subclass that you somehow have to work in to your test
+class Hierarchy, we just define a set of testtools.Matcher classes.
+
+If you use testtools then you can easily make use of these in your tests
+with assertThat. If not then they have a simple interface that is easy to
+make use of in your test classes.
+
+Let's demonstrate.
+
+First we'll show how to create a matcher that will check that our document
+contains at least a link to the testtools Launchpad page, and this link
+has a certain css class, and mentions testtools in the anchor text.
+
+  >>> import soupmatchers
+  >>> print soupmatchers.Tag(
+  ...     "link to testtols", "a",
+  ...     attrs={"href": "https://launchpad.net/testtools",
+  ...         "class": "awesome"})
+  Tag("link to testtols",
+  <a class='awesome' href='https://launchpad.net/testtools' ...>...</a>)
+
+This may look rather familiar.
+
+Note that the text representation of the soupmatchers.Tag object isn't
+what will be literally matched, it is just an attempt to express the things
+that will be matched.
+
+Further though, soupmatchers allows you to specify text that the
+tag must contain to match.
+
+  >>> print soupmatchers.Tag(
+  ...     "link to testtols", "a",
+  ...     attrs={"href": "https://launchpad.net/testtools",
+  ...            "class": "awesome"}, text=re.compile(r"testtools"))
+  Tag("link to testtols",
+  <a class='awesome' href='https://launchpad.net/testtools'
+  ...>re.compile('testtools') ...</a>)
+
+Now lets define a create a matcher that will match the bold tag from above.
+
+  >>> print soupmatchers.Tag("bold rocks", "b", text="rocks")
+  Tag("bold rocks", <b ...>rocks ...</b>)
+
+Obviously this would allow the bold tag to be outside of the anchor tag, but
+no fear, we can create a matcher that will check that one is inside the
+other, simply use the Within matcher to combine the two.
+
+  >>> print soupmatchers.Within(
+  ...     soupmatchers.Tag(
+  ...         "link to testtools", "a",
+  ...         attrs={"href": "https://launchpad.net/testtools",
+  ...                "class": "awesome"}, text=re.compile(r"testtools")),
+  ...     soupmatchers.Tag("bold rocks", "b", text="rocks"))
+  Tag("bold rocks", <b ...>rocks ...</b>) within Tag("link to testtools",
+  <a class='awesome' href='https://launchpad.net/testtools'
+  ...>re.compile('testtools') ...</a>)
+
+this will mean that the first matcher will only match if the second matcher
+matches the part of the parse tree rooted at the first match.
+
+These matchers are working on the parsed representation, but that doesn't
+mean you have to go to the trouble of parsing every time you want to use
+them. To simplify that you can use
+
+  >>> print soupmatchers.HTMLContains(soupmatchers.Tag("some image", "image"))
+  HTML contains [Tag("some image", <image ...>...</image>)]
+
+to create a matcher that will parse the string before checking the tag
+against it.
+
+Given that you will often want to check multiple things about the HTML
+you can pass multiple soupmatchers.Tag objects to the constructor of
+soupmatchers.HTMLContains, and the resulting matcher will only match
+if all of the passed matchers match.
+
+Using Matchers
+--------------
+
+This hasn't explained how to use the matcher objects though, for that you
+need to make use of their match() method.
+
+  >>> import testtools
+  >>> matcher = testtools.matchers.Equals(1)
+  >>> match = matcher.match(1)
+  >>> print match
+  None
+
+the returned match will be None if the matcher matches the content that
+you passed, otherwise it will be a testtools.Mismatch object. To put
+this in unittest language
+
+  match = matcher.match(content)
+  self.assertEquals(None, match)
+
+or, if you subclass testtools.TestCase,
+
+  self.assertThat(content, matcher)
+
+Testing Responses
+-----------------
+
+For those that use a framework that has test response objects, you can even
+go a step further and check the whole response in one go.
+
+The soupmatchers.ResponseHas matcher class will check the response_code
+attribute of the passed object against an expected value, and also check
+the content attribute against any matcher you wish to specify.
+
+  >>> print soupmatchers.ResponseHas(
+  ...     status_code=404,
+  ...     content_matches=soupmatchers.HTMLContains(soupmatchers.Tag(
+  ...         "an anchor", "a")))
+  ResponseHas(status_code=404, content_matches=HTML contains
+  [Tag("an anchor", <a ...>...</a>)])
+
+where the status_code parameter defaults to 200.
+
+As working with HTML is very common, there's an easier way to write the
+above.
+
+  >>> print soupmatchers.HTMLResponseHas(
+  ...     status_code=404, html_matches=soupmatchers.Tag("an anchor", "a"))
+  HTMLResponseHas(status_code=404, content_matches=HTML contains
+  [Tag("an anchor", <a ...>...</a>)])
+
+Later similar objects will be added for dealing with XML and JSON.
+
+This matcher is designed to work with Django, but will work with any object
+that has those two attributes.
+
+Putting it all together we could do the original check using
+
+  >>> class ExpectedResponse(object):
+  ...     status_code = 200
+  ...     content = html
+  >>> class UnexpectedResponse(object):
+  ...     status_code = 200
+  ...     content = "<h1>This is some other response<h1>"
+
+  >>> child_matcher = soupmatchers.Tag("bold rocks", "b", text="rocks")
+  >>> anchor_matcher = soupmatchers.Tag(
+  ...     "testtools link", "a",
+  ...     attrs={"href": "https://launchpad.net/testtools",
+  ...            "class": "awesome"},
+  ...     text=re.compile(r"testtools"))
+  >>> combined_matcher = soupmatchers.Within(anchor_matcher, child_matcher)
+  >>> response_matcher = soupmatchers.HTMLResponseHas(
+  ...     html_matches=combined_matcher)
+  >>> #self.assertThat(response, response_matcher)
+  >>> match = response_matcher.match(ExpectedResponse())
+  >>> print match
+  None
+  >>> match = response_matcher.match(UnexpectedResponse())
+  >>> print repr(match) #doctest: +ELLIPSIS
+  <soupmatchers.TagMismatch object at ...>
+  >>> print match.describe()
+  Matched 0 times
+  Here is some information that may be useful:
+    0 matches for "bold rocks" in the document.
+    0 matches for "testtools link" in the document.
+
+which while verbose is checking lots of things, while being maintainable
+due to not being overly tied to particular textual output.
+
+Checking the number of times a pattern is matched
+-------------------------------------------------
+
+Remember how findAll returned a list, and we just assumed that it only found
+one tag in the example? Well, the matchers allow you to not just assume that,
+they allow you to assert that. That means that you can assert that
+a particular tag only occurs once by passing
+
+  count=1
+
+in the constructor.
+
+  >>> tag_matcher = soupmatchers.Tag("testtools link", "a",
+  ...    attrs={"href": "https://launchpad.net/testtools"}, count=1)
+  >>> html_matcher = soupmatchers.HTMLContains(tag_matcher)
+  >>> content = '<a href="https://launchpad.net/testtools"></a>'
+  >>> match = html_matcher.match(content)
+  >>> print match
+  None
+  >>> match = html_matcher.match(content * 2)
+  >>> print match.describe()
+  Matched 2 times
+  The matches were:
+    <a href="https://launchpad.net/testtools"></a>
+    <a href="https://launchpad.net/testtools"></a>
+
+Similarly you can assert that a particular tag isn't present by
+creating a soupmatchers.Tag with
+
+  count=0
+
+  >>> tag_matcher = soupmatchers.Tag("testtools link", "a",
+  ...    attrs={"href": "https://launchpad.net/testtools"}, count=0)
+  >>> html_matcher = soupmatchers.HTMLContains(tag_matcher)
+  >>> content = '<a href="https://launchpad.net/testtools"></a>'
+  >>> match = html_matcher.match(content)
+  >>> print match.describe()
+  Matched 1 time
+  The match was:
+    <a href="https://launchpad.net/testtools"></a>
+
+If you wish to assert only that a tag matches at least a given number of
+times, or at most a given number of times, then you will have to propose
+a change to the code to allow that.
+
+Failure Messages
+----------------
+
+As Tag only specifies a pattern to match, when something goes wrong it is
+hard to know what information will be useful to someone reading the output.
+
+A bad thing to do is to print the entire HTML document, as it can often be
+large and so obscure the failure message. Sometimes though looking at
+the HTML is the best way to find the problem. For that reason the Mismatch
+can provide the entire document to you. If you call get_details() on the
+Mismatch you will get a dict that contains the html as the value for
+the "html" key.
+
+  >>> matcher = soupmatchers.HTMLContains(soupmatchers.Tag("bold", "b"))
+  >>> mismatch = matcher.match("<image></image>")
+  >>> print mismatch.get_details().keys()
+  ['html']
+  >>> print ''.join(list(mismatch.get_details()["html"].iter_bytes()))
+  <image></image>
+
+If you use assertThat then it will automatically call addDetails with this
+information, so it is available to the TestResult. Your test runner can
+then do something useful with this if it likes.
+
+That leaves the question of what to print in the failure message though.
+
+If there are any matches at all then you want to see the string that matched.
+This is particularly useful when there are too many matches, but also when
+you expect multiple matches, but less are found then knowing which matched
+can narrow the search.
+
+  >>> matcher = soupmatchers.HTMLContains(soupmatchers.Tag(
+  ...        "no bold", "b", count=0))
+  >>> mismatch = matcher.match("<b>rocks</b>")
+  >>> print mismatch.describe()
+  Matched 1 time
+  The match was:
+      <b>rocks</b>
+
+If there aren't enough matches then the failure message will attempt to
+tell you about the closest matches, in the hope that one of them gives a
+clue as to the problem.
+
+  >>> matcher = soupmatchers.HTMLContains(
+  ...    soupmatchers.Tag("testtools link", "a",
+  ...        attrs={"href": "https://launchpad.net/testtools",
+  ...               "class": "awesome"}))
+  >>> mismatch = matcher.match(
+  ...    "<a href='https://launchpad.net/testtools'></a>")
+  >>> print mismatch.describe()
+  Matched 0 times
+  Here is some information that may be useful:
+     1 matches for "testtools link" when attribute class="awesome" is not a
+     requirement.
+
+  >>> matcher = soupmatchers.HTMLContains(
+  ...    soupmatchers.Tag("bold rocks", "b", text="rocks"))
+  >>> mismatch = matcher.match(
+  ...    "<b>is awesome</b>")
+  >>> print mismatch.describe()
+  Matched 0 times
+  Here is some information that may be useful:
+    1 matches for "bold rocks" when text="rocks" is not a requirement.
+
+While this will often fail to tell you much that will help you diagnose the
+problem it should be possible to write your matchers in such a way that the
+output is generally useful.
+
+Restricting matches to particular areas of the document
+-------------------------------------------------------
+
+Often you want to assert that some HTML is contained within a particular
+part of the document. At the simplest level you may want to check that
+the HTML is within the <body> tag.
+
+It is possible to specify that some Tag is within another by combining
+them in the Within matcher.
+
+  >>> child_matcher = soupmatchers.Tag("bold rocks", "b", text="rocks")
+  >>> body_matcher = soupmatchers.Tag("the body", "body")
+  >>> matcher = soupmatchers.HTMLContains(
+  ...     soupmatchers.Within(body_matcher, child_matcher))
+  >>> print matcher
+  HTML contains [Tag("bold rocks", <b ...>rocks ...</b>)
+  within Tag("the body", <body ...>...</body>)]
+  >>> mismatch = matcher.match("<b>rocks</b><body></body>")
+  >>> print mismatch.describe()
+  Matched 0 times
+  Here is some information that may be useful:
+    1 matches for "bold rocks" in the document.
+    1 matches for "the body" in the document.
