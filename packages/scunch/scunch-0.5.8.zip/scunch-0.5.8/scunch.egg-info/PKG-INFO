@@ -1,0 +1,750 @@
+Metadata-Version: 1.1
+Name: scunch
+Version: 0.5.8
+Summary: Update svn working copy from folder.
+Home-page: http://pypi.python.org/pypi/scunch/
+Author: Thomas Aglassinger
+Author-email: roskakori@users.sourceforge.net
+License: GNU Library or Lesser General Public License (LGPL)
+Description: 
+        ======
+        Scunch
+        ======
+        
+        Scunch updates a work copy of a source code management (SCM) system
+        from an external folder and copies, adds and removes files and folders as
+        necessary.
+        
+        Intended scenarios of use are:
+        
+        * Automatic version management of external sources delivered by a third
+          party.
+        * Automatic version management of typically unversioned centralized
+          resources such as server configuration files.
+        * Migration of projects using folder based version management to a proper
+          SCM.
+        
+        Main features are:
+        
+        * Flexible command line interface for easy automation.
+        * Support for ant patterns to specify the files to be processed.
+        * Optional conversion of text files to ensure consistency and save storage
+          space.
+        * Optional transformation of file names to lower case to prevent issues with
+          case sensitive repositories and case insensitive file systems.
+        * Optional actions to be taken before and after updating the work copy to
+          ensure consistency and prevent pending changes.
+        
+        .. TODO: Elaborate the below scenario.
+        .. Pseudo version management for users that have issues with manual version
+        .. management (usual suspects are: managers, graphical artists, mainframe
+        .. elders, ...).
+        
+        Currently supported SCM systems are:
+        
+        * Subversion (svn)
+        
+        The name "scunch" is a combination of the acronym "SCM" and the word
+        "punch" with letters removed to make it easy to pronounce. (The initial
+        name used during early development was "scmpunch").
+        
+        
+        Installation
+        ============
+        
+        To install ``scunch``, you need:
+        
+        * Python 2.6 or any later 2.x version, available from
+          <http://www.python.org/>.
+        * The ``distribute`` package, available from
+          <http://packages.python.org/distribute/>.
+        
+        Then you can simply run::
+        
+          $ easy_install scunch
+        
+        If you prefer a manual installation, you can obtain the ZIP archive from
+        <http://pypi.python.org/pypi/scunch/>.  Furthermore the source code is
+        available from <https://github.com/roskakori/scunch>.
+        
+        To actually use ``scunch``, you also need an SCM tool. In particular,
+        you need the SCM's command line client to be installed and located in the
+        shell's search path. Installing a desktop plug-in such as `TortoiseSVN
+        <http://tortoisesvn.tigris.org/>`_ is not enough because it does not
+        install a command line client.
+        
+        Here are some hints to install a command line client on popular platforms:
+        
+        * Mac OS X: ``svn`` is included in Leopard. Alternatively you can use
+          `MacPorts <http://www.macports.org/>`_.
+        * Linux: Use your package manager, for example:
+          ``apt-get install subversion``.
+        * Windows: Use `SlikSVN <http://www.sliksvn.com/en/download>`_.
+        
+        
+        Usage
+        =====
+        
+        This section gives a short description of the available command line
+        options together with simple examples.
+        
+        To read a summary of the available options, run::
+        
+          $ scunch --help
+        
+        For more detailed usage in real world scenarios, read the section on
+        `<Scenarios scenarios>`_.
+        
+        Basic usage
+        -----------
+        
+        To "punch" the folder ``/tmp/ohsome`` into the work copy ``~/projects/ohsome``, run::
+        
+          $ scunch /tmp/ohsome ~/projects/ohsome
+        
+        To do the same but also commit the changes, run::
+        
+          $ scunch --after=commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
+        
+        
+        Controlling the output
+        ----------------------
+        
+        To control how much details you can see during the punching, use ``--log.``. To see
+        only warnings and errors, use::
+        
+          $ scunch --log=warning /tmp/ohsome ~/projects/ohsome
+        
+        To see a lot of details about the inner workings, use::
+        
+          $ scunch --log=debug /tmp/ohsome ~/projects/ohsome
+        
+        Possible values for ``--log`` are: ``debug``, ``info`` (the default),
+        ``warning`` and ``error``.
+        
+        
+        Specifying which files to process
+        ---------------------------------
+        
+        By default, ``scunch`` considers almost all files and folders
+        in the external folder for transfer, excluding:
+        
+        * internal files and folders used by popular SCM systems, for example
+          ``.svn`` and ``.gitignore``.
+        * internal system files, for example MacOS X's ``.DS_Store``.
+        * apparent temporary files, for example ``#*#``.
+        
+        To ignore additional files use ``--exclude=PATTERN`` with ``PATTERN`` using
+        the popular `ant pattern syntax <http://ant.apache.org/manual/dirtasks.html>`_.
+        Ant patters are similar to shell patterns and support the "*" and "?" place
+        holder as usual. In addition to that, "**" stands for any amount of folders
+        and sub folders matching any folder nesting level.
+        
+        For example, to exclude all Python byte code files, use::
+        
+          $ scunch --exclude "**/*.pyc, **/*.pyo" ...
+        
+        In case you want to punch only Python and files and ignore everything
+        else, use ``--include``::
+        
+          $ scunch --include "**/*.py" ...
+        
+        Of course you can combine both options to for example punch all Python
+        files except test cases::
+        
+          $ scunch --include "**/*.py" --exclude "**/test_*.py" ...
+        
+        Sometimes the work copy includes files that will never exist in the
+        external folder. For example, the work copy might contain a script
+        to run ``scunch`` with all options set up already. Because this script
+        does not exist in the external folder, it would be removed as soon as
+        ``scunch`` is run. To prevent this from happening, use
+        ``--work-only=PATTERN``. For example::
+        
+          $ scunch --work-only "run_scunch.sh" ...
+        
+        Note that this example does not use the "**" place holder because only
+        files in the work copy's top folder are of interest.
+        
+        
+        Preparing the work copy
+        -----------------------
+        
+        When punching any changes from the external folder the current state of the
+        work copy influences what actually is going to happen.
+        
+        ``Scunch`` works best on a clean work copy without any pending changes and
+        messed up files. If this is not the case, ``scunch`` refuses to continue
+        announcing:
+        
+          Pending changes in "..." must be committed, use "svn status" for details.
+          To resolve this, use '--before=reset' to discard the changes or
+          '--before=none' to ignore them.
+        
+        In case you are sure the changes are irrelvant and intend to discard them,
+        use::
+        
+          $ scunch --before reset ...
+        
+        This reverts all changes and removes files not under version control.
+        
+        In case you prefer a clean check out, use::
+        
+          $ scunch --before checkout --depot http://example.com/ohsome/trunk ...
+        
+        where ``http://example.com/ohsome/trunk`` represents the project's depot
+        qualifier. Note that a ``before=checkout`` usually takes longer than a
+        ``--before=reset`` because a checkout needs to obtain all files again
+        where else a ``--before=checkout`` needs to obtain every file in the depot.
+        
+        In case you are happy with the current pending changes and want to preserve
+        them even after punching the external changes, use::
+        
+          $ scunch --before none ...
+        
+        The result might or might not be what you want, though.
+        
+        
+        Committing punched changes
+        --------------------------
+        
+        To automatically commit the changes ``scunch`` just punched into your work
+        copy, use::
+        
+          $ scunch --after commit ...
+        
+        To do the same with a meaningful log message, use::
+        
+          $ scunch --after commit --message "Punched version 1.3.8." ...
+        
+        In case you use a script to launch ``scunch`` and want to get rid of the
+        work copy once it is done, you can specify multiple actions for ``--after``
+        separated by a comma::
+        
+          $ scunch --after "commit, purge" ...
+        
+        The actions are performed in the given order so make sure to use ``purge``
+        last. Also notice the double quotes (") around ``"commit, purge"``. They
+        ensure that the shell does not consider ``purge`` a command line option of
+        its own.
+        
+        
+        Moving or renaming files
+        ------------------------
+        
+        By default, ``scunch`` checks for files added and removed with the same
+        name but located in a different folder. For example::
+        
+          Added  : source/tools/uitools.py
+          Removed: source/uitools.py
+        
+        With Subversion, ``scunch`` will internally run::
+        
+          $ svn move ... source/uitools.py source/tools
+        
+        instead of::
+        
+          $ svn add ... source/tools/uitools.py
+          $ svn remove ... source/uitools.py
+        
+        The advantage of moving files instead of adding/removing them is that the
+        version history remains attached to the new file.
+        
+        Note that this only works for files but not for folders. Furthermore, the
+        file names must be identical including upper/lower case and suffix.
+        
+        If you rather want to add/remove files instead of moving them, you can
+        specify the move mode using the ``--move=MODE``::
+        
+          $ scunch --move=none /tmp/ohsome ~/projects/ohsome
+        
+        Possible move modes are:
+        
+        * ``name`` (the default): move files with identical names.
+        * ``none``: use add/remove instead if move.
+        
+        
+        Transforming names
+        ------------------
+        
+        Especially when punching sources from 3rd parties sometimes some letters of
+        file or folder names change from lower case to upper case or the other way
+        around. For example, a file called ``some.txt`` might be named ``Some.txt``
+        the next time around.
+        
+        On a case sensitive file system (for instance most Unix file systems), this
+        result in the SCM to not make the connection between the two files and
+        starting a new change history. On a case insensitive file system (such as
+        the standard file systems for Mac OS X and Windows), the SCM gets seriously
+        confused because it is made to believe there are to files but the file
+        system can only store one of them at a time.
+        
+        In order to prevent this, you can tell ``scunch`` to transform names of
+        files and folders while punching them into a work copy. For example::
+        
+          $ scunch --names=lower ...
+        
+        This converts all names to lower case.
+        
+        Possible values for ``--names`` are:
+        
+        * ``preserve`` (the default): keep names as the are
+        * ``lower``: transform names to lower case; for example, ``Some.txt``
+          becomes ``some.txt``.
+        * ``upper``: transform names to upper case; for example, ``Some.txt``
+          becomes ``SOME.TXT``.
+        
+        Note that you should specify ``--names`` the first time when starting
+        with a new work copy. Renaming existing files and folder by only changing
+        the case of letters confuses most SCM's when the work copy resides on a
+        case insensitive file system.
+        
+        
+        Dealing with non ASCII file names
+        ---------------------------------
+        
+        To perform SCM operations, ``scunch`` simply runs the proper SCM command
+        line client as a shell process in the background. This typically works nice
+        and dandy as long as all files to be processed have names that solely
+        consist of ASCII characters. As soon as you have names in Kanji or with
+        Umlauts, trouble can ensue.
+        
+        By default, ``scunch`` attempts to figure out proper settings for such a
+        situation by itself. However, this might fail and the result typically is a
+        ``UnicodeEncodeError``.
+        
+        The first sign of trouble is when ``scunch`` logs the following warning message:
+        
+          LC_CTYPE should be set to for example 'UTF-8' to allow processing of file names with non-ASCII characters
+        
+        This indicates that the console encoding is set to ASCII and any non ASCII
+        characters in file names will result in a ``UnicodeEncodeError``. To fix
+        this, you can tell the console the file name encoding by setting the
+        environment variable ``LC_CTYPE``. For Mac OS X and most modern Linux
+        systems, the following command should do the trick::
+        
+          $ export LC_CTYPE=UTF-8
+        
+        For Windows 7 you can use::
+        
+          > set LC_CTYPE=UTF-8
+        
+        Note that this can have implications for other command line utilities, so
+        making this a permanent setting in ``.profile`` or ``.bashrc`` might not
+        be a good idea. Alternatively you can specify the proper encoding every
+        time you run ``scunch`` (upper/lower case does not matter here)::
+        
+          $ scunch --encoding=utf-8 /tmp/ohsome ~/projects/ohsome
+        
+        For other platforms, you can try the values above. If they do not work as
+        intended, you need to dive into the documentation of your file system and
+        find out which encoding it uses.
+        
+        But even if the encoding is correct, ``scunch`` and the file system still
+        might disagree on how to normalize Unicode characters. Again, ``scunch``
+        attempts to figure out the proper normalization but in case it is wrong
+        you can specify it using ``--normalize``.  Possible value are: ``auto``
+        (the default), ``nfc``, ``nfkc``, ``nfd`` and ``nfkd``. To understand the
+        meaning of these values, check the Unicode Consortium's `FAQ on normalization <http://unicode.org/faq/normalization.html>`_.
+        
+        As a complete example, the proper options for Mac OS X with a HFS volume
+        are::
+        
+          $ scunch --encoding=utf-8 --normalize=nfd /tmp/ohsome ~/projects/ohsome
+        
+        Incidentally, these are the values ``scunch`` would have used already, so
+        in practice there is not need to explicitly state them.
+        
+        If however the files reside on a UDF volume, the proper settings would be::
+        
+          $ scunch --normalize=nfc /tmp/ohsome ~/projects/ohsome
+        
+        In case the external files to punch into the work copy reside on a volume
+        with different settings than the work copy, or you cannot figure them out
+        at all, try to copy the files to a Volume with know settings and run
+        ``scunch`` on this copy.
+        
+        .. scenarios:
+        
+        Scenarios
+        =========
+        
+        This section describes common scenarios where ``scunch`` can be put to
+        good use.
+        
+        Upgrading from old school version management
+        --------------------------------------------
+        
+        Tim is a hobbyist developer who has been programming a nifty utility
+        program for a while called "nifti". Until recently he has not been using
+        any version management. If he deemed it useful to keep a certain state of
+        the source code, he just copied it to a new folder and added a timestamp to
+        the folder name::
+        
+          $ cd ~/projects
+          $ ls
+          nifti
+          nifti_2010-11-27
+          nifti_2010-09-18
+          nifti_2010-07-03
+          nifti_2010-05-23
+        
+        After having been enlightened, he decides to move the project to a
+        Subversion repository. Nevertheless he would like to have all his snapshots
+        available.
+        
+        As a first step, Tim creates a local Subversion repository::
+        
+          $ mkdir /Users/tim/repositories
+          $ svnadmin create /Users/tim/repositories/nifti
+        
+        Next he adds the project folders using the ``file`` protocol::
+        
+          $ svn mkdir file:///Users/tim/repositories/nifti/trunk  file:///Users/tim/repositories/nifti/tags  file:///Users/tim/repositories/nifti/branches
+        
+        No he can check out the ``trunk`` to a temporary folder::
+        
+          $ cd /tmp
+          $ svn checkout --username tim file:///Users/tim/repositories/nifti/trunk nifti
+        
+        Now it is time to punch the oldest version into the still empty work copy::
+        
+          $ cd /tmp/nifti
+          $ scunch ~/projects/nifti_2010-05-23
+        
+        Tim reviews the changes to be committed. Unsurprisingly, there are only
+        "add" operations::
+        
+          $ svn status
+          A   setup.py
+          A   README.txt
+          A   nifti/
+          ...
+        
+        To commit this, Tim runs::
+        
+          $ svn commit --message "Added initial version."
+        
+        Then he proceeds with the other versions, where he lets ``scunch`` handle
+        the commit all by itself::
+        
+          $ scunch --commit ~/projects/nifti_2010-07-03
+          $ scunch --commit ~/projects/nifti_2010-08-18
+          $ scunch --commit ~/projects/nifti_2010-11-27
+          $ scunch --commit ~/projects/nifti
+        
+        Now all the changes are nicely traceable in the repository. However, the
+        timestamps use the time of the commit instead of the date when the source
+        code was current. In order to fix that, Tim looks at the history log to
+        find out the revision number of his changes and notes which actual date the
+        are supposed to represent::
+        
+          r1 --> before 2010-05-23
+          r2 --> 2010-05-23
+          r3 --> 2010-07-03
+          r4 --> 2010-08-18
+          r5 --> 2010-11-27
+          r6 --> today
+        
+        To update the timestamp in the repository, Tim sets the revision property
+        ``date`` accordingly::
+        
+          $ svn propset svn:date --revprop --revision 2 "2010-05-23 12:00:00Z" file:///Users/tim/repositories/nifti/trunk
+        
+        Note that this only works with the ``file`` protocol. If you want to do the
+        same on a repository using the ``http`` protocol, you have to install a
+        proper post commit hook in the repository that allows you to change
+        properties even after they have been committed. Refer to the Subversion
+        manual for details on how to do that.
+        
+        Similarly, Tim can set the log comments to a more meaningful text using the
+        revision property ``log``.
+        
+        Once the repository is in shape, Tim can remove his current source code and
+        replace it with the work copy::
+        
+          $ cd ~/projects
+          $ mv nifti nifti_backup # Do not delete just yet in case something went wrong.
+          $ svn checkout file:///Users/tim/repositories/nifti/trunk nifti
+        
+        Now Tim has a version controlled project where he can commit changes any
+        time he wants.
+        
+        
+        Version management of third party source code
+        ---------------------------------------------
+        
+        Joe works in an IT department. One of his responsibilities to install
+        updates for a web application named "ohsome" developed and delivered by a
+        third party. The work flow for this is well defined:
+        
+        1. Vendor send the updated source code to Joe in a ZIP archive containing a
+           mix of HTML, JavaScript and XML files, mixed in with a few server
+           configuration files.
+        
+        2. Joe extracts the ZIP archive to a local folder.
+        
+        3. Joe moves the contents of local folder to the application folder on the
+           server. In the process, he removes all previous files for the application.
+        
+        This works well as long as the vendor managed to pack everything into the ZIP
+        archive. However, experience shows that the vendor sometimes forgets to
+        include necessary files in the ZIP archive or does include configurations
+        files intended for a different site. While these situations always could be
+        resolved, it took a long time to analyze what's wrong and find out which files
+        were effected. This resulted in delays of a release, reduced end user
+        satisfaction and large amount of phone calls being made and email being
+        sent - including summaries for the management.
+        
+        Joe decides that it would be a good idea to take a look at the changes
+        before copying them to the web server. And even if he cannot spot a
+        mistake before installing an update, SCM should help him in his
+        analysis later on.
+        
+        Joe's company already has a Subversion repository for various projects, so
+        as a first step he adds a new project to the repository and creates a new
+        work copy on his computer::
+        
+          $ svn add --message "Added project folders for ohsome application by Vendor." http://svn.example.com/ohsome http://svn.example.com/ohsome/trunk http://svn.example.com/ohsome/tags http://svn.example.com/ohsome/branches
+        
+        This creates a project folder and the usual trunk, tags and branches
+        folders. For the time being, Joe intends to use only the trunk to hold the
+        most current version of the "ohsome" application.
+        
+        Next, Joe creates a yet empty work copy in a local folder on his computer::
+        
+          $ cd ~/projects
+          $ svn checkout http://svn.example.com/ohsome/trunk ohsome
+        
+        Now he copies all the files from the web server to the work copy::
+        
+          $ cp -r /web/ohsome/* ~/projects/ohsome
+        
+        Although the files are now in the work copy, the are not yet under version
+        management. So Joe adds almost all the files except one folder named "temp" that
+        according to his knowledge contains only temporary files generated by the
+        web application::
+        
+          $ cd ~/projects/ohsome
+          $ svn propset svn:ignore temp .
+          $ svn add ...
+        
+        After that, he manually commits the current state of the web server::
+        
+          $ svn commit --message "Added initial application version 1.3.7."
+        
+        For the time being, Joe is done.
+        
+        A couple of weeks later, the vendor send a ZIP archive with the application
+        version 1.3.8. As usual, Joe extracts the archive::
+        
+          $ cd /tmp
+          $ unzip ~/Downloads/ohsome_1.3.8.zip
+        
+        The result of this is a folder /tmp/ohsome containing all the files and
+        folders to be copied to the web server under /web/ohsome/. However, this
+        time Joe wants to review the changes first by "punching" them into his
+        work copy. So he runs ``scunch`` with the following options::
+        
+          $ scunch /tmp/ohsome ~/projects/ohsome
+        
+        This "punches" all the changes from folder /tmp/ohsome (where the ZIP
+        archive got extracted) to the work copy in ~/projects/ohsome.
+        
+        As a result Joe can review the changes. He uses TortoiseSVN for that, but
+        ``svn status`` and ``svn diff`` would have worked too.
+        
+        Once he finished his review without noticing any obvious issues, he
+        manually commits the changes::
+        
+          $ cd ~/projects/ohsome
+          $ svn commit --message "Punched version 1.3.8."
+        
+        When version 1.3.9 ships, Joe decides that he might as well review the
+        changes directly in the repository after the commit. So this time he simply
+        uses::
+        
+          $ cd /tmp
+          $ unzip ~/Downloads/ohsome_1.3.9.zip
+          $ scunch --commit --message "Punched version 1.3.9."
+        
+        Joe can then use ``svn log`` to look for particular points of interest.
+        For instance, to find modified configuration files (matching the pattern \*.cfg)::
+        
+          $ svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "\.cfg$"
+        
+        To get a list of Removed files and folders::
+        
+          $ svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "^   D"
+        
+        (Note: Here, ``grep`` looks for three blanks and a "D" for "deleted" at the beginning of a line.)
+        
+        
+        .. Pseudo SCM for users with SCM issues
+        .. ------------------------------------
+        ..
+        .. SCM in its current form approached the IT scene relatively late. Most
+        .. concepts for operating systems and file management already have been
+        .. established a long time ago. Consequently SCM has not been integrated well
+        .. in the users's work flow and ended up as optional add on instead of being
+        .. an integral part of it. Despite brave attempts like MULTICS, VMS, WebDAV
+        .. and Desktop integrations like TortoiseSVN, version managements remains a
+        .. mystery to many.
+        ..
+        .. Although software developers profit enough from SCM to take the effort
+        .. learning to cope with them, people from other backgrounds keep stumbling
+        .. over the various idiosyncrasies and usability issues modern SCM's offer.
+        .. This is particular true for people who see computers as tools that help
+        .. them to get their job done and often limit their use to a single
+        .. application (for instance graphical artists) or people who at one time
+        .. decided that the know everything they need to know about computers and can
+        .. safely ignore everything that happened after the Disco movement (for
+        .. instance mainframe elders).
+        ..
+        .. Continuous attempts to get such people to use an SCM only result in
+        .. increased frustration and waste of time for everybody involved.
+        ..
+        .. TODO: Describe solution.
+        
+        
+        License
+        =======
+        
+        Copyright (C) 2011 - 2012 Thomas Aglassinger
+        
+        This program is free software: you can redistribute it and/or modify it
+        under the terms of the GNU Lesser General Public License as published by
+        the Free Software Foundation, either version 3 of the License, or (at your
+        option) any later version.
+        
+        This program is distributed in the hope that it will be useful, but WITHOUT
+        ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+        FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+        License for more details.
+        
+        You should have received a copy of the GNU Lesser General Public License
+        along with this program.  If not, see <http://www.gnu.org/licenses/>.
+        
+        
+        Version history
+        ===============
+        
+        **Version 0.5.8, 2012-05-08**
+        
+        * #21: Fixed adding of files within 3 nested otherwise empty folders.
+        * Improved debug logging for ant patters: it can now be set separately by
+          using logger 'antglob.pattern'.
+        
+        **Version 0.5.7, 2012-04-08**
+        
+        * Fixed confusing warning message in case LC_CTYPE was not set properly.
+        * Fixed logging messages which can now handle non ASCII paths properly.
+        * Improved performance by changing some lists to sets.
+        
+        **Version 0.5.6, 2011-03-04**
+        
+        * #20: Changed ``--names`` to fail in case the work copy already contains
+          existing entries not complying to the name transformation.
+        * Changed file attributes of transferred text files to use the same
+          attributes as the source file.
+        
+        **Version 0.5.5, 2011-02-28**
+        
+        * Fixed ``--before=reset``, which did not remove unversioned added folders.
+        * Cleaned up code.
+        
+        **Version 0.5.4, 2011-02-23**
+        
+        * Improved validation of command line options.
+        * Cleaned up error messages, code and documentation.
+        
+        **Version 0.5.3, 2011-02-20**
+        
+        * #18: Added transformations of file and folder names, use for example
+          ``--names=lower``.
+        * #19: Fixed duplicate processing of punched folders in root folder.
+        
+        **Version 0.5.2, 2011-02-17**
+        
+        * #16: Fixed moving of files in moved folders, during which the containing folder
+          was removed before the files could be moved.
+        * #14: Fixed logged numbers of files processed.
+        * #15: Added list of possible values to ``--help`` for options of type choice.
+        
+        **Version 0.5.1, 2011-02-14**
+        
+        * #10: Added command line option ``--before`` to specify action to be taken
+          before punching.
+        * Added check that no changes are pending before copying files from the
+          external folder. Use ``--before=none`` to skip this.
+        * #11: Added command line option ``--after`` to specify actions to be taken
+          after punching.
+        * Removed command line option ``--commit``, use ``--after=commit``
+          instead.
+        
+        **Version 0.5.0, 2011-02-12**
+        
+        * #12: Added options ``--include`` and ``--exclude`` to specify which
+          files in the external folder should be punched. These options take a
+          list of ant patterns separated by a comma (,) or blank space.
+        * #13: Added option ``--work-only`` to specify files and folders that
+          only exist in the work copy but not in the external folder but should be
+          preserved nevertheless. This is useful if the work copy contains helper
+          scripts, ``build.xml`` for ant, Makefiles and so on that call scunch or
+          other tools but will never be part of the external folder.
+        * Changed ``--text`` to use ant-like pattern instead of a suffix list. For
+          example now use ``--text="**/*.txt" instead of ``text=txt``.
+        
+        **Version 0.4.1, 2011-01-09**
+        
+        * Fixed ``AssertionError`` if no explicit ``--encoding`` was specified.
+        * Cleaned up command line help and code.
+        
+        **Version 0.4, 2011-01-08**
+        
+        Added options to normalize text files and fixed some critical bugs.
+        
+        * #4: Added command line option ``--text`` to specify which files should be
+          considered text and normalized concerning end of line characters.
+        * #5: Added command line option ``--newline`` to specify which end of line
+          characters should be used for text files.
+        * #6: Added command line option ``--tabsize`` to specify that tabs should
+          be aligned on a certain number of spaces in text files.
+        * #7: Added command line option ``--strip-trailing`` to remove trailing
+          white space in text files.
+        * Fixed sorting of file names which could result into inconsistent work
+          copies.
+        * Fixed processing of internal file name diff sequences of type 'replace',
+          which could result in inconsistent work copies.
+        
+        **Version 0.3, 2011-01-05**
+        
+        * Fixed processing of file names with non ASCII characters for Mac OS X
+          and possibly other platforms.
+        * Added command lines options ``--encoding`` and ``--normalize`` to
+          specify how to deal with non ASCII characters.
+        
+        **Version 0.2, 2011-01-04**
+        
+        * Fixed ``NotImplementedError``.
+        * Added support for moving files with same name instead of performing a
+          simple add/remove. This preserves the version history on the new file.
+          Use ``--move=none`` to get the old behavior.
+        * Cleaned up logging output.
+        
+        **Version 0.1, 2011-01-03**
+        
+        * Initial release.
+        
+Keywords: svn scm version import apply copy transfer punch working work
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Software Development :: Version Control
