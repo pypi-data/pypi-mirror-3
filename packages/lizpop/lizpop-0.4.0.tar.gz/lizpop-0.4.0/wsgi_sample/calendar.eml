@@ -1,0 +1,161 @@
+<!-- -*-mode: scheme; coding: utf-8; -*- -->
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<%
+(load "create-calendar.scm")
+(define (string->int s)
+  (let ((num (string->number s))) (and num (<long> num))))
+
+(define errmsg #f)
+(define today (invoke *date* 'today))
+(define year-default (number->string (attr today 'year)))
+(define month-default (number->string (attr today 'month)))
+(define year0 (string->int (query :year0 year-default)))
+(define month0 (string->int (query :month0 month-default)))
+(define s-year (query :year year-default))
+(define s-month (query :month month-default))
+(define year (string->int s-year)) ;; number or #f
+(define month (string->int s-month)) ;; number or #f
+;; (printf "year=~A month=~A\n" year month) ; output to error log
+
+(define errmsg 
+  (if (and year month)
+      (try-catch (begin (*date* year month 1) #f)
+		 ;; BUG: if 9999/12 or 0001/1
+		 (ex <ValueError> (if ex (x->string ex) "illegal date")))
+      (if year (format "month:`~A` must be numeric" s-month)
+	       (format "year:`~A` must be numeric" s-year))))
+(if errmsg
+    (begin (set! year year0) (set! month month0))
+    (begin (set! year0 year) (set! month0 month)))
+
+(define title "Calendar")
+
+;; make HREF value for `>' link
+(define (next-month)
+  (format "calendar.eml?~A"
+	  (htesc
+	   (hash->query-string
+	    (<dict> `(("year" ,(if (>= month 12) (+ year 1) year))
+		      ("month" ,(if (>= month 12) 1 (+ month 1)))
+		      ("year0" ,year0) ("month0" ,month0)))))))
+;; make HREF value for `<' link
+(define (prev-month)
+  (format "calendar.eml?~A"
+	  (htesc
+	   (hash->query-string
+	    (<dict> `(("year" ,(if (<= month 1) (- year 1) year))
+		      ("month" ,(if (<= month 1) 12 (- month 1)))
+		      ("year0" ,year0) ("month0" ,month0)))))))
+
+;; make HREF value for `<<' link
+(define (prev-year)
+  (format "calendar.eml?~A"
+	  (htesc
+	   (hash->query-string
+	    (<dict> `(("year" ,(- year 1)) ("month" ,month)
+		      ("year0" ,year0) ("month0" ,month0)))))))
+;; make HREF value for `>>' link
+(define (next-year)
+  (format "calendar.eml?~A"
+	  (htesc
+	   (hash->query-string
+	    (<dict> `(("year" ,(+ year 1)) ("month" ,month)
+		      ("year0" ,year0) ("month0" ,month0)))))))
+
+%>
+<html>
+<head>
+
+<script type="text/javascript">
+<!--
+function cb_unload(){
+   elem = document.getElementById("cal_area");
+   if(elem ){
+     elem.style.visibility = "hidden";
+   }
+}
+// -->
+</script>
+
+<style type="text/css">
+<!--
+BODY{margin:1em; line-height:1.5em;}
+#formarea {margin:2em;}
+#errmsg{ color:red; }
+#cal_area {margin:2em;}
+
+/***  create-calendar.scm style-sheet **/
+.cal_table {}
+.cal_caption { white-space:nowrap; text-align:center; }
+.cal_date {
+  font-size:120%;
+  font-weight:bold;
+}
+.cal_link{ font-weight:bold;}
+a.cal_link:link { color:#0000cc; text-decoration:none; font-size:80%;}
+a.cal_link:visited { color:#0000cc; text-decoration:none; font-size:80%;}
+a.cal_link:active { color:#0099cc; text-decoration:none; font-size:80%;}
+a.cal_link:hover { color:#0099cc; text-decoration:none; font-size:80%;}
+.wday, .wday_mon, .wday_tue, .wday_wed, 
+  .wday_thu, .wday_fri, .wday_sat, .wday_sun {
+   font-weight:bold; 
+   white-space:nowrap;
+   padding:0 4px 0 4px;
+}
+.wday_sun{color:red;}
+.wday_sat{color:#3366ff}
+
+.day, .day_out, 
+  .day_mon, .day_tue, .day_wed, 
+  .day_thu, .day_fri, .day_sat, .day_sun {
+   white-space:nowrap;
+   padding:0 4px 0 4px;
+}
+.day_out{color:#cccccc;}
+.day_sun{color:red;}
+.day_sat{color:#3366ff}
+-->
+</style>
+
+<title><%title%></title>
+</head>
+<body onunload="cb_unload();">
+<h2><%title%></h2>
+
+<form id="formarea" method="POST" action="calendar.eml">
+  <input type="hidden" name="month0" value="<%(htesc month0)%>" />
+  <input type="hidden" name="year0" value="<%(htesc year)%>" />
+
+  <%(if errmsg (begin (eml %>
+    <div id="errmsg"><%(htesc errmsg)%></div>
+  <% ))) %>
+
+  <label for="input_month" class="input_name">Month:</label>
+  <select name="month" size="1" id="input_month">
+  <%(for-each 
+     (lambda (num mname)
+       (emlf (if (= num month0)
+		 "<option value='~D' selected >~A</option>\n"
+		 "<option value='~D'>~A</option>\n")
+		 num (htesc mname))
+       )
+     (<xrange> 1 (+ (length month-names) 1)) month-names)%>
+  </select>  
+  &nbsp;
+
+  <label for="input_year" class="input_name">Year:</label>
+  <!-- <input id="input_year" type="text" name="year" size="5" value="<%(htesc year0)%>" /> -->
+  <input id="input_year" type="text" name="year" size="5" value="<%s-year%>" />
+
+  &nbsp;
+  <input type="submit" value="Show Calendar" class="button" style="color:#3333cc;">
+</form>
+
+<div id="cal_area">
+<% (dispcal :year year :month month
+	   :prev-month (prev-month)  :next-month (next-month)
+	   :prev-year (prev-year) :next-year (next-year)
+	   ) %>
+</div>
+<%(eml-include "footer.eml")%>
+

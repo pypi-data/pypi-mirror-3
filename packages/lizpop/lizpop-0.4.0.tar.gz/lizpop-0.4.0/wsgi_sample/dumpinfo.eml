@@ -1,0 +1,52 @@
+<!--
+<% (define CSS %>  
+ <style type="text/css">
+ <!--
+ BODY{margin:1em; background:snow; line-height:1.5em; }
+ DT{ font-weight:bold; font-size:105%; }
+ .item{color:darkgreen;}
+ -->
+ </style>
+<%)%>
+-->
+
+<% 
+;; (request-data! :title "Dump Server Info" :html-headers (list CSS))
+;; (load-eml "header.eml")
+(eml-include "header.eml" :title "Dump Server Info" :html-headers (list CSS)) 
+%>
+
+<% ;; Get current time and thread-name
+(define thread-name
+  (let ((thread (invoke (import "threading") 'currentThread)))
+       (invoke thread 'getName)))
+(define *datetime* (import "datetime"))
+(define ctime 
+   (invoke ((attr *datetime* 'datetime 'now)) 'strftime (<str> "%H:%M:%S")))
+%>
+<div style="margin-left:2em; font-size:80%">
+  <span class="item">Current-Time:</span> <%(htesc ctime)%>&nbsp;
+  <span class="item">Process-ID:</span> <%(invoke *os* 'getpid)%>&nbsp;
+  <span class="item">Thread-Name:</span> <%thread-name%> <br />
+  <span class= "item">Request-URI:</span> <%(htesc (request-uri #t))%><br />
+  <span class= "item">Scheme Interpreter object:</span> <%(htesc (attr (request) '_lisp))%>
+</div>
+<dl>
+ <dt>WSGI Environments</dt>
+ <dd>
+ <% (for-each
+     (lambda (tuple) 
+       (format #t %><span class="item">~A: </span> <%(htesc (item tuple 0)))
+       (format #t "~A<br />\n" (htesc (item tuple 1))) )
+     (<sorted> (invoke (request 'environ) 'iteritems))) %>
+ </dd>
+ <br />
+ <dt>Form parameters</dt>
+ <dd>
+ <% (each-query
+     (lambda (k v) 
+       (emlf "~A=~A<br />" (htesc k) (htesc v)))) %>
+ </dd>
+</dl>
+<br />
+<%(eml-include "footer.eml")%>
