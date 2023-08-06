@@ -1,0 +1,78 @@
+﻿
+<%def name="renderControl(id_name, value, props)" >
+  %if props.html_type == "checkbox":
+    <label class="checkbox">
+      ${props.html_extra_label}
+      <input \
+        type="checkbox" \
+        id="${id_name}" \
+        name="${id_name}" \
+        value="${props.html_default_value}" \
+        ${"required" if props.required else ""}>
+    </label>
+  %else:
+      <input \
+        class="${getattr(props, 'classes', 'input-xlarge')} ${'focused' if i==0 else ""}" \
+        id="${id_name}" \
+        name="${id_name}" \
+        type="${props.html_type}" \
+        value="${value}" \
+        ${"required" if props.required else ""} \
+        ${'minlength={}'.format(props.min) if getattr(props, 'min', False) else ""}>
+        %if getattr(props, 'html_help', False):
+          <p class="help-block">${props.html_help}</p>
+        %endif
+  %endif
+</%def>
+
+
+<%def name="buildform(schema, values, errors)">
+<%
+  values = values[schema.form_id]
+  errors = errors[schema.form_id]
+%>
+
+   <form method="post" class="form-horizontal" id="${schema.form_id}">
+      <input type="hidden" name="type" value="${schema.form_id}"/>
+      <input type="hidden" name="furl" value="${schema.getFURL(request)}"/>
+      <input type="hidden" name="token" value="${request.session.get_csrf_token()}"/>
+      <fieldset>
+        <legend>${caller.header()}</legend>
+        %for i, field in enumerate(schema.form_order):
+        <% 
+          props = schema.fields[field]
+          field_id_name = "{}.{}".format(schema.form_id, field)
+        %>
+        <div class="control-group${" error" if field in errors else ""}">
+          <label class="control-label" for="${field_id_name}">${props.html_label}</label>
+          <div class="controls">
+            ${self.renderControl(id_name = field_id_name, value=values.get(field, ""), props = props)}
+            %if field in errors:
+              <span class="help-inline">${errors[field]}</span>
+            %endif
+          </div>
+        </div>
+        %endfor
+        <div class="form-actions">
+          ${caller.footer()}
+        </div>
+      </fieldset>
+    </form>
+</%def>
+
+
+
+<%def name="buildValidators(root)">
+  ${root}.find("form").each(function(index, form){
+    $(form).validate({
+      errorClass: "help-inline"
+      ,errorElement: "span"
+      ,highlight: function (element, errorClass, validClass) {
+        $(element).closest(".control-group").addClass("error");
+      }
+      , unhighlight: function (element, errorClass, validClass) {
+        $(element).closest(".control-group").removeClass("error");
+      }
+    });
+  });
+</%def>
