@@ -1,0 +1,1 @@
+See `collective/portlet/contentsearch/docs/README.rst <https://github.com/collective/collective.portlet.contentsearch/blob/master/collective/portlet/contentsearch/docs/README.rst>`_
