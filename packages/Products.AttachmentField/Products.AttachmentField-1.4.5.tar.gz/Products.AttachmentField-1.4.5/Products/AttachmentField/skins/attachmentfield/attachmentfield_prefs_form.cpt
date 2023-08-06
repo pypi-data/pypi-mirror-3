@@ -1,0 +1,296 @@
+<html
+  xmlns="http://www.w3.org/1999/xhtml"
+  xml:lang="en"
+  lang="en"
+  metal:use-macro="here/prefs_main_template/macros/master"
+  i18n:domain="attachmentfield"
+  xmlns:tal="http://xml.zope.org/namespaces/tal"
+  xmlns:metal="http://xml.zope.org/namespaces/metal"
+  xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+
+>
+
+  <metal:block fill-slot="top_slot"
+               tal:define="dummy python:request.set('disable_border',1)" />
+  <body>
+    <div metal:fill-slot="prefs_configlet_main">
+      <h1 i18n:translate="heading_attachmentfield">
+        AttachmentField preferences
+      </h1>
+
+      <a href=""
+         class="link-parent"
+         tal:attributes="href string: $portal_url/plone_control_panel"
+         i18n:domain="plone"
+         i18n:translate="label_up_to_plone_setup">
+      Up to Plone Setup
+      </a>
+
+      <form name="edit_form"
+            action="."
+            method="post"
+            enctype="multipart/form-data"
+            tal:attributes="action string:${here/getId}/${template/getId}"
+            tal:define="errors options/state/getErrors;
+                        atool python:here.portal_attachment;
+                        ">
+        <fieldset>
+          <legend i18n:translate="">Configuration</legend>
+          <div
+            class="field"
+            tal:define="tabindex tabindex/next;
+                        value python:request.get('contentDisposition', atool.getContentDisposition())"
+          >
+            <label
+              i18n:translate="contentDisposition"
+            >
+              Content Disposition
+            </label>
+
+            <div class="formHelp" i18n:translate="help_contentDisposition">
+              Choose here the global setting for the content disposition that will
+              be used when downloading a file.<br/>"Inline" means that the content will
+              be displayed inside the browser (if possible, perhaps with pluggins).
+              <br/>"Attachment" means that the browser will ask the user for a filename
+              in order to save the file on the user's file system.
+              <br/>You can test the two methods. Note that, for security reasons,
+              the inline option will not be used for text content types
+              ("text/plain", "text/html" for example).
+            </div>
+            <tal:loop repeat="availableCD atool/getAvailableContentDisposition">
+              <input
+                type="radio"
+                name="content_disposition"
+                class="noborder"
+                tal:attributes="checked python:test(value==availableCD, 'checked', '');
+                                tabindex tabindex;
+                                value availableCD;
+                                id availableCD;
+                                "
+              />
+              <label
+                tal:attributes="for availableCD;"
+                tal:content="availableCD"
+              />
+              <a tal:attributes="href python:atool.getSample(availableCD)">(Test it)</a>
+              <br/>
+            </tal:loop>
+          </div>
+          <div
+            class="field"
+            tal:define="tabindex tabindex/next;
+                        value python:request.get('currentFlexStorageBackend', atool.getFlexStorageBackend())"
+          >
+            <label
+              i18n:translate="currentFlexStorageBackend"
+            >
+              Storage Backend
+            </label>
+
+            <div class="formHelp" i18n:translate="help_currentFlexStorageBackend">
+              <p>Choose the way the data in attachment fields are saved. The
+              showed options depends of what is already installed on your instance.</p>
+              <p>
+                <strong>AttributeStorage</strong>: Files are stored in
+                <acronym
+                  title="Zope Object Data Base"
+                >
+                  ZODB
+                </acronym>. Easy to use and Plone default storage option
+              </p>
+              <p>
+                <strong>FileSystemStorage</strong>: Files are stored on the filesystem. Faster than
+                AttributeStorage, and reduce ZODB size, but needs the
+                <a href="http://plone.org/products/filesystemstorage">FileSystemStorage product</a> in order to work.
+              </p>
+              <p class="error">
+                Warning: Switching between options is a <strong>sensible operation</strong>
+                that can length from <strong>minutes to hours</strong> if your site contains thousands
+                of files.
+              </p>
+
+            </div>
+            <tal:loop repeat="availableSB atool/getAvailableFlexStorageBackends">
+              <input
+                type="radio"
+                name="storage_backend"
+                class="noborder"
+                tal:attributes="checked python:test(value==availableSB, 'checked', '');
+                                tabindex tabindex;
+                                value availableSB;
+                                id availableSB;
+                                "
+              />
+              <label
+                tal:attributes="for availableSB;"
+                tal:content="availableSB"
+              />
+              <br/>
+            </tal:loop>
+          </div>
+          <tal:todo replace="nothing">
+            Here, we have to add a check box that have to be checked in order to
+            verify that the user has understood what a migration is.
+          </tal:todo>
+
+          <div class="formControls">
+            <input
+              class="context"
+              type="submit"
+              name="form.button.Save"
+              tal:attributes="tabindex tabindex/next;"
+            />
+          </div>
+
+        </fieldset>
+        <fieldset>
+          <legend i18n:translate="">Information</legend>
+            <div
+              class="error"
+              tal:condition="python:atool.isListErroneous()"
+            >
+              Some handlers are not working properly. Check for erroneous lines
+              in the following table.<br/><br/>Note that affected content can be
+              used as usual, but will not be indexed.
+            </div>
+            <table class="listing">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Name</th>
+                  <th>Mime types</th>
+                  <th>Indexer prog.</th>
+                  <th>Previewer prog.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tal:loop repeat="handler atool/listHandlerValues">
+                  <tr
+                    tal:define="
+                      klass python:test(repeat['handler'].even(), 'listing odd', 'listing even');
+                      error python:test(handler['error'], 'error', '');
+                    "
+                    tal:attributes="class python:test(error, error, klass)"
+                  >
+                    <td>
+                      <img tal:attributes="src python: handler['small_icon_file']" />
+                    </td>
+                    <td>
+                      <b><span tal:content="python: handler['class']" /></b>
+                    </td>
+                    <td
+                      tal:content=
+                        "structure python: modules['string'].join(handler['mime'], '<br/>')"
+                    >
+                    </td>
+                    <td>
+                     <span tal:content="structure python: handler['index_program_gui']" />
+                    </td>
+                    <td>
+                      <span tal:content="structure python: handler['preview_program_gui']" />
+                    </td>
+                  </tr>
+                </tal:loop>
+              </tbody>
+            </table>
+
+        </fieldset>
+
+
+        <fieldset metal:define-macro="upload">
+          <legend i18n:translate="">Test</legend>
+
+            <!-- File -->
+          <div class="field"
+               tal:define="error errors/file | nothing;
+                           file request/file | nothing;"
+               tal:attributes="class python:test(error, 'field error', 'field')">
+
+              <label for="file"
+                i18n:translate="">
+                Attachment File
+              </label>
+
+              <span class="fieldRequired"
+                title="Required"
+                i18n:attributes="title"
+                i18n:translate="label_required">(Required)</span>
+
+              <div class="formHelp"
+                i18n:translate="">
+                Select the file you want to test. Please note that this file WILL NOT be saved on the server.
+              </div>
+
+            <div i18n:translate=""
+                 tal:content="error">Validation error output</div>
+
+              <input type="file" name="file">
+
+          </div>
+
+
+            <!-- Attachment class -->
+          <div class="field"
+               tal:define="error errors/handler | nothing;
+                           handler request/handler | nothing;"
+               tal:attributes="class python:test(error, 'field error', 'field')"
+              tal:replace="nothing">
+
+              <label for="handler"
+                i18n:translate="">
+                Attachment Handler
+              </label>
+
+              <span class="fieldRequired"
+                title="Required"
+                i18n:attributes="title"
+                i18n:translate="label_required">(Required)</span>
+
+
+             <div class="formHelp"
+                i18n:translate="">
+                Select the handler you want to use for this test.
+              </div>
+
+            <div i18n:translate=""
+                 tal:content="error">Validation error output</div>
+
+            <select id="handler"
+                    name="handler"
+                    size="1"
+                    >
+              <option value="">(Guess)</option>
+              <option
+                tal:repeat="handler_ atool/listHandlerValues"
+                tal:attributes="
+                  value python:handler_['class'];
+                  selected python:test(handler == handler_['class'], 'selected', '');"
+                tal:content="python:handler_['class']">
+              </option>
+            </select>
+
+          </div>
+
+            <div class="formControls">
+              <input class="context"
+                type="submit"
+                name="form.button.Test"
+                value="Test"
+                i18n:attributes="value"
+              tal:attributes="tabindex tabindex/next;" />
+
+              <input class="context"
+                type="submit"
+                name="form.button.Cancel"
+                value="Cancel"
+                i18n:attributes="value"
+              tal:attributes="tabindex tabindex/next;" />
+            </div>
+
+          </fieldset>
+
+        <input type="hidden" name="form.submitted" value="1" />
+      </form>
+    </div>
+  </body>
+</html>

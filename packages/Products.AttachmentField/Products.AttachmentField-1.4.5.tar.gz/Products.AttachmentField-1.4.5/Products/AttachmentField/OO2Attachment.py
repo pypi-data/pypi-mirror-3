@@ -1,0 +1,69 @@
+# -*- coding: utf-8 -*-
+## AttchmentField
+## Copyright (C)2006 Ingeniweb
+
+## This program is free software; you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation; either version 2 of the License, or
+## (at your option) any later version.
+
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+
+## You should have received a copy of the GNU General Public License
+## along with this program; see the file COPYING. If not, write to the
+## Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+"""
+AttchmentField
+"""
+__version__ = "$Revision: 1.31 $"
+# $Source: /cvsroot/ingeniweb/PloneSubscription/SubscriptionTool.py,v $
+# $Id: SubscriptionTool.py,v 1.31 2005/10/10 20:43:57 encolpe Exp $
+__docformat__ = 'restructuredtext'
+
+
+from global_symbols import *
+
+import os
+import string
+import AttachmentHandler
+
+class OO2Attachment(AttachmentHandler.AbstractHandler):
+    """
+    OpenOffice2 file abstraction
+    """
+    converter_type = "OpenOffice2"
+    icon_file = "oo.gif"
+    small_icon_file = "oo_small.gif"
+    content_types = (
+        'application/vnd.oasis.opendocument.chart',
+        'application/vnd.oasis.opendocument.formula',
+        'application/vnd.oasis.opendocument.graphics',
+        'application/vnd.oasis.opendocument.image',
+        'application/vnd.oasis.opendocument.text-master',
+        'application/vnd.oasis.opendocument.presentation',
+        'application/vnd.oasis.opendocument.spreadsheet',
+        'application/vnd.oasis.opendocument.text',
+        'application/vnd.oasis.opendocument.graphics-template',
+        'application/vnd.oasis.opendocument.text-web',
+        'application/vnd.oasis.opendocument.presentation-template',
+        'application/vnd.oasis.opendocument.spreadsheet-template',
+        'application/vnd.oasis.opendocument.text-template',
+        )
+
+    is_external_conv = False
+    is_working = False
+    index_path = None
+    index_arguments = None
+    index_encoding = None
+
+    preview_path = None
+    preview_arguments = None
+    preview_encoding = None
+    preview_format = None
+    
+
+
+AttachmentHandler.registerHandler(OO2Attachment)
