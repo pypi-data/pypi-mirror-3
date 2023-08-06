@@ -1,0 +1,162 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      metal:use-macro="base">
+<head><title></title></head>
+<body>
+<div id="mainPanel" metal:fill-slot="main">
+  ${form.begin()}
+  <!-- ............................... Buttons ............................ -->
+  <div id="buttons">
+    <div class="first">
+      ${request.breadcrumbs.back_button()}
+    </div>
+    <div class="last" tal:switch="processing is None">
+      <div tal:case="True" tal:omit-tag="">
+        ${form.submit('sav!.x', _('Create'), class_='buttonMain')}
+        ${form.button(route('project_edit', project_id=project['project_id']), _('Cancel'))}
+      </div>
+      <div tal:case="False" tal:omit-tag="">
+        ${form.submit('sav!.x', _('Save'), class_='buttonMain')}
+        ${form.button(route('processing_view', project_id=processing.project_id,
+          processing_id=processing.processing_id), _('Cancel'))}
+        ${form.button(route('project_%s' % ('edit' in request.breadcrumbs.back_path() and 'edit' or 'view'),
+          project_id=project['project_id']), _('View project settings'))}
+      </div>
+    </div>
+    <hr class="hidden"/>
+  </div>
+  <div id="main" tal:define="local_text import: publiforge.lib.xml.local_text">
+    <h2 id="subtitle" class="processing" title="${_('Processing')}">
+      ${project['label']} <em>${processing and processing.label}</em>
+    </h2>
+   <!-- ........................... Description .......................... -->
+   <div id="toolTip" tal:condition="description">${description}</div>
+   <!-- ............................. Flash .............................. -->
+   <div tal:define="flash load: flash.macro.pt" metal:use-macro="flash"></div>
+   <!-- ................................ Tabs ............................ -->
+    <div id="tabSet" tal:define="file_types ('resource', 'template')">
+      ${tab_set.toc('tabProcessing')}
+      <!-- ..... Description ...... -->
+      ${tab_set.tab_begin(0, 'd')}
+      ${form.grid_text('label', _('Processing:'), required=True)}
+      ${form.grid_text('description', _('Description:'))}
+      <div class="formItem">
+        <label><em>${_('Processor:')}</em><strong>*</strong></label>
+        <div tal:switch="processing is None">
+          <div tal:case="True" tal:omit-tag="">
+            ${form.select('processor_id', None, [''] + sorted(processor_labels.items()))}
+          </div>
+          <div tal:case="False" tal:omit-tag="">
+            ${local_text(processor.find('processor'), 'label', request)}
+          </div>
+          ${form.submit_image('des!', _('Description'), '/Static/Images/action_help_one.png')}
+          <strong class="error" tal:condition="form.has_error('processor_id')">
+            ${form.error('processor_id')}
+          </strong>
+       </div>
+      </div>
+      ${tab_set.tab_end()}
+      <!-- ....... Variables ...... -->
+      ${tab_set.tab_begin(1, 'v')}
+      <table class="list" tal:condition="processing and processor.find('processor/variables') is not None">
+        <caption>${_('Variables')}</caption>
+        <thead>
+          <tr>
+            <th colspan="2">${_('Name')}</th>
+            <th></th>
+            <th>${_('Value')}</th>
+            <th>${_('Suggested')}</th>
+            <th class="center">${_('Visible')}</th>
+            <th class="last">${_('Action')}</th>
+          </tr>
+        </thead>
+        <tbody tal:repeat="group processor.findall('processor/variables/group')" class="group">
+          <tr>
+            <th colspan="7">${local_text(group, 'label', request)}</th>
+          </tr>
+          <tr tal:repeat="var group.findall('var')">
+            <td class="checkbox"></td>
+            <td>${var.get('name')}</td>
+            <td>=</td>
+            <td tal:switch="var.get('type')">
+              <div tal:case="'boolean'">${form.checkbox(var.get('name'))}</div>
+              <div tal:case="'integer'">${form.text(var.get('name'))}</div>
+              <div tal:case="'string'">${form.text(var.get('name'))}</div>
+              <div tal:case="'select'">
+                ${form.select(var.get('name'), None,
+                 [(k.get('value', k.text), k.text) for k in var.findall('option')])}
+              </div>
+              <div tal:case="'regex'">${form.text(var.get('name'))}</div>
+              <div class="error" tal:condition="form.has_error(var.get('name'))">
+                ${form.error(var.get('name'))}
+              </div>
+            </td>
+            <td tal:switch="var.get('type')">
+              <div tal:case="'boolean'">${form.checkbox('%s_def' % var.get('name'))}</div>
+              <div tal:case="'integer'">${form.text('%s_def' % var.get('name'))}</div>
+              <div tal:case="'string'">${form.text('%s_def' % var.get('name'))}</div>
+              <div tal:case="'select'">
+                ${form.select('%s_def' % var.get('name'), None,
+                  [(k.get('value', k.text), k.text) for k in var.findall('option')])}
+              </div>
+              <div tal:case="'regex'">${form.text('%s_def' % var.get('name'))}</div>
+              <div class="error" tal:condition="form.has_error('%s_def' % var.get('name'))">
+                ${form.error('%s_def' % var.get('name'))}
+              </div>
+            </td>
+            <td class="center">
+              ${form.checkbox('%s_see' % var.get('name'))}
+            </td>
+            <td class="last">
+              ${form.submit_image('rst!%s' % var.get('name'),
+                _('Reset to ') + '"' + (var.findtext('default') is not None and var.findtext('default').strip() or '') + '"',
+                '/Static/Images/action_reset_one.png')}
+              ${form.submit_image('des!%s' % var.get('name'),
+                local_text(var, 'description', request).partition(' --')[0],
+                '/Static/Images/action_help_one.png')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div tal:condition="not processing">${_('Create processing before configuring variables.')}</div>
+      ${tab_set.tab_end()}
+      <!-- ......... Files ........ -->
+      ${tab_set.tab_begin(2, 'f')}
+      <div tal:condition="processing"
+           tal:define="files_edit load: files_edit.macro.pt" metal:use-macro="files_edit"/>
+      <div tal:condition="not processing">${_('Create processing before adding files.')}</div>
+      ${tab_set.tab_end()}
+      <!-- ......... Output ....... -->
+      ${tab_set.tab_begin(3, 'o')}
+      <div tal:condition="processing and processing.output" tal:omit-tag="">
+        <div class="formItem">
+          <label><em>${_('Storage:')}</em></label>
+          <div>
+            <a href="${route('storage_root', storage_id=output['storage_id'])}"
+               class="slow">${output['label']}</a>
+          </div>
+          <div class="clear"></div>
+        </div>
+        <div class="formItem">
+          <label><em>${_('Path:')}</em></label>
+          <div>
+            ${output['storage_id']} / ${form.text('output')}
+            ${form.button(route('storage_browse', storage_id=output['storage_id'],
+              path=processing.output.partition('/')[2]),
+              src='/Static/Images/action_browse.png', title=_('View in storage'), class_="slow")}
+            <strong tal:condition="form.has_error('output')" class="error">
+              ${form.error('output')}
+            </strong>
+          </div>
+          <div class="clear"></div>
+        </div>
+      </div>
+      <div tal:condition="not processing">${_('Create processing before defining output.')}</div>
+      ${tab_set.tab_end()}
+    </div>
+  </div>
+  ${form.end()}
+</div>
+</body>
+</html>
