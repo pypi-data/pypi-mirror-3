@@ -1,0 +1,2081 @@
+// =============================================================================
+// edit-on(R) Pro by RealObjects
+// Version 5.0.204.0, 2007-09-04
+// Copyright (c) 2000-2007, RealObjects GmbH. All rights reserved.
+// Visit http://www.realobjects.com for more information.
+// =============================================================================
+
+// =============================================================================
+// Main constructor
+// =============================================================================
+var editonpro_field_registry = new Array();
+function eop_scriptForm_onsubmit() {
+    for (inputname in editonpro_field_registry) {
+        //alert(inputname + ' :: ' + editonpro_field_registry[inputname]);
+        cmd = "document.getElementById('"+inputname+"').value = "+editonpro_field_registry[inputname]+".getHTMLData();";
+        eval(cmd);
+    }
+  
+}
+function eop_addEvent(obj, type, fn, useCaption) {
+  if (obj.addEventListener) {
+    obj.addEventListener(type, fn, useCaption);
+    return true;
+  } else if (obj.attachEvent) {
+    var retVal = obj.attachEvent("on"+type, fn);
+    return retVal;
+  } else {
+    return false;
+  }
+}
+
+
+
+function editOnPro(width, height, appletName, id, eopobj) {
+    // Basic applet configuration.
+    this.width = width;
+    this.height = height;
+    this.appletName = appletName;
+    this.eopobj = eopobj;
+
+    // Applet id is set to the applet's name if no id was specified.
+    if(id) {
+    	this.id = id;
+    } else {
+    	this.id = this.appletName;
+    }
+
+    // Enable/disable debug mode.
+    this.debug = false;
+
+    // Defines wether the applet tag or object tag should be used.
+    this.OBJECT_TAG = 0;
+    this.APPLET_TAG = 1;
+    this.tagStyle = this.OBJECT_TAG;
+
+    // Determines whether caching should be active or not. Default is true.
+    this.caching = true;
+    // edit-on Pro version to be cached.
+    this.cacheVersion = "5.1.204.0";
+    this.archive = "edit-on-pro-5.jar";
+
+    // Event handler
+    this.handler = this.eopobj+".pumpEvents";
+
+    // Enable auto-download of the JRE by default.
+    this.isJREAutoDownloadEnabled = true;
+	this.jreAutoDownloadURL = "https://java.sun.com/update/1.5.0/jinstall-1_5-windows-i586.cab";
+    this.jreMinVersion = "#Version=1,5,0,0";
+
+    // The applet's codebase & code attributes.
+    this.codebase = "";
+    this.code = "com.realobjects.eop.japplet.SwingEditorApplet";
+
+    // Applet params and attributes. Are set using the setParam() method.
+    this.params = "";
+    this.attribs = "";
+
+    // Browser detection variables.
+    this.browser = navigator.userAgent;
+    this.isIE52 = false;
+    this.errorMsg = "";
+    this.isMSIE = false;
+    this.isMac = false;
+    this.isSafari = false;
+    this.isOpera = false;
+    this.isFirefox = false;
+
+    // event which may be thrown when using an unsupported browser / OS combo
+    this.unsupportedEvent = "";
+
+ 	// Variables used in applet start.
+    this.started = false;
+    this.initialized = false;
+
+	// Variables used in the event cycle. Do not change this!
+    this.sequence = new Object();
+    this.args = new Object();
+    this.seq = 0;
+
+	// Loading indicator.
+	this.loadingIndicator = "";
+	this.loadingIndicatorOffset = 20;
+	this.loadingIndicatorTimeout = 30000;
+
+	// Progress report.
+	this.loadingError = false;
+	this.hiddenLoadingEnabled = false;
+	this.resize = true;
+	this.displayOnLoad = true;
+
+	// Content caching
+	this.contentCaching = true;
+	this.contextKey = null;
+
+// =============================================================================
+// Public methods
+// =============================================================================
+
+	// Load additional archives. They will also be cached by the JRE.
+	this.addArchive = function(sArc,sVer) {
+		this.archive = this.archive+", "+sArc;
+	}
+
+	// Determines which params to use to load the applet
+	this.getArchive = function() {
+		if(this.caching) {
+            this.setParam("cache_option","plugin");
+            this.setParam("cache_archive",this.archive);
+       		this.setParam("cache_archive_ex",this.archive);
+		} else {
+			this.setParam("archive",this.archive);
+		}
+	}
+
+	// Sets the loading indicator
+	this.setLoadingIndicator = function(indicatorString) {
+		this.loadingIndicator = indicatorString;
+	}
+
+	// Loads the applet
+	this.loadEditor = function() {
+		// Determines whether to enable caching or not
+		this.getArchive();
+	   	// Enables the JRE progress bar
+	   	this.setParam("progressbar","true");
+	   	this.setParam("boxmessage","");
+		// Builds the applet tag
+		this.getAppletElement();
+		this.progressState();
+	}
+
+	// Adds a param to the applet tag
+	this.setParam = function(name, value) {
+		this.params += '<param name="'+name+'" value="'+value+'" />\n';
+	}
+
+	// Adds an attribute to the applet tag
+	this.addAttribute = function(sName, sVal) {
+		this.attribs += ' '+sName+'="'+sVal+'"';
+	}
+
+	// Sets the applet's codebase
+	this.setCodebase = function(sCodebase) {
+		this.codebase  = sCodebase;
+	}
+
+	// Disable applet caching
+	this.disableCaching = function() {
+		this.caching = false;
+	}
+
+	// Sets the background color displayed while the applet is loading
+	this.setStartUpScreenBackgroundColor = function(strColor) {
+		this.setParam("startupscreenbackgroundcolor",strColor);
+		this.setParam("boxbgcolor",strColor);
+	}
+
+	// Sets the foreground and text color displayed while the applet is loading
+	this.setStartUpScreenTextColor = function(strColor) {
+		this.setParam("startupscreentextcolor",strColor);
+		this.setParam("boxfgcolor",strColor);
+	}
+
+	// Used to synchronize the Javascript API calls made to the applet
+	this.pumpEvents = function() {
+	    // If the applet is started...
+		if(this.initialized) {
+	        // ... call the first function in the queue
+			for(var prop in this.sequence) {
+				if(this.sequence[prop]!=null) {
+					this.sequence[prop](this,prop);
+					return null;
+				}
+			}
+	        // Once the event queue is finished, call the method to be called when
+	        // the editor has finished its loading event (if any)
+			if(this.oneditorloaded!=null) {
+				eval(this.oneditorloaded+'(this)');
+				this.oneditorloaded = null;
+				return null;
+			}
+		}
+	}
+
+	this.setJREAutoDownload = function(bAutoDL) {
+		this.isJREAutoDownloadEnabled = bAutoDL;
+	}
+
+	this.setJREAutoDownloadURL = function(sURL) {
+		this.jreAutoDownloadURL = sURL;
+	}
+
+	this.setJREMinVersion = function(sVer) {
+		this.jreMinVersion = "#Version="+sVer;
+	}
+
+	this.setTagStyle = function(style) {
+	    // either this.APPLET_TAG or this.OBJECT_TAG
+	    this.tagStyle = style;
+	}
+
+	this.setHiddenLoading = function(bState,
+									 displayOnLoad,
+									 loadingIndicatorOffset,
+									 loadingIndicatorTimeout) {
+		this.hiddenLoadingEnabled = bState;
+		if (displayOnLoad == null || displayOnLoad == true) {
+			this.displayOnLoad = true;
+		} else {
+			this.displayOnLoad = false;
+		}
+		if (loadingIndicatorOffset != 0 && loadingIndicatorOffset != '' && loadingIndicatorOffset != null) {
+			this.loadingIndicatorOffset = loadingIndicatorOffset;
+		}
+		if (loadingIndicatorTimeout != 0 && loadingIndicatorTimeout != '' && loadingIndicatorTimeout != null) {
+			this.loadingIndicatorTimeout = loadingIndicatorTimeout;
+		}
+	}
+
+	this.resizeEditor = function(width, height) {
+	    
+	    var containerResizeHeight = this.parseNumber(height);
+		var containerResizeWidth = this.parseNumber(width);
+		
+		if (!isNaN(containerResizeHeight)) {
+			containerResizeHeight += "px";
+			if (height > 1 ) {
+				height--;
+			}
+		}
+		
+		if (!isNaN(containerResizeWidth)) {
+			containerResizeWidth += "px";
+			if (width > 1 ) {
+				width--;
+			}
+		}	
+	    if(this.resize) {
+			if (this.noCollapse && width == 1 && height == 1) {
+				this.obj.width = width;
+		    	this.obj.height = height;
+			} else {
+				this.obj.width = width;
+			    this.obj.height = height;		    
+			    document.getElementById(this.appletName+"_div").style.width = containerResizeWidth;
+				document.getElementById(this.appletName+"_div").style.height = containerResizeHeight;
+			}
+		}
+	}
+
+	this.showEditor = function() {
+		this.resizeEditor(this.width, this.height);
+	}
+
+	this.hideEditor = function(noCollapse) {
+		this.noCollapse = noCollapse;
+		this.resizeEditor(1,1);
+	}
+
+// =============================================================================
+// Private methods
+// Do not call these methods from external source.
+// =============================================================================
+
+	// Initializes the loading image
+	this.reportProgress = function() {
+		if (!this.loadingError && !(this.isMac && this.isFirefox)) {
+			if (!this.initialized) {
+				if (this.loadingIndicator == "") {
+					this.loadingIndicator = '<img src="'+this.codebase+'/loading.gif" alt="Loading indicator" style="width:28px; height: 28px;" />';
+				}
+				document.getElementById(this.id + "_container").innerHTML = this.loadingIndicator;
+				this.loaderImage = true;
+			}
+		}
+	}
+
+	// Reports loading progress
+	this.progressState = function() {
+
+
+
+		globalObject = this.eopobj;
+		if(this.isMSIE&&this.tagStyle==this.OBJECT_TAG&&this.hiddenLoadingEnabled) {
+			window.setTimeout(globalObject+".reportProgress()",this.loadingIndicatorOffset);
+			window.setTimeout(globalObject+".displayEditor()",this.loadingIndicatorOffset+this.loadingIndicatorTimeout);
+		} else if (!window.navigator.javaEnabled()) {
+			this.reportProgressError();
+		} else if(this.hiddenLoadingEnabled) {
+			window.setTimeout(globalObject+".reportProgress()",this.loadingIndicatorOffset);
+			window.setTimeout(globalObject+".displayEditor()",this.loadingIndicatorOffset+this.loadingIndicatorTimeout);
+		}
+	}
+
+	this.reportProgressError = function() {
+		this.loadingIndicator = '<p><img src="'+this.codebase+'/error.png" alt="Error" style="vertical-align: bottom;" /> Java is not enabled</p>';
+		this.reportProgress();
+		this.loadingError = true;
+	}
+
+	// Set the object containing the editor
+	this.setObj = function() {
+		// Object containing the editor
+		if(this.isSafari) {
+	        this.obj = document.applets[this.appletName];
+	    } else {
+	        this.obj = document.getElementById(this.id);
+	    }
+	}
+
+	this.showJavaSupportError = function() {
+		document.getElementById(this.id+"_container").innerHTML = "Sorry, your browser does not support java";
+	}
+
+	// Builds the applet tag
+	this.getAppletElement = function() {
+		globalObject = this;
+		var apEl = "";
+		var apContainer = "";
+
+		apContainer += "<input type=\"hidden\" ";
+        apContainer += "name=\""+this.appletName+"_contextKey\" size=\"50\" ";
+        apContainer += "id=\""+this.appletName+"_contextKey\" />";
+
+		if(this.errorMsg=="") {
+	        // Generating required attributes
+	        if(this.isMSIE) {
+	            if (this.tagStyle==this.OBJECT_TAG) {
+	                this.addAttribute("classid","clsid:8AD9C840-044E-11D1-B3E9-00805F499D93");
+					this.addAttribute("onerror",this.eopobj+".reportProgressError()");
+	            }
+	            if(this.isJREAutoDownloadEnabled) {
+	                this.addAttribute("codebase",this.jreAutoDownloadURL+this.jreMinVersion);
+	            }
+	        } else {
+	            if(this.tagStyle==this.OBJECT_TAG) {
+	                this.addAttribute("classid","java:"+this.code);
+	            } else {
+	                this.addAttribute("code",this.code);
+	            }
+	        }
+			
+			// Editor should be 1 px smaller than defined size
+			if (!isNaN(this.parseNumber(this.width))) {
+				this.width--;
+			}
+			
+			if (!isNaN(this.parseNumber(this.height))) {
+				this.height--;
+			}
+			
+			// Hidden loading
+			if (!this.hiddenLoadingEnabled || (this.isMac && this.isFirefox)) {
+				this.addAttribute("width",this.parseNumber(this.width));
+				this.addAttribute("height",this.parseNumber(this.height));
+				this.resize = false;
+			} else {
+				this.addAttribute("width",1);
+				this.addAttribute("height",1);
+			}
+
+	        // Attributes and params common to all platforms
+	        this.addAttribute("id",this.id);
+	        this.addAttribute("name",this.appletName);
+
+	        this.setParam("jsobject",this.eopobj);
+	        this.setParam("oneditorloaded",this.eopobj+".initializeJS");
+
+	        // Specific Safari settings
+	        if (this.isMac) {
+	            this.tagStyle = this.APPLET_TAG;
+	            this.addAttribute("codebase",this.codebase);
+	            this.addAttribute("code",this.code);
+	            this.setParam("type","application/x-java-applet;jpi-version=1.5.0");
+	        } else {
+	            this.setParam("java_codebase",this.codebase);
+	            this.setParam("java_code",this.code);
+	            this.setParam("java_type","application/x-java-applet;jpi-version=1.4.2");
+	        }
+
+	        // Code specific to the object or applet tag
+	        var elem = "";
+	        if (this.tagStyle==this.OBJECT_TAG) {
+	            this.setParam("mayscript","true");
+	            this.setParam("scriptable","true");
+	            elem = "object";
+	        } else if (this.tagStyle==this.APPLET_TAG) {
+	            this.addAttribute("mayscript","true");
+	            this.addAttribute("scriptable","true");
+	            elem = "applet";
+	        }
+
+			// Generate container for loading indicator
+			apEl += '<div style="border: 0px; display: block;" id="'+this.id+'_container"></div>';
+
+	        // Generate the object tag
+	        apEl += "<"+elem;
+	        apEl += this.attribs;
+	        apEl += ">\n";
+	        apEl += this.params;
+	        apEl += "</"+elem+">";
+		} else if (this.unsupportedEvent!="") {
+	        eval(this.unsupportedEvent);
+	    } else {
+			apEl+='<div name="'+this.appletDiv+'" align="center"><p>'+this.errorMsg+'</p></div>';
+		}
+	    // Set the started variable to true to prevent the adding of further params
+	    this.started = true;
+	    // ... else write the applet tag
+		//document.getElementById(this.appletName+"_div").innerHTML = apEl;
+		
+		var containerHeight = this.parseNumber(this.height);
+		var containerWidth = this.parseNumber(this.width);
+		
+		if (!isNaN(containerHeight)) {
+			containerHeight += "px";
+		}
+		
+		if (!isNaN(containerWidth)) {
+			containerWidth += "px";
+		}	
+		
+ 		apContainer +=  "<div style=\"border: 0px; width: "+containerWidth+"; height: "+containerHeight+"; padding: 0px margin: 0px;\" id=\""+this.appletName+"_div\" name=\""+this.appletName+"_div\">";
+		apContainer += apEl;
+		apContainer += "</div>";
+		// if debug mode is enabled write applet config in a texarea...
+	    if (this.debug) apContainer += '<textarea name="dbgTxt" rows="12" cols="100">'+apContainer+'</textarea>';
+		document.write(apContainer);
+	}
+
+	this.generateContextKey = function() {
+		var time = new Date();
+		time = time.getTime();
+		this.contextKey =  this.appletName+time;
+	}
+
+	// Set applet context key
+	this.setContextKey = function() {
+		// Get applet context key
+		this.generateContextKey();
+
+		if(document.getElementById(this.appletName+"_contextKey").value=="") {
+			document.getElementById(this.appletName+"_contextKey").value = this.contextKey;
+		}
+		if(document.getElementById(this.appletName+"_contextKey")) {
+			this.contextKey = document.getElementById(this.appletName+"_contextKey").value;
+		}
+    }
+
+    this.setAppletContextKey = function() {
+		this.registerMethod(
+	        this.doSetAppletContextKey,
+	        this.setAppletContextKey.arguments
+	    );
+	}
+
+	this.doSetAppletContextKey = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setAppletContextKeyAsync(tempSeq[0], self.handler);
+	}
+
+	this.cacheContents = function(bCaching) {
+		if(bCaching) {
+			this.setParam("contentcaching",bCaching.toString());
+			//this.setContextKey();
+		}
+	}
+
+	this.enableDebug = function() {
+	    this.debug = true;
+	}
+
+	// Places a method in the event queue. It will then be handled by pumpEvents()
+	this.registerMethod = function(sHandler,arrArgs) {
+	    // Event handler for the method
+		this.sequence[this.seq] = sHandler;
+	    // The arguments passed to the method
+		this.args[this.seq] = arrArgs;
+	    // Position in the sequence, determines in which order methods will be
+	    // called by pumpEvents
+		this.seq++;
+	}
+
+	// Removes a method from the event queue
+	this.unReg = function(seq) {
+	    this.sequence[seq] = null;
+	    this.args[seq] = null;
+	}
+
+	this.displayEditor = function() {
+		if (this.loaderImage) {
+			document.getElementById(this.id + "_container").innerHTML = "";
+			document.getElementById(this.id + "_container").style.width= "";
+			document.getElementById(this.id + "_container").style.height= "0px";
+			document.getElementById(this.id + "_container").style.display= "none";
+		}
+	}
+
+	// Initializes the event queue and the editOnPro object once the editor has
+	// finished loading
+	this.initializeJS = function() {
+		this.setContextKey();
+		this.setAppletContextKey(this.contextKey);
+		this.displayEditor();
+	    this.initialized = true;
+		this.setObj();
+		if (this.displayOnLoad) {
+			this.resizeEditor(this.width, this.height);
+		}
+	    this.pumpEvents();
+	}
+
+	// =============================================================================
+	// JavaScript API SET functions
+	// =============================================================================
+
+	this.invokeAction = function() {
+	    this.registerMethod(
+	        this.doInvokeAction,
+	        this.invokeAction.arguments
+	    );
+	}
+
+	this.doInvokeAction = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+		if(tempSeq.length==1) {
+			// Call an ACTION with no list item value or event handler
+			self.obj.invokeActionAsync(tempSeq[0], null, self.handler);
+		} else if(tempSeq.length==2) {
+			// Call an ACTION with a list item value but no event handler
+			self.obj.invokeActionAsync(tempSeq[0], tempSeq[1], null, self.handler);
+		} else if(tempSeq.length==3) {
+			// Call an ACTION with an event handler. If there is no list item,
+			// the corresponding argument must be null (tempSeq[1])
+			self.obj.invokeActionAsync(tempSeq[0], tempSeq[2], tempSeq[1], self.handler);
+		}
+	}
+
+	this.setUnsupportedBrowserEvent = function(sEvent) {
+	    this.unsupportedEvent = sEvent+"()";
+	}
+
+	this.setStyleSheet = function(sStyles) {
+		this.registerMethod(
+	        this.doSetStyleSheet,
+	        this.setStyleSheet.arguments
+	    );
+	}
+
+	this.doSetStyleSheet = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setStyleSheetAsync(tempSeq[0], self.handler);
+	}
+
+	this.insertHTMLData = function(sData) {
+		this.registerMethod(
+	        this.doInsertHTMLData,
+	        this.insertHTMLData.arguments
+	    );
+	}
+
+	this.doInsertHTMLData = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.insertHTMLDataAsync(tempSeq[0], self.handler);
+	}
+
+	this.setHTMLDataFromURL = function(sURL) {
+		this.registerMethod(
+	        this.doSetHTMLDataFromURL,
+	        this.setHTMLDataFromURL.arguments
+	    );
+	}
+
+	this.doSetHTMLDataFromURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setHTMLDataFromURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.setHTMLData = function(sData) {
+		this.registerMethod(
+	        this.doSetHTMLData,
+	        this.setHTMLData.arguments
+	    );
+	}
+
+	this.doSetHTMLData = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setHTMLDataAsync(tempSeq[0], self.handler);
+	}
+
+	this.postDocumentToServer = function() {
+		this.registerMethod(
+	        this.doPostDocumentToServer,
+	        this.postDocumentToServer.arguments
+	    );
+	}
+
+	this.doPostDocumentToServer = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.postDocumentToServerAsync(self.handler);
+	}
+
+	this.insertHTMLDataFromURL = function(sURL) {
+		this.registerMethod(
+	        this.doInsertHTMLDataFromURL,
+	        this.insertHTMLDataFromURL.arguments
+	    );
+	}
+
+	this.doInsertHTMLDataFromURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.insertHTMLDataFromURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.insertImage = function(sURL, sWidth, sHeight, sBorder, sAlt) {
+		this.registerMethod(
+	        this.doInsertImage,
+	        this.insertImage.arguments
+	    );
+	}
+
+	this.doInsertImage = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.insertImageAsync(
+	        tempSeq[0],
+	        tempSeq[1],
+	        tempSeq[2],
+	        tempSeq[3],
+	        tempSeq[4],
+	        self.handler
+	    );
+	}
+
+	this.clear = function() {
+		this.registerMethod(
+	        this.doClear,
+	        this.clear.arguments
+	    );
+	}
+
+	this.doClear = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.clearAsync(self.handler);
+	}
+
+	this.insertCustomTag = function(sTagName, sEmpty, sAttributes) {
+		this.registerMethod(
+	        this.doInsertCustomTag,
+	        this.insertCustomTag.arguments
+	    );
+	}
+
+	this.doInsertCustomTag = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.insertCustomTagAsync(
+	        tempSeq[0],
+	        tempSeq[1],
+	        tempSeq[2],
+	        self.handler
+	    );
+	}
+
+	this.addStyleSheet = function(sStyles) {
+		this.registerMethod(
+	        this.doAddStyleSheet,
+	        this.addStyleSheet.arguments
+	    );
+	}
+
+	this.doAddStyleSheet = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.addStyleSheetAsync(tempSeq[0], self.handler);
+	}
+
+	this.setStyleSheetURL = function(sURL) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetStyleSheetURL,
+	            this.setStyleSheetURL.arguments
+	        );
+		} else {
+			this.setParam("stylesheeturl",sURL);
+		}
+	}
+
+	this.doSetStyleSheetURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setStyleSheetURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.cleanStyleSheet = function() {
+		this.registerMethod(
+	        this.doCleanStyleSheet,
+	        this.cleanStyleSheet.arguments
+	    );
+	}
+
+	this.doCleanStyleSheet = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.cleanStyleSheetAsync(self.handler);
+	}
+
+	this.setCurrentElementContent = function(sCon) {
+		this.registerMethod(
+	        this.doSetCurrentElementContent,
+	        this.setCurrentElementContent.arguments
+	    );
+	}
+
+	this.doSetCurrentElementContent = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setCurrentElementContentAsync(tempSeq[0], self.handler);
+	}
+
+	this.setHeadElementContent = function(sContent) {
+		this.registerMethod(
+	        this.doSetHeadElementContent,
+	        this.setHeadElementContent.arguments
+	    );
+	}
+
+	this.doSetHeadElementContent = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setHeadElementContentAsync(tempSeq[0], self.handler);
+	}
+
+	this.showWYSIWYGAreaOnly = function(bShow) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doShowWYSIWYGAreaOnly,
+	            this.showWYSIWYGAreaOnly.arguments
+	        );
+		} else {
+			this.setParam("showwysiwygareaonly",bShow.toString());
+		}
+	}
+
+	this.doShowWYSIWYGAreaOnly = function(self,seq) {
+	  var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.showWYSIWYGAreaOnlyAsync(tempSeq[0], self.handler);
+	}
+
+	this.setLookAndFeel = function(sLook) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetLookAndFeel,
+	            this.setLookAndFeel.arguments
+	        );
+		} else {
+			this.setParam("lookandfeel",sLook);
+		}
+	}
+
+	this.doSetLookAndFeel = function(self,seq) {
+	  var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setLookAndFeelAsync(tempSeq[0], self.handler);
+	}
+
+	this.setTemplate = function(sTempl) {
+		this.registerMethod(
+	        this.doSetTemplate,
+	        this.setTemplate.arguments
+	    );
+	}
+
+	this.doSetTemplate = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setTemplateAsync(tempSeq[0], self.handler);
+	}
+
+	this.setTemplateURL = function(sURL) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetTemplateURL,
+	            this.setTemplateURL.arguments
+	        );
+		} else {
+			this.setParam("templateurl",sURL);
+		}
+	}
+
+	this.doSetTemplateURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setTemplateURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.setCustomField = function(strField) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetCustomField,
+	            this.setCustomField.arguments
+	        );
+		} else {
+			this.setParam("customfield",strField);
+		}
+	}
+
+	this.doSetCustomField = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setCustomFieldAsync(tempSeq[0], self.handler);
+	}
+
+	this.setEncoding = function(strEncoding) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetEncoding,
+	            this.setEncoding.arguments
+	        );
+		} else {
+			this.setParam("encoding",strEncoding);
+		}
+	}
+
+	this.doSetEncoding = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setEncodingAsync(tempSeq[0], self.handler);
+	}
+
+	this.setGetErrorTarget = function(strGetErrTarget) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetGetErrorTarget,
+	            this.setGetErrorTarget.arguments
+	        );
+		} else {
+			this.setParam("get_error_target",strGetErrTarget);
+		}
+	}
+
+	this.doSetGetErrorTarget = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setGetErrorTargetAsync(tempSeq[0], self.handler);
+	}
+
+	this.setGetErrorURL = function(strGetErrURL) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetGetErrorURL,
+	            this.setGetErrorURL.arguments
+	        );
+		} else {
+			this.setParam("get_error_url",strGetErrURL);
+		}
+	}
+
+	this.doSetGetErrorURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setGetErrorURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.setGetHTMLDataURL = function(strURL) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetGetHTMLDataURL,
+	            this.setGetHTMLDataURL.arguments
+	        );
+		} else {
+			this.setParam("gethtmldataurl",strURL);
+		}
+	}
+
+	this.doSetGetHTMLDataURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setGetHTMLDataURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.setGetOKTarget = function(strTarget) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetGetOKTarget,
+	            this.setGetOKTarget.arguments
+	        );
+		} else {
+			this.setParam("get_ok_target",strTarget);
+		}
+	}
+
+	this.doSetGetOKTarget = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setGetOKTargetAsync(tempSeq[0], self.handler);
+	}
+
+	this.setGetOKURL = function(strURL) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetGetOKURL,
+	            this.setGetOKURL.arguments
+	        );
+		} else {
+			this.setParam("get_ok_url",strURL);
+		}
+	}
+
+	this.doSetGetOKURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setGetOKURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.setSourceView = function(bView) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetSourceView,
+	            this.setSourceView.arguments
+	        );
+		} else {
+			this.setParam("sourceview",bView.toString());
+		}
+	}
+
+	this.doSetSourceView = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setSourceViewAsync(tempSeq[0], self.handler);
+	}
+
+	this.setSetErrorTarget = function(strErrTarget) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetSetErrorTarget,
+	            this.setSetErrorTarget.arguments
+	        );
+		} else {
+			this.setParam("set_error_target",strErrTarget);
+		}
+	}
+
+	this.doSetSetErrorTarget = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setSetErrorTargetAsync(tempSeq[0], self.handler);
+	}
+
+	this.setSetErrorURL = function(strURL) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetSetErrorURL,
+	            this.setSetErrorURL.arguments
+	        );
+		} else {
+			this.setParam("set_error_url",strURL);
+		}
+	}
+
+	this.doSetSetErrorURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setSetErrorURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.setSetOKTarget = function(strOKTarget) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetSetOKTarget,
+	            this.setSetOKTarget.arguments
+	        );
+		} else {
+			this.setParam("set_ok_target",strOKTarget);
+		}
+	}
+
+	this.doSetSetOKTarget = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setSetOKTargetAsync(tempSeq[0], self.handler);
+	}
+
+	this.setSetOKURL = function(strURL) {
+		if(this.started) {
+			this.registerMethod(
+	            this.doSetSetOKURL,
+	            this.setSetOKURL.arguments
+	        );
+		} else {
+			this.setParam("set_ok_url",strURL);
+		}
+	}
+
+	this.doSetSetOKURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setSetOKURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.setImageBase = function(sURL) {
+		this.registerMethod(
+	        this.doSetImageBase,
+	        this.setImageBase.arguments
+	    );
+	}
+
+	this.doSetImageBase = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setImageBaseAsync(tempSeq[0], self.handler);
+	}
+
+	this.setBase = function(strBase) {
+	    this.registerMethod(
+	        this.doSetBase,
+	        this.setBase.arguments
+	    );
+	}
+
+	this.doSetBase = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setBaseAsync(tempSeq[0], self.handler);
+	}
+
+	this.uploadImages = function(sEvent) {
+		this.registerMethod(
+	        this.doUploadImages,
+	        this.uploadImages.arguments
+	    );
+	}
+
+	this.doUploadImages = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+	    self.obj.uploadImagesAsync(tempSeq[0]);
+	}
+
+	this.uploadToRepository = function(sAction,sEvent) {
+	    this.registerMethod(
+	        this.doUploadToRepository,
+	        this.uploadToRepository.arguments
+	    );
+	}
+
+	this.doUploadToRepository = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.uploadToRepositoryAsync(tempSeq[0], tempSeq[1]);
+	}
+
+	this.getImageBase = function() {
+		return this.obj.getImageBase();
+	}
+
+	this.setStandAloneMode = function(bMode) {
+		this.registerMethod(
+	        this.doSetStandAloneMode,
+	        this.setStandAloneMode.arguments
+	    );
+	}
+
+	this.doSetStandAloneMode = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setStandAloneModeAsync(tempSeq[0], self.handler);
+	}
+
+	this.setCaretAtDocumentStart = function() {
+		this.registerMethod(
+	        this.doSetCaretAtDocumentStart,
+	        this.setCaretAtDocumentStart.arguments
+	    );
+	}
+
+	this.doSetCaretAtDocumentStart = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setCaretAtDocumentStartAsync(self.handler);
+	}
+
+	this.setElementAttributes = function(arr) {
+	    this.registerMethod(
+	        this.doSetElementAttributes,
+	        this.setElementAttributes.arguments
+	    );
+	}
+
+	this.doSetElementAttributes = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		arr = tempSeq[0];
+		hash = self.obj.getHashtableWrapper();
+		for (prop in arr) {
+			hash.putValue(prop,arr[prop]);
+		}
+		self.obj.setElementAttributesAsync(hash, self.handler);
+	}
+
+	this.setBlockElementAttributes = function(arr) {
+	    this.registerMethod(
+	        this.doSetBlockElementAttributes,
+	        this.setBlockElementAttributes.arguments
+	    );
+	}
+
+	this.doSetBlockElementAttributes = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    arr = tempSeq[0];
+	    hash = self.obj.getHashtableWrapper();
+	    for (prop in arr) {
+	        hash.putValue(prop,arr[prop]);
+	    }
+	    self.obj.setBlockElementAttributesAsync(hash, self.handler);
+	}
+
+	this.setReadOnly = function(bOnly) {
+		this.registerMethod(
+	        this.doSetReadOnly,
+	        this.setReadOnly.arguments
+	    );
+	}
+
+	this.doSetReadOnly = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setReadOnlyAsync(tempSeq[0],self.handler);
+	}
+
+	this.setCookie = function(sCookie) {
+		this.registerMethod(
+	        this.doSetCookie,
+	        this.setCookie.arguments
+	    );
+	}
+
+	this.doSetCookie = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setCookieAsync(tempSeq[0],self.handler);
+	}
+
+	this.setDTDBase = function(sBase) {
+	    if(this.started) {
+	        this.registerMethod(
+	            this.doSetDTDBase,
+	            this.setDTDBase.arguments
+	        );
+	    } else {
+	        this.setParam("dtdbase",sBase);
+	    }
+	}
+
+	this.doSetDTDBase = function(self,seq) {
+	    var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setDTDBaseAsync(tempSeq[0],self.handler);
+	}
+
+	this.setActiveSpellChecker = function(sAct) {
+	    this.registerMethod(
+	        this.doSetActiveSpellChecker,
+	        this.setActiveSpellChecker.arguments
+	    );
+	}
+
+	this.doSetActiveSpellChecker = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setActiveSpellCheckerAsync(tempSeq[0],self.handler);
+	}
+
+	this.setCaretAfterNextBookmark = function() {
+	    this.registerMethod(
+	        this.doSetCaretAfterNextBookmark,
+	        this.setCaretAfterNextBookmark.arguments
+	    );
+	}
+
+	this.doSetCaretAfterNextBookmark = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setCaretAfterNextBookmarkAsync(self.handler);
+	}
+
+	this.setNextBookmarkWrapAroundEnabled = function() {
+	    this.registerMethod(
+	        this.doSetNextBookmarkWrapAroundEnabled,
+	        this.setNextBookmarkWrapAroundEnabled.arguments
+	    );
+	}
+
+	this.doSetNextBookmarkWrapAroundEnabled = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setNextBookmarkWrapAroundEnabledAsync(tempSeq[0],self.handler);
+	}
+
+	this.setCaretAfterPreviousBookmark = function() {
+	    this.registerMethod(
+	        this.doSetCaretAfterPreviousBookmark,
+	        this.setCaretAfterPreviousBookmark.arguments
+	    );
+	}
+
+	this.doSetCaretAfterPreviousBookmark = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setCaretAfterPreviousBookmarkAsync(self.handler);
+	}
+
+	this.setPreviousBookmarkWrapAroundEnabled = function() {
+	    this.registerMethod(
+	        this.doSetPreviousBookmarkWrapAroundEnabled,
+	        this.setPreviousBookmarkWrapAroundEnabled.arguments
+	    );
+	}
+
+	this.doSetPreviousBookmarkWrapAroundEnabled = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setPreviousBookmarkWrapAroundEnabledAsync(tempSeq[0],self.handler);
+	}
+
+	this.setBodyOnly = function(bState) {
+		this.registerMethod(
+			this.doSetBodyOnly,
+			this.setBodyOnly.arguments
+		);
+	}
+
+	this.doSetBodyOnly = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setBodyOnlyAsync(tempSeq[0],self.handler);
+	}
+
+	this.setWebDAVCookieString = function(strCookie) {
+	    this.registerMethod(
+	        this.doSetWebDAVCookie,
+	        this.setWebDAVCookieString.arguments
+	    );
+	}
+
+	this.doSetWebDAVCookieString = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setWebDAVCookieStringAsync(tempSeq[0], self.handler);
+	}
+
+	this.setUserPreferences = function(strPrefs) {
+	    this.registerMethod(
+	        this.doSetUserPreferences,
+	        this.setUserPreferences.arguments
+	    );
+	}
+
+	this.doSetUserPreferences = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setUserPreferencesAsync(tempSeq[0], self.handler);
+	}
+
+	this.setActionEnabled = function(strAction, bState) {
+	    this.registerMethod(
+	        this.doSetActionEnabled,
+	        this.setActionEnabled.arguments
+	    );
+	}
+
+	this.doSetActionEnabled = function(self,seq) {
+	    var tempSeq=self.args[seq];
+	    self.unReg(seq);
+	    self.obj.setActionEnabledAsync(tempSeq[0], tempSeq[1], self.handler);
+	}
+
+	this.setExportAsNumerical = function(bExpAsNum) {
+		this.setParam("exportasnumerical",bExpAsNum.toString());
+	}
+
+	this.setLocaleCode = function(strLocale) {
+		this.setParam("locale",strLocale);
+	}
+
+	this.setLocaleURL = function(strURL) {
+		this.setParam("localeurl",strURL);
+	}
+
+	this.setNewDocumentDialog = function(bNewDocDlg) {
+		this.setParam("newdocumentdialog",bNewDocDlg.toString());
+	}
+
+	this.setConfigURL = function(sURL) {
+		this.setParam("configurl",sURL);
+	}
+
+	this.setUIConfigURL = function(sURL) {
+		this.setParam("uiconfigurl",sURL);
+	}
+
+	this.setOnEditorLoaded = function(sFunc) {
+		this.oneditorloaded = sFunc;
+	}
+
+	this.setLicenseKey = function(sLic) {
+		this.setParam("licensekey",sLic);
+	}
+
+	this.setOnDataLoaded = function(sFunc) {
+		this.setParam("ondataloaded",sFunc);
+	}
+
+	this.setOnEditorFocused = function(sFunc) {
+	    this.setParam("oneditorfocused",sFunc);
+	}
+
+	this.setOnDataPosted = function(sFunc) {
+		this.setParam("ondataposted",sFunc);
+	}
+
+	this.setOnDataPostedError = function(sFunc) {
+		this.setParam("ondatapostederror",sFunc);
+	}
+
+	this.setConfig = function(sConf) {
+		this.setParam("config",escape(sConf));
+	}
+
+	this.setUIConfig = function(sConf) {
+		this.setParam("uiconfig",escape(sConf));
+	}
+
+	this.setHeartBeatURL = function(sURL) {
+		this.setParam("heartbeaturl",sURL);
+	}
+
+	this.setHeartBeatInterval = function(sInt) {
+		this.setParam("heartbeatinterval",sInt);
+	}
+
+	this.setDebug = function(bDbg) {
+	    this.setParam("debug",bDbg);
+	}
+
+	this.setStandAloneWidth = function(sWidth){
+	    this.setParam("standalonewidth",sWidth);
+	}
+
+	this.setStandAloneHeight = function(sHeight) {
+	    this.setParam("standaloneheight",sHeight);
+	}
+
+	this.setEventHandler = function(sEvent, sFunc) {
+    	if(this.started){
+			this.registerMethod(
+    	        this.doSetEventHandler,
+                this.setEventHandler.arguments
+            );
+        }else if(sEvent=="ONEDITORLOADED") {
+            this.oneditorloaded = sFunc;
+        }else {
+            this.setParam(sEvent, sFunc);
+	    }
+    }
+
+	this.doSetEventHandler = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setEventHandlerAsync(tempSeq[0], tempSeq[1], self.handler);
+	}
+
+	this.compareDocuments = function(sURL1, sURL2) {
+		this.registerMethod(
+	        this.doCompareDocuments,
+	        this.compareDocuments.arguments
+	    );
+	}
+
+	this.doCompareDocuments = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.compareDocumentsAsync(tempSeq[0], tempSeq[1], self.handler);
+	}
+
+	this.compareDocumentContents = function(sContent1, sContent2) {
+		this.registerMethod(
+	        this.doCompareDocumentContents,
+	        this.compareDocumentContents.arguments
+	    );
+	}
+
+	this.doCompareDocumentContents = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.compareDocumentContentsAsync(tempSeq[0], tempSeq[1], self.handler);
+	}
+
+	this.compareDocumentToEditorContent = function(sURL1) {
+		this.registerMethod(
+	        this.doCompareDocumentToEditorContent,
+	        this.compareDocumentToEditorContent.arguments
+	    );
+	}
+
+	this.doCompareDocumentToEditorContent = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.compareDocumentToEditorContentAsync(tempSeq[0], self.handler);
+	}
+
+	this.compareDocumentContentToEditorContent = function(sContent1) {
+		this.registerMethod(
+	        this.doCompareDocumentContentToEditorContent,
+	        this.compareDocumentContentToEditorContent.arguments
+	    );
+	}
+
+	this.doCompareDocumentContentToEditorContent = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.compareDocumentContentToEditorContentAsync(tempSeq[0], self.handler);
+	}
+
+	this.setCaretLocation = function(iLoc) {
+		this.registerMethod(
+			this.doSetCaretLocation,
+			this.setCaretLocation.arguments
+		);
+	}
+
+	this.doSetCaretLocation = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setCaretLocationAsync(tempSeq[0], self.handler);
+	}
+
+	this.setIgnoreFilter = function(sURL1) {
+		this.registerMethod(
+	        this.doSetIgnoreFilter,
+	        this.setIgnoreFilter.arguments
+	    );
+	}
+
+	this.doSetIgnoreFilter = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setIgnoreFilterAsync(tempSeq[0], self.handler);
+	}
+
+	this.setHelpURL = function(sURL) {
+		this.registerMethod(
+			this.doSetHelpURL,
+			this.setHelpURL.arguments
+		);
+	}
+
+	this.doSetHelpURL = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setHelpURLAsync(tempSeq[0], self.handler);
+	}
+
+	this.acceptAll = function() {
+		this.registerMethod(
+	        this.doAcceptAll,
+	        this.acceptAll.arguments
+	    );
+	}
+
+	this.doAcceptAll = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.acceptAllAsync(self.handler);
+	}
+
+	this.rejectAll = function() {
+		this.registerMethod(
+	        this.doRejectAll,
+	        this.rejectAll.arguments
+	    );
+	}
+
+	this.doRejectAll = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.rejectAllAsync(self.handler);
+	}
+
+	this.setParentElementByNameContent = function(strName, strContent) {
+		this.registerMethod(
+			this.doSetParentElementByNameContent,
+			this.setParentElementByNameContent.arguments
+		);
+	}
+
+	this.doSetParentElementByNameContent = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		self.obj.setParentElementByNameContentAsync(tempSeq[0], tempSeq[1], self.handler);
+	}
+
+	this.setParentElementByNameAttributes = function(strName, arr) {
+		this.registerMethod(
+			this.doSetParentElementByNameAttributes,
+			this.setParentElementByNameAttributes.arguments
+		);
+	}
+
+	this.doSetParentElementByNameAttributes = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		arr = tempSeq[1];
+		hash = self.obj.getHashtableWrapper();
+		for (prop in arr) {
+			hash.putValue(prop,arr[prop]);
+		}
+		self.obj.setParentElementByNameAttributesAsync(tempSeq[0], hash, self.handler);
+	}
+
+	this.removeParentElementByNameAttributes = function(strName, arr) {
+		this.registerMethod(
+			this.doRemoveParentElementByNameAttributes,
+			this.removeParentElementByNameAttributes.arguments
+		);
+	}
+
+	this.doRemoveParentElementByNameAttributes = function(self,seq) {
+		var tempSeq=self.args[seq];
+		self.unReg(seq);
+		arr = tempSeq[1];
+		hash = self.obj.getHashtableWrapper();
+
+		for(i=0;i<arr.length;i++) {
+			alert(arr[i]);
+			hash.putValue(arr[i],"");
+		}
+
+		self.obj.removeParentElementByNameAttributesAsync(tempSeq[0], hash, self.handler);
+	}
+
+	// =============================================================================
+	// Javascript API GET functions
+	// =============================================================================
+
+	this.getHTMLData = function() {
+		return this.obj.getHTMLData();
+	}
+
+	this.getSelectedHTMLData = function() {
+		return this.obj.getSelectedHTMLData();
+	}
+
+	this.getPlainText = function() {
+		return this.obj.getPlainText();
+	}
+
+	this.hasContentChanged = function() {
+	    return this.obj.hasContentChanged();
+	}
+
+	this.getStyleSheet = function() {
+		return this.obj.getStyleSheet();
+	}
+
+	this.getCaretLocation = function() {
+		return this.obj.getCaretLocation();
+	}
+
+	this.getCurrentElement = function() {
+		return this.obj.getCurrentElement();
+	}
+
+	this.getCurrentElementContent = function() {
+		return this.obj.getCurrentElementContent();
+	}
+
+	this.getHeadElementContent = function() {
+		return this.obj.getHeadElementContent();
+	}
+
+	this.encode = function(sDec) {
+		return this.obj.encode(sDec);
+	}
+
+	this.decode = function(sEnc) {
+		return this.obj.decode(sEnc);
+	}
+
+	this.getCustomField = function() {
+		return this.obj.getCustomField();
+	}
+
+	this.getEncoding = function() {
+		return this.obj.getEncoding();
+	}
+
+	this.getGetErrorTarget = function() {
+		return this.obj.getGetErrorTarget();
+	}
+
+	this.getGetErrorURL = function() {
+		return this.obj.getGetErrorURL();
+	}
+
+	this.getGetHTMLDataURL = function() {
+		return this.obj.getGetHTMLDataURL();
+	}
+
+	this.getGetOKTarget = function() {
+		return this.obj.getGetOKTarget();
+	}
+
+	this.getGetOKURL = function() {
+		return this.obj.getGetOKURL();
+	}
+
+	this.getExportAsNumerical = function() {
+		return this.obj.getExportAsNumerical();
+	}
+
+	this.getLocaleCode = function() {
+		return this.obj.getLocaleCode();
+	}
+
+	this.getLocaleURL = function() {
+		return this.obj.getLocaleURL();
+	}
+
+	this.getNewDocumentDialog = function() {
+		return this.obj.getNewDocumentDialog();
+	}
+
+	this.getSourceView = function() {
+		return this.obj.getSourceView();
+	}
+
+	this.getSetErrorTarget = function() {
+		return this.obj.getSetErrorTarget();
+	}
+
+	this.getSetErrorURL = function() {
+		return this.obj.getSetErrorURL();
+	}
+
+	this.getSetOKTarget = function() {
+		return this.obj.getSetOKTarget();
+	}
+
+	this.getSetOKURL = function() {
+		return this.obj.getSetOKURL();
+	}
+
+	this.getCharWithSpacesStatistic = function() {
+		return this.obj.getCharWithSpacesStatistic();
+	}
+
+	this.getCharNoSpacesStatistic = function() {
+		return this.obj.getCharNoSpacesStatistic();
+	}
+
+	this.getWordsStatistic = function() {
+		return this.obj.getWordsStatistic();
+	}
+
+	this.getImagesStatistic = function() {
+		return this.obj.getImagesStatistic();
+	}
+
+	this.getLinesStatistic = function() {
+		return this.obj.getLinesStatistic();
+	}
+
+	this.getParentElementByName = function(strName) {
+		return this.obj.getParentElementByName(strName);
+	}
+
+	this.getParentElementByNameContent = function(strName) {
+		return this.obj.getParentElementByNameContent(strName);
+	}
+
+	this.getParentElementByNameAttributes = function(strName) {
+	    hash = this.obj.getParentElementByNameAttributesJS(strName);
+	    arr = new Object();
+	    for (i=0;i<hash.getSize();i++) {
+	        str = hash.getKey(i);
+	        arr[str] = hash.getValue(str);
+	    }
+	    return arr;
+	}
+
+	this.getParagraphsStatistic = function() {
+		return this.obj.getParagraphsStatistic();
+	}
+
+	this.getWebDAVCookieString = function() {
+		hash = this.obj.getWebDAVCookieStringJS();
+		arr = new Object();
+		for (i=0;i<hash.getSize();i++) {
+			str = hash.getKey(i);
+			arr[str] = hash.getValue(str);
+		}
+		return arr;
+	}
+
+	this.getStatistics = function() {
+		hash = this.obj.getStatisticsJS();
+		arr = new Object();
+		for (i=0;i<hash.getSize();i++) {
+			str = hash.getKey(i);
+			arr[str] = hash.getValue(str);
+		}
+		return arr;
+	}
+
+	this.getElementAttributes = function() {
+		hash = this.obj.getElementAttributesJS();
+		arr = new Object();
+		for (i=0;i<hash.getSize();i++) {
+			str = hash.getKey(i);
+			arr[str] = hash.getValue(str);
+		}
+		return arr;
+	}
+
+	this.getBlockElementAttributes = function() {
+	    hash = this.obj.getBlockElementAttributesJS();
+	    arr = new Object();
+	    for (i=0;i<hash.getSize();i++) {
+	        str = hash.getKey(i);
+	        arr[str] = hash.getValue(str);
+	    }
+	    return arr;
+	}
+
+	this.getReadOnly = function() {
+		return this.obj.getReadOnly();
+	}
+
+	this.getPostErrorMessage = function() {
+		return this.obj.getPostErrorMessage();
+	}
+
+	this.getDTDBase = function() {
+	    return this.obj.getDTDBase();
+	}
+
+	this.getActiveSpellChecker = function() {
+	    return this.obj.getActiveSpellChecker();
+	}
+
+	this.getStandAloneMode = function() {
+	    return this.obj.getStandAloneMode();
+	}
+
+	this.getBase = function() {
+	    return this.obj.getBase();
+	}
+
+	this.getUserPreferences = function() {
+		return this.obj.getUserPreferences();
+	}
+
+	this.isActionEnabled = function(strAction) {
+	    return this.obj.isActionEnabled(strAction);
+	}
+
+	this.isDiffMode = function() {
+		return this.obj.isDiffMode();
+	}
+
+	this.isVersioTrackEnabled = function() {
+		return this.obj.isVersioTrackEnabled();
+	}
+
+// =============================================================================
+// Helper functions
+// =============================================================================
+
+	this.parseNumber = function(num) {
+		ret = Number(num);
+		if (ret!=isNaN(ret)) {
+			return num;
+		} else {
+			return ret;
+		}		
+	}
+
+	// Determines whether the browser/OS config is supported
+	this.getOSInfo = function() {
+	    if(this.browser.indexOf("Mac")!=-1) this.isMac = true;
+	    // If we are on a Mac...
+		if(this.isMac) {
+	        // ... verfify a recent version of Safari is used
+			if(this.browser.indexOf("Safari")!=-1) {
+	            this.isSafari = true;
+	            num = this.browser;
+	            loc = num.lastIndexOf("/")+1;
+	            num = num.slice(loc,loc+3);
+	            num = this.parseNumber(num);
+				// if Safari < 1.2, it is not supported
+	            if(num<120) {
+	                this.errorMsg += "You are using a Safari version below version 1.2. Please upgrade to the latest version of Safari to use edit-on Pro.";
+	            }
+	        // if another browser than Safari is used it is not supported
+			} else if(this.browser.indexOf("Firefox")!=-1) {
+	            this.isFirefox = true;
+	        } else {
+	            this.errorMsg += "You are using an unsupported browser. Only the Safari and Firefox browsers are supported on Mac OS X.";
+	        }
+		} else {
+	        // Are we using Opera?
+	        // Opera support is still experimental yet
+	        if(this.browser.indexOf("Opera")!=-1) {
+	            this.isOpera = true;
+	        // Are we using a supported version of Internet Explorer?
+	        } else if(this.browser.indexOf("MSIE")!=-1) {
+				if(this.browser.indexOf("5.")!=-1||
+	               this.browser.indexOf("6.")!=-1) {
+					this.isMSIE = true;
+				} else {
+					this.errorMsg += "You are using an old version of Internet Explorer which is not supported by edit-on Pro. Please upgrade to Internet Explorer 5 or better";
+				}
+			} else if(this.browser.indexOf("Netscape/8")!=-1||
+	            this.browser.indexOf("Netscape/7")!=-1||
+	            this.browser.indexOf("Netscape6")!=-1||
+	            this.browser.indexOf("Firefox")!=-1||
+	            this.browser.indexOf("SeaMonkey")!=-1||
+	            this.browser.indexOf("Iceweasel")!=-1) {
+	            // do nothing
+			} else if (this.browser.indexOf("Mozilla/4.7")!=-1) {
+				this.errorMsg += "You are using Netscape 4.7 which is not supported. Please contact your system administrator.";
+			} else if(this.browser.indexOf("Mozilla/4.8")!=-1) {
+				this.errorMsg += "You are using Netscape 4.8 which is not supported. Please contact your system administrator.";
+			} else if(this.browser.indexOf("Gecko")!=-1) {
+	            if(this.browser.indexOf("0.")!=-1||
+	                this.browser.indexOf("1.0")!=-1||
+	                this.browser.indexOf("1.1")!=-1) {
+	                this.errorMsg += "You are using an unsupported browser. Please contact your system administrator.";
+	            }
+			} else {
+	            this.errorMsg += "You are using an unsupported browser. Please contact your system administrator.";
+			}
+		}
+	}
+
+	this.isCompatibleBrowser = function() {
+		if (this.errorMsg == "")
+	        return true;
+		return false;
+	}
+
+
+	// Returns the current locale code that can be used by EOP
+	this.getLocaleFromBrowser = function() {
+		var language = "";
+		if(this.isMSIE) {
+			language = navigator.browserLanguage;
+		} else {
+			language = navigator.language;
+		}
+		language = language.substr(0,2);
+		switch (language) {
+	        case "de":  return "de_DE";
+	        case "fr":  return "fr_FR";
+	        case "es":  return "es_ES";
+	        default:    return "en_US";
+	    }
+	}
+
+	// Builds the applet tag for the dummy applet
+	this.getPreloadAppletElement = function(args, preLoadApplet) {
+		if(args[3]) {
+			this.setJREMinVersion(args[3]);
+		}
+
+		apEl = "";
+		if(this.isSafari) {
+			// Generating required attributes
+			this.addAttribute("code","com.realobjects.preloadJvm.class");
+			this.addAttribute("width","0");
+			this.addAttribute("height","0");
+			this.addAttribute("name","preload");
+			this.addAttribute("id","p_jvm");
+			this.addAttribute("codebase",args[0]);
+
+			this.setParam("archive","preload.jar");
+
+			apEl += "<applet";
+			apEl += this.attribs;
+			apEl += ">\n";
+			apEl += this.params;
+			apEl += "</applet>";
+		} else {
+			// Generating required attributes
+			arc = "preload.jar";
+			if(this.isMSIE) {
+				this.addAttribute("classid","clsid:8AD9C840-044E-11D1-B3E9-00805F499D93");
+				if (preLoadApplet) {
+					arc = this.archive + ", " + arc;
+				}
+			} else {
+				this.addAttribute("classid","java:"+"com.realobjects.preloadJvm");
+				if (preLoadApplet) {
+					arc = this.archive + ", " + arc;
+				}
+			}
+
+			if(args[1]) {
+				if (args[2]) {
+					this.addAttribute("codebase",args[2]+this.jreMinVersion);
+				} else {
+					this.addAttribute("codebase",this.jreAutoDownloadURL+this.jreMinVersion);
+				}
+			}
+
+			this.addAttribute("width","4");
+			this.addAttribute("height","4");
+			this.addAttribute("id","p_jvm");
+
+			// Generating required parameters
+			this.setParam("java_codebase",args[0]);
+			this.setParam("java_code","com.realobjects.preloadJvm");
+			this.setParam("java_type","application/x-java-applet;jpi-version=1.4.2");
+			this.setParam("name","p_jvm");
+			
+			this.setParam("archive", arc);
+			this.setParam("cache_archive", arc);
+			this.setParam("cache_archive_ex", arc);
+			this.setParam("cache_option", "plugin");
+			this.setParam("startupscreenbackgroundcolor","#EBF0FF");
+			this.setParam("boxbgcolor","#EBF0FF");
+
+			apEl += "<object";
+			apEl += this.attribs;
+			apEl += ">\n";
+			apEl += this.params;
+			apEl += "</object>";
+
+		}
+		// if debug mode is enabled write applet config in a texarea...
+	    if (this.debug) apEl = '<textarea name="dbgTxt" rows="12" cols="100">'+apEl+'</textarea>';
+	    // ... else write the applet tag
+		document.write(apEl);
+	}
+
+    // Determines whether the browser/OS config is supported
+    this.getOSInfo();
+
+}
+
+// Preloads the Java VM using a dummy applet
+preloadJVM = function(codebase) {
+	pjvm = new editOnPro(10, 10, "pjvm_inst1", "p_id1", "pjvm");
+	pjvm.getOSInfo();
+	pjvm.getPreloadAppletElement(preloadJVM.arguments, false);
+}
+
+// Preloads the JVM and the editonpro.jar
+preloadApplet = function(codebase) {
+	pjvm = new editOnPro(10, 10, "pjvm_inst1", "p_id1", "pjvm");
+	pjvm.getOSInfo();
+	pjvm.getPreloadAppletElement(preloadApplet.arguments, true);
+}
+
+// Print debugging info
+function dbg(sDbg) {
+	if(debug) {
+		alert(sDbg);
+	}
+}
+
+// call a JavaScript event handler function
+function EOP_callEventHandler() {
+
+    var func = null;
+    var args = null;
+    var needsResolution = null;
+	var eopobj = null;
+
+	len = EOP_callEventHandler.arguments.length;
+	eopobj = EOP_callEventHandler.arguments[0];
+    func = EOP_callEventHandler.arguments[1];
+
+	// On Mac OS X, args will be undefined it is null
+	if(len==3) {
+		needsResolution = EOP_callEventHandler.arguments[2];
+	} else if (len==4) {
+		args = EOP_callEventHandler.arguments[2];
+		needsResolution = EOP_callEventHandler.arguments[3];
+	}
+
+	// make sure needsResolution is a boolean
+	needsResolution = needsResolution.toString();
+	if(needsResolution=="false") {
+		needsResolution=false;
+	} else if(needsResolution=="true") {
+		needsResolution=true;
+	}
+
+    if(func!=null&&String(func)!="false") {
+        var needsArgs = false;
+
+        str = "";
+        if( args!=null && !needsResolution) {
+            args = EOP_resolveValueList( args );
+            str = "("+eopobj+",args)";
+            needsArgs = true;
+        } else if ( args!=null && needsResolution) {
+			args = EOP_resolveValueList( args );
+			str = "("+eopobj;
+			for (i=0;i<args[0].length;i++) {
+                str += ", \""+args[0][i]+"\"";
+            }
+            str += ")";
+        } else {
+			str = "("+eopobj+")";
+        }
+
+        sHandler = func + str;
+
+        if (needsArgs) {
+            if(args!=null) {
+                eval(sHandler);
+            }
+        } else {
+            eval(sHandler);
+        }
+    }
+}
+
+// resolve a Java value list and return it as an array
+function EOP_resolveValueList(list) {
+    if (list!=null) {
+		values = list.getValuesLength();
+		len = list.getListLength();
+
+		outerarr = new Array();
+		for (i=0;i<len;i++) {
+			innerarr = new Array();
+			for (j=0;j<values;j++) {
+				innerarr[j] = list.getListValueAt(i,j);
+			}
+			outerarr[i] = innerarr;
+		}
+        return outerarr;
+	} else {
+        return false;
+    }
+}
