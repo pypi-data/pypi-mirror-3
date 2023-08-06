@@ -1,0 +1,80 @@
+skrf.network.Network
+====================
+
+.. currentmodule:: skrf.network
+
+.. autoclass:: Network
+  :no-members:
+
+
+
+.. rubric:: Attributes
+
+.. autosummary::
+  :toctree:
+  :nosignatures:
+
+  ~Network.f
+  ~Network.frequency
+  ~Network.inv
+  ~Network.number_of_ports
+  ~Network.passivity
+  ~Network.s
+  ~Network.s_abs
+  ~Network.s_angle
+  ~Network.s_arcl
+  ~Network.s_arcl_unwrap
+  ~Network.s_db
+  ~Network.s_deg
+  ~Network.s_deg_unwrap
+  ~Network.s_im
+  ~Network.s_mag
+  ~Network.s_quad
+  ~Network.s_rad
+  ~Network.s_rad_unwrap
+  ~Network.s_re
+  ~Network.t
+  ~Network.y
+  ~Network.z0
+
+
+
+
+
+.. rubric:: Methods
+
+.. autosummary::
+  :toctree:
+  :nosignatures:
+
+  ~Network.__init__
+  ~Network.add_noise_polar
+  ~Network.add_noise_polar_flatband
+  ~Network.flip
+  ~Network.interpolate
+  ~Network.interpolate_self
+  ~Network.interpolate_self_npoints
+  ~Network.multiply_noise
+  ~Network.nudge
+  ~Network.plot_passivity
+  ~Network.plot_polar_generic
+  ~Network.plot_s_complex
+  ~Network.plot_s_db
+  ~Network.plot_s_deg
+  ~Network.plot_s_deg_unwrap
+  ~Network.plot_s_deg_unwrapped
+  ~Network.plot_s_im
+  ~Network.plot_s_mag
+  ~Network.plot_s_polar
+  ~Network.plot_s_quad
+  ~Network.plot_s_rad
+  ~Network.plot_s_rad_unwrapped
+  ~Network.plot_s_re
+  ~Network.plot_s_smith
+  ~Network.plot_vs_frequency_generic
+  ~Network.read_touchstone
+  ~Network.write_touchstone
+
+
+
+
