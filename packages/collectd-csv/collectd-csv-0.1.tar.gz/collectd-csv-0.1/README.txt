@@ -1,0 +1,26 @@
+============
+CollectD-CSV
+============
+
+CollectD-CSV is a tool for fetching CollectD CSV data from a directory. 
+The wanted measurements can be specified by giving a time interval and 
+regular expressions matching the end of the path without the datestamp.
+The fetched data can be saved into files or returned as a list.
+Typical usage often looks like this::
+
+    #!/usr/bin/env python
+
+    import CollectD_CSV
+    from collections import OrderedDict
+
+    regexps = ["myhost/load.*", "myotherhost/memory.*"]
+
+    #fetch the data into an ordered dictionary
+    resultdirct = CollectD_CSV.fetchData(123456789, 123498765, regexps, 
+                                         "/var/lib/collectd", destdir=None)
+
+
+See more information about the usage in the comments of CollectD_CSV.py.
+For complete usage examples, see bin/fetchCSV.py and bin/monitorCSV.py.
+
+
