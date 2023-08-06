@@ -1,0 +1,64 @@
+=============
+Django-Scrypt
+=============
+
+**WARNING**
+
+This is alpha software under active development. It was only tested
+on **Python 2.7**. It probably will not run on Python 2.5 since
+*py-scrypt* doesn't run on anything earlier than Python 2.6.
+
+Basic Usage
+~~~~~~~~~~~
+
+To use Scrypt as your default storage algorithm in Django 1.4, do the
+following:
+
+Install the py-scrypt library version 0.5.5 or later (probably by running ``sudo pip install py-scrypt``, or downloading the library and installing it with ``python setup.py install``).
+
+**Py-Scrypt 0.5.5 contains a major bug on 64-bit Linux**
+
+Next, install Django-Scrypt::
+
+  $ python setup.py install
+
+Then, run the test suite::
+
+  $ python setup.py test
+
+In your Django 1.4 application *settings.py* file, modify (or add) the
+``PASSWORD_HASHERS`` tuple to include ``ScryptPasswordHasher`` first.
+
+For example::
+
+  PASSWORD_HASHERS = (
+    'django_scrypt.hashers.ScryptPasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.SHA1PasswordHasher',
+    'django.contrib.auth.hashers.MD5PasswordHasher',
+    'django.contrib.auth.hashers.CryptPasswordHasher',
+  )
+
+Note: You need to keep the other hasher entries in this list, or else Django
+won't be able to upgrade passwords!
+
+You have now changed your app to use Scrypt as the default storage algorithm.
+
+More Stuff?
+~~~~~~~~~~~
+
+There is a bit more to the software, but you will have to read the source to
+figure it out. :)
+
+Bugs! Help!!
+~~~~~~~~~~~~
+
+If you find bugs please report them to the BitBucket issue tracker or send
+me an email to code@kelvinwong.ca. Any serious security bugs should be
+reported via email.
+
+http://www.kelvinwong.ca/coders
+
+https://bitbucket.org/kelvinwong_ca/django-scrypt/issues
+
