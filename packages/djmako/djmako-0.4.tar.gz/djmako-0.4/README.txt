@@ -1,0 +1,76 @@
+.. -*- rst -*-
+
+Mako templates for django >= 1.2.
+
+Portions of this code are taken from django-smorgasbord's mako
+support.  Smorgasbord provided a monkeypatch to facilitate the use of
+other templating languages within django 1.1; with django 1.2, this
+monkeypatch is no longer necessary, and there is no longer any
+particular reason to conjoin template loaders for different languages
+in one project.
+
+To use, add ``'djmako.MakoLoader'`` to ``settings.TEMPLATE_LOADERS``, and
+define settings.MAKO_TEMPLATE_DIRS (a tuple of directories in which to
+look for mako templates -- required) and ``settings.MAKO_TEMPLATE_OPTS``
+(a dictionary of other parameters to pass to Mako's ``TemplateLookup``
+class -- optional).
+
+For instance, in ``settings.py`` you might have::
+
+  TEMPLATE_LOADERS = (
+     'djmako.MakoLoader',
+     'django.template.loaders.filesystem.Loader',
+     'django.template.loaders.app_directories.Loader',
+  )
+
+  MAKO_TEMPLATE_DIRS=(os.path.join(PROJECT_ROOT, 'templates', 'mako'),)
+
+  MAKO_TEMPLATE_OPTS=dict(input_encoding='utf-8',
+                          cache_impl='djmakocache', 
+                          module_directory=os.path.join(
+      tempfile.gettempdir(),
+      os.environ.get('LOGNAME', 'someuser'),
+      'mysite',
+      PROJECT_ROOT.split('/')[-2]))
+
+Note that in the above configuration, the mako loader is checked
+first, and django templates afterwards.
+
+Cache Plugin
+~~~~~~~~~~~~
+
+As of version 0.4, djmako contains a cache plugin for Mako that
+connects the Mako cache to the Django cache system.  To enable, set
+``"cache_impl"`` to ``"djmakocache"`` in
+``settings.MAKO_TEMPLATE_OPTS``.
+
+License
+=======
+
+Copyright (c) 2010 Jacob Smullyan.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+ * Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+ * Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the
+   distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
