@@ -1,0 +1,108 @@
+Metadata-Version: 1.0
+Name: timeline-django
+Version: 0.0.1
+Summary: Insert Django database queries in to a Timeline
+Home-page: http://launchpad.net/python-timeline-django
+Author: Launchpad developers
+Author-email: launchpad-dev@lists.launchpad.net
+License: LGPLv3
+Download-URL: https://launchpad.net/python-timeline-django/+download
+Description: timeline_django
+        ===============
+        
+        timeline_django inserts actions in to a `Timeline` (http://pypi.python.org/pypi/timeline/)
+        for Django db queries, and other events in Django. There is some setup required to have
+        the events inserted in the right timeline for the context.
+        
+        wsgi
+        ----
+        
+        When running under wsgi you need to do the following things. Firstly add::
+        
+            timeline_django.middleware.TimelineMiddleware
+        
+        to your middleware in settings.py. This will save the timeline for the request
+        such that it is accessible to the db layer.
+        
+        Then you need to change the way you set up your WSGI application in your WSGI
+        script::
+        
+            from timeline import wsgi as timeline_wsgi
+            from timeline_django.setup import setup_for_requests as timeline_django_setup
+            
+            timeline_django_setup()
+            application = timeline_wsgi.make_app(application)
+        
+        This will cause `timeline.wsgi` to put a `Timeline` in the wsgi environ, and
+        `timeline_django` to use that to log the requests.
+        
+        Redaction
+        ---------
+        
+        There are some queries that should generally be redacted from display
+        in the timeline. To that end there are some methods for redacting
+        sensitive info from standard Django, currently this covers:
+        
+          * Session info to prevent session hijacking
+          * User info to prevent password disclosure
+        
+        If you are using the timeline along with `python-oops` then you can
+        call::
+        
+          import oops_timeline
+          from timeline_django.filters import install_hooks
+        
+          oops_timeline.install_hooks(config)
+          install_hooks(config)
+        
+        where `config` is your `oops.Config` instance, to set up the filtering.
+        
+        N.B. be sure to install the `oops_timeline` hooks before the `timeline_django`
+        hooks.
+        
+        Other
+        -----
+        
+        If you are running in other environments you need to do some of these steps
+        yourself. First you need to pick a point to create a new `Timeline` object.
+        This needs to correspond to the start of an timeline that you want to
+        capture. That may be at the start of a script, or it may be in response to
+        some other event.
+        
+        Once you have created the `Timeline` you need to store it somewhere it can
+        be accessed when needed. That may be in a variable, or it may be in
+        thread-local storage if you will have multiple threads handling separate
+        timelines. Once you have the `Timline` stored you need a function that
+        will return it. That function will be your `timeline_factory`. It should take
+        no arguments and return a `Timeline` object, or `None` if there is no
+        applicable `Timeline` when it is called.
+        
+        Once you have that method then you can call `timeline_django`'s setup_for_requests
+        method::
+        
+            from timeline_django.setup import setup_for_requests
+        
+            setup_for_requests(timeline_factory=timeline_factory)
+        
+        where `timeline_factory` is the function you created above. That will set up the
+        hooks necessary to have an action recorded in your timeline when there is
+        a DB query, or one of the other Django events that `timeline_django` supports.
+        
+        ..
+        
+                Copyright (c) 2012, Canonical Ltd
+        
+                This program is free software: you can redistribute it and/or modify
+                it under the terms of the GNU Lesser General Public License as published by
+                the Free Software Foundation, version 3 only.
+        
+                This program is distributed in the hope that it will be useful,
+                but WITHOUT ANY WARRANTY; without even the implied warranty of
+                MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+                GNU Lesser General Public License for more details.
+        
+                You should have received a copy of the GNU Lesser General Public License
+                along with this program.  If not, see <http://www.gnu.org/licenses/>.
+                GNU Lesser General Public License version 3 (see the file LICENSE).
+        
+Platform: UNKNOWN
