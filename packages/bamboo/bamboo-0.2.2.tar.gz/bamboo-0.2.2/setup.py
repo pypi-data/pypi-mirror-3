@@ -1,0 +1,32 @@
+from setuptools import setup
+
+setup(name='bamboo',
+      description='A stream routing service',
+      version='0.2.2',
+      author='Jeremy Grosser',
+      author_email='jeremy+bamboo@synack.me',
+      url='https://github.com/synack/bamboo',
+      download_url='https://github.com/downloads/synack/bamboo/bamboo-0.2.2.tar.gz',
+      keywords=['logging', 'stream', 'service'],
+      classifiers=[
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2',
+        'License :: OSI Approved :: BSD License',
+        'Operating System :: POSIX',
+        'Development Status :: 3 - Alpha',
+        'Environment :: Console',
+        'Intended Audience :: Developers',
+        'Intended Audience :: System Administrators',
+        'Topic :: Internet :: Log Analysis',
+        'Topic :: System :: Logging',
+        'Topic :: System :: Distributed Computing',
+        'Topic :: System :: Systems Administration',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+      ],
+      packages=['bamboo'],
+      scripts=['bin/bamboo'],
+      install_requires=['eventlet'],
+      extras_require={
+        'zeromq': 'pyzmq',
+        'yaml': 'PyYAML',
+      })
