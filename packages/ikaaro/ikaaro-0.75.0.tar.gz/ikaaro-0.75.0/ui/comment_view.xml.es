@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+<table cellpadding="0" cellspacing="0" width="100%" border="0">
+  <tr class="comment-header">
+    <td>
+      <span class="comment-user">${user}</span>  <span class="comment-datetime">${datetime}</span></td>
+    <td align="right">
+      <a name="c${number}"></a>
+      <span class="comment-number"><a href="#c${number}">Comment ${number}</a></span>  <span class="comment-reply">[<a href="#new_comment" onclick="javascript:reply('${number}');">Reply</a>]</span> ${workflow} ${index}
+    </td>
+  </tr>
+  <tr class="comment-body">
+    <td colspan="5">
+      <pre id="comment${number}">${comment}</pre>
+    </td>
+  </tr>
+</table>
+</stl:block>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+  ${batch} ${table}
+
+</stl:block>

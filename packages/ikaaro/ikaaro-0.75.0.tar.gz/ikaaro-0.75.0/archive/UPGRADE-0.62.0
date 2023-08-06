@@ -1,0 +1,366 @@
+
+**********************************************************************
+Upgrade to ikaaro 0.62.0
+System Administrators
+**********************************************************************
+
+Configuration file
+==================
+
+The blog, calendar and tracker modules are not available by default, to
+enable them edit the 'modules' variable in the 'config.conf' file:
+
+  modules = ikaaro.blog ikaaro.calendar ikaaro.tracker
+
+
+Update the database
+====================
+
+As usual instances must be updated following the standard procedure:
+
+  1. Make a backup
+
+  2. Update the database:
+
+     $ icms-update.py xxx
+
+  3. Rebuild the catalog:
+
+     $ icms-update-catalog.py xxx
+
+
+**********************************************************************
+Upgrade to ikaaro 0.62.0
+Developers
+**********************************************************************
+
+Note that the documentation below is not complete.  For any specific
+problem, please ask the mailing list.
+
+Imports
+====================
+
+Some things have changed names, or moved somewhere else.  The table below
+summarizes these changes:
+
+  Before                                      Now
+  -----------------------------------------   --------------------------------------
+  ikaaro.forms.XXX                            ikaaro.autoform.XXX
+  ikaaro.registry.register_field              itools.database.register_field
+  ikaaro.views_new.AddResourceMenu            **DELETED**
+  ikaaro.resource_views.DBResource_Add*       ikaaro.popup.DBResource_Add*
+  ikaaro.database.ReadOnlyDatabase            itools.database.ro.ROGitDatabase
+
+Autoform
+=====================
+
+The widgets have been rationalized.  The table below shows which widget to
+use now instead of the old one:
+
+  datatype                    Widget (Before)           Widget (Now)
+  -------------------------   -----------------------   ---------------------
+  Boolean                     BooleanCheckBox           CheckboxWidget
+  Boolean                     BooleanRadio              RadioWidget
+  ?                           CheckBoxWidget            CheckboxWidget
+  Enumerate(multiple=False)   SelectRadio               RadioWidget
+  Enumerate(multiple=True)    SelectRadio               CheckboxWidget
+
+
+  # Before
+  widget = SelectWidget(name)
+  widget.to_html(datatype, value)
+
+  # Now
+  widget = SelectWidget(name, datatype=datatype, value=value)
+  widget.render()
+
+  # Before
+  xxx = merge_dicts(HTMLEditView.schema,
+                    ...)
+
+  # Now
+  def get_schema(self, resource, context):
+      return merge_dicts(HTMLEditView.get_schema(self, resource, context),
+                         ...)
+
+  # Before
+  from itools.xml import XMLParser
+  from ikaaro.forms iport stl_namespaces
+  template = list(XMLParser("""...""", stl_namespaces))
+
+  # Now
+  from ikaaro.forms
+  template = make_stl_namespace("""...""")
+
+
+Skin
+=====================
+
+(1) Breadcrumb and tabs namespaces have been replaced by lazy property.
+
+  # Before
+  def get_breadcrumb(self, context):
+  def get_tabs(self, context)
+
+  # Now
+  from itools.core import thingy_lazy_property
+
+  @thingy_lazy_property
+  def breadcrumb(self):
+      context = self.context
+
+  @thingy_lazy_property
+  def tabs(self):
+      context = self.context
+
+(2) The namespace has changed a little, so main templates need to be updated:
+
+  # Before
+  <a href="${user/info/home}" title="${user/info/title}" ...
+
+  # Now
+  <a href="${user/home}" title="${user/title}" ...
+
+
+Resources
+=====================
+
+(1) The API to create new resources has been remade and simplified:
+
+  # Before
+  DBResource.make_resource(cls, container, name, *args, **kw)
+  DBResource._make_resource(cls, folder, name, *args, **kw)
+  DBResource.build_metadata(cls, format=None, **kw)
+
+  # Now
+  Folder.make_resource(self, name, cls, **kw)
+  DBResource.init_resource(self, **kw)
+
+(2) The definition of the metadata and the definition of the fields to
+be indexed or stored by the catalog have been merged.
+
+You don't need to register the fields in the catalog anymore, this is
+done automatically in the new version.
+
+Now multilingual fields are explicitely defined as such.
+
+  # Before
+  class MyResource(BaseClass):
+      @classmethod
+      def get_metadata_schema(cls):
+          schema = BaseClass.get_metadata_schema()
+          schema['my_title'] = Unicode
+          return schema
+
+  register_field('my_title', Unicode(is_stored=True, is_indexed=True))
+  register_field('foobar', Integer(is_indexed=True))
+
+  # Now
+  class MyResource(BaseClass):
+      class_schema = merge_dicts(
+          BaseClass.class_schema,
+          my_title=Unicode(source='metadata', multilingual=True,
+                           parameters_schema={'lang': String},
+                           indexed=True, stored=True),
+          foobar=Integer(indexed=True))
+
+  # Or simpler
+  from ikaaro.datatypes import Multilingual
+  class MyResource(BaseClass):
+      class_schema = merge_dicts(
+          BaseClass.class_schema,
+          my_title=Multilingual(source='metadata',
+                                indexed=True, stored=True),
+          foobar=Integer(indexed=True))
+
+
+(3) Set property
+
+  # Before
+  metadata = resource.metadata
+  language = resource.get_content_language(context)
+  metadata.set_property('title', title, language=language)
+
+  # Now
+  from itools.csv import Property
+
+  metadata = resource.metadata
+  language = resource.get_content_language(context)
+  title = Property(title, lang=language)
+  metadata.set_property('title', title)
+
+
+(4) Remove get_last_author method since 'last_author' is stored in the
+metadata.
+
+  # Before
+  resource.get_last_author()
+
+  # Now
+  resource.get_property('last_author')
+
+
+(5) get_links method returns a set
+
+  # Before
+  links = []
+  links.append(simple_value)
+  links.extend(multiple_values)
+  return links
+
+  # Now
+  links = set()
+  links.add(simple_value)
+  links.update(multiple_values)
+  return links
+
+
+Index & Search
+=====================
+
+Rename the method '_get_catalog_values' to 'get_catalog_values':
+
+  # Before
+  def _get_catalog_values(self):
+      ...
+
+  # Now
+  def get_catalog_values(self):
+      ...
+
+
+Rename "search_text" field into "search_term" in
+Folder_BrowseContent.query_schema.
+Remove "search_subfolders" and "search_field" fields and add new field
+"search_type".
+
+  # Before
+  search_schema = {
+        'search_field': String,
+        'search_term': Unicode,
+        'search_subfolders': Boolean(default=False),
+    }
+
+  # Now
+  search_schema = {
+        'search_text': Unicode,
+        'search_type': String}
+
+
+Access Control
+==============
+
+The RoleAware class has changed in structure. It now contains the WebSite
+default roles and the list of roles is now split in two parts.
+
+  # Before
+  class MyClass(RoleAware):
+      __roles__ = [{'name': 'myrole', 'title': MSG(u"My Role")}]
+
+  # Now
+  class MyClass(RoleAware):
+      class_roles = freeze(['myrole'])
+      class_schema = freeze({'myrole': Tokens(source='metadata',
+          title=MSG(u"My Role"))})
+
+
+Registry
+========
+
+The documents registry has changed:
+
+  # Before
+  register_document_type(MyWebSite, WebSite.class_id)
+
+  # Now
+  register_document_type(MyWebSite, Root.class_id)
+
+
+
+Buttons
+=======
+
+Button are still thingies but they now inherit from STLTemplate, which means they render their own template.
+
+This change affects two steps. In namespace generation:
+
+  # Before
+
+  def get_actions_namespace(self, resource, context, items):
+      actions = []
+      for button in self.get_table_actions(resource, context):
+          ...
+          actions.append({
+              ...
+          })
+      return actions
+
+  # Now
+
+  def get_actions_namespace(self, resource, context, items):
+      actions = []
+      for button in self.get_table_actions(resource, context):
+          actions.append(button(resource=resource, context=context,
+              items=items))
+      return actions
+
+And template rendering:
+
+  # Before
+
+  <p stl:if="actions">
+    <stl:block stl:repeat="action actions">
+      <button type="submit" name="action" value="${action/value}"
+        class="${action/class}" onclick="${action/onclick}"
+        >${action/title}</button>
+    </stl:block>
+  </p>
+
+  # Now
+
+  <p stl:if="actions">
+    <stl:block stl:repeat="action actions">${action}</stl:block>
+  </p>
+
+
+Indexes
+=======
+
+Two new indexes were added to optimize and improve abspath searches.
+
+abspath_depth
+-------------
+
+The number of segments in the path, e.g. "/a/b/c/d" is of depth 4. Used to
+limit the depth of children searching (see below).
+
+parent_paths
+------------
+The list of successive ancestors to a resource, e.g. the resource "/a/b/c/d"
+has the parent paths ["/a", "/a/b", "/a/b/c"].
+
+Searching children of a given resource is now a matter of searching in this
+list.
+
+  # Before
+
+  StartQuery('abspath', '%s/' % abspath)
+
+  # Now
+
+  PhraseQuery('parent_paths', str(abspath))
+
+  # Before
+
+  PhraseQuery('parent_path', str(abspath))
+
+  # Now
+
+  AndQuery(PhraseQuery('parent_paths', str(abspath)),
+           PhraseQuery('abspath_depth', len(abspath) + 1))
+
+  # Or more convenient
+
+  get_base_path_query(abspath, depth=1)
+
+"parent_path" will be removed in 0.70.

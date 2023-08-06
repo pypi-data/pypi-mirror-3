@@ -1,0 +1,195 @@
+
+!! THESE UPGRADE NOTES ARE WORK IN PROGRESS !!
+
+**********************************************************************
+Upgrade to ikaaro 0.75
+System Administrators
+**********************************************************************
+
+Configuration file
+==================
+
+- Rename auth-cookie-expires to session-timeout
+- Remove the profile-time and profile-space options (now they are
+  command line parameters for the icms-start.py script)
+- New boolean option database-readonly
+
+
+Update the database
+====================
+
+As usual instances must be updated following the standard procedure:
+
+  1. Make a backup
+
+  2. Update the database:
+
+     $ icms-update.py xxx
+
+  3. Rebuild the catalog:
+
+     $ icms-update-catalog.py xxx
+
+
+**********************************************************************
+Upgrade to ikaaro 0.75
+Developers
+**********************************************************************
+
+Note that the documentation below is not complete.  For any specific
+problem, please ask the mailing list.
+
+Imports
+====================
+
+Some things have changed names, or moved somewhere else.  The table below
+summarizes these changes:
+
+  Before                                  Now
+  -------------------------------------   ---------------------------------
+  ikaaro.buttons.RemoveButton             ikaaro.buttons.Remove_BrowseButton
+  ikaaro.datatypes.Password               ikaaro.datatypes.Password_Datatype
+  ikaaro.workflow                         **DELETED**
+  ikaaro.user                             ikaaro.users
+  ikaaro.user_views                       ikaaro.users_views
+  ikaaro.user.UserFolder                  ikaaro.users.Users
+
+
+Simple patterns
+=====================
+
+(1) The resource methods 'get_asbapth()' and 'get_canonical_path()' have been
+removed:
+
+  # Before
+  resource.get_abspath()
+  resource.get_canonical_path()
+
+  # Now
+  resource.abspath
+
+(2) Root.init_resource has changed its signature:
+
+  # Before
+  class MyRoot(Root):
+      def init_resource(self, email, password, admins=('0',)):
+          super(MyRoot, self).init_resource(email, password, admins)
+
+  # Now
+  class MyRoot(Root):
+      def init_resource(self, email, password):
+          super(MyRoot, self).init_resource(email, password)
+
+(3) The 'class_skin' variable does not include the 'ui' prefix now:
+
+  # Before
+  class_skin = 'ui/myskin'
+
+  # Now
+  class_skin = 'myskin'
+
+
+Resources
+=====================
+
+(1) The 'class_schema' class variable has been replaced by fields. Now it is
+easier to override a field:
+
+  # Before
+  class MyUser(User):
+      class_schema = User.class_schema.copy()
+      class_schema['age'] = Integer(source='metadata')
+      class_schema['firstname'] = class_schema['firstname'](mandatory=True)
+      del class_schema['lastname']
+
+  # Now
+  class MyUser(User):
+      age = Integer_Field                         # New field
+      firstname = User.firstname(required=True)   # Override field
+      lastname = None                             # Remove field
+
+Now a resource may have as many file-fields attached as desired (in the
+example below the files will be named <name>.picture1, <name>.picture2,
+<name>.curriculum.en, <name>.curriculum.fr, etc.):
+
+  # Now
+  class MyUser(User):
+      picture1 = File_Field
+      picture2 = File_Field
+      curriculum = HTMLFile_Field
+
+Computed fields that are not stored but only used by the catalog (search) are
+not declared anymore in the "class schema", but explicitly registered:
+
+  # Before
+  class MyFolder(Folder):
+      ...
+      class_schema['foo'] = Integer(indexed=True)
+
+  # Now
+  class MyFolder(Folder):
+  ...
+
+  from itools.database import register_field
+  register_field('age', Integer(indexed=True))
+
+(2) The method '.get_property' now returns a property object, and not the
+value anymore. Use instead '.get_value':
+
+  # Before
+  resource.get_property(name)
+
+  # Now
+  resource.get_value(name)
+
+
+Views
+=====================
+
+Don't need to instantiate views anymore (this change is not required, just
+recommended):
+
+  # Before
+  view = MyView()
+
+  # Now
+  view = MyView
+
+
+Searching
+=====================
+
+(1) Now there are two programming interfaces to search the database, with and
+without access control (respectively, high and low level). Most often the
+high-level API will be used, choose carefully:
+
+  # Before
+  root.search(query)
+
+  # Now
+  context.search(query)           # Option 1: with access control
+  context.database.search(query)  # Option 2: without access control
+
+(2) A new method allows to get the resources from a search directly:
+
+  # Before
+  resources = ( root.get_resource(brain.abspath)
+	            for brain in results.get_documents() )
+
+  # Now
+  resources = results.get_resources()
+
+
+Workflow
+=====================
+
+The workflow has been replaced by a Share property. All the resources have
+the Share property, so you don't need to inherit from any particular class.
+Usually you just need to remove any reference to the workflow code.
+
+  # Before
+  from ikaaro.workflow import WorkflowAware
+  class MyClass(WorkflowAware, Folder):
+
+  # Now
+  class MyClass(Folder):

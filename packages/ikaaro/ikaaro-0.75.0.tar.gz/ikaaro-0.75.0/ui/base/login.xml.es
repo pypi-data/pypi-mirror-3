@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+<div stl:if="register" class="helpbox">
+  <img src="/ui/icons/48x48/help.png" class="helpbox-icon"></img>
+  <div class="helpbox-text">
+  Don't have an account?<br></br>
+  <a href="/;register">Create an account now</a>
+  </div>
+</div>
+
+<form action=";login" name="loginform" method="post" class="autoform">
+  <fieldset>
+    <legend>Sign in</legend>
+    <div>
+      <div>
+        <label for="loginname">${login_name_title}</label>  <span title="This field is required" class="field-is-missing">*</span>
+      </div>
+      <div class="field-error" stl:if="loginname/error">${loginname/error}</div>
+      <div class="widget">
+        <input size="30" id="loginname" type="text" value="${loginname/value}" name="loginname"></input>
+      </div>
+    </div>
+    <div>
+      <div>
+        <label for="password">Contraseña</label>
+      </div>
+      <div class="field-error" stl:if="password/error">${password/error}</div>
+      <div class="widget">
+        <input disabled="${no_password}" size="30" id="password" type="password" name="password"></input>
+        <input type="checkbox" id="no_password" checked="${no_password}" value="1" name="no_password" onclick="disable_field(this, password)"></input>  <label for="no_password">I forgot my password.</label>
+      </div>
+    </div>
+    <div>
+    </div>
+    <p>
+      <button type="submit" class="button-ok">Ok</button>
+    </p>
+  </fieldset>
+
+  <script type="text/javascript">
+    <stl:inline stl:if="not loginname/value">$("#loginname").focus();</stl:inline>
+    <stl:inline stl:if="loginname/value">$("#password").focus();</stl:inline>
+  </script>
+</form>
+
+</stl:block>

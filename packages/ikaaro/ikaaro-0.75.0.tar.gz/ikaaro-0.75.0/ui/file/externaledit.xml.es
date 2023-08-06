@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+  <div id="external-edit">
+    <p>
+      To edit this file with your preferred desktop application, first you need to install <a href="http://www.hforge.org/restedit">restedit</a>:
+    </p>
+    <fieldset class="unix">
+      <legend>Linux/Unix</legend>
+      <ol>
+        <li>
+          Download <a href="http://download.hforge.org/restedit/restedit-last.tar.gz">restedit</a>
+        </li>
+        <li>
+          Unpack the tarball <tt>restedit-last.tar.gz</tt>
+        </li>
+        <li>
+          Copy the <tt>restedit.py</tt> script somewhere
+        </li>
+        <li>
+          Configure your browser so it uses the <tt>restedit.py</tt> script to open web pages with the <em>application/x-restedit</em> mimetype
+        </li>
+      </ol>
+    </fieldset>
+    <fieldset class="windows">
+      <legend>Microsoft Windows (32-bit)</legend>
+      <ol>
+        <li>
+          Download <a href="http://download.hforge.org/restedit/RestEdit-x86-setup.exe">restedit</a>
+        </li>
+        <li>
+          Follow this <a href="http://tutoriels.itaapy.com/wiki/restedit-install-on-windows"> documentation </a>
+        </li>
+        <li>
+          Configure your browser so it uses the <tt>restedit.py</tt> script to open web pages with the <em>application/x-restedit</em> mimetype
+        </li>
+      </ol>
+    </fieldset>
+
+    <div class="clear"></div>
+    <p>Once <em>restedit</em> is installed, just click the button below:</p>
+    <blockquote>
+      <form action=";external_edit" method="get">
+        <p>
+          <button type="submit" class="button-external">Editor externo...</button>
+        </p>
+      </form>
+    </blockquote>
+  </div>
+
+</stl:block>

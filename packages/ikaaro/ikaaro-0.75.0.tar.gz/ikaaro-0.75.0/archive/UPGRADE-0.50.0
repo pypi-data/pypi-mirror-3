@@ -1,0 +1,297 @@
+
+**********************************************************************
+Upgrade to ikaaro 0.50.0
+System Administrators
+**********************************************************************
+
+Configuration File
+====================
+
+Some variables in the configuration file have changed names:
+
+  Before            Now
+  ---------------   -------------------
+  address           listen-address
+  port              listen-port
+  contact-email     smtp-from
+
+
+Update the database
+====================
+
+As usual instances must be updated following the standard procedure:
+
+  1. Make a backup
+
+  2. Update the database:
+
+     $ icms-update.py xxx
+
+  3. Rebuild the catalog:
+
+     $ icms-update-catalog.py xxx
+
+
+**********************************************************************
+Upgrade to ikaaro 0.50.0
+Developers
+**********************************************************************
+
+Note that the documentation below is not complete.  For any specific
+problem, please ask the mailing list.
+
+Imports
+====================
+
+Some things have changed names, or moved somewhere else.  The table below
+summarizes these changes:
+
+  Before                           Now
+  -------------------------------  --------------------------
+  base.Node                        resource_.IResource
+  base.DBObject                    resource_.DBResource
+  binary                           file
+  folder.CopyCookie                datatypes.CopyCookie
+  forms.namespaces                 forms.stl_namespaces
+  forms.Select                     forms.SelectWidget
+  html.EpozEditable                html.ResouceWithHTML
+  ical                             calendar_
+  ical.CalendarView                calendar_views.CalendarView
+  ical.get_current_date            calendar_views.get_current_date
+  users.User                       user.User
+  users.UserFolder                 user.UserFolder
+  widgets.Breadcrumb               resource_views.Breadcrumb
+  widgets.build_menu               views.build_menu
+  registry.register_object_class   registry.register_resource_class
+  registry.get_object_class        registry.get_resource_class
+  csv.CSV                          text.CSV
+
+A few things have been moved to itools:
+
+  Before (ikaaro)                  Now (itools)
+  -------------------------------  --------------------------
+  messages.MSG_MISSING_OR_INVALID  web.MSG_MISSING_OR_INVALID
+
+
+Architecture
+====================
+
+The changes on the views architecture belong to itools, but here we will
+comment on some specifics to ikaaro.
+
+(1) The couple of static methods new_instance_form/new_instance must be
+written now also as views:
+
+  # Before
+  @staticmethod
+  def new_instance_form(cls, context):
+      ...
+
+  @staticmethod
+  def new_instance(cls, container, context):
+      ...
+
+  # Now
+  from ikaaro.views import NewInstanceForm
+  class MyClassNewInstance(NewInstanceForm):
+      def get_namespace(self, resource, context):
+          ...
+      def action(self, resource, context, form):
+          ...
+
+
+User Interface
+====================
+
+(1) Now all web pages must include the "<base>" tag.  Add this line to
+the HTML head in custom skin templates (before any relative URL):
+
+  <base href="${base_uri}" />
+
+(2) The two level drop-down menu has been flattened to just one level.
+As a side effect the 'class_views' variable has become a simple list.
+
+  # Before
+  class MyClass(...):
+      class_views = [['view'], ['edit_form', 'metadata_form']]
+
+  # Now
+  class MyClass(...):
+      class_views = ['view', 'edit_form', 'metadata_form']
+
+Another side effect of the new interface is that the metadata of a view
+has been simplified:
+
+  1. '__label__', '__sublabel__' and '__title__' have been merged into 'title'
+
+  2. '__access__' and '__description__' become 'access' and 'description'
+
+  3. '__icon__' is not used anymore
+
+For instance:
+
+  # Before
+  view__access__ = True
+  view__label__ = u'View'
+  view__sublabel__ = u'View'
+  view__title__ = u'View'
+  view__description__ = u'...'
+  view__icon__ = '/ui/...'
+  def view(self, context):
+      ...
+
+  # Now
+  class View(...):
+    access = True
+    title = MSG(u'View')
+    description = MSG(u'...')
+
+(3) The 'get_firstview' method has been removed.  So making a link to a
+resource has been simplified:
+
+  # Before
+  goto = '%s/;%s' % (resource.name, resource.get_firstview())
+
+  # Now
+  goto = resource.name
+
+(4) The "edit" and "edit_metadata" views have been merged. So that both
+Folder-like and File-like resources offer a "edit" view. Folders only offer
+metadata to edit by default, while Files offer content and metadata to edit
+in a single form. Try to use that pattern in your forms, starting with more
+important data at the top (title, content), and ending with optional
+properties like keywords. The AutoForm class may be handy.
+
+(5) Messages
+
+Now there is a distinction between error and informational messages:
+
+  # Before
+  return context.come_back(u'Something')
+
+  # Now
+  from itools.web import INFO, ERROR
+  context.message = INFO(u'Something')
+  context.message = ERROR(u'Something')
+
+Note that as of now there is no support for this distinction when passing
+the message through a query parameter.  In that case we have:
+
+  # Now
+  return context.come_back(MSG(u'Something'))
+
+
+API
+====================
+
+This is a summary of the methods that changed their signature:
+
+  # Before
+  Folder.search_objects(path='.', format=None, state=None, object_class=None)
+
+  # Now
+  Folder.search_resources(cls=None, format=None, state=None)
+
+This is a summary of the methods that were renamed ("object" and "resource"
+designate the same variable but renamed):
+
+  # Before                       # After
+  context.server.change_object   context.server.change_resource
+  context.server.add_object      context.server.add_resource
+  context.server.remove_object   context.server.remove_resource
+  object.get_object_icon         resource.get_resource_icon
+  object.make_object             resource.make_resource
+  object._make_object            resource._make_resource
+  container.get_object           container.get_resource
+  EpozEditable.get_epoz_document ResourceWithHTML.get_html_document
+  EpozEditable.get_epoz_data     ResourceWithHTML.get_html_data
+
+(1) Gettext Messages
+
+As pointed out in the itools UPGRADE-0.50.0 documentation, translatable
+messages are instances of the MSG class. It also applies to resources:
+
+  # Before
+  class MyClass(...):
+      ...
+      class_title = u"My Class"
+      class_description = u"This is my class"
+
+  # Now
+  class MyClass(...):
+      ...
+      class_title = MSG(u"My Class")
+      class_description = MSG(u"This is my class")
+
+(2) The prototype of some functions has changed:
+
+Now it is mandatory to pass the context to 'get_content_language':
+
+  # Before
+  self.get_content_language()
+
+  # Before
+  self.get_content_language(context)
+
+(3) Indexing.  The 'paths' index has been removed.
+
+  # Before
+  path = container.get_abspath()
+  query = PhraseQuery('paths', path)
+
+  # Now
+  from ikaaro.utils import get_base_path_query
+  path = container.get_abspath()
+  query = get_base_path_query(path)
+
+(The helper function uses the new 'StartQuery'.)
+
+
+Javascript
+====================
+
+Our uncohrent Javascript library has been happily replaced by jQuery [1].
+Most of what you need is already included. See the documentation [2].
+
+For the few functions that were eventually used, the usage has changed.
+
+  Before                              Now
+  ----------------------------------  -----------------------------
+  return confirmation("message...");  return confirm("message...");
+  focus_element("myid");              $("#myid").focus();
+  show("myid");                       $("#myid").show();
+  hide("myid");                       $("#myid").hide();
+
+The "confirm" function is the Javascript built-in. "$('#myid')" is jQuery
+selector syntax.
+
+[1] http://www.jquery.com/
+[2] http://docs.jquery.com/
+
+
+
+NOT CLASSIFIED
+====================
+
+UI / Rest
+
+- 2 page tiles => 1 page title
+- flat menu tab
+- variable size layout
+- right menu: global => contextual
+- 302 Found => 200 Ok (edit forms, firstview)
+- The tracker: +resources, +products, ordered tables
+- Improved Image Gallery
+- login: stay in the same page
+- merge edit & edit_metadata
+- distinct messages: ERROR, INFO
+- improved add link&images in tinymce
+- add the spanish translation
+
+Architecture / API
+
+- New architecture: Resources + Views
+- self.gettext(u'') => MSG(u'').gettext
+- catalog => xapian
+- add jquery
+

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+<select size="${size}" class="${css}" id="${id}" multiple="${multiple}" onchange="update_rrule_parameters();" name="${name}">
+  <option value="" stl:if="has_empty_option"></option>
+    <option stl:repeat="option options" selected="${option/selected}" value="${option/name}">${option/value}</option>
+</select>
+<span class="${name}-daily">day(s)</span>  <span class="${name}-weekly">week(s)</span>  <span class="${name}-monthly">month(s)</span>  <span class="${name}-yearly">year(s)</span>
+
+</stl:block>

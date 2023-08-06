@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+<form action="." method="post">
+  <fieldset>
+    <legend>Edit Virtual Hosts</legend>
+    <p>Type the hostnames this website will apply to, each one in a different line.</p>
+    <textarea name="vhosts" rows="7" cols="62">${vhosts}</textarea>
+    <p>
+      <button type="submit" class="button-ok">Save</button>
+    </p>
+  </fieldset>
+</form>
+
+</stl:block>

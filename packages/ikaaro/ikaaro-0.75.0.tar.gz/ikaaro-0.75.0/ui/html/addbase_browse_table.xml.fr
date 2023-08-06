@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+<script type="text/javascript">
+    $(document).ready(function() {
+        $('.radio').click(function() {
+          $('#button-add').val($(this).attr("value"));
+        });
+    });
+</script>
+
+<table class="${css}" id="browse-list">
+  <thead stl:if="columns">
+    <tr>
+      <stl:block stl:repeat="column columns">
+
+        <th class="checkbox" stl:if="column/is_checkbox"></th>
+        <th stl:if="not column/is_checkbox">
+          ${column/title}
+          <stl:block stl:if="column/sortable">
+            <br></br>
+            <a stl:if="not column/sort_up_active" href="${column/href_up}" class="sort sort-up"></a>  <a stl:if="column/sort_up_active" href="${column/href}" class="sort sort-up-active"></a>  <a stl:if="not column/sort_down_active" href="${column/href_down}" class="sort sort-down"></a>
+            <a stl:if="column/sort_down_active" href="${column/href}" class="sort sort-down-active"></a>
+          </stl:block>
+        </th>
+      </stl:block>
+    </tr>
+  </thead>
+  <tbody>
+    <tr stl:repeat="row rows" class="${repeat/row/even}">
+      <td stl:repeat="column row/columns">
+        <!-- checkbox -->
+        <input type="radio" class="radio" checked="${column/checked}" value="${column/value}" name="ids" stl:if="column/is_checkbox"></input>
+        <!-- icon -->  <img src="${column/src}" border="0" stl:if="column/is_icon"></img>  <!-- link -->  <a stl:omit-tag="not column/href" href="${column/href}" stl:if="column/is_link">${column/value}</a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<!-- Action Button -->
+<p stl:if="actions">
+  <stl:block stl:repeat="action actions">${action}</stl:block>
+</p>
+
+</stl:block>

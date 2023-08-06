@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+  <h2>Add Resource of Type "${class_title}"</h2>
+
+  <form action="${action}" method="post" name="new_document">
+    <dl>
+      <dt><label for="title">Title</label></dt>
+      <dd>
+        <input size="40" id="title" type="text" value="${title}" name="title"></input>
+      </dd>
+      <dl><label for="date">Date</label></dl>
+      <dd>
+        ${date}
+      </dd>
+    </dl>
+    <label for="data">Description</label>
+    <p>
+      ${data}
+    </p>
+    <p>
+      <input type="hidden" value="${timestamp}" name="timestamp"></input>
+      <button type="submit" class="button_ok">${submit}</button>
+    </p>
+  </form>
+
+  <script type="text/javascript">
+    focus_element("title")
+  </script>
+
+</stl:block>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+  <form action=";import_" enctype="multipart/form-data" method="post">
+    <fieldset>
+      <legend>Upload</legend>
+      <p>You can upload a new ical file (.ics extension) to replace the current one. Note the name and title won't change.</p>
+      <dl>
+        <dt></dt>
+        <dd><input size="35" id="file" type="file" name="file"></input></dd>
+      </dl>
+      <button type="submit" class="button-import">Reemplazar</button>
+    </fieldset>
+  </form>
+</stl:block>

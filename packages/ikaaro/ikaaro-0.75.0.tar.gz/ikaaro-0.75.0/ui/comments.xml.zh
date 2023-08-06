@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<stl:block xmlns:stl="http://www.hforge.org/xml-namespaces/stl" xmlns="http://www.w3.org/1999/xhtml">
+
+<form action="${action}" enctype="multipart/form-data" method="get" stl:if="edit_mode" name="autoform">
+  <div>Display comments filtered by state ${filter} <button type="submit" class="button-ok">Update display</button>
+  </div>
+</form>
+
+<form enctype="multipart/form-data" stl:omit-tag="not edit_mode" method="post" class="autoform" name="autoform" action="${action}">
+  <stl:block stl:if="edit_mode">
+    <p stl:if="actions">
+      <stl:block stl:repeat="action actions">${action}</stl:block>
+    </p>
+  </stl:block>
+  <stl:block stl:repeat="comment comments">${comment}</stl:block>
+</form>
+
+</stl:block>
