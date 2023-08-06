@@ -1,0 +1,432 @@
+#!/usr/bin/env python
+""" 
+    Breakdown.py - 2011 Concentric Sky
+
+    Lightweight jinja2 template prototyping server with support for
+    some custom template tags
+
+
+
+Copyright 2011 Concentric Sky, Inc. 
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+import os
+import errno
+import sys
+import optparse
+import jinja2
+import httplib
+import mimetypes
+import string
+import random
+import socket
+import BaseHTTPServer
+import tempfile
+import clevercss
+import breakdown
+import json
+
+# Server settings
+ADDR = ''
+PORT = 5000
+STATIC_URL = '/static/'
+
+# Base context for templates
+base_context = {
+    'STATIC_URL': STATIC_URL,
+}
+
+# Server directories
+template_dirs = []
+static_dirs = []
+
+# Temporary directory to cache sample images
+image_cache = tempfile.mkdtemp()
+
+
+# --------- Jinja2 functions ------------
+
+Markup = jinja2._markupsafe.Markup
+
+def ext_image(width, height):
+    """ Generate a custom-sized sample image """
+    # Create unique path
+    size = (width, height)
+    filename = '%sx%s.png' % (width, height)
+    path = os.path.join(image_cache, filename)
+
+    # Check if image has already been created
+    if not os.path.exists(path):
+        # Generate new image
+        sample = breakdown.pkg_path('img/sample.png')
+        if not os.path.exists(sample):
+            return Markup(u'<img/>')
+        else:
+            try:
+                # Try scaling the image using PIL
+                import Image
+                source = Image.open(sample)
+                scaled = source.resize(size, Image.BICUBIC)
+                scaled.save(path)
+            except ImportError:
+                # If we couldnt find PIL, just copy the image
+                inf = open(sample, 'rb')
+                outf = open(path, 'wb')
+                outf.write(inf.read())
+
+    return Markup(u'<img src="%s%s">' % (STATIC_URL, filename))
+
+min_func = min
+max_func = max
+def ext_greeking(mode=None, min=50, max=100):
+    """ Generate a block of various HTML text """
+    # Get a blob of lipsum
+    minimum = max_func(min, 6*4)
+    maximum = max_func(max, minimum+1)
+    blob = env.globals['lipsum'](html=False, n=1, min=minimum, max=maximum).split(' ')
+
+    # Wrap text in HTML elements at random points
+    wrappers = [
+        ('<strong>', '</strong>'),
+        ('<em>', '</em>'),
+        ('<code>', '</code>'),
+        ('<a href="#">', '</a>'),
+    ]
+    random.shuffle(wrappers)
+    thresh = 5
+    pointers = random.sample(xrange(len(blob)/thresh), len(wrappers))
+    for i, ptr in enumerate(pointers):
+        ptr = ptr * thresh
+        length = random.randint(2, thresh)
+        blob[ptr] = wrappers[i][0] + blob[ptr]
+        blob[ptr+length] = wrappers[i][1] + blob[ptr+length]
+
+    html = '<p>' + ' '.join(blob) + '</p>'
+
+    # Generate random lists
+    lists = []
+    for type in ('ul', 'ol'):
+        items = []
+        for i in range(random.randint(3, 4)):
+            items.append('<li>%s</li>' % env.globals['lipsum'](html=False, n=1, min=5, max=10))
+        lists.append(items)
+
+    html += """
+    <ul>
+        %s
+    </ul>
+
+    <ol>
+        %s
+    </ol>
+    """ % ('\n'.join(lists[0]), '\n'.join(lists[1]))
+
+    return Markup(unicode(html))
+
+# ---------------------------------------
+
+
+class BreakdownHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    """ Custom request handler """
+
+    def get_context_path(self, template_path):
+        result = os.path.join(context_path, template_path[1:].replace('.html', '.json'))
+        return result
+
+    def not_found(self):
+        """ Standard 404 response """
+        self.send_error(httplib.NOT_FOUND, 'Document not found: %s' % self.path)
+        return False
+
+    def serve_static(self, path):
+        """ Return data from path based on its guessed MIME Type """
+        try:
+            # Attempt to open path
+            file = open(get_static(path), 'rb')
+
+            # Send a successful header with guessed mimetype
+            self.send_response(httplib.OK)
+            self.send_header('Content-Type', mimetypes.guess_type(path)[0])
+            self.end_headers()
+
+            # Write data
+            self.wfile.write(file.read())
+            return
+
+        except IOError:
+            return self.not_found()
+    
+    def serve_template(self, path):
+        """ Render a template file using jinja2 """
+        try:
+            # Attempt to open template
+            template = env.get_template(path)
+            context_path = self.get_context_path(path)
+            ctx = dict(base_context.items() + load_context(context_path).items())
+
+            # Send a success HTML header
+            self.send_response(httplib.OK)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+
+            # Render the template with jinja2 and write to stream
+            data = template.render(ctx)
+            self.wfile.write(data.encode('utf-8'))
+            return
+
+        except (jinja2.TemplateNotFound, IOError):
+            return self.not_found()
+
+    def do_GET(self):
+        """ Handle a GET request """
+        if self.path.startswith(STATIC_URL):
+            # Serve as static
+            return self.serve_static(os.path.relpath(self.path, STATIC_URL))
+        elif self.path.endswith('.html'):
+            # Serve as template
+            return self.serve_template(self.path)
+        else:
+            # Try appending /index.html, or .html
+            try:
+                path = self.path
+                if not path.endswith('/'):
+                    path = path + '/'
+                env.get_template(path + 'index.html')
+                self.serve_template(path + 'index.html')
+            except jinja2.TemplateNotFound:
+                path = self.path
+                if path.endswith('/'):
+                    path = path[:-1]
+                self.serve_template(path + '.html')
+
+def _gen_lambda(x):
+    return lambda *args, **kwargs: x
+    
+def json_obj_hook(o):
+    for key,val in o.items():
+        if key[-2:] == '()':
+            o[key[:-2]] = _gen_lambda(val)
+    return o
+
+def load_context(path):
+    try:
+        result = json.load(open(path), object_hook=json_obj_hook)
+        return result or {}
+    except IOError:
+        print sys.exc_info()
+        return {}
+
+
+def mkdirp(path):
+    try:
+        os.makedirs(path)
+    except OSError, e:
+        if e.errno == errno.EEXIST:
+            pass
+        else: 
+            raise
+
+def run_server():
+    try:
+        server = BaseHTTPServer.HTTPServer((ADDR, PORT), BreakdownHandler)
+        print 'Server running at http://127.0.0.1:%s ...' % PORT
+        print 'Press CTRL+C to quit'
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            sys.exit()
+    except socket.error:
+        print 'Unable to bind socket (perhaps another server is running?)'
+
+
+def get_static(path):
+    """ Try to retrieve a static file by looking through static_dirs in order """
+    # CSS files
+    if path.endswith('.css'):
+        # Look for matching clevercss
+        clever_name = path[:path.rfind('.css')] + '.clevercss'
+        try:
+            clever_path = get_static(clever_name)
+            compiled_path = clever_path[:clever_path.rfind('.clevercss')] + '.css'
+            # Compile the file if it doesn't exist or the mtime on clevercss is more recent
+            if not os.path.exists(compiled_path) or \
+                   os.stat(clever_path).st_mtime > os.stat(compiled_path).st_mtime:
+                return compile_clever_css(clever_path, compiled_path)
+        except IOError:
+            # .clevercss match doesn't exist for this file, continue
+            pass
+    
+    # All files
+    for dir in static_dirs:
+        fullpath = os.path.join(dir, path)
+        if os.path.exists(fullpath):
+            return fullpath
+    
+    # Nothing found
+    raise IOError
+
+def compile_clever_css(src, dst):
+    fh = open(src)
+    source = fh.read()
+    fh.close()
+    css = clevercss.convert(source)
+    fh = open(dst, 'w')
+    fh.write(css)
+    fh.close()
+    return dst
+
+def ver(self, opt, value, parser):
+    print '.'.join(map(str, breakdown.VERSION))
+    sys.exit()
+
+def export(outroot):
+    """ Render the template tree as static HTML """
+    if not os.path.exists(outroot):
+        try:
+            os.makedirs(outroot)
+        except OSError, e:
+            print 'Unable to create directory', e
+            sys.exit(1)
+    if not os.access(outroot, os.W_OK):
+        print 'Unable to write to output directory'
+        sys.exit(1)
+    
+    # Step through templates
+    for dir in template_dirs:
+        for root, dirs, files in os.walk(dir):
+            for file in files:
+                if file.endswith('.html'):
+                    relpath = os.path.normpath(os.path.join(os.path.relpath(root, dir), file))
+                    outpath = os.path.join(outroot, relpath)
+                    try:
+                        # Create the parent directory
+                        mkdirp(os.path.dirname(outpath))
+
+                        # Render the template
+                        t = env.get_template(relpath)
+                        context_path = self.get_context_path(relpath)
+                        ctx = dict(base_context.items() + load_context(context_path).items())
+                        data = t.render(ctx)
+                        fh = open(outpath, 'w')
+                        fh.write(data.encode('utf-8'))
+                        fh.close()
+                        print 'Rendered template', outpath
+
+                    except jinja2.TemplateNotFound:
+                        print 'Error loading template named', relpath
+
+def register_template_dir(path):
+    template_dirs.append(path)
+
+def register_static_dir(path):
+    static_dirs.append(path)
+
+if __name__ == '__main__':
+
+    # Populate options
+    op = optparse.OptionParser(usage='%prog (PATH) [OPTIONS]')
+    op.add_option('-p', '--port', dest='port', help='run server on an '
+                  'alternate port (default is 5000)')
+    op.add_option('-m', '--media', action='store_true', dest='media',
+                  help='treat MEDIA_URL as STATIC_URL in templates')
+    op.add_option('-e', '--export', dest='export',
+                  help='render templates to static html '
+                  'instead of running the server. (experimental)')
+    op.add_option('-v', '--version', action='callback', callback=ver,
+                  help='display the version number and exit')
+    op.add_option('-c', '--context_dir_name', dest='context_dir_name',
+                  help='set the directory name to be searched for context object files (default is context)')
+
+    # Parse arguments
+    (options, args) = op.parse_args()
+
+    # Setup path globals
+    if len(args) > 0:
+        root = args[0]
+    else:
+        root = os.getcwd()
+    root = os.path.abspath(root)
+
+    if options.media:
+        # Update context
+        base_context['MEDIA_URL'] = STATIC_URL
+    
+    if options.port:
+        try:
+            PORT = int(options.port)
+            if PORT < 1 or PORT > 0xFFFF:
+                print 'port number out of range'
+                sys.exit(2)
+        except ValueError:
+            print 'invalid port'
+            sys.exit(2)
+
+    # Resolve directory paths by autodetection
+
+    if os.path.exists(os.path.join(root, 'apps')):
+        # Try django project structure
+        appspath = os.path.join(root, 'apps')
+        files = [os.path.join(appspath, file) for file in os.listdir(appspath) if not
+                 file.startswith('.')]
+        app_dirs = filter(os.path.isdir, files)
+
+        # Setup template and static dirs
+        for dir in app_dirs:
+            t = os.path.join(dir, 'templates')
+            s = os.path.join(dir, 'static')
+            if os.path.exists(t):
+                register_template_dir(t)
+            if os.path.exists(s):
+                register_static_dir(s)
+    else:
+        # Try simple directory structure--templates and static in toplevel
+        t = os.path.join(root, 'templates')
+        s = os.path.join(root, 'static')
+        if os.path.exists(t):
+                register_template_dir(t)
+        if os.path.exists(s):
+                register_static_dir(s)
+
+    template_dir_name = 'templates'
+    context_dir_name = options.context_dir_name or 'context'
+    context_path = os.path.join(root, context_dir_name)
+
+    if len(template_dirs) < 1:
+        print('No template directories found.  Make sure to run breakdown from a project '
+              'root, or specify the path to a project root as an argument.  See the README '
+              'for a usage guide.')
+        sys.exit(1)
+
+    # Setup jinja2 global and register extension functions
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dirs))
+    env.globals['image'] = ext_image
+    env.globals['greeking'] = ext_greeking
+    env.globals['url'] = lambda x, *args, **kwargs: '#'
+
+    # Run program
+    if options.export:
+        # Export static HTML
+        export(options.export)
+    else:
+        # Show directories
+        print 'Serving templates from:\n  ' + '\n  '.join(template_dirs) + '\n'
+        if len(static_dirs) > 0:
+            print 'Serving static data from:\n  ' + '\n  '.join(static_dirs) + '\n'
+        
+        # Inject our custom image directory for static media
+        static_dirs.append(image_cache)
+
+        # Run server
+        run_server()
