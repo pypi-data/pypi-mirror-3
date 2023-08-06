@@ -1,0 +1,9 @@
+NAME = "Doctor Korovic's Flying Atomic Squid"
+SCREEN_SIZE = 800, 600
+TARGET_FPS = 30.0
+
+SEA_LEVEL = 15
+HORIZON_LEVEL = 84
+
+SELECTED_COLOUR = (0, 255, 0)
+WHITE = (255, 255, 255)
