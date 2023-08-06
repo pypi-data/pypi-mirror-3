@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+#  Startup script for a Twisted service.
+#
+#  description: Start-up script for the Twisted service "emen2".
+
+COMMAND=$1
+shift
+
+# Get the EMEN2DBHOME from the command line
+while getopts ":h:" opt; do
+  case $opt in
+    h)
+      # echo "-h was triggered, Parameter: $OPTARG" >&2
+	  EMEN2DBHOME=$OPTARG
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+
+if [ -z $EMEN2DBHOME -a $COMMAND ]; then
+	echo "You must specify an EMEN2 database environment, either using the -h (--home) argument or the environment variable \$EMEN2DBHOME"
+	exit 1
+fi
+
+
+pidfile=$EMEN2DBHOME/twistd/emen2.pid
+logfile=$EMEN2DBHOME/twistd/emen2.log
+
+EMAN2DIR=${HOME}/EMAN2
+PATH=${EMAN2DIR}/Python/bin:${EMAN2DIR}/usr/bin:/bin:/usr/sbin:/sbin:$PATH
+TWISTD=`which twistd`
+
+case $COMMAND in
+	start)
+		echo "Starting emen2"
+		$TWISTD \
+			--pidfile=$pidfile \
+			--logfile=$logfile \
+			--rundir=$EMEN2DBHOME \
+			emen2 $@
+		# echo "[process `cat ${pidfile}`]"
+		;;
+
+	stop)
+		if [ -f $pidfile ] 
+		then
+			pid=`cat ${pidfile}`
+			echo "Stopping emen2 [process ${pid}]"
+			kill ${pid}
+		fi
+		;;
+
+	restart)
+		"${0}" stop $@
+		"${0}" start $@
+		;;
+
+	recover)
+		echo "Running emen2 database recovery"
+		db_recover -v -h ${EMEN2DBHOME}
+		;;
+    *)
+		echo "Usage: ${0} {start|stop|restart|recover} [options]" >&2
+		exit 1
+		;;
+esac
+
+exit 0
