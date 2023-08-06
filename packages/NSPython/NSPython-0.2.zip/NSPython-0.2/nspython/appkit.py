@@ -1,0 +1,3145 @@
+# Application Kit Framework
+
+from foundation import *
+from foundation import _ffi
+
+_ = load('AppKit')
+
+# classes
+# class NSOpenGLLayer(CAOpenGLLayer): pass
+class CIColor(NSObject): pass
+# class NSAffineTransform(NSObject): pass
+class NSAlert(NSObject): pass
+class NSAnimationContext(NSObject): pass
+class NSBezierPath(NSObject): pass
+class NSCell(NSObject): pass
+class NSColor(NSObject): pass
+class NSColorList(NSObject): pass
+class NSColorPicker(NSObject): pass
+class NSController(NSObject): pass
+class NSCursor(NSObject): pass
+class NSDockTile(NSObject): pass
+class NSDocument(NSObject): pass
+class NSDocumentController(NSObject): pass
+class NSEvent(NSObject): pass
+class NSFileWrapper(NSObject): pass
+class NSFont(NSObject): pass
+class NSFontDescriptor(NSObject): pass
+class NSFontManager(NSObject): pass
+class NSGlyphGenerator(NSObject): pass
+class NSGlyphInfo(NSObject): pass
+class NSGradient(NSObject): pass
+class NSGraphicsContext(NSObject): pass
+class NSHelpManager(NSObject): pass
+class NSImage(NSObject): pass
+class NSImageRep(NSObject): pass
+class NSLayoutManager(NSObject): pass
+class NSMenu(NSObject): pass
+class NSMenuItem(NSObject): pass
+class NSMovie(NSObject): pass
+class NSNib(NSObject): pass
+class NSNibConnector(NSObject): pass
+class NSOpenGLContext(NSObject): pass
+class NSOpenGLPixelBuffer(NSObject): pass
+class NSOpenGLPixelFormat(NSObject): pass
+class NSPageLayout(NSObject): pass
+class NSParagraphStyle(NSObject): pass
+class NSPasteboard(NSObject): pass
+class NSPredicateEditorRowTemplate(NSObject): pass
+class NSPrintInfo(NSObject): pass
+class NSPrintOperation(NSObject): pass
+class NSPrintPanel(NSObject): pass
+class NSPrinter(NSObject): pass
+class NSResponder(NSObject): pass
+class NSRulerMarker(NSObject): pass
+class NSRunningApplication(NSObject): pass
+class NSScreen(NSObject): pass
+class NSShadow(NSObject): pass
+class NSSound(NSObject): pass
+class NSSpeechRecognizerVars(NSObject): pass
+class NSSpeechSynthesizer(NSObject): pass
+class NSSpellChecker(NSObject): pass
+class NSStatusBar(NSObject): pass
+class NSStatusItem(NSObject): pass
+class NSTabViewItem(NSObject): pass
+class NSTableColumn(NSObject): pass
+class NSTextAttachment(NSObject): pass
+class NSTextBlock(NSObject): pass
+class NSTextContainer(NSObject): pass
+class NSTextInputContext(NSObject): pass
+class NSTextList(NSObject): pass
+class NSTextTab(NSObject): pass
+class NSToolbar(NSObject): pass
+class NSToolbarItem(NSObject): pass
+class NSTouch(NSObject): pass
+class NSTrackingArea(NSObject): pass
+class NSTreeNode(NSObject): pass
+class NSTypesetter(NSObject): pass
+class NSWorkspace(NSObject): pass
+class NSObjectController(NSController): pass
+class NSUserDefaultsController(NSController): pass
+class NSActionCell(NSCell): pass
+class NSBrowserCell(NSCell): pass
+class NSImageCell(NSCell): pass
+class NSTextAttachmentCell(NSCell): pass
+class NSApplication(NSResponder): pass
+class NSDrawer(NSResponder): pass
+class NSView(NSResponder): pass
+class NSViewController(NSResponder): pass
+class NSWindow(NSResponder): pass
+class NSWindowController(NSResponder): pass
+class NSToolbarItemGroup(NSToolbarItem): pass
+class NSMutableParagraphStyle(NSParagraphStyle): pass
+class NSTextTable(NSTextBlock): pass
+class NSTextTableBlock(NSTextBlock): pass
+class NSATSTypesetter(NSTypesetter): pass
+class NSBitmapImageRep(NSImageRep): pass
+class NSCIImageRep(NSImageRep): pass
+class NSCachedImageRep(NSImageRep): pass
+class NSCustomImageRep(NSImageRep): pass
+class NSEPSImageRep(NSImageRep): pass
+class NSPDFImageRep(NSImageRep): pass
+class NSPICTImageRep(NSImageRep): pass
+class NSPersistentDocument(NSDocument): pass
+class NSNibControlConnector(NSNibConnector): pass
+class NSNibOutletConnector(NSNibConnector): pass
+class NSArrayController(NSObjectController): pass
+class NSTreeController(NSObjectController): pass
+class NSButtonCell(NSActionCell): pass
+class NSFormCell(NSActionCell): pass
+class NSPathCell(NSActionCell): pass
+class NSSegmentedCell(NSActionCell): pass
+class NSSliderCell(NSActionCell): pass
+class NSStepperCell(NSActionCell): pass
+class NSTextFieldCell(NSActionCell): pass
+class NSPanel(NSWindow): pass
+class NSBox(NSView): pass
+class NSClipView(NSView): pass
+class NSCollectionView(NSView): pass
+class NSControl(NSView): pass
+# class NSMenuView(NSView): pass
+# class NSMovieView(NSView): pass
+class NSOpenGLView(NSView): pass
+class NSProgressIndicator(NSView): pass
+# class NSQuickDrawView(NSView): pass
+class NSRulerView(NSView): pass
+class NSScrollView(NSView): pass
+class NSSplitView(NSView): pass
+class NSTabView(NSView): pass
+class NSTableHeaderView(NSView): pass
+class NSText(NSView): pass
+class NSCollectionViewItem(NSViewController): pass
+class NSTextStorage(NSMutableAttributedString): pass
+class NSDictionaryController(NSArrayController): pass
+class NSMenuItemCell(NSButtonCell): pass
+class NSComboBoxCell(NSTextFieldCell): pass
+class NSPathComponentCell(NSTextFieldCell): pass
+class NSSearchFieldCell(NSTextFieldCell): pass
+class NSSecureTextFieldCell(NSTextFieldCell): pass
+class NSTableHeaderCell(NSTextFieldCell): pass
+class NSColorPanel(NSPanel): pass
+class NSFontPanel(NSPanel): pass
+class NSSavePanel(NSPanel): pass
+class NSBrowser(NSControl): pass
+class NSButton(NSControl): pass
+class NSColorWell(NSControl): pass
+class NSImageView(NSControl): pass
+class NSMatrix(NSControl): pass
+class NSPathControl(NSControl): pass
+class NSRuleEditor(NSControl): pass
+class NSScroller(NSControl): pass
+class NSSegmentedControl(NSControl): pass
+class NSSlider(NSControl): pass
+class NSStepper(NSControl): pass
+class NSTableView(NSControl): pass
+class NSTextField(NSControl): pass
+class NSTextView(NSText): pass
+class NSPopUpButtonCell(NSMenuItemCell): pass
+class NSOpenPanel(NSSavePanel): pass
+class NSPopUpButton(NSButton): pass
+class NSForm(NSMatrix): pass
+class NSPredicateEditor(NSRuleEditor): pass
+class NSOutlineView(NSTableView): pass
+class NSComboBox(NSTextField): pass
+class NSSearchField(NSTextField): pass
+class NSSecureTextField(NSTextField): pass
+
+# constants
+_ffi.cdef('''
+id NSAbortModalException;
+id NSAbortPrintingException;
+id NSAccessibilityAllowedValuesAttribute;
+id NSAccessibilityApplicationActivatedNotification;
+id NSAccessibilityApplicationDeactivatedNotification;
+id NSAccessibilityApplicationHiddenNotification;
+id NSAccessibilityApplicationRole;
+id NSAccessibilityApplicationShownNotification;
+id NSAccessibilityAscendingSortDirectionValue;
+id NSAccessibilityAttachmentTextAttribute;
+id NSAccessibilityAttributedStringForRangeParameterizedAttribute;
+id NSAccessibilityBackgroundColorTextAttribute;
+id NSAccessibilityBoundsForRangeParameterizedAttribute;
+id NSAccessibilityBrowserRole;
+id NSAccessibilityBusyIndicatorRole;
+id NSAccessibilityButtonRole;
+id NSAccessibilityCancelAction;
+id NSAccessibilityCancelButtonAttribute;
+id NSAccessibilityCellForColumnAndRowParameterizedAttribute;
+id NSAccessibilityCellRole;
+id NSAccessibilityCenterTabStopMarkerTypeValue;
+id NSAccessibilityCentimetersUnitValue;
+id NSAccessibilityCheckBoxRole;
+id NSAccessibilityChildrenAttribute;
+id NSAccessibilityClearButtonAttribute;
+id NSAccessibilityCloseButtonAttribute;
+id NSAccessibilityCloseButtonSubrole;
+id NSAccessibilityColorWellRole;
+id NSAccessibilityColumnCountAttribute;
+id NSAccessibilityColumnHeaderUIElementsAttribute;
+id NSAccessibilityColumnIndexRangeAttribute;
+id NSAccessibilityColumnRole;
+id NSAccessibilityColumnTitlesAttribute;
+id NSAccessibilityColumnsAttribute;
+id NSAccessibilityComboBoxRole;
+id NSAccessibilityConfirmAction;
+id NSAccessibilityContentListSubrole;
+id NSAccessibilityContentsAttribute;
+id NSAccessibilityCreatedNotification;
+id NSAccessibilityCriticalValueAttribute;
+id NSAccessibilityDecimalTabStopMarkerTypeValue;
+id NSAccessibilityDecrementAction;
+id NSAccessibilityDecrementArrowSubrole;
+id NSAccessibilityDecrementButtonAttribute;
+id NSAccessibilityDecrementPageSubrole;
+id NSAccessibilityDefaultButtonAttribute;
+id NSAccessibilityDefinitionListSubrole;
+id NSAccessibilityDeleteAction;
+id NSAccessibilityDescendingSortDirectionValue;
+id NSAccessibilityDescriptionAttribute;
+id NSAccessibilityDialogSubrole;
+id NSAccessibilityDisclosedByRowAttribute;
+id NSAccessibilityDisclosedRowsAttribute;
+id NSAccessibilityDisclosingAttribute;
+id NSAccessibilityDisclosureLevelAttribute;
+id NSAccessibilityDisclosureTriangleRole;
+id NSAccessibilityDocumentAttribute;
+id NSAccessibilityDrawerCreatedNotification;
+id NSAccessibilityDrawerRole;
+id NSAccessibilityEditedAttribute;
+id NSAccessibilityEnabledAttribute;
+id NSAccessibilityErrorCodeExceptionInfo;
+id NSAccessibilityException;
+id NSAccessibilityExpandedAttribute;
+id NSAccessibilityFilenameAttribute;
+id NSAccessibilityFirstLineIndentMarkerTypeValue;
+id NSAccessibilityFloatingWindowSubrole;
+id NSAccessibilityFocusedAttribute;
+id NSAccessibilityFocusedUIElementAttribute;
+id NSAccessibilityFocusedUIElementChangedNotification;
+id NSAccessibilityFocusedWindowAttribute;
+id NSAccessibilityFocusedWindowChangedNotification;
+id NSAccessibilityFontFamilyKey;
+id NSAccessibilityFontNameKey;
+id NSAccessibilityFontSizeKey;
+id NSAccessibilityFontTextAttribute;
+id NSAccessibilityForegroundColorTextAttribute;
+id NSAccessibilityFrontmostAttribute;
+id NSAccessibilityGridRole;
+id NSAccessibilityGroupRole;
+id NSAccessibilityGrowAreaAttribute;
+id NSAccessibilityGrowAreaRole;
+id NSAccessibilityHandleRole;
+id NSAccessibilityHandlesAttribute;
+id NSAccessibilityHeadIndentMarkerTypeValue;
+id NSAccessibilityHeaderAttribute;
+id NSAccessibilityHelpAttribute;
+id NSAccessibilityHelpTagCreatedNotification;
+id NSAccessibilityHelpTagRole;
+id NSAccessibilityHiddenAttribute;
+id NSAccessibilityHorizontalOrientationValue;
+id NSAccessibilityHorizontalScrollBarAttribute;
+id NSAccessibilityHorizontalUnitDescriptionAttribute;
+id NSAccessibilityHorizontalUnitsAttribute;
+id NSAccessibilityHorizontialUnitDescriptionAttribute;
+id NSAccessibilityHorizontialUnitsAttribute;
+id NSAccessibilityImageRole;
+id NSAccessibilityInchesUnitValue;
+id NSAccessibilityIncrementAction;
+id NSAccessibilityIncrementArrowSubrole;
+id NSAccessibilityIncrementButtonAttribute;
+id NSAccessibilityIncrementPageSubrole;
+id NSAccessibilityIncrementorRole;
+id NSAccessibilityIndexAttribute;
+id NSAccessibilityInsertionPointLineNumberAttribute;
+id NSAccessibilityLabelUIElementsAttribute;
+id NSAccessibilityLabelValueAttribute;
+id NSAccessibilityLayoutAreaRole;
+id NSAccessibilityLayoutItemRole;
+id NSAccessibilityLayoutPointForScreenPointParameterizedAttribute;
+id NSAccessibilityLayoutSizeForScreenSizeParameterizedAttribute;
+id NSAccessibilityLeftTabStopMarkerTypeValue;
+id NSAccessibilityLevelIndicatorRole;
+id NSAccessibilityLineForIndexParameterizedAttribute;
+id NSAccessibilityLinkRole;
+id NSAccessibilityLinkTextAttribute;
+id NSAccessibilityLinkedUIElementsAttribute;
+id NSAccessibilityListRole;
+id NSAccessibilityMainAttribute;
+id NSAccessibilityMainWindowAttribute;
+id NSAccessibilityMainWindowChangedNotification;
+id NSAccessibilityMarkerGroupUIElementAttribute;
+id NSAccessibilityMarkerTypeAttribute;
+id NSAccessibilityMarkerTypeDescriptionAttribute;
+id NSAccessibilityMarkerUIElementsAttribute;
+id NSAccessibilityMarkerValuesAttribute;
+id NSAccessibilityMatteContentUIElementAttribute;
+id NSAccessibilityMatteHoleAttribute;
+id NSAccessibilityMatteRole;
+id NSAccessibilityMaxValueAttribute;
+id NSAccessibilityMenuBarAttribute;
+id NSAccessibilityMenuBarRole;
+id NSAccessibilityMenuButtonRole;
+id NSAccessibilityMenuItemRole;
+id NSAccessibilityMenuRole;
+id NSAccessibilityMinValueAttribute;
+id NSAccessibilityMinimizeButtonAttribute;
+id NSAccessibilityMinimizeButtonSubrole;
+id NSAccessibilityMinimizedAttribute;
+id NSAccessibilityMisspelledTextAttribute;
+id NSAccessibilityModalAttribute;
+id NSAccessibilityMovedNotification;
+id NSAccessibilityNextContentsAttribute;
+id NSAccessibilityNumberOfCharactersAttribute;
+id NSAccessibilityOrderedByRowAttribute;
+id NSAccessibilityOrientationAttribute;
+id NSAccessibilityOutlineRole;
+id NSAccessibilityOutlineRowSubrole;
+id NSAccessibilityOverflowButtonAttribute;
+id NSAccessibilityParentAttribute;
+id NSAccessibilityPicasUnitValue;
+id NSAccessibilityPickAction;
+id NSAccessibilityPlaceholderValueAttribute;
+id NSAccessibilityPointsUnitValue;
+id NSAccessibilityPopUpButtonRole;
+id NSAccessibilityPositionAttribute;
+id NSAccessibilityPressAction;
+id NSAccessibilityPreviousContentsAttribute;
+id NSAccessibilityProgressIndicatorRole;
+id NSAccessibilityProxyAttribute;
+id NSAccessibilityRTFForRangeParameterizedAttribute;
+id NSAccessibilityRadioButtonRole;
+id NSAccessibilityRadioGroupRole;
+id NSAccessibilityRaiseAction;
+id NSAccessibilityRangeForIndexParameterizedAttribute;
+id NSAccessibilityRangeForLineParameterizedAttribute;
+id NSAccessibilityRangeForPositionParameterizedAttribute;
+id NSAccessibilityRatingIndicatorSubrole;
+id NSAccessibilityRelevanceIndicatorRole;
+id NSAccessibilityResizedNotification;
+id NSAccessibilityRightTabStopMarkerTypeValue;
+id NSAccessibilityRoleAttribute;
+id NSAccessibilityRoleDescriptionAttribute;
+id NSAccessibilityRowCollapsedNotification;
+id NSAccessibilityRowCountAttribute;
+id NSAccessibilityRowCountChangedNotification;
+id NSAccessibilityRowExpandedNotification;
+id NSAccessibilityRowHeaderUIElementsAttribute;
+id NSAccessibilityRowIndexRangeAttribute;
+id NSAccessibilityRowRole;
+id NSAccessibilityRowsAttribute;
+id NSAccessibilityRulerMarkerRole;
+id NSAccessibilityRulerRole;
+id NSAccessibilityScreenPointForLayoutPointParameterizedAttribute;
+id NSAccessibilityScreenSizeForLayoutSizeParameterizedAttribute;
+id NSAccessibilityScrollAreaRole;
+id NSAccessibilityScrollBarRole;
+id NSAccessibilitySearchButtonAttribute;
+id NSAccessibilitySearchFieldSubrole;
+id NSAccessibilitySearchMenuAttribute;
+id NSAccessibilitySecureTextFieldSubrole;
+id NSAccessibilitySelectedAttribute;
+id NSAccessibilitySelectedCellsAttribute;
+id NSAccessibilitySelectedCellsChangedNotification;
+id NSAccessibilitySelectedChildrenAttribute;
+id NSAccessibilitySelectedChildrenChangedNotification;
+id NSAccessibilitySelectedChildrenMovedNotification;
+id NSAccessibilitySelectedColumnsAttribute;
+id NSAccessibilitySelectedColumnsChangedNotification;
+id NSAccessibilitySelectedRowsAttribute;
+id NSAccessibilitySelectedRowsChangedNotification;
+id NSAccessibilitySelectedTextAttribute;
+id NSAccessibilitySelectedTextChangedNotification;
+id NSAccessibilitySelectedTextRangeAttribute;
+id NSAccessibilitySelectedTextRangesAttribute;
+id NSAccessibilityServesAsTitleForUIElementsAttribute;
+id NSAccessibilityShadowTextAttribute;
+id NSAccessibilitySharedCharacterRangeAttribute;
+id NSAccessibilitySharedTextUIElementsAttribute;
+id NSAccessibilitySheetCreatedNotification;
+id NSAccessibilitySheetRole;
+id NSAccessibilityShowMenuAction;
+id NSAccessibilityShownMenuAttribute;
+id NSAccessibilitySizeAttribute;
+id NSAccessibilitySliderRole;
+id NSAccessibilitySortButtonRole;
+id NSAccessibilitySortButtonSubrole;
+id NSAccessibilitySortDirectionAttribute;
+id NSAccessibilitySplitGroupRole;
+id NSAccessibilitySplitterRole;
+id NSAccessibilitySplittersAttribute;
+id NSAccessibilityStandardWindowSubrole;
+id NSAccessibilityStaticTextRole;
+id NSAccessibilityStrikethroughColorTextAttribute;
+id NSAccessibilityStrikethroughTextAttribute;
+id NSAccessibilityStringForRangeParameterizedAttribute;
+id NSAccessibilityStyleRangeForIndexParameterizedAttribute;
+id NSAccessibilitySubroleAttribute;
+id NSAccessibilitySuperscriptTextAttribute;
+id NSAccessibilitySystemDialogSubrole;
+id NSAccessibilitySystemFloatingWindowSubrole;
+id NSAccessibilitySystemWideRole;
+id NSAccessibilityTabGroupRole;
+id NSAccessibilityTableRole;
+id NSAccessibilityTableRowSubrole;
+id NSAccessibilityTabsAttribute;
+id NSAccessibilityTailIndentMarkerTypeValue;
+id NSAccessibilityTextAreaRole;
+id NSAccessibilityTextAttachmentSubrole;
+id NSAccessibilityTextFieldRole;
+id NSAccessibilityTextLinkSubrole;
+id NSAccessibilityTimelineSubrole;
+id NSAccessibilityTitleAttribute;
+id NSAccessibilityTitleChangedNotification;
+id NSAccessibilityTitleUIElementAttribute;
+id NSAccessibilityToolbarButtonAttribute;
+id NSAccessibilityToolbarButtonSubrole;
+id NSAccessibilityToolbarRole;
+id NSAccessibilityTopLevelUIElementAttribute;
+id NSAccessibilityUIElementDestroyedNotification;
+id NSAccessibilityURLAttribute;
+id NSAccessibilityUnderlineColorTextAttribute;
+id NSAccessibilityUnderlineTextAttribute;
+id NSAccessibilityUnitDescriptionAttribute;
+id NSAccessibilityUnitsAttribute;
+id NSAccessibilityUnitsChangedNotification;
+id NSAccessibilityUnknownMarkerTypeValue;
+id NSAccessibilityUnknownOrientationValue;
+id NSAccessibilityUnknownRole;
+id NSAccessibilityUnknownSortDirectionValue;
+id NSAccessibilityUnknownSubrole;
+id NSAccessibilityUnknownUnitValue;
+id NSAccessibilityValueAttribute;
+id NSAccessibilityValueChangedNotification;
+id NSAccessibilityValueDescriptionAttribute;
+id NSAccessibilityValueIndicatorRole;
+id NSAccessibilityVerticalOrientationValue;
+id NSAccessibilityVerticalScrollBarAttribute;
+id NSAccessibilityVerticalUnitDescriptionAttribute;
+id NSAccessibilityVerticalUnitsAttribute;
+id NSAccessibilityVisibleCellsAttribute;
+id NSAccessibilityVisibleCharacterRangeAttribute;
+id NSAccessibilityVisibleChildrenAttribute;
+id NSAccessibilityVisibleColumnsAttribute;
+id NSAccessibilityVisibleNameKey;
+id NSAccessibilityVisibleRowsAttribute;
+id NSAccessibilityWarningValueAttribute;
+id NSAccessibilityWindowAttribute;
+id NSAccessibilityWindowCreatedNotification;
+id NSAccessibilityWindowDeminiaturizedNotification;
+id NSAccessibilityWindowMiniaturizedNotification;
+id NSAccessibilityWindowMovedNotification;
+id NSAccessibilityWindowResizedNotification;
+id NSAccessibilityWindowRole;
+id NSAccessibilityWindowsAttribute;
+id NSAccessibilityZoomButtonAttribute;
+id NSAccessibilityZoomButtonSubrole;
+id NSAlignmentBinding;
+id NSAllRomanInputSourcesLocaleIdentifier;
+id NSAllowsEditingMultipleValuesSelectionBindingOption;
+id NSAllowsNullArgumentBindingOption;
+id NSAlternateImageBinding;
+id NSAlternateTitleBinding;
+id NSAlwaysPresentsApplicationModalAlertsBindingOption;
+id NSAnimateBinding;
+id NSAnimationDelayBinding;
+id NSAnimationProgressMark;
+id NSAnimationProgressMarkNotification;
+id NSAnimationTriggerOrderIn;
+id NSAnimationTriggerOrderOut;
+id NSAntialiasThresholdChangedNotification;
+id NSAppKitIgnoredException;
+id NSAppKitVirtualMemoryException;
+id NSApplicationDidBecomeActiveNotification;
+id NSApplicationDidChangeScreenParametersNotification;
+id NSApplicationDidFinishLaunchingNotification;
+id NSApplicationDidHideNotification;
+id NSApplicationDidResignActiveNotification;
+id NSApplicationDidUnhideNotification;
+id NSApplicationDidUpdateNotification;
+id NSApplicationFileType;
+id NSApplicationWillBecomeActiveNotification;
+id NSApplicationWillFinishLaunchingNotification;
+id NSApplicationWillHideNotification;
+id NSApplicationWillResignActiveNotification;
+id NSApplicationWillTerminateNotification;
+id NSApplicationWillUnhideNotification;
+id NSApplicationWillUpdateNotification;
+id NSArgumentBinding;
+id NSAttachmentAttributeName;
+id NSAttributedStringBinding;
+id NSAuthorDocumentAttribute;
+id NSBackgroundColorAttributeName;
+id NSBackgroundColorDocumentAttribute;
+id NSBadBitmapParametersException;
+id NSBadComparisonException;
+id NSBadRTFColorTableException;
+id NSBadRTFDirectiveException;
+id NSBadRTFFontTableException;
+id NSBadRTFStyleSheetException;
+id NSBaseURLDocumentOption;
+id NSBaselineOffsetAttributeName;
+id NSBottomMarginDocumentAttribute;
+id NSBrowserColumnConfigurationDidChangeNotification;
+id NSBrowserIllegalDelegateException;
+id NSCalibratedBlackColorSpace;
+id NSCalibratedRGBColorSpace;
+id NSCalibratedWhiteColorSpace;
+id NSCategoryDocumentAttribute;
+id NSCharacterEncodingDocumentAttribute;
+id NSCharacterEncodingDocumentOption;
+id NSCharacterShapeAttributeName;
+id NSCocoaVersionDocumentAttribute;
+id NSColorListDidChangeNotification;
+id NSColorListIOException;
+id NSColorListNotEditableException;
+id NSColorPanelColorDidChangeNotification;
+id NSColorPboardType;
+id NSComboBoxSelectionDidChangeNotification;
+id NSComboBoxSelectionIsChangingNotification;
+id NSComboBoxWillDismissNotification;
+id NSComboBoxWillPopUpNotification;
+id NSCommentDocumentAttribute;
+id NSCompanyDocumentAttribute;
+id NSConditionallySetsEditableBindingOption;
+id NSConditionallySetsEnabledBindingOption;
+id NSConditionallySetsHiddenBindingOption;
+id NSContentArrayBinding;
+id NSContentArrayForMultipleSelectionBinding;
+id NSContentBinding;
+id NSContentDictionaryBinding;
+id NSContentHeightBinding;
+id NSContentObjectBinding;
+id NSContentObjectsBinding;
+id NSContentPlacementTagBindingOption;
+id NSContentSetBinding;
+id NSContentValuesBinding;
+id NSContentWidthBinding;
+id NSContextHelpModeDidActivateNotification;
+id NSContextHelpModeDidDeactivateNotification;
+id NSContinuouslyUpdatesValueBindingOption;
+id NSControlTextDidBeginEditingNotification;
+id NSControlTextDidChangeNotification;
+id NSControlTextDidEndEditingNotification;
+id NSControlTintDidChangeNotification;
+id NSConvertedDocumentAttribute;
+id NSCopyrightDocumentAttribute;
+id NSCreatesSortDescriptorBindingOption;
+id NSCreationTimeDocumentAttribute;
+id NSCriticalValueBinding;
+id NSCursorAttributeName;
+id NSCustomColorSpace;
+id NSDataBinding;
+id NSDefaultAttributesDocumentOption;
+id NSDefaultTabIntervalDocumentAttribute;
+id NSDefinitionPresentationTypeDictionaryApplication;
+id NSDefinitionPresentationTypeKey;
+id NSDefinitionPresentationTypeOverlay;
+id NSDeletesObjectsOnRemoveBindingsOption;
+id NSDeviceBitsPerSample;
+id NSDeviceBlackColorSpace;
+id NSDeviceCMYKColorSpace;
+id NSDeviceColorSpaceName;
+id NSDeviceIsPrinter;
+id NSDeviceIsScreen;
+id NSDeviceRGBColorSpace;
+id NSDeviceResolution;
+id NSDeviceSize;
+id NSDeviceWhiteColorSpace;
+id NSDirectoryFileType;
+id NSDisplayNameBindingOption;
+id NSDisplayPatternBindingOption;
+id NSDisplayPatternTitleBinding;
+id NSDisplayPatternValueBinding;
+id NSDocFormatTextDocumentType;
+id NSDocumentEditedBinding;
+id NSDocumentTypeDocumentAttribute;
+id NSDocumentTypeDocumentOption;
+id NSDoubleClickArgumentBinding;
+id NSDoubleClickTargetBinding;
+id NSDragPboard;
+id NSDraggingException;
+id NSDrawerDidCloseNotification;
+id NSDrawerDidOpenNotification;
+id NSDrawerWillCloseNotification;
+id NSDrawerWillOpenNotification;
+id NSEditableBinding;
+id NSEditorDocumentAttribute;
+id NSEnabledBinding;
+id NSEventTrackingRunLoopMode;
+id NSExcludedElementsDocumentAttribute;
+id NSExcludedKeysBinding;
+id NSExpansionAttributeName;
+id NSFileContentsPboardType;
+id NSFileTypeDocumentAttribute;
+id NSFileTypeDocumentOption;
+id NSFilenamesPboardType;
+id NSFilesPromisePboardType;
+id NSFilesystemFileType;
+id NSFilterPredicateBinding;
+id NSFindPanelCaseInsensitiveSearch;
+id NSFindPanelSearchOptionsPboardType;
+id NSFindPanelSubstringMatch;
+id NSFindPboard;
+id NSFontAttributeName;
+id NSFontBinding;
+id NSFontBoldBinding;
+id NSFontCascadeListAttribute;
+id NSFontCharacterSetAttribute;
+id NSFontColorAttribute;
+id NSFontFaceAttribute;
+id NSFontFamilyAttribute;
+id NSFontFamilyNameBinding;
+id NSFontFeatureSelectorIdentifierKey;
+id NSFontFeatureSettingsAttribute;
+id NSFontFeatureTypeIdentifierKey;
+id NSFontFixedAdvanceAttribute;
+id NSFontItalicBinding;
+id NSFontMatrixAttribute;
+id NSFontNameAttribute;
+id NSFontNameBinding;
+id NSFontPboard;
+id NSFontPboardType;
+id NSFontSetChangedNotification;
+id NSFontSizeAttribute;
+id NSFontSizeBinding;
+id NSFontSlantTrait;
+id NSFontSymbolicTrait;
+id NSFontTraitsAttribute;
+id NSFontUnavailableException;
+id NSFontVariationAttribute;
+id NSFontVariationAxisDefaultValueKey;
+id NSFontVariationAxisIdentifierKey;
+id NSFontVariationAxisMaximumValueKey;
+id NSFontVariationAxisMinimumValueKey;
+id NSFontVariationAxisNameKey;
+id NSFontVisibleNameAttribute;
+id NSFontWeightTrait;
+id NSFontWidthTrait;
+id NSForegroundColorAttributeName;
+id NSFullScreenModeAllScreens;
+id NSFullScreenModeApplicationPresentationOptions;
+id NSFullScreenModeSetting;
+id NSFullScreenModeWindowLevel;
+id NSGeneralPboard;
+id NSGlyphInfoAttributeName;
+id NSGraphicsContextDestinationAttributeName;
+id NSGraphicsContextPDFFormat;
+id NSGraphicsContextPSFormat;
+id NSGraphicsContextRepresentationFormatAttributeName;
+id NSHTMLPboardType;
+id NSHTMLTextDocumentType;
+id NSHandlesContentAsCompoundValueBindingOption;
+id NSHeaderTitleBinding;
+id NSHiddenBinding;
+id NSHyphenationFactorDocumentAttribute;
+id NSIllegalSelectorException;
+id NSImageBinding;
+id NSImageCacheException;
+id NSImageColorSyncProfileData;
+id NSImageCompressionFactor;
+id NSImageCompressionMethod;
+id NSImageCurrentFrame;
+id NSImageCurrentFrameDuration;
+id NSImageDitherTransparency;
+id NSImageEXIFData;
+id NSImageFallbackBackgroundColor;
+id NSImageFrameCount;
+id NSImageGamma;
+id NSImageHintCTM;
+id NSImageHintInterpolation;
+id NSImageInterlaced;
+id NSImageLoopCount;
+id NSImageNameActionTemplate;
+id NSImageNameAddTemplate;
+id NSImageNameAdvanced;
+id NSImageNameApplicationIcon;
+id NSImageNameBluetoothTemplate;
+id NSImageNameBonjour;
+id NSImageNameBookmarksTemplate;
+id NSImageNameCaution;
+id NSImageNameColorPanel;
+id NSImageNameColumnViewTemplate;
+id NSImageNameComputer;
+id NSImageNameDotMac;
+id NSImageNameEnterFullScreenTemplate;
+id NSImageNameEveryone;
+id NSImageNameExitFullScreenTemplate;
+id NSImageNameFlowViewTemplate;
+id NSImageNameFolder;
+id NSImageNameFolderBurnable;
+id NSImageNameFolderSmart;
+id NSImageNameFollowLinkFreestandingTemplate;
+id NSImageNameFontPanel;
+id NSImageNameGoLeftTemplate;
+id NSImageNameGoRightTemplate;
+id NSImageNameHomeTemplate;
+id NSImageNameIChatTheaterTemplate;
+id NSImageNameIconViewTemplate;
+id NSImageNameInfo;
+id NSImageNameInvalidDataFreestandingTemplate;
+id NSImageNameLeftFacingTriangleTemplate;
+id NSImageNameListViewTemplate;
+id NSImageNameLockLockedTemplate;
+id NSImageNameLockUnlockedTemplate;
+id NSImageNameMenuMixedStateTemplate;
+id NSImageNameMenuOnStateTemplate;
+id NSImageNameMobileMe;
+id NSImageNameMultipleDocuments;
+id NSImageNameNetwork;
+id NSImageNamePathTemplate;
+id NSImageNamePreferencesGeneral;
+id NSImageNameQuickLookTemplate;
+id NSImageNameRefreshFreestandingTemplate;
+id NSImageNameRefreshTemplate;
+id NSImageNameRemoveTemplate;
+id NSImageNameRevealFreestandingTemplate;
+id NSImageNameRightFacingTriangleTemplate;
+id NSImageNameSlideshowTemplate;
+id NSImageNameSmartBadgeTemplate;
+id NSImageNameStatusAvailable;
+id NSImageNameStatusNone;
+id NSImageNameStatusPartiallyAvailable;
+id NSImageNameStatusUnavailable;
+id NSImageNameStopProgressFreestandingTemplate;
+id NSImageNameStopProgressTemplate;
+id NSImageNameTrashEmpty;
+id NSImageNameTrashFull;
+id NSImageNameUser;
+id NSImageNameUserAccounts;
+id NSImageNameUserGroup;
+id NSImageNameUserGuest;
+id NSImageProgressive;
+id NSImageRGBColorTable;
+id NSImageRepRegistryDidChangeNotification;
+id NSIncludedKeysBinding;
+id NSInitialKeyBinding;
+id NSInitialValueBinding;
+id NSInkTextPboardType;
+id NSInsertsNullPlaceholderBindingOption;
+id NSInterfaceStyleDefault;
+id NSInvokesSeparatelyWithArrayObjectsBindingOption;
+id NSIsIndeterminateBinding;
+id NSKernAttributeName;
+id NSKeywordsDocumentAttribute;
+id NSLabelBinding;
+id NSLeftMarginDocumentAttribute;
+id NSLigatureAttributeName;
+id NSLinkAttributeName;
+id NSLocalizedKeyDictionaryBinding;
+id NSMacSimpleTextDocumentType;
+id NSManagedObjectContextBinding;
+id NSManagerDocumentAttribute;
+id NSMarkedClauseSegmentAttributeName;
+id NSMaxValueBinding;
+id NSMaxWidthBinding;
+id NSMaximumRecentsBinding;
+id NSMenuDidAddItemNotification;
+id NSMenuDidBeginTrackingNotification;
+id NSMenuDidChangeItemNotification;
+id NSMenuDidEndTrackingNotification;
+id NSMenuDidRemoveItemNotification;
+id NSMenuDidSendActionNotification;
+id NSMenuWillSendActionNotification;
+id NSMinValueBinding;
+id NSMinWidthBinding;
+id NSMixedStateImageBinding;
+id NSModalPanelRunLoopMode;
+id NSModificationTimeDocumentAttribute;
+id NSMultipleTextSelectionPboardType;
+id NSMultipleValuesPlaceholderBindingOption;
+id NSNamedColorSpace;
+id NSNibLoadingException;
+id NSNibOwner;
+id NSNibTopLevelObjects;
+id NSNoSelectionPlaceholderBindingOption;
+id NSNotApplicablePlaceholderBindingOption;
+id NSNullPlaceholderBindingOption;
+id NSObliquenessAttributeName;
+id NSObservedKeyPathKey;
+id NSObservedObjectKey;
+id NSOffStateImageBinding;
+id NSOfficeOpenXMLTextDocumentType;
+id NSOnStateImageBinding;
+id NSOpenDocumentTextDocumentType;
+id NSOptionsKey;
+id NSOutlineViewColumnDidMoveNotification;
+id NSOutlineViewColumnDidResizeNotification;
+id NSOutlineViewItemDidCollapseNotification;
+id NSOutlineViewItemDidExpandNotification;
+id NSOutlineViewItemWillCollapseNotification;
+id NSOutlineViewItemWillExpandNotification;
+id NSOutlineViewSelectionDidChangeNotification;
+id NSOutlineViewSelectionIsChangingNotification;
+id NSPDFPboardType;
+id NSPICTPboardType;
+id NSPPDIncludeNotFoundException;
+id NSPPDIncludeStackOverflowException;
+id NSPPDIncludeStackUnderflowException;
+id NSPPDParseException;
+id NSPaperSizeDocumentAttribute;
+id NSParagraphStyleAttributeName;
+id NSPasteboardCommunicationException;
+id NSPasteboardTypeColor;
+id NSPasteboardTypeFindPanelSearchOptions;
+id NSPasteboardTypeFont;
+id NSPasteboardTypeHTML;
+id NSPasteboardTypeMultipleTextSelection;
+id NSPasteboardTypePDF;
+id NSPasteboardTypePNG;
+id NSPasteboardTypeRTF;
+id NSPasteboardTypeRTFD;
+id NSPasteboardTypeRuler;
+id NSPasteboardTypeSound;
+id NSPasteboardTypeString;
+id NSPasteboardTypeTIFF;
+id NSPasteboardTypeTabularText;
+id NSPasteboardURLReadingContentsConformToTypesKey;
+id NSPasteboardURLReadingFileURLsOnlyKey;
+id NSPatternColorSpace;
+id NSPlainFileType;
+id NSPlainTextDocumentType;
+id NSPopUpButtonCellWillPopUpNotification;
+id NSPopUpButtonWillPopUpNotification;
+id NSPostScriptPboardType;
+id NSPredicateBinding;
+id NSPredicateFormatBindingOption;
+id NSPrefixSpacesDocumentAttribute;
+id NSPrintAllPages;
+id NSPrintAllPresetsJobStyleHint;
+id NSPrintBottomMargin;
+id NSPrintCancelJob;
+id NSPrintCopies;
+id NSPrintDetailedErrorReporting;
+id NSPrintFaxNumber;
+id NSPrintFirstPage;
+id NSPrintFormName;
+id NSPrintHeaderAndFooter;
+id NSPrintHorizontalPagination;
+id NSPrintHorizontallyCentered;
+id NSPrintJobDisposition;
+id NSPrintJobFeatures;
+id NSPrintJobSavingFileNameExtensionHidden;
+id NSPrintJobSavingURL;
+id NSPrintLastPage;
+id NSPrintLeftMargin;
+id NSPrintManualFeed;
+id NSPrintMustCollate;
+id NSPrintNoPresetsJobStyleHint;
+id NSPrintOperationExistsException;
+id NSPrintOrientation;
+id NSPrintPackageException;
+id NSPrintPagesAcross;
+id NSPrintPagesDown;
+id NSPrintPagesPerSheet;
+id NSPrintPanelAccessorySummaryItemDescriptionKey;
+id NSPrintPanelAccessorySummaryItemNameKey;
+id NSPrintPaperFeed;
+id NSPrintPaperName;
+id NSPrintPaperSize;
+id NSPrintPhotoJobStyleHint;
+id NSPrintPreviewJob;
+id NSPrintPrinter;
+id NSPrintPrinterName;
+id NSPrintReversePageOrder;
+id NSPrintRightMargin;
+id NSPrintSaveJob;
+id NSPrintSavePath;
+id NSPrintScalingFactor;
+id NSPrintSelectionOnly;
+id NSPrintSpoolJob;
+id NSPrintTime;
+id NSPrintTopMargin;
+id NSPrintVerticalPagination;
+id NSPrintVerticallyCentered;
+id NSPrintingCommunicationException;
+id NSRTFDPboardType;
+id NSRTFDTextDocumentType;
+id NSRTFPboardType;
+id NSRTFPropertyStackOverflowException;
+id NSRTFTextDocumentType;
+id NSRaisesForNotApplicableKeysBindingOption;
+id NSReadOnlyDocumentAttribute;
+id NSRecentSearchesBinding;
+id NSRepresentedFilenameBinding;
+id NSRightMarginDocumentAttribute;
+id NSRowHeightBinding;
+id NSRuleEditorPredicateComparisonModifier;
+id NSRuleEditorPredicateCompoundType;
+id NSRuleEditorPredicateCustomSelector;
+id NSRuleEditorPredicateLeftExpression;
+id NSRuleEditorPredicateOperatorType;
+id NSRuleEditorPredicateOptions;
+id NSRuleEditorPredicateRightExpression;
+id NSRuleEditorRowsDidChangeNotification;
+id NSRulerPboard;
+id NSRulerPboardType;
+id NSScreenColorSpaceDidChangeNotification;
+id NSSelectedIdentifierBinding;
+id NSSelectedIndexBinding;
+id NSSelectedLabelBinding;
+id NSSelectedObjectBinding;
+id NSSelectedObjectsBinding;
+id NSSelectedTagBinding;
+id NSSelectedValueBinding;
+id NSSelectedValuesBinding;
+id NSSelectionIndexPathsBinding;
+id NSSelectionIndexesBinding;
+id NSSelectorNameBindingOption;
+id NSSelectsAllWhenSettingContentBindingOption;
+id NSShadowAttributeName;
+id NSShellCommandFileType;
+id NSSortDescriptorsBinding;
+id NSSoundPboardType;
+id NSSpeechCharacterModeProperty;
+id NSSpeechCommandDelimiterProperty;
+id NSSpeechCommandPrefix;
+id NSSpeechCommandSuffix;
+id NSSpeechCurrentVoiceProperty;
+id NSSpeechDictionaryAbbreviations;
+id NSSpeechDictionaryEntryPhonemes;
+id NSSpeechDictionaryEntrySpelling;
+id NSSpeechDictionaryLocaleIdentifier;
+id NSSpeechDictionaryModificationDate;
+id NSSpeechDictionaryPronunciations;
+id NSSpeechErrorCount;
+id NSSpeechErrorNewestCharacterOffset;
+id NSSpeechErrorNewestCode;
+id NSSpeechErrorOldestCharacterOffset;
+id NSSpeechErrorOldestCode;
+id NSSpeechErrorsProperty;
+id NSSpeechInputModeProperty;
+id NSSpeechModeLiteral;
+id NSSpeechModeNormal;
+id NSSpeechModePhoneme;
+id NSSpeechModeText;
+id NSSpeechNumberModeProperty;
+id NSSpeechOutputToFileURLProperty;
+id NSSpeechPhonemeInfoExample;
+id NSSpeechPhonemeInfoHiliteEnd;
+id NSSpeechPhonemeInfoHiliteStart;
+id NSSpeechPhonemeInfoOpcode;
+id NSSpeechPhonemeInfoSymbol;
+id NSSpeechPhonemeSymbolsProperty;
+id NSSpeechPitchBaseProperty;
+id NSSpeechPitchModProperty;
+id NSSpeechRateProperty;
+id NSSpeechRecentSyncProperty;
+id NSSpeechResetProperty;
+id NSSpeechStatusNumberOfCharactersLeft;
+id NSSpeechStatusOutputBusy;
+id NSSpeechStatusOutputPaused;
+id NSSpeechStatusPhonemeCode;
+id NSSpeechStatusProperty;
+id NSSpeechSynthesizerInfoIdentifier;
+id NSSpeechSynthesizerInfoProperty;
+id NSSpeechSynthesizerInfoVersion;
+id NSSpeechVolumeProperty;
+id NSSpellingStateAttributeName;
+id NSSplitViewDidResizeSubviewsNotification;
+id NSSplitViewWillResizeSubviewsNotification;
+id NSStrikethroughColorAttributeName;
+id NSStrikethroughStyleAttributeName;
+id NSStringPboardType;
+id NSStrokeColorAttributeName;
+id NSStrokeWidthAttributeName;
+id NSSubjectDocumentAttribute;
+id NSSuperscriptAttributeName;
+id NSSystemColorsDidChangeNotification;
+id NSTIFFException;
+id NSTIFFPboardType;
+id NSTabColumnTerminatorsAttributeName;
+id NSTableViewColumnDidMoveNotification;
+id NSTableViewColumnDidResizeNotification;
+id NSTableViewSelectionDidChangeNotification;
+id NSTableViewSelectionIsChangingNotification;
+id NSTabularTextPboardType;
+id NSTargetBinding;
+id NSTextCheckingDocumentAuthorKey;
+id NSTextCheckingDocumentTitleKey;
+id NSTextCheckingDocumentURLKey;
+id NSTextCheckingOrthographyKey;
+id NSTextCheckingQuotesKey;
+id NSTextCheckingReferenceDateKey;
+id NSTextCheckingReferenceTimeZoneKey;
+id NSTextCheckingReplacementsKey;
+id NSTextColorBinding;
+id NSTextDidBeginEditingNotification;
+id NSTextDidChangeNotification;
+id NSTextDidEndEditingNotification;
+id NSTextEncodingNameDocumentAttribute;
+id NSTextEncodingNameDocumentOption;
+id NSTextInputContextKeyboardSelectionDidChangeNotification;
+id NSTextLineTooLongException;
+id NSTextNoSelectionException;
+id NSTextReadException;
+id NSTextSizeMultiplierDocumentOption;
+id NSTextStorageDidProcessEditingNotification;
+id NSTextStorageWillProcessEditingNotification;
+id NSTextViewDidChangeSelectionNotification;
+id NSTextViewDidChangeTypingAttributesNotification;
+id NSTextViewWillChangeNotifyingTextViewNotification;
+id NSTextWriteException;
+id NSTimeoutDocumentOption;
+id NSTitleBinding;
+id NSTitleDocumentAttribute;
+id NSToolTipAttributeName;
+id NSToolTipBinding;
+id NSToolbarCustomizeToolbarItemIdentifier;
+id NSToolbarDidRemoveItemNotification;
+id NSToolbarFlexibleSpaceItemIdentifier;
+id NSToolbarPrintItemIdentifier;
+id NSToolbarSeparatorItemIdentifier;
+id NSToolbarShowColorsItemIdentifier;
+id NSToolbarShowFontsItemIdentifier;
+id NSToolbarSpaceItemIdentifier;
+id NSToolbarWillAddItemNotification;
+id NSTopMarginDocumentAttribute;
+id NSTransparentBinding;
+id NSTypedStreamVersionException;
+id NSURLPboardType;
+id NSUnderlineColorAttributeName;
+id NSUnderlineStyleAttributeName;
+id NSVCardPboardType;
+id NSValidatesImmediatelyBindingOption;
+id NSValueBinding;
+id NSValuePathBinding;
+id NSValueTransformerBindingOption;
+id NSValueTransformerNameBindingOption;
+id NSValueURLBinding;
+id NSViewAnimationEffectKey;
+id NSViewAnimationEndFrameKey;
+id NSViewAnimationFadeInEffect;
+id NSViewAnimationFadeOutEffect;
+id NSViewAnimationStartFrameKey;
+id NSViewAnimationTargetKey;
+id NSViewBoundsDidChangeNotification;
+id NSViewDidUpdateTrackingAreasNotification;
+id NSViewFocusDidChangeNotification;
+id NSViewFrameDidChangeNotification;
+id NSViewGlobalFrameDidChangeNotification;
+id NSViewModeDocumentAttribute;
+id NSViewSizeDocumentAttribute;
+id NSViewZoomDocumentAttribute;
+id NSVisibleBinding;
+id NSVoiceAge;
+id NSVoiceDemoText;
+id NSVoiceGender;
+id NSVoiceGenderFemale;
+id NSVoiceGenderMale;
+id NSVoiceGenderNeuter;
+id NSVoiceIdentifier;
+id NSVoiceIndividuallySpokenCharacters;
+id NSVoiceLanguage;
+id NSVoiceLocaleIdentifier;
+id NSVoiceName;
+id NSVoiceSupportedCharacters;
+id NSWarningValueBinding;
+id NSWebArchiveTextDocumentType;
+id NSWebPreferencesDocumentOption;
+id NSWebResourceLoadDelegateDocumentOption;
+id NSWidthBinding;
+id NSWindowDidBecomeKeyNotification;
+id NSWindowDidBecomeMainNotification;
+id NSWindowDidChangeScreenNotification;
+id NSWindowDidChangeScreenProfileNotification;
+id NSWindowDidDeminiaturizeNotification;
+id NSWindowDidEndLiveResizeNotification;
+id NSWindowDidEndSheetNotification;
+id NSWindowDidExposeNotification;
+id NSWindowDidMiniaturizeNotification;
+id NSWindowDidMoveNotification;
+id NSWindowDidResignKeyNotification;
+id NSWindowDidResignMainNotification;
+id NSWindowDidResizeNotification;
+id NSWindowDidUpdateNotification;
+id NSWindowServerCommunicationException;
+id NSWindowWillBeginSheetNotification;
+id NSWindowWillCloseNotification;
+id NSWindowWillMiniaturizeNotification;
+id NSWindowWillMoveNotification;
+id NSWindowWillStartLiveResizeNotification;
+id NSWordMLTextDocumentType;
+id NSWordTablesReadException;
+id NSWordTablesWriteException;
+id NSWorkspaceActiveSpaceDidChangeNotification;
+id NSWorkspaceApplicationKey;
+id NSWorkspaceCompressOperation;
+id NSWorkspaceCopyOperation;
+id NSWorkspaceDecompressOperation;
+id NSWorkspaceDecryptOperation;
+id NSWorkspaceDesktopImageAllowClippingKey;
+id NSWorkspaceDesktopImageFillColorKey;
+id NSWorkspaceDesktopImageScalingKey;
+id NSWorkspaceDestroyOperation;
+id NSWorkspaceDidActivateApplicationNotification;
+id NSWorkspaceDidChangeFileLabelsNotification;
+id NSWorkspaceDidDeactivateApplicationNotification;
+id NSWorkspaceDidHideApplicationNotification;
+id NSWorkspaceDidLaunchApplicationNotification;
+id NSWorkspaceDidMountNotification;
+id NSWorkspaceDidPerformFileOperationNotification;
+id NSWorkspaceDidRenameVolumeNotification;
+id NSWorkspaceDidTerminateApplicationNotification;
+id NSWorkspaceDidUnhideApplicationNotification;
+id NSWorkspaceDidUnmountNotification;
+id NSWorkspaceDidWakeNotification;
+id NSWorkspaceDuplicateOperation;
+id NSWorkspaceEncryptOperation;
+id NSWorkspaceLaunchConfigurationAppleEvent;
+id NSWorkspaceLaunchConfigurationArchitecture;
+id NSWorkspaceLaunchConfigurationArguments;
+id NSWorkspaceLaunchConfigurationEnvironment;
+id NSWorkspaceLinkOperation;
+id NSWorkspaceMoveOperation;
+id NSWorkspaceRecycleOperation;
+id NSWorkspaceScreensDidSleepNotification;
+id NSWorkspaceScreensDidWakeNotification;
+id NSWorkspaceSessionDidBecomeActiveNotification;
+id NSWorkspaceSessionDidResignActiveNotification;
+id NSWorkspaceVolumeLocalizedNameKey;
+id NSWorkspaceVolumeOldLocalizedNameKey;
+id NSWorkspaceVolumeOldURLKey;
+id NSWorkspaceVolumeURLKey;
+id NSWorkspaceWillLaunchApplicationNotification;
+id NSWorkspaceWillPowerOffNotification;
+id NSWorkspaceWillSleepNotification;
+id NSWorkspaceWillUnmountNotification;
+id NSWritingDirectionAttributeName;
+''')
+NSAbortModalException = _.NSAbortModalException
+NSAbortPrintingException = _.NSAbortPrintingException
+NSAccessibilityAllowedValuesAttribute = _.NSAccessibilityAllowedValuesAttribute
+NSAccessibilityApplicationActivatedNotification = _.NSAccessibilityApplicationActivatedNotification
+NSAccessibilityApplicationDeactivatedNotification = _.NSAccessibilityApplicationDeactivatedNotification
+NSAccessibilityApplicationHiddenNotification = _.NSAccessibilityApplicationHiddenNotification
+NSAccessibilityApplicationRole = _.NSAccessibilityApplicationRole
+NSAccessibilityApplicationShownNotification = _.NSAccessibilityApplicationShownNotification
+NSAccessibilityAscendingSortDirectionValue = _.NSAccessibilityAscendingSortDirectionValue
+NSAccessibilityAttachmentTextAttribute = _.NSAccessibilityAttachmentTextAttribute
+NSAccessibilityAttributedStringForRangeParameterizedAttribute = _.NSAccessibilityAttributedStringForRangeParameterizedAttribute
+NSAccessibilityBackgroundColorTextAttribute = _.NSAccessibilityBackgroundColorTextAttribute
+NSAccessibilityBoundsForRangeParameterizedAttribute = _.NSAccessibilityBoundsForRangeParameterizedAttribute
+NSAccessibilityBrowserRole = _.NSAccessibilityBrowserRole
+NSAccessibilityBusyIndicatorRole = _.NSAccessibilityBusyIndicatorRole
+NSAccessibilityButtonRole = _.NSAccessibilityButtonRole
+NSAccessibilityCancelAction = _.NSAccessibilityCancelAction
+NSAccessibilityCancelButtonAttribute = _.NSAccessibilityCancelButtonAttribute
+NSAccessibilityCellForColumnAndRowParameterizedAttribute = _.NSAccessibilityCellForColumnAndRowParameterizedAttribute
+NSAccessibilityCellRole = _.NSAccessibilityCellRole
+NSAccessibilityCenterTabStopMarkerTypeValue = _.NSAccessibilityCenterTabStopMarkerTypeValue
+NSAccessibilityCentimetersUnitValue = _.NSAccessibilityCentimetersUnitValue
+NSAccessibilityCheckBoxRole = _.NSAccessibilityCheckBoxRole
+NSAccessibilityChildrenAttribute = _.NSAccessibilityChildrenAttribute
+NSAccessibilityClearButtonAttribute = _.NSAccessibilityClearButtonAttribute
+NSAccessibilityCloseButtonAttribute = _.NSAccessibilityCloseButtonAttribute
+NSAccessibilityCloseButtonSubrole = _.NSAccessibilityCloseButtonSubrole
+NSAccessibilityColorWellRole = _.NSAccessibilityColorWellRole
+NSAccessibilityColumnCountAttribute = _.NSAccessibilityColumnCountAttribute
+NSAccessibilityColumnHeaderUIElementsAttribute = _.NSAccessibilityColumnHeaderUIElementsAttribute
+NSAccessibilityColumnIndexRangeAttribute = _.NSAccessibilityColumnIndexRangeAttribute
+NSAccessibilityColumnRole = _.NSAccessibilityColumnRole
+NSAccessibilityColumnTitlesAttribute = _.NSAccessibilityColumnTitlesAttribute
+NSAccessibilityColumnsAttribute = _.NSAccessibilityColumnsAttribute
+NSAccessibilityComboBoxRole = _.NSAccessibilityComboBoxRole
+NSAccessibilityConfirmAction = _.NSAccessibilityConfirmAction
+NSAccessibilityContentListSubrole = _.NSAccessibilityContentListSubrole
+NSAccessibilityContentsAttribute = _.NSAccessibilityContentsAttribute
+NSAccessibilityCreatedNotification = _.NSAccessibilityCreatedNotification
+NSAccessibilityCriticalValueAttribute = _.NSAccessibilityCriticalValueAttribute
+NSAccessibilityDecimalTabStopMarkerTypeValue = _.NSAccessibilityDecimalTabStopMarkerTypeValue
+NSAccessibilityDecrementAction = _.NSAccessibilityDecrementAction
+NSAccessibilityDecrementArrowSubrole = _.NSAccessibilityDecrementArrowSubrole
+NSAccessibilityDecrementButtonAttribute = _.NSAccessibilityDecrementButtonAttribute
+NSAccessibilityDecrementPageSubrole = _.NSAccessibilityDecrementPageSubrole
+NSAccessibilityDefaultButtonAttribute = _.NSAccessibilityDefaultButtonAttribute
+NSAccessibilityDefinitionListSubrole = _.NSAccessibilityDefinitionListSubrole
+NSAccessibilityDeleteAction = _.NSAccessibilityDeleteAction
+NSAccessibilityDescendingSortDirectionValue = _.NSAccessibilityDescendingSortDirectionValue
+NSAccessibilityDescriptionAttribute = _.NSAccessibilityDescriptionAttribute
+NSAccessibilityDialogSubrole = _.NSAccessibilityDialogSubrole
+NSAccessibilityDisclosedByRowAttribute = _.NSAccessibilityDisclosedByRowAttribute
+NSAccessibilityDisclosedRowsAttribute = _.NSAccessibilityDisclosedRowsAttribute
+NSAccessibilityDisclosingAttribute = _.NSAccessibilityDisclosingAttribute
+NSAccessibilityDisclosureLevelAttribute = _.NSAccessibilityDisclosureLevelAttribute
+NSAccessibilityDisclosureTriangleRole = _.NSAccessibilityDisclosureTriangleRole
+NSAccessibilityDocumentAttribute = _.NSAccessibilityDocumentAttribute
+NSAccessibilityDrawerCreatedNotification = _.NSAccessibilityDrawerCreatedNotification
+NSAccessibilityDrawerRole = _.NSAccessibilityDrawerRole
+NSAccessibilityEditedAttribute = _.NSAccessibilityEditedAttribute
+NSAccessibilityEnabledAttribute = _.NSAccessibilityEnabledAttribute
+NSAccessibilityErrorCodeExceptionInfo = _.NSAccessibilityErrorCodeExceptionInfo
+NSAccessibilityException = _.NSAccessibilityException
+NSAccessibilityExpandedAttribute = _.NSAccessibilityExpandedAttribute
+NSAccessibilityFilenameAttribute = _.NSAccessibilityFilenameAttribute
+NSAccessibilityFirstLineIndentMarkerTypeValue = _.NSAccessibilityFirstLineIndentMarkerTypeValue
+NSAccessibilityFloatingWindowSubrole = _.NSAccessibilityFloatingWindowSubrole
+NSAccessibilityFocusedAttribute = _.NSAccessibilityFocusedAttribute
+NSAccessibilityFocusedUIElementAttribute = _.NSAccessibilityFocusedUIElementAttribute
+NSAccessibilityFocusedUIElementChangedNotification = _.NSAccessibilityFocusedUIElementChangedNotification
+NSAccessibilityFocusedWindowAttribute = _.NSAccessibilityFocusedWindowAttribute
+NSAccessibilityFocusedWindowChangedNotification = _.NSAccessibilityFocusedWindowChangedNotification
+NSAccessibilityFontFamilyKey = _.NSAccessibilityFontFamilyKey
+NSAccessibilityFontNameKey = _.NSAccessibilityFontNameKey
+NSAccessibilityFontSizeKey = _.NSAccessibilityFontSizeKey
+NSAccessibilityFontTextAttribute = _.NSAccessibilityFontTextAttribute
+NSAccessibilityForegroundColorTextAttribute = _.NSAccessibilityForegroundColorTextAttribute
+NSAccessibilityFrontmostAttribute = _.NSAccessibilityFrontmostAttribute
+NSAccessibilityGridRole = _.NSAccessibilityGridRole
+NSAccessibilityGroupRole = _.NSAccessibilityGroupRole
+NSAccessibilityGrowAreaAttribute = _.NSAccessibilityGrowAreaAttribute
+NSAccessibilityGrowAreaRole = _.NSAccessibilityGrowAreaRole
+NSAccessibilityHandleRole = _.NSAccessibilityHandleRole
+NSAccessibilityHandlesAttribute = _.NSAccessibilityHandlesAttribute
+NSAccessibilityHeadIndentMarkerTypeValue = _.NSAccessibilityHeadIndentMarkerTypeValue
+NSAccessibilityHeaderAttribute = _.NSAccessibilityHeaderAttribute
+NSAccessibilityHelpAttribute = _.NSAccessibilityHelpAttribute
+NSAccessibilityHelpTagCreatedNotification = _.NSAccessibilityHelpTagCreatedNotification
+NSAccessibilityHelpTagRole = _.NSAccessibilityHelpTagRole
+NSAccessibilityHiddenAttribute = _.NSAccessibilityHiddenAttribute
+NSAccessibilityHorizontalOrientationValue = _.NSAccessibilityHorizontalOrientationValue
+NSAccessibilityHorizontalScrollBarAttribute = _.NSAccessibilityHorizontalScrollBarAttribute
+NSAccessibilityHorizontalUnitDescriptionAttribute = _.NSAccessibilityHorizontalUnitDescriptionAttribute
+NSAccessibilityHorizontalUnitsAttribute = _.NSAccessibilityHorizontalUnitsAttribute
+NSAccessibilityHorizontialUnitDescriptionAttribute = _.NSAccessibilityHorizontialUnitDescriptionAttribute
+NSAccessibilityHorizontialUnitsAttribute = _.NSAccessibilityHorizontialUnitsAttribute
+NSAccessibilityImageRole = _.NSAccessibilityImageRole
+NSAccessibilityInchesUnitValue = _.NSAccessibilityInchesUnitValue
+NSAccessibilityIncrementAction = _.NSAccessibilityIncrementAction
+NSAccessibilityIncrementArrowSubrole = _.NSAccessibilityIncrementArrowSubrole
+NSAccessibilityIncrementButtonAttribute = _.NSAccessibilityIncrementButtonAttribute
+NSAccessibilityIncrementPageSubrole = _.NSAccessibilityIncrementPageSubrole
+NSAccessibilityIncrementorRole = _.NSAccessibilityIncrementorRole
+NSAccessibilityIndexAttribute = _.NSAccessibilityIndexAttribute
+NSAccessibilityInsertionPointLineNumberAttribute = _.NSAccessibilityInsertionPointLineNumberAttribute
+NSAccessibilityLabelUIElementsAttribute = _.NSAccessibilityLabelUIElementsAttribute
+NSAccessibilityLabelValueAttribute = _.NSAccessibilityLabelValueAttribute
+NSAccessibilityLayoutAreaRole = _.NSAccessibilityLayoutAreaRole
+NSAccessibilityLayoutItemRole = _.NSAccessibilityLayoutItemRole
+NSAccessibilityLayoutPointForScreenPointParameterizedAttribute = _.NSAccessibilityLayoutPointForScreenPointParameterizedAttribute
+NSAccessibilityLayoutSizeForScreenSizeParameterizedAttribute = _.NSAccessibilityLayoutSizeForScreenSizeParameterizedAttribute
+NSAccessibilityLeftTabStopMarkerTypeValue = _.NSAccessibilityLeftTabStopMarkerTypeValue
+NSAccessibilityLevelIndicatorRole = _.NSAccessibilityLevelIndicatorRole
+NSAccessibilityLineForIndexParameterizedAttribute = _.NSAccessibilityLineForIndexParameterizedAttribute
+NSAccessibilityLinkRole = _.NSAccessibilityLinkRole
+NSAccessibilityLinkTextAttribute = _.NSAccessibilityLinkTextAttribute
+NSAccessibilityLinkedUIElementsAttribute = _.NSAccessibilityLinkedUIElementsAttribute
+NSAccessibilityListRole = _.NSAccessibilityListRole
+NSAccessibilityMainAttribute = _.NSAccessibilityMainAttribute
+NSAccessibilityMainWindowAttribute = _.NSAccessibilityMainWindowAttribute
+NSAccessibilityMainWindowChangedNotification = _.NSAccessibilityMainWindowChangedNotification
+NSAccessibilityMarkerGroupUIElementAttribute = _.NSAccessibilityMarkerGroupUIElementAttribute
+NSAccessibilityMarkerTypeAttribute = _.NSAccessibilityMarkerTypeAttribute
+NSAccessibilityMarkerTypeDescriptionAttribute = _.NSAccessibilityMarkerTypeDescriptionAttribute
+NSAccessibilityMarkerUIElementsAttribute = _.NSAccessibilityMarkerUIElementsAttribute
+NSAccessibilityMarkerValuesAttribute = _.NSAccessibilityMarkerValuesAttribute
+NSAccessibilityMatteContentUIElementAttribute = _.NSAccessibilityMatteContentUIElementAttribute
+NSAccessibilityMatteHoleAttribute = _.NSAccessibilityMatteHoleAttribute
+NSAccessibilityMatteRole = _.NSAccessibilityMatteRole
+NSAccessibilityMaxValueAttribute = _.NSAccessibilityMaxValueAttribute
+NSAccessibilityMenuBarAttribute = _.NSAccessibilityMenuBarAttribute
+NSAccessibilityMenuBarRole = _.NSAccessibilityMenuBarRole
+NSAccessibilityMenuButtonRole = _.NSAccessibilityMenuButtonRole
+NSAccessibilityMenuItemRole = _.NSAccessibilityMenuItemRole
+NSAccessibilityMenuRole = _.NSAccessibilityMenuRole
+NSAccessibilityMinValueAttribute = _.NSAccessibilityMinValueAttribute
+NSAccessibilityMinimizeButtonAttribute = _.NSAccessibilityMinimizeButtonAttribute
+NSAccessibilityMinimizeButtonSubrole = _.NSAccessibilityMinimizeButtonSubrole
+NSAccessibilityMinimizedAttribute = _.NSAccessibilityMinimizedAttribute
+NSAccessibilityMisspelledTextAttribute = _.NSAccessibilityMisspelledTextAttribute
+NSAccessibilityModalAttribute = _.NSAccessibilityModalAttribute
+NSAccessibilityMovedNotification = _.NSAccessibilityMovedNotification
+NSAccessibilityNextContentsAttribute = _.NSAccessibilityNextContentsAttribute
+NSAccessibilityNumberOfCharactersAttribute = _.NSAccessibilityNumberOfCharactersAttribute
+NSAccessibilityOrderedByRowAttribute = _.NSAccessibilityOrderedByRowAttribute
+NSAccessibilityOrientationAttribute = _.NSAccessibilityOrientationAttribute
+NSAccessibilityOutlineRole = _.NSAccessibilityOutlineRole
+NSAccessibilityOutlineRowSubrole = _.NSAccessibilityOutlineRowSubrole
+NSAccessibilityOverflowButtonAttribute = _.NSAccessibilityOverflowButtonAttribute
+NSAccessibilityParentAttribute = _.NSAccessibilityParentAttribute
+NSAccessibilityPicasUnitValue = _.NSAccessibilityPicasUnitValue
+NSAccessibilityPickAction = _.NSAccessibilityPickAction
+NSAccessibilityPlaceholderValueAttribute = _.NSAccessibilityPlaceholderValueAttribute
+NSAccessibilityPointsUnitValue = _.NSAccessibilityPointsUnitValue
+NSAccessibilityPopUpButtonRole = _.NSAccessibilityPopUpButtonRole
+NSAccessibilityPositionAttribute = _.NSAccessibilityPositionAttribute
+NSAccessibilityPressAction = _.NSAccessibilityPressAction
+NSAccessibilityPreviousContentsAttribute = _.NSAccessibilityPreviousContentsAttribute
+NSAccessibilityProgressIndicatorRole = _.NSAccessibilityProgressIndicatorRole
+NSAccessibilityProxyAttribute = _.NSAccessibilityProxyAttribute
+NSAccessibilityRTFForRangeParameterizedAttribute = _.NSAccessibilityRTFForRangeParameterizedAttribute
+NSAccessibilityRadioButtonRole = _.NSAccessibilityRadioButtonRole
+NSAccessibilityRadioGroupRole = _.NSAccessibilityRadioGroupRole
+NSAccessibilityRaiseAction = _.NSAccessibilityRaiseAction
+NSAccessibilityRangeForIndexParameterizedAttribute = _.NSAccessibilityRangeForIndexParameterizedAttribute
+NSAccessibilityRangeForLineParameterizedAttribute = _.NSAccessibilityRangeForLineParameterizedAttribute
+NSAccessibilityRangeForPositionParameterizedAttribute = _.NSAccessibilityRangeForPositionParameterizedAttribute
+NSAccessibilityRatingIndicatorSubrole = _.NSAccessibilityRatingIndicatorSubrole
+NSAccessibilityRelevanceIndicatorRole = _.NSAccessibilityRelevanceIndicatorRole
+NSAccessibilityResizedNotification = _.NSAccessibilityResizedNotification
+NSAccessibilityRightTabStopMarkerTypeValue = _.NSAccessibilityRightTabStopMarkerTypeValue
+NSAccessibilityRoleAttribute = _.NSAccessibilityRoleAttribute
+NSAccessibilityRoleDescriptionAttribute = _.NSAccessibilityRoleDescriptionAttribute
+NSAccessibilityRowCollapsedNotification = _.NSAccessibilityRowCollapsedNotification
+NSAccessibilityRowCountAttribute = _.NSAccessibilityRowCountAttribute
+NSAccessibilityRowCountChangedNotification = _.NSAccessibilityRowCountChangedNotification
+NSAccessibilityRowExpandedNotification = _.NSAccessibilityRowExpandedNotification
+NSAccessibilityRowHeaderUIElementsAttribute = _.NSAccessibilityRowHeaderUIElementsAttribute
+NSAccessibilityRowIndexRangeAttribute = _.NSAccessibilityRowIndexRangeAttribute
+NSAccessibilityRowRole = _.NSAccessibilityRowRole
+NSAccessibilityRowsAttribute = _.NSAccessibilityRowsAttribute
+NSAccessibilityRulerMarkerRole = _.NSAccessibilityRulerMarkerRole
+NSAccessibilityRulerRole = _.NSAccessibilityRulerRole
+NSAccessibilityScreenPointForLayoutPointParameterizedAttribute = _.NSAccessibilityScreenPointForLayoutPointParameterizedAttribute
+NSAccessibilityScreenSizeForLayoutSizeParameterizedAttribute = _.NSAccessibilityScreenSizeForLayoutSizeParameterizedAttribute
+NSAccessibilityScrollAreaRole = _.NSAccessibilityScrollAreaRole
+NSAccessibilityScrollBarRole = _.NSAccessibilityScrollBarRole
+NSAccessibilitySearchButtonAttribute = _.NSAccessibilitySearchButtonAttribute
+NSAccessibilitySearchFieldSubrole = _.NSAccessibilitySearchFieldSubrole
+NSAccessibilitySearchMenuAttribute = _.NSAccessibilitySearchMenuAttribute
+NSAccessibilitySecureTextFieldSubrole = _.NSAccessibilitySecureTextFieldSubrole
+NSAccessibilitySelectedAttribute = _.NSAccessibilitySelectedAttribute
+NSAccessibilitySelectedCellsAttribute = _.NSAccessibilitySelectedCellsAttribute
+NSAccessibilitySelectedCellsChangedNotification = _.NSAccessibilitySelectedCellsChangedNotification
+NSAccessibilitySelectedChildrenAttribute = _.NSAccessibilitySelectedChildrenAttribute
+NSAccessibilitySelectedChildrenChangedNotification = _.NSAccessibilitySelectedChildrenChangedNotification
+NSAccessibilitySelectedChildrenMovedNotification = _.NSAccessibilitySelectedChildrenMovedNotification
+NSAccessibilitySelectedColumnsAttribute = _.NSAccessibilitySelectedColumnsAttribute
+NSAccessibilitySelectedColumnsChangedNotification = _.NSAccessibilitySelectedColumnsChangedNotification
+NSAccessibilitySelectedRowsAttribute = _.NSAccessibilitySelectedRowsAttribute
+NSAccessibilitySelectedRowsChangedNotification = _.NSAccessibilitySelectedRowsChangedNotification
+NSAccessibilitySelectedTextAttribute = _.NSAccessibilitySelectedTextAttribute
+NSAccessibilitySelectedTextChangedNotification = _.NSAccessibilitySelectedTextChangedNotification
+NSAccessibilitySelectedTextRangeAttribute = _.NSAccessibilitySelectedTextRangeAttribute
+NSAccessibilitySelectedTextRangesAttribute = _.NSAccessibilitySelectedTextRangesAttribute
+NSAccessibilityServesAsTitleForUIElementsAttribute = _.NSAccessibilityServesAsTitleForUIElementsAttribute
+NSAccessibilityShadowTextAttribute = _.NSAccessibilityShadowTextAttribute
+NSAccessibilitySharedCharacterRangeAttribute = _.NSAccessibilitySharedCharacterRangeAttribute
+NSAccessibilitySharedTextUIElementsAttribute = _.NSAccessibilitySharedTextUIElementsAttribute
+NSAccessibilitySheetCreatedNotification = _.NSAccessibilitySheetCreatedNotification
+NSAccessibilitySheetRole = _.NSAccessibilitySheetRole
+NSAccessibilityShowMenuAction = _.NSAccessibilityShowMenuAction
+NSAccessibilityShownMenuAttribute = _.NSAccessibilityShownMenuAttribute
+NSAccessibilitySizeAttribute = _.NSAccessibilitySizeAttribute
+NSAccessibilitySliderRole = _.NSAccessibilitySliderRole
+NSAccessibilitySortButtonRole = _.NSAccessibilitySortButtonRole
+NSAccessibilitySortButtonSubrole = _.NSAccessibilitySortButtonSubrole
+NSAccessibilitySortDirectionAttribute = _.NSAccessibilitySortDirectionAttribute
+NSAccessibilitySplitGroupRole = _.NSAccessibilitySplitGroupRole
+NSAccessibilitySplitterRole = _.NSAccessibilitySplitterRole
+NSAccessibilitySplittersAttribute = _.NSAccessibilitySplittersAttribute
+NSAccessibilityStandardWindowSubrole = _.NSAccessibilityStandardWindowSubrole
+NSAccessibilityStaticTextRole = _.NSAccessibilityStaticTextRole
+NSAccessibilityStrikethroughColorTextAttribute = _.NSAccessibilityStrikethroughColorTextAttribute
+NSAccessibilityStrikethroughTextAttribute = _.NSAccessibilityStrikethroughTextAttribute
+NSAccessibilityStringForRangeParameterizedAttribute = _.NSAccessibilityStringForRangeParameterizedAttribute
+NSAccessibilityStyleRangeForIndexParameterizedAttribute = _.NSAccessibilityStyleRangeForIndexParameterizedAttribute
+NSAccessibilitySubroleAttribute = _.NSAccessibilitySubroleAttribute
+NSAccessibilitySuperscriptTextAttribute = _.NSAccessibilitySuperscriptTextAttribute
+NSAccessibilitySystemDialogSubrole = _.NSAccessibilitySystemDialogSubrole
+NSAccessibilitySystemFloatingWindowSubrole = _.NSAccessibilitySystemFloatingWindowSubrole
+NSAccessibilitySystemWideRole = _.NSAccessibilitySystemWideRole
+NSAccessibilityTabGroupRole = _.NSAccessibilityTabGroupRole
+NSAccessibilityTableRole = _.NSAccessibilityTableRole
+NSAccessibilityTableRowSubrole = _.NSAccessibilityTableRowSubrole
+NSAccessibilityTabsAttribute = _.NSAccessibilityTabsAttribute
+NSAccessibilityTailIndentMarkerTypeValue = _.NSAccessibilityTailIndentMarkerTypeValue
+NSAccessibilityTextAreaRole = _.NSAccessibilityTextAreaRole
+NSAccessibilityTextAttachmentSubrole = _.NSAccessibilityTextAttachmentSubrole
+NSAccessibilityTextFieldRole = _.NSAccessibilityTextFieldRole
+NSAccessibilityTextLinkSubrole = _.NSAccessibilityTextLinkSubrole
+NSAccessibilityTimelineSubrole = _.NSAccessibilityTimelineSubrole
+NSAccessibilityTitleAttribute = _.NSAccessibilityTitleAttribute
+NSAccessibilityTitleChangedNotification = _.NSAccessibilityTitleChangedNotification
+NSAccessibilityTitleUIElementAttribute = _.NSAccessibilityTitleUIElementAttribute
+NSAccessibilityToolbarButtonAttribute = _.NSAccessibilityToolbarButtonAttribute
+NSAccessibilityToolbarButtonSubrole = _.NSAccessibilityToolbarButtonSubrole
+NSAccessibilityToolbarRole = _.NSAccessibilityToolbarRole
+NSAccessibilityTopLevelUIElementAttribute = _.NSAccessibilityTopLevelUIElementAttribute
+NSAccessibilityUIElementDestroyedNotification = _.NSAccessibilityUIElementDestroyedNotification
+NSAccessibilityURLAttribute = _.NSAccessibilityURLAttribute
+NSAccessibilityUnderlineColorTextAttribute = _.NSAccessibilityUnderlineColorTextAttribute
+NSAccessibilityUnderlineTextAttribute = _.NSAccessibilityUnderlineTextAttribute
+NSAccessibilityUnitDescriptionAttribute = _.NSAccessibilityUnitDescriptionAttribute
+NSAccessibilityUnitsAttribute = _.NSAccessibilityUnitsAttribute
+NSAccessibilityUnitsChangedNotification = _.NSAccessibilityUnitsChangedNotification
+NSAccessibilityUnknownMarkerTypeValue = _.NSAccessibilityUnknownMarkerTypeValue
+NSAccessibilityUnknownOrientationValue = _.NSAccessibilityUnknownOrientationValue
+NSAccessibilityUnknownRole = _.NSAccessibilityUnknownRole
+NSAccessibilityUnknownSortDirectionValue = _.NSAccessibilityUnknownSortDirectionValue
+NSAccessibilityUnknownSubrole = _.NSAccessibilityUnknownSubrole
+NSAccessibilityUnknownUnitValue = _.NSAccessibilityUnknownUnitValue
+NSAccessibilityValueAttribute = _.NSAccessibilityValueAttribute
+NSAccessibilityValueChangedNotification = _.NSAccessibilityValueChangedNotification
+NSAccessibilityValueDescriptionAttribute = _.NSAccessibilityValueDescriptionAttribute
+NSAccessibilityValueIndicatorRole = _.NSAccessibilityValueIndicatorRole
+NSAccessibilityVerticalOrientationValue = _.NSAccessibilityVerticalOrientationValue
+NSAccessibilityVerticalScrollBarAttribute = _.NSAccessibilityVerticalScrollBarAttribute
+NSAccessibilityVerticalUnitDescriptionAttribute = _.NSAccessibilityVerticalUnitDescriptionAttribute
+NSAccessibilityVerticalUnitsAttribute = _.NSAccessibilityVerticalUnitsAttribute
+NSAccessibilityVisibleCellsAttribute = _.NSAccessibilityVisibleCellsAttribute
+NSAccessibilityVisibleCharacterRangeAttribute = _.NSAccessibilityVisibleCharacterRangeAttribute
+NSAccessibilityVisibleChildrenAttribute = _.NSAccessibilityVisibleChildrenAttribute
+NSAccessibilityVisibleColumnsAttribute = _.NSAccessibilityVisibleColumnsAttribute
+NSAccessibilityVisibleNameKey = _.NSAccessibilityVisibleNameKey
+NSAccessibilityVisibleRowsAttribute = _.NSAccessibilityVisibleRowsAttribute
+NSAccessibilityWarningValueAttribute = _.NSAccessibilityWarningValueAttribute
+NSAccessibilityWindowAttribute = _.NSAccessibilityWindowAttribute
+NSAccessibilityWindowCreatedNotification = _.NSAccessibilityWindowCreatedNotification
+NSAccessibilityWindowDeminiaturizedNotification = _.NSAccessibilityWindowDeminiaturizedNotification
+NSAccessibilityWindowMiniaturizedNotification = _.NSAccessibilityWindowMiniaturizedNotification
+NSAccessibilityWindowMovedNotification = _.NSAccessibilityWindowMovedNotification
+NSAccessibilityWindowResizedNotification = _.NSAccessibilityWindowResizedNotification
+NSAccessibilityWindowRole = _.NSAccessibilityWindowRole
+NSAccessibilityWindowsAttribute = _.NSAccessibilityWindowsAttribute
+NSAccessibilityZoomButtonAttribute = _.NSAccessibilityZoomButtonAttribute
+NSAccessibilityZoomButtonSubrole = _.NSAccessibilityZoomButtonSubrole
+NSAlignmentBinding = _.NSAlignmentBinding
+NSAllRomanInputSourcesLocaleIdentifier = _.NSAllRomanInputSourcesLocaleIdentifier
+NSAllowsEditingMultipleValuesSelectionBindingOption = _.NSAllowsEditingMultipleValuesSelectionBindingOption
+NSAllowsNullArgumentBindingOption = _.NSAllowsNullArgumentBindingOption
+NSAlternateImageBinding = _.NSAlternateImageBinding
+NSAlternateTitleBinding = _.NSAlternateTitleBinding
+NSAlwaysPresentsApplicationModalAlertsBindingOption = _.NSAlwaysPresentsApplicationModalAlertsBindingOption
+NSAnimateBinding = _.NSAnimateBinding
+NSAnimationDelayBinding = _.NSAnimationDelayBinding
+NSAnimationProgressMark = _.NSAnimationProgressMark
+NSAnimationProgressMarkNotification = _.NSAnimationProgressMarkNotification
+NSAnimationTriggerOrderIn = _.NSAnimationTriggerOrderIn
+NSAnimationTriggerOrderOut = _.NSAnimationTriggerOrderOut
+NSAntialiasThresholdChangedNotification = _.NSAntialiasThresholdChangedNotification
+# (id)NSApp
+NSAppKitIgnoredException = _.NSAppKitIgnoredException
+NSAppKitVersionNumber = 1038.36
+NSAppKitVirtualMemoryException = _.NSAppKitVirtualMemoryException
+NSApplicationDidBecomeActiveNotification = _.NSApplicationDidBecomeActiveNotification
+NSApplicationDidChangeScreenParametersNotification = _.NSApplicationDidChangeScreenParametersNotification
+NSApplicationDidFinishLaunchingNotification = _.NSApplicationDidFinishLaunchingNotification
+NSApplicationDidHideNotification = _.NSApplicationDidHideNotification
+NSApplicationDidResignActiveNotification = _.NSApplicationDidResignActiveNotification
+NSApplicationDidUnhideNotification = _.NSApplicationDidUnhideNotification
+NSApplicationDidUpdateNotification = _.NSApplicationDidUpdateNotification
+NSApplicationFileType = _.NSApplicationFileType
+NSApplicationWillBecomeActiveNotification = _.NSApplicationWillBecomeActiveNotification
+NSApplicationWillFinishLaunchingNotification = _.NSApplicationWillFinishLaunchingNotification
+NSApplicationWillHideNotification = _.NSApplicationWillHideNotification
+NSApplicationWillResignActiveNotification = _.NSApplicationWillResignActiveNotification
+NSApplicationWillTerminateNotification = _.NSApplicationWillTerminateNotification
+NSApplicationWillUnhideNotification = _.NSApplicationWillUnhideNotification
+NSApplicationWillUpdateNotification = _.NSApplicationWillUpdateNotification
+NSArgumentBinding = _.NSArgumentBinding
+NSAttachmentAttributeName = _.NSAttachmentAttributeName
+NSAttributedStringBinding = _.NSAttributedStringBinding
+NSAuthorDocumentAttribute = _.NSAuthorDocumentAttribute
+NSBackgroundColorAttributeName = _.NSBackgroundColorAttributeName
+NSBackgroundColorDocumentAttribute = _.NSBackgroundColorDocumentAttribute
+NSBadBitmapParametersException = _.NSBadBitmapParametersException
+NSBadComparisonException = _.NSBadComparisonException
+NSBadRTFColorTableException = _.NSBadRTFColorTableException
+NSBadRTFDirectiveException = _.NSBadRTFDirectiveException
+NSBadRTFFontTableException = _.NSBadRTFFontTableException
+NSBadRTFStyleSheetException = _.NSBadRTFStyleSheetException
+NSBaseURLDocumentOption = _.NSBaseURLDocumentOption
+NSBaselineOffsetAttributeName = _.NSBaselineOffsetAttributeName
+NSBlack = 0.0
+NSBottomMarginDocumentAttribute = _.NSBottomMarginDocumentAttribute
+NSBrowserColumnConfigurationDidChangeNotification = _.NSBrowserColumnConfigurationDidChangeNotification
+NSBrowserIllegalDelegateException = _.NSBrowserIllegalDelegateException
+NSCalibratedBlackColorSpace = _.NSCalibratedBlackColorSpace
+NSCalibratedRGBColorSpace = _.NSCalibratedRGBColorSpace
+NSCalibratedWhiteColorSpace = _.NSCalibratedWhiteColorSpace
+NSCategoryDocumentAttribute = _.NSCategoryDocumentAttribute
+NSCharacterEncodingDocumentAttribute = _.NSCharacterEncodingDocumentAttribute
+NSCharacterEncodingDocumentOption = _.NSCharacterEncodingDocumentOption
+NSCharacterShapeAttributeName = _.NSCharacterShapeAttributeName
+NSCocoaVersionDocumentAttribute = _.NSCocoaVersionDocumentAttribute
+NSColorListDidChangeNotification = _.NSColorListDidChangeNotification
+NSColorListIOException = _.NSColorListIOException
+NSColorListNotEditableException = _.NSColorListNotEditableException
+NSColorPanelColorDidChangeNotification = _.NSColorPanelColorDidChangeNotification
+NSColorPboardType = _.NSColorPboardType
+NSComboBoxSelectionDidChangeNotification = _.NSComboBoxSelectionDidChangeNotification
+NSComboBoxSelectionIsChangingNotification = _.NSComboBoxSelectionIsChangingNotification
+NSComboBoxWillDismissNotification = _.NSComboBoxWillDismissNotification
+NSComboBoxWillPopUpNotification = _.NSComboBoxWillPopUpNotification
+NSCommentDocumentAttribute = _.NSCommentDocumentAttribute
+NSCompanyDocumentAttribute = _.NSCompanyDocumentAttribute
+NSConditionallySetsEditableBindingOption = _.NSConditionallySetsEditableBindingOption
+NSConditionallySetsEnabledBindingOption = _.NSConditionallySetsEnabledBindingOption
+NSConditionallySetsHiddenBindingOption = _.NSConditionallySetsHiddenBindingOption
+NSContentArrayBinding = _.NSContentArrayBinding
+NSContentArrayForMultipleSelectionBinding = _.NSContentArrayForMultipleSelectionBinding
+NSContentBinding = _.NSContentBinding
+NSContentDictionaryBinding = _.NSContentDictionaryBinding
+NSContentHeightBinding = _.NSContentHeightBinding
+NSContentObjectBinding = _.NSContentObjectBinding
+NSContentObjectsBinding = _.NSContentObjectsBinding
+NSContentPlacementTagBindingOption = _.NSContentPlacementTagBindingOption
+NSContentSetBinding = _.NSContentSetBinding
+NSContentValuesBinding = _.NSContentValuesBinding
+NSContentWidthBinding = _.NSContentWidthBinding
+NSContextHelpModeDidActivateNotification = _.NSContextHelpModeDidActivateNotification
+NSContextHelpModeDidDeactivateNotification = _.NSContextHelpModeDidDeactivateNotification
+NSContinuouslyUpdatesValueBindingOption = _.NSContinuouslyUpdatesValueBindingOption
+NSControlTextDidBeginEditingNotification = _.NSControlTextDidBeginEditingNotification
+NSControlTextDidChangeNotification = _.NSControlTextDidChangeNotification
+NSControlTextDidEndEditingNotification = _.NSControlTextDidEndEditingNotification
+NSControlTintDidChangeNotification = _.NSControlTintDidChangeNotification
+NSConvertedDocumentAttribute = _.NSConvertedDocumentAttribute
+NSCopyrightDocumentAttribute = _.NSCopyrightDocumentAttribute
+NSCreatesSortDescriptorBindingOption = _.NSCreatesSortDescriptorBindingOption
+NSCreationTimeDocumentAttribute = _.NSCreationTimeDocumentAttribute
+NSCriticalValueBinding = _.NSCriticalValueBinding
+NSCursorAttributeName = _.NSCursorAttributeName
+NSCustomColorSpace = _.NSCustomColorSpace
+NSDarkGray = 0.333333333333
+NSDataBinding = _.NSDataBinding
+NSDefaultAttributesDocumentOption = _.NSDefaultAttributesDocumentOption
+NSDefaultTabIntervalDocumentAttribute = _.NSDefaultTabIntervalDocumentAttribute
+NSDefinitionPresentationTypeDictionaryApplication = _.NSDefinitionPresentationTypeDictionaryApplication
+NSDefinitionPresentationTypeKey = _.NSDefinitionPresentationTypeKey
+NSDefinitionPresentationTypeOverlay = _.NSDefinitionPresentationTypeOverlay
+NSDeletesObjectsOnRemoveBindingsOption = _.NSDeletesObjectsOnRemoveBindingsOption
+NSDeviceBitsPerSample = _.NSDeviceBitsPerSample
+NSDeviceBlackColorSpace = _.NSDeviceBlackColorSpace
+NSDeviceCMYKColorSpace = _.NSDeviceCMYKColorSpace
+NSDeviceColorSpaceName = _.NSDeviceColorSpaceName
+NSDeviceIsPrinter = _.NSDeviceIsPrinter
+NSDeviceIsScreen = _.NSDeviceIsScreen
+NSDeviceRGBColorSpace = _.NSDeviceRGBColorSpace
+NSDeviceResolution = _.NSDeviceResolution
+NSDeviceSize = _.NSDeviceSize
+NSDeviceWhiteColorSpace = _.NSDeviceWhiteColorSpace
+NSDirectoryFileType = _.NSDirectoryFileType
+NSDisplayNameBindingOption = _.NSDisplayNameBindingOption
+NSDisplayPatternBindingOption = _.NSDisplayPatternBindingOption
+NSDisplayPatternTitleBinding = _.NSDisplayPatternTitleBinding
+NSDisplayPatternValueBinding = _.NSDisplayPatternValueBinding
+NSDocFormatTextDocumentType = _.NSDocFormatTextDocumentType
+NSDocumentEditedBinding = _.NSDocumentEditedBinding
+NSDocumentTypeDocumentAttribute = _.NSDocumentTypeDocumentAttribute
+NSDocumentTypeDocumentOption = _.NSDocumentTypeDocumentOption
+NSDoubleClickArgumentBinding = _.NSDoubleClickArgumentBinding
+NSDoubleClickTargetBinding = _.NSDoubleClickTargetBinding
+NSDragPboard = _.NSDragPboard
+NSDraggingException = _.NSDraggingException
+NSDrawerDidCloseNotification = _.NSDrawerDidCloseNotification
+NSDrawerDidOpenNotification = _.NSDrawerDidOpenNotification
+NSDrawerWillCloseNotification = _.NSDrawerWillCloseNotification
+NSDrawerWillOpenNotification = _.NSDrawerWillOpenNotification
+NSEditableBinding = _.NSEditableBinding
+NSEditorDocumentAttribute = _.NSEditorDocumentAttribute
+NSEnabledBinding = _.NSEnabledBinding
+NSEventTrackingRunLoopMode = _.NSEventTrackingRunLoopMode
+NSExcludedElementsDocumentAttribute = _.NSExcludedElementsDocumentAttribute
+NSExcludedKeysBinding = _.NSExcludedKeysBinding
+NSExpansionAttributeName = _.NSExpansionAttributeName
+NSFileContentsPboardType = _.NSFileContentsPboardType
+NSFileTypeDocumentAttribute = _.NSFileTypeDocumentAttribute
+NSFileTypeDocumentOption = _.NSFileTypeDocumentOption
+NSFilenamesPboardType = _.NSFilenamesPboardType
+NSFilesPromisePboardType = _.NSFilesPromisePboardType
+NSFilesystemFileType = _.NSFilesystemFileType
+NSFilterPredicateBinding = _.NSFilterPredicateBinding
+NSFindPanelCaseInsensitiveSearch = _.NSFindPanelCaseInsensitiveSearch
+NSFindPanelSearchOptionsPboardType = _.NSFindPanelSearchOptionsPboardType
+NSFindPanelSubstringMatch = _.NSFindPanelSubstringMatch
+NSFindPboard = _.NSFindPboard
+NSFontAttributeName = _.NSFontAttributeName
+NSFontBinding = _.NSFontBinding
+NSFontBoldBinding = _.NSFontBoldBinding
+NSFontCascadeListAttribute = _.NSFontCascadeListAttribute
+NSFontCharacterSetAttribute = _.NSFontCharacterSetAttribute
+NSFontColorAttribute = _.NSFontColorAttribute
+NSFontFaceAttribute = _.NSFontFaceAttribute
+NSFontFamilyAttribute = _.NSFontFamilyAttribute
+NSFontFamilyNameBinding = _.NSFontFamilyNameBinding
+NSFontFeatureSelectorIdentifierKey = _.NSFontFeatureSelectorIdentifierKey
+NSFontFeatureSettingsAttribute = _.NSFontFeatureSettingsAttribute
+NSFontFeatureTypeIdentifierKey = _.NSFontFeatureTypeIdentifierKey
+NSFontFixedAdvanceAttribute = _.NSFontFixedAdvanceAttribute
+# (CGFloat*)NSFontIdentityMatrix
+NSFontItalicBinding = _.NSFontItalicBinding
+NSFontMatrixAttribute = _.NSFontMatrixAttribute
+NSFontNameAttribute = _.NSFontNameAttribute
+NSFontNameBinding = _.NSFontNameBinding
+NSFontPboard = _.NSFontPboard
+NSFontPboardType = _.NSFontPboardType
+NSFontSetChangedNotification = _.NSFontSetChangedNotification
+NSFontSizeAttribute = _.NSFontSizeAttribute
+NSFontSizeBinding = _.NSFontSizeBinding
+NSFontSlantTrait = _.NSFontSlantTrait
+NSFontSymbolicTrait = _.NSFontSymbolicTrait
+NSFontTraitsAttribute = _.NSFontTraitsAttribute
+NSFontUnavailableException = _.NSFontUnavailableException
+NSFontVariationAttribute = _.NSFontVariationAttribute
+NSFontVariationAxisDefaultValueKey = _.NSFontVariationAxisDefaultValueKey
+NSFontVariationAxisIdentifierKey = _.NSFontVariationAxisIdentifierKey
+NSFontVariationAxisMaximumValueKey = _.NSFontVariationAxisMaximumValueKey
+NSFontVariationAxisMinimumValueKey = _.NSFontVariationAxisMinimumValueKey
+NSFontVariationAxisNameKey = _.NSFontVariationAxisNameKey
+NSFontVisibleNameAttribute = _.NSFontVisibleNameAttribute
+NSFontWeightTrait = _.NSFontWeightTrait
+NSFontWidthTrait = _.NSFontWidthTrait
+NSForegroundColorAttributeName = _.NSForegroundColorAttributeName
+NSFullScreenModeAllScreens = _.NSFullScreenModeAllScreens
+NSFullScreenModeApplicationPresentationOptions = _.NSFullScreenModeApplicationPresentationOptions
+NSFullScreenModeSetting = _.NSFullScreenModeSetting
+NSFullScreenModeWindowLevel = _.NSFullScreenModeWindowLevel
+NSGeneralPboard = _.NSGeneralPboard
+NSGlyphInfoAttributeName = _.NSGlyphInfoAttributeName
+NSGraphicsContextDestinationAttributeName = _.NSGraphicsContextDestinationAttributeName
+NSGraphicsContextPDFFormat = _.NSGraphicsContextPDFFormat
+NSGraphicsContextPSFormat = _.NSGraphicsContextPSFormat
+NSGraphicsContextRepresentationFormatAttributeName = _.NSGraphicsContextRepresentationFormatAttributeName
+NSHTMLPboardType = _.NSHTMLPboardType
+NSHTMLTextDocumentType = _.NSHTMLTextDocumentType
+NSHandlesContentAsCompoundValueBindingOption = _.NSHandlesContentAsCompoundValueBindingOption
+NSHeaderTitleBinding = _.NSHeaderTitleBinding
+NSHiddenBinding = _.NSHiddenBinding
+NSHyphenationFactorDocumentAttribute = _.NSHyphenationFactorDocumentAttribute
+NSIllegalSelectorException = _.NSIllegalSelectorException
+NSImageBinding = _.NSImageBinding
+NSImageCacheException = _.NSImageCacheException
+NSImageColorSyncProfileData = _.NSImageColorSyncProfileData
+NSImageCompressionFactor = _.NSImageCompressionFactor
+NSImageCompressionMethod = _.NSImageCompressionMethod
+NSImageCurrentFrame = _.NSImageCurrentFrame
+NSImageCurrentFrameDuration = _.NSImageCurrentFrameDuration
+NSImageDitherTransparency = _.NSImageDitherTransparency
+NSImageEXIFData = _.NSImageEXIFData
+NSImageFallbackBackgroundColor = _.NSImageFallbackBackgroundColor
+NSImageFrameCount = _.NSImageFrameCount
+NSImageGamma = _.NSImageGamma
+NSImageHintCTM = _.NSImageHintCTM
+NSImageHintInterpolation = _.NSImageHintInterpolation
+NSImageInterlaced = _.NSImageInterlaced
+NSImageLoopCount = _.NSImageLoopCount
+NSImageNameActionTemplate = _.NSImageNameActionTemplate
+NSImageNameAddTemplate = _.NSImageNameAddTemplate
+NSImageNameAdvanced = _.NSImageNameAdvanced
+NSImageNameApplicationIcon = _.NSImageNameApplicationIcon
+NSImageNameBluetoothTemplate = _.NSImageNameBluetoothTemplate
+NSImageNameBonjour = _.NSImageNameBonjour
+NSImageNameBookmarksTemplate = _.NSImageNameBookmarksTemplate
+NSImageNameCaution = _.NSImageNameCaution
+NSImageNameColorPanel = _.NSImageNameColorPanel
+NSImageNameColumnViewTemplate = _.NSImageNameColumnViewTemplate
+NSImageNameComputer = _.NSImageNameComputer
+NSImageNameDotMac = _.NSImageNameDotMac
+NSImageNameEnterFullScreenTemplate = _.NSImageNameEnterFullScreenTemplate
+NSImageNameEveryone = _.NSImageNameEveryone
+NSImageNameExitFullScreenTemplate = _.NSImageNameExitFullScreenTemplate
+NSImageNameFlowViewTemplate = _.NSImageNameFlowViewTemplate
+NSImageNameFolder = _.NSImageNameFolder
+NSImageNameFolderBurnable = _.NSImageNameFolderBurnable
+NSImageNameFolderSmart = _.NSImageNameFolderSmart
+NSImageNameFollowLinkFreestandingTemplate = _.NSImageNameFollowLinkFreestandingTemplate
+NSImageNameFontPanel = _.NSImageNameFontPanel
+NSImageNameGoLeftTemplate = _.NSImageNameGoLeftTemplate
+NSImageNameGoRightTemplate = _.NSImageNameGoRightTemplate
+NSImageNameHomeTemplate = _.NSImageNameHomeTemplate
+NSImageNameIChatTheaterTemplate = _.NSImageNameIChatTheaterTemplate
+NSImageNameIconViewTemplate = _.NSImageNameIconViewTemplate
+NSImageNameInfo = _.NSImageNameInfo
+NSImageNameInvalidDataFreestandingTemplate = _.NSImageNameInvalidDataFreestandingTemplate
+NSImageNameLeftFacingTriangleTemplate = _.NSImageNameLeftFacingTriangleTemplate
+NSImageNameListViewTemplate = _.NSImageNameListViewTemplate
+NSImageNameLockLockedTemplate = _.NSImageNameLockLockedTemplate
+NSImageNameLockUnlockedTemplate = _.NSImageNameLockUnlockedTemplate
+NSImageNameMenuMixedStateTemplate = _.NSImageNameMenuMixedStateTemplate
+NSImageNameMenuOnStateTemplate = _.NSImageNameMenuOnStateTemplate
+NSImageNameMobileMe = _.NSImageNameMobileMe
+NSImageNameMultipleDocuments = _.NSImageNameMultipleDocuments
+NSImageNameNetwork = _.NSImageNameNetwork
+NSImageNamePathTemplate = _.NSImageNamePathTemplate
+NSImageNamePreferencesGeneral = _.NSImageNamePreferencesGeneral
+NSImageNameQuickLookTemplate = _.NSImageNameQuickLookTemplate
+NSImageNameRefreshFreestandingTemplate = _.NSImageNameRefreshFreestandingTemplate
+NSImageNameRefreshTemplate = _.NSImageNameRefreshTemplate
+NSImageNameRemoveTemplate = _.NSImageNameRemoveTemplate
+NSImageNameRevealFreestandingTemplate = _.NSImageNameRevealFreestandingTemplate
+NSImageNameRightFacingTriangleTemplate = _.NSImageNameRightFacingTriangleTemplate
+NSImageNameSlideshowTemplate = _.NSImageNameSlideshowTemplate
+NSImageNameSmartBadgeTemplate = _.NSImageNameSmartBadgeTemplate
+NSImageNameStatusAvailable = _.NSImageNameStatusAvailable
+NSImageNameStatusNone = _.NSImageNameStatusNone
+NSImageNameStatusPartiallyAvailable = _.NSImageNameStatusPartiallyAvailable
+NSImageNameStatusUnavailable = _.NSImageNameStatusUnavailable
+NSImageNameStopProgressFreestandingTemplate = _.NSImageNameStopProgressFreestandingTemplate
+NSImageNameStopProgressTemplate = _.NSImageNameStopProgressTemplate
+NSImageNameTrashEmpty = _.NSImageNameTrashEmpty
+NSImageNameTrashFull = _.NSImageNameTrashFull
+NSImageNameUser = _.NSImageNameUser
+NSImageNameUserAccounts = _.NSImageNameUserAccounts
+NSImageNameUserGroup = _.NSImageNameUserGroup
+NSImageNameUserGuest = _.NSImageNameUserGuest
+NSImageProgressive = _.NSImageProgressive
+NSImageRGBColorTable = _.NSImageRGBColorTable
+NSImageRepRegistryDidChangeNotification = _.NSImageRepRegistryDidChangeNotification
+NSIncludedKeysBinding = _.NSIncludedKeysBinding
+NSInitialKeyBinding = _.NSInitialKeyBinding
+NSInitialValueBinding = _.NSInitialValueBinding
+NSInkTextPboardType = _.NSInkTextPboardType
+NSInsertsNullPlaceholderBindingOption = _.NSInsertsNullPlaceholderBindingOption
+NSInterfaceStyleDefault = _.NSInterfaceStyleDefault
+NSInvokesSeparatelyWithArrayObjectsBindingOption = _.NSInvokesSeparatelyWithArrayObjectsBindingOption
+NSIsIndeterminateBinding = _.NSIsIndeterminateBinding
+NSKernAttributeName = _.NSKernAttributeName
+NSKeywordsDocumentAttribute = _.NSKeywordsDocumentAttribute
+NSLabelBinding = _.NSLabelBinding
+NSLeftMarginDocumentAttribute = _.NSLeftMarginDocumentAttribute
+NSLigatureAttributeName = _.NSLigatureAttributeName
+NSLightGray = 0.666666666667
+NSLinkAttributeName = _.NSLinkAttributeName
+NSLocalizedKeyDictionaryBinding = _.NSLocalizedKeyDictionaryBinding
+NSMacSimpleTextDocumentType = _.NSMacSimpleTextDocumentType
+NSManagedObjectContextBinding = _.NSManagedObjectContextBinding
+NSManagerDocumentAttribute = _.NSManagerDocumentAttribute
+NSMarkedClauseSegmentAttributeName = _.NSMarkedClauseSegmentAttributeName
+NSMaxValueBinding = _.NSMaxValueBinding
+NSMaxWidthBinding = _.NSMaxWidthBinding
+NSMaximumRecentsBinding = _.NSMaximumRecentsBinding
+NSMenuDidAddItemNotification = _.NSMenuDidAddItemNotification
+NSMenuDidBeginTrackingNotification = _.NSMenuDidBeginTrackingNotification
+NSMenuDidChangeItemNotification = _.NSMenuDidChangeItemNotification
+NSMenuDidEndTrackingNotification = _.NSMenuDidEndTrackingNotification
+NSMenuDidRemoveItemNotification = _.NSMenuDidRemoveItemNotification
+NSMenuDidSendActionNotification = _.NSMenuDidSendActionNotification
+NSMenuWillSendActionNotification = _.NSMenuWillSendActionNotification
+NSMinValueBinding = _.NSMinValueBinding
+NSMinWidthBinding = _.NSMinWidthBinding
+NSMixedStateImageBinding = _.NSMixedStateImageBinding
+NSModalPanelRunLoopMode = _.NSModalPanelRunLoopMode
+NSModificationTimeDocumentAttribute = _.NSModificationTimeDocumentAttribute
+NSMultipleTextSelectionPboardType = _.NSMultipleTextSelectionPboardType
+# (id)NSMultipleValuesMarker
+NSMultipleValuesPlaceholderBindingOption = _.NSMultipleValuesPlaceholderBindingOption
+NSNamedColorSpace = _.NSNamedColorSpace
+NSNibLoadingException = _.NSNibLoadingException
+NSNibOwner = _.NSNibOwner
+NSNibTopLevelObjects = _.NSNibTopLevelObjects
+# (id)NSNoSelectionMarker
+NSNoSelectionPlaceholderBindingOption = _.NSNoSelectionPlaceholderBindingOption
+# (id)NSNotApplicableMarker
+NSNotApplicablePlaceholderBindingOption = _.NSNotApplicablePlaceholderBindingOption
+NSNullPlaceholderBindingOption = _.NSNullPlaceholderBindingOption
+NSObliquenessAttributeName = _.NSObliquenessAttributeName
+NSObservedKeyPathKey = _.NSObservedKeyPathKey
+NSObservedObjectKey = _.NSObservedObjectKey
+NSOffStateImageBinding = _.NSOffStateImageBinding
+NSOfficeOpenXMLTextDocumentType = _.NSOfficeOpenXMLTextDocumentType
+NSOnStateImageBinding = _.NSOnStateImageBinding
+NSOpenDocumentTextDocumentType = _.NSOpenDocumentTextDocumentType
+NSOptionsKey = _.NSOptionsKey
+NSOutlineViewColumnDidMoveNotification = _.NSOutlineViewColumnDidMoveNotification
+NSOutlineViewColumnDidResizeNotification = _.NSOutlineViewColumnDidResizeNotification
+NSOutlineViewItemDidCollapseNotification = _.NSOutlineViewItemDidCollapseNotification
+NSOutlineViewItemDidExpandNotification = _.NSOutlineViewItemDidExpandNotification
+NSOutlineViewItemWillCollapseNotification = _.NSOutlineViewItemWillCollapseNotification
+NSOutlineViewItemWillExpandNotification = _.NSOutlineViewItemWillExpandNotification
+NSOutlineViewSelectionDidChangeNotification = _.NSOutlineViewSelectionDidChangeNotification
+NSOutlineViewSelectionIsChangingNotification = _.NSOutlineViewSelectionIsChangingNotification
+NSPDFPboardType = _.NSPDFPboardType
+NSPICTPboardType = _.NSPICTPboardType
+NSPPDIncludeNotFoundException = _.NSPPDIncludeNotFoundException
+NSPPDIncludeStackOverflowException = _.NSPPDIncludeStackOverflowException
+NSPPDIncludeStackUnderflowException = _.NSPPDIncludeStackUnderflowException
+NSPPDParseException = _.NSPPDParseException
+NSPaperSizeDocumentAttribute = _.NSPaperSizeDocumentAttribute
+NSParagraphStyleAttributeName = _.NSParagraphStyleAttributeName
+NSPasteboardCommunicationException = _.NSPasteboardCommunicationException
+NSPasteboardTypeColor = _.NSPasteboardTypeColor
+NSPasteboardTypeFindPanelSearchOptions = _.NSPasteboardTypeFindPanelSearchOptions
+NSPasteboardTypeFont = _.NSPasteboardTypeFont
+NSPasteboardTypeHTML = _.NSPasteboardTypeHTML
+NSPasteboardTypeMultipleTextSelection = _.NSPasteboardTypeMultipleTextSelection
+NSPasteboardTypePDF = _.NSPasteboardTypePDF
+NSPasteboardTypePNG = _.NSPasteboardTypePNG
+NSPasteboardTypeRTF = _.NSPasteboardTypeRTF
+NSPasteboardTypeRTFD = _.NSPasteboardTypeRTFD
+NSPasteboardTypeRuler = _.NSPasteboardTypeRuler
+NSPasteboardTypeSound = _.NSPasteboardTypeSound
+NSPasteboardTypeString = _.NSPasteboardTypeString
+NSPasteboardTypeTIFF = _.NSPasteboardTypeTIFF
+NSPasteboardTypeTabularText = _.NSPasteboardTypeTabularText
+NSPasteboardURLReadingContentsConformToTypesKey = _.NSPasteboardURLReadingContentsConformToTypesKey
+NSPasteboardURLReadingFileURLsOnlyKey = _.NSPasteboardURLReadingFileURLsOnlyKey
+NSPatternColorSpace = _.NSPatternColorSpace
+NSPlainFileType = _.NSPlainFileType
+NSPlainTextDocumentType = _.NSPlainTextDocumentType
+NSPopUpButtonCellWillPopUpNotification = _.NSPopUpButtonCellWillPopUpNotification
+NSPopUpButtonWillPopUpNotification = _.NSPopUpButtonWillPopUpNotification
+NSPostScriptPboardType = _.NSPostScriptPboardType
+NSPredicateBinding = _.NSPredicateBinding
+NSPredicateFormatBindingOption = _.NSPredicateFormatBindingOption
+NSPrefixSpacesDocumentAttribute = _.NSPrefixSpacesDocumentAttribute
+NSPrintAllPages = _.NSPrintAllPages
+NSPrintAllPresetsJobStyleHint = _.NSPrintAllPresetsJobStyleHint
+NSPrintBottomMargin = _.NSPrintBottomMargin
+NSPrintCancelJob = _.NSPrintCancelJob
+NSPrintCopies = _.NSPrintCopies
+NSPrintDetailedErrorReporting = _.NSPrintDetailedErrorReporting
+NSPrintFaxNumber = _.NSPrintFaxNumber
+NSPrintFirstPage = _.NSPrintFirstPage
+NSPrintFormName = _.NSPrintFormName
+NSPrintHeaderAndFooter = _.NSPrintHeaderAndFooter
+NSPrintHorizontalPagination = _.NSPrintHorizontalPagination
+NSPrintHorizontallyCentered = _.NSPrintHorizontallyCentered
+NSPrintJobDisposition = _.NSPrintJobDisposition
+NSPrintJobFeatures = _.NSPrintJobFeatures
+NSPrintJobSavingFileNameExtensionHidden = _.NSPrintJobSavingFileNameExtensionHidden
+NSPrintJobSavingURL = _.NSPrintJobSavingURL
+NSPrintLastPage = _.NSPrintLastPage
+NSPrintLeftMargin = _.NSPrintLeftMargin
+NSPrintManualFeed = _.NSPrintManualFeed
+NSPrintMustCollate = _.NSPrintMustCollate
+NSPrintNoPresetsJobStyleHint = _.NSPrintNoPresetsJobStyleHint
+NSPrintOperationExistsException = _.NSPrintOperationExistsException
+NSPrintOrientation = _.NSPrintOrientation
+NSPrintPackageException = _.NSPrintPackageException
+NSPrintPagesAcross = _.NSPrintPagesAcross
+NSPrintPagesDown = _.NSPrintPagesDown
+NSPrintPagesPerSheet = _.NSPrintPagesPerSheet
+NSPrintPanelAccessorySummaryItemDescriptionKey = _.NSPrintPanelAccessorySummaryItemDescriptionKey
+NSPrintPanelAccessorySummaryItemNameKey = _.NSPrintPanelAccessorySummaryItemNameKey
+NSPrintPaperFeed = _.NSPrintPaperFeed
+NSPrintPaperName = _.NSPrintPaperName
+NSPrintPaperSize = _.NSPrintPaperSize
+NSPrintPhotoJobStyleHint = _.NSPrintPhotoJobStyleHint
+NSPrintPreviewJob = _.NSPrintPreviewJob
+NSPrintPrinter = _.NSPrintPrinter
+NSPrintPrinterName = _.NSPrintPrinterName
+NSPrintReversePageOrder = _.NSPrintReversePageOrder
+NSPrintRightMargin = _.NSPrintRightMargin
+NSPrintSaveJob = _.NSPrintSaveJob
+NSPrintSavePath = _.NSPrintSavePath
+NSPrintScalingFactor = _.NSPrintScalingFactor
+NSPrintSelectionOnly = _.NSPrintSelectionOnly
+NSPrintSpoolJob = _.NSPrintSpoolJob
+NSPrintTime = _.NSPrintTime
+NSPrintTopMargin = _.NSPrintTopMargin
+NSPrintVerticalPagination = _.NSPrintVerticalPagination
+NSPrintVerticallyCentered = _.NSPrintVerticallyCentered
+NSPrintingCommunicationException = _.NSPrintingCommunicationException
+NSRTFDPboardType = _.NSRTFDPboardType
+NSRTFDTextDocumentType = _.NSRTFDTextDocumentType
+NSRTFPboardType = _.NSRTFPboardType
+NSRTFPropertyStackOverflowException = _.NSRTFPropertyStackOverflowException
+NSRTFTextDocumentType = _.NSRTFTextDocumentType
+NSRaisesForNotApplicableKeysBindingOption = _.NSRaisesForNotApplicableKeysBindingOption
+NSReadOnlyDocumentAttribute = _.NSReadOnlyDocumentAttribute
+NSRecentSearchesBinding = _.NSRecentSearchesBinding
+NSRepresentedFilenameBinding = _.NSRepresentedFilenameBinding
+NSRightMarginDocumentAttribute = _.NSRightMarginDocumentAttribute
+NSRowHeightBinding = _.NSRowHeightBinding
+NSRuleEditorPredicateComparisonModifier = _.NSRuleEditorPredicateComparisonModifier
+NSRuleEditorPredicateCompoundType = _.NSRuleEditorPredicateCompoundType
+NSRuleEditorPredicateCustomSelector = _.NSRuleEditorPredicateCustomSelector
+NSRuleEditorPredicateLeftExpression = _.NSRuleEditorPredicateLeftExpression
+NSRuleEditorPredicateOperatorType = _.NSRuleEditorPredicateOperatorType
+NSRuleEditorPredicateOptions = _.NSRuleEditorPredicateOptions
+NSRuleEditorPredicateRightExpression = _.NSRuleEditorPredicateRightExpression
+NSRuleEditorRowsDidChangeNotification = _.NSRuleEditorRowsDidChangeNotification
+NSRulerPboard = _.NSRulerPboard
+NSRulerPboardType = _.NSRulerPboardType
+NSScreenColorSpaceDidChangeNotification = _.NSScreenColorSpaceDidChangeNotification
+NSSelectedIdentifierBinding = _.NSSelectedIdentifierBinding
+NSSelectedIndexBinding = _.NSSelectedIndexBinding
+NSSelectedLabelBinding = _.NSSelectedLabelBinding
+NSSelectedObjectBinding = _.NSSelectedObjectBinding
+NSSelectedObjectsBinding = _.NSSelectedObjectsBinding
+NSSelectedTagBinding = _.NSSelectedTagBinding
+NSSelectedValueBinding = _.NSSelectedValueBinding
+NSSelectedValuesBinding = _.NSSelectedValuesBinding
+NSSelectionIndexPathsBinding = _.NSSelectionIndexPathsBinding
+NSSelectionIndexesBinding = _.NSSelectionIndexesBinding
+NSSelectorNameBindingOption = _.NSSelectorNameBindingOption
+NSSelectsAllWhenSettingContentBindingOption = _.NSSelectsAllWhenSettingContentBindingOption
+NSShadowAttributeName = _.NSShadowAttributeName
+NSShellCommandFileType = _.NSShellCommandFileType
+NSSortDescriptorsBinding = _.NSSortDescriptorsBinding
+NSSoundPboardType = _.NSSoundPboardType
+NSSpeechCharacterModeProperty = _.NSSpeechCharacterModeProperty
+NSSpeechCommandDelimiterProperty = _.NSSpeechCommandDelimiterProperty
+NSSpeechCommandPrefix = _.NSSpeechCommandPrefix
+NSSpeechCommandSuffix = _.NSSpeechCommandSuffix
+NSSpeechCurrentVoiceProperty = _.NSSpeechCurrentVoiceProperty
+NSSpeechDictionaryAbbreviations = _.NSSpeechDictionaryAbbreviations
+NSSpeechDictionaryEntryPhonemes = _.NSSpeechDictionaryEntryPhonemes
+NSSpeechDictionaryEntrySpelling = _.NSSpeechDictionaryEntrySpelling
+NSSpeechDictionaryLocaleIdentifier = _.NSSpeechDictionaryLocaleIdentifier
+NSSpeechDictionaryModificationDate = _.NSSpeechDictionaryModificationDate
+NSSpeechDictionaryPronunciations = _.NSSpeechDictionaryPronunciations
+NSSpeechErrorCount = _.NSSpeechErrorCount
+NSSpeechErrorNewestCharacterOffset = _.NSSpeechErrorNewestCharacterOffset
+NSSpeechErrorNewestCode = _.NSSpeechErrorNewestCode
+NSSpeechErrorOldestCharacterOffset = _.NSSpeechErrorOldestCharacterOffset
+NSSpeechErrorOldestCode = _.NSSpeechErrorOldestCode
+NSSpeechErrorsProperty = _.NSSpeechErrorsProperty
+NSSpeechInputModeProperty = _.NSSpeechInputModeProperty
+NSSpeechModeLiteral = _.NSSpeechModeLiteral
+NSSpeechModeNormal = _.NSSpeechModeNormal
+NSSpeechModePhoneme = _.NSSpeechModePhoneme
+NSSpeechModeText = _.NSSpeechModeText
+NSSpeechNumberModeProperty = _.NSSpeechNumberModeProperty
+NSSpeechOutputToFileURLProperty = _.NSSpeechOutputToFileURLProperty
+NSSpeechPhonemeInfoExample = _.NSSpeechPhonemeInfoExample
+NSSpeechPhonemeInfoHiliteEnd = _.NSSpeechPhonemeInfoHiliteEnd
+NSSpeechPhonemeInfoHiliteStart = _.NSSpeechPhonemeInfoHiliteStart
+NSSpeechPhonemeInfoOpcode = _.NSSpeechPhonemeInfoOpcode
+NSSpeechPhonemeInfoSymbol = _.NSSpeechPhonemeInfoSymbol
+NSSpeechPhonemeSymbolsProperty = _.NSSpeechPhonemeSymbolsProperty
+NSSpeechPitchBaseProperty = _.NSSpeechPitchBaseProperty
+NSSpeechPitchModProperty = _.NSSpeechPitchModProperty
+NSSpeechRateProperty = _.NSSpeechRateProperty
+NSSpeechRecentSyncProperty = _.NSSpeechRecentSyncProperty
+NSSpeechResetProperty = _.NSSpeechResetProperty
+NSSpeechStatusNumberOfCharactersLeft = _.NSSpeechStatusNumberOfCharactersLeft
+NSSpeechStatusOutputBusy = _.NSSpeechStatusOutputBusy
+NSSpeechStatusOutputPaused = _.NSSpeechStatusOutputPaused
+NSSpeechStatusPhonemeCode = _.NSSpeechStatusPhonemeCode
+NSSpeechStatusProperty = _.NSSpeechStatusProperty
+NSSpeechSynthesizerInfoIdentifier = _.NSSpeechSynthesizerInfoIdentifier
+NSSpeechSynthesizerInfoProperty = _.NSSpeechSynthesizerInfoProperty
+NSSpeechSynthesizerInfoVersion = _.NSSpeechSynthesizerInfoVersion
+NSSpeechVolumeProperty = _.NSSpeechVolumeProperty
+NSSpellingStateAttributeName = _.NSSpellingStateAttributeName
+NSSplitViewDidResizeSubviewsNotification = _.NSSplitViewDidResizeSubviewsNotification
+NSSplitViewWillResizeSubviewsNotification = _.NSSplitViewWillResizeSubviewsNotification
+NSStrikethroughColorAttributeName = _.NSStrikethroughColorAttributeName
+NSStrikethroughStyleAttributeName = _.NSStrikethroughStyleAttributeName
+NSStringPboardType = _.NSStringPboardType
+NSStrokeColorAttributeName = _.NSStrokeColorAttributeName
+NSStrokeWidthAttributeName = _.NSStrokeWidthAttributeName
+NSSubjectDocumentAttribute = _.NSSubjectDocumentAttribute
+NSSuperscriptAttributeName = _.NSSuperscriptAttributeName
+NSSystemColorsDidChangeNotification = _.NSSystemColorsDidChangeNotification
+NSTIFFException = _.NSTIFFException
+NSTIFFPboardType = _.NSTIFFPboardType
+NSTabColumnTerminatorsAttributeName = _.NSTabColumnTerminatorsAttributeName
+NSTableViewColumnDidMoveNotification = _.NSTableViewColumnDidMoveNotification
+NSTableViewColumnDidResizeNotification = _.NSTableViewColumnDidResizeNotification
+NSTableViewSelectionDidChangeNotification = _.NSTableViewSelectionDidChangeNotification
+NSTableViewSelectionIsChangingNotification = _.NSTableViewSelectionIsChangingNotification
+NSTabularTextPboardType = _.NSTabularTextPboardType
+NSTargetBinding = _.NSTargetBinding
+NSTextCheckingDocumentAuthorKey = _.NSTextCheckingDocumentAuthorKey
+NSTextCheckingDocumentTitleKey = _.NSTextCheckingDocumentTitleKey
+NSTextCheckingDocumentURLKey = _.NSTextCheckingDocumentURLKey
+NSTextCheckingOrthographyKey = _.NSTextCheckingOrthographyKey
+NSTextCheckingQuotesKey = _.NSTextCheckingQuotesKey
+NSTextCheckingReferenceDateKey = _.NSTextCheckingReferenceDateKey
+NSTextCheckingReferenceTimeZoneKey = _.NSTextCheckingReferenceTimeZoneKey
+NSTextCheckingReplacementsKey = _.NSTextCheckingReplacementsKey
+NSTextColorBinding = _.NSTextColorBinding
+NSTextDidBeginEditingNotification = _.NSTextDidBeginEditingNotification
+NSTextDidChangeNotification = _.NSTextDidChangeNotification
+NSTextDidEndEditingNotification = _.NSTextDidEndEditingNotification
+NSTextEncodingNameDocumentAttribute = _.NSTextEncodingNameDocumentAttribute
+NSTextEncodingNameDocumentOption = _.NSTextEncodingNameDocumentOption
+NSTextInputContextKeyboardSelectionDidChangeNotification = _.NSTextInputContextKeyboardSelectionDidChangeNotification
+NSTextLineTooLongException = _.NSTextLineTooLongException
+NSTextNoSelectionException = _.NSTextNoSelectionException
+NSTextReadException = _.NSTextReadException
+NSTextSizeMultiplierDocumentOption = _.NSTextSizeMultiplierDocumentOption
+NSTextStorageDidProcessEditingNotification = _.NSTextStorageDidProcessEditingNotification
+NSTextStorageWillProcessEditingNotification = _.NSTextStorageWillProcessEditingNotification
+NSTextViewDidChangeSelectionNotification = _.NSTextViewDidChangeSelectionNotification
+NSTextViewDidChangeTypingAttributesNotification = _.NSTextViewDidChangeTypingAttributesNotification
+NSTextViewWillChangeNotifyingTextViewNotification = _.NSTextViewWillChangeNotifyingTextViewNotification
+NSTextWriteException = _.NSTextWriteException
+NSTimeoutDocumentOption = _.NSTimeoutDocumentOption
+NSTitleBinding = _.NSTitleBinding
+NSTitleDocumentAttribute = _.NSTitleDocumentAttribute
+NSToolTipAttributeName = _.NSToolTipAttributeName
+NSToolTipBinding = _.NSToolTipBinding
+NSToolbarCustomizeToolbarItemIdentifier = _.NSToolbarCustomizeToolbarItemIdentifier
+NSToolbarDidRemoveItemNotification = _.NSToolbarDidRemoveItemNotification
+NSToolbarFlexibleSpaceItemIdentifier = _.NSToolbarFlexibleSpaceItemIdentifier
+NSToolbarPrintItemIdentifier = _.NSToolbarPrintItemIdentifier
+NSToolbarSeparatorItemIdentifier = _.NSToolbarSeparatorItemIdentifier
+NSToolbarShowColorsItemIdentifier = _.NSToolbarShowColorsItemIdentifier
+NSToolbarShowFontsItemIdentifier = _.NSToolbarShowFontsItemIdentifier
+NSToolbarSpaceItemIdentifier = _.NSToolbarSpaceItemIdentifier
+NSToolbarWillAddItemNotification = _.NSToolbarWillAddItemNotification
+NSTopMarginDocumentAttribute = _.NSTopMarginDocumentAttribute
+NSTransparentBinding = _.NSTransparentBinding
+NSTypedStreamVersionException = _.NSTypedStreamVersionException
+NSURLPboardType = _.NSURLPboardType
+NSUnderlineByWordMask = 32768
+NSUnderlineColorAttributeName = _.NSUnderlineColorAttributeName
+NSUnderlineStrikethroughMask = 16384
+NSUnderlineStyleAttributeName = _.NSUnderlineStyleAttributeName
+NSVCardPboardType = _.NSVCardPboardType
+NSValidatesImmediatelyBindingOption = _.NSValidatesImmediatelyBindingOption
+NSValueBinding = _.NSValueBinding
+NSValuePathBinding = _.NSValuePathBinding
+NSValueTransformerBindingOption = _.NSValueTransformerBindingOption
+NSValueTransformerNameBindingOption = _.NSValueTransformerNameBindingOption
+NSValueURLBinding = _.NSValueURLBinding
+NSViewAnimationEffectKey = _.NSViewAnimationEffectKey
+NSViewAnimationEndFrameKey = _.NSViewAnimationEndFrameKey
+NSViewAnimationFadeInEffect = _.NSViewAnimationFadeInEffect
+NSViewAnimationFadeOutEffect = _.NSViewAnimationFadeOutEffect
+NSViewAnimationStartFrameKey = _.NSViewAnimationStartFrameKey
+NSViewAnimationTargetKey = _.NSViewAnimationTargetKey
+NSViewBoundsDidChangeNotification = _.NSViewBoundsDidChangeNotification
+NSViewDidUpdateTrackingAreasNotification = _.NSViewDidUpdateTrackingAreasNotification
+NSViewFocusDidChangeNotification = _.NSViewFocusDidChangeNotification
+NSViewFrameDidChangeNotification = _.NSViewFrameDidChangeNotification
+NSViewGlobalFrameDidChangeNotification = _.NSViewGlobalFrameDidChangeNotification
+NSViewModeDocumentAttribute = _.NSViewModeDocumentAttribute
+NSViewSizeDocumentAttribute = _.NSViewSizeDocumentAttribute
+NSViewZoomDocumentAttribute = _.NSViewZoomDocumentAttribute
+NSVisibleBinding = _.NSVisibleBinding
+NSVoiceAge = _.NSVoiceAge
+NSVoiceDemoText = _.NSVoiceDemoText
+NSVoiceGender = _.NSVoiceGender
+NSVoiceGenderFemale = _.NSVoiceGenderFemale
+NSVoiceGenderMale = _.NSVoiceGenderMale
+NSVoiceGenderNeuter = _.NSVoiceGenderNeuter
+NSVoiceIdentifier = _.NSVoiceIdentifier
+NSVoiceIndividuallySpokenCharacters = _.NSVoiceIndividuallySpokenCharacters
+NSVoiceLanguage = _.NSVoiceLanguage
+NSVoiceLocaleIdentifier = _.NSVoiceLocaleIdentifier
+NSVoiceName = _.NSVoiceName
+NSVoiceSupportedCharacters = _.NSVoiceSupportedCharacters
+NSWarningValueBinding = _.NSWarningValueBinding
+NSWebArchiveTextDocumentType = _.NSWebArchiveTextDocumentType
+NSWebPreferencesDocumentOption = _.NSWebPreferencesDocumentOption
+NSWebResourceLoadDelegateDocumentOption = _.NSWebResourceLoadDelegateDocumentOption
+NSWhite = 1.0
+NSWidthBinding = _.NSWidthBinding
+NSWindowDidBecomeKeyNotification = _.NSWindowDidBecomeKeyNotification
+NSWindowDidBecomeMainNotification = _.NSWindowDidBecomeMainNotification
+NSWindowDidChangeScreenNotification = _.NSWindowDidChangeScreenNotification
+NSWindowDidChangeScreenProfileNotification = _.NSWindowDidChangeScreenProfileNotification
+NSWindowDidDeminiaturizeNotification = _.NSWindowDidDeminiaturizeNotification
+NSWindowDidEndLiveResizeNotification = _.NSWindowDidEndLiveResizeNotification
+NSWindowDidEndSheetNotification = _.NSWindowDidEndSheetNotification
+NSWindowDidExposeNotification = _.NSWindowDidExposeNotification
+NSWindowDidMiniaturizeNotification = _.NSWindowDidMiniaturizeNotification
+NSWindowDidMoveNotification = _.NSWindowDidMoveNotification
+NSWindowDidResignKeyNotification = _.NSWindowDidResignKeyNotification
+NSWindowDidResignMainNotification = _.NSWindowDidResignMainNotification
+NSWindowDidResizeNotification = _.NSWindowDidResizeNotification
+NSWindowDidUpdateNotification = _.NSWindowDidUpdateNotification
+NSWindowServerCommunicationException = _.NSWindowServerCommunicationException
+NSWindowWillBeginSheetNotification = _.NSWindowWillBeginSheetNotification
+NSWindowWillCloseNotification = _.NSWindowWillCloseNotification
+NSWindowWillMiniaturizeNotification = _.NSWindowWillMiniaturizeNotification
+NSWindowWillMoveNotification = _.NSWindowWillMoveNotification
+NSWindowWillStartLiveResizeNotification = _.NSWindowWillStartLiveResizeNotification
+NSWordMLTextDocumentType = _.NSWordMLTextDocumentType
+NSWordTablesReadException = _.NSWordTablesReadException
+NSWordTablesWriteException = _.NSWordTablesWriteException
+NSWorkspaceActiveSpaceDidChangeNotification = _.NSWorkspaceActiveSpaceDidChangeNotification
+NSWorkspaceApplicationKey = _.NSWorkspaceApplicationKey
+NSWorkspaceCompressOperation = _.NSWorkspaceCompressOperation
+NSWorkspaceCopyOperation = _.NSWorkspaceCopyOperation
+NSWorkspaceDecompressOperation = _.NSWorkspaceDecompressOperation
+NSWorkspaceDecryptOperation = _.NSWorkspaceDecryptOperation
+NSWorkspaceDesktopImageAllowClippingKey = _.NSWorkspaceDesktopImageAllowClippingKey
+NSWorkspaceDesktopImageFillColorKey = _.NSWorkspaceDesktopImageFillColorKey
+NSWorkspaceDesktopImageScalingKey = _.NSWorkspaceDesktopImageScalingKey
+NSWorkspaceDestroyOperation = _.NSWorkspaceDestroyOperation
+NSWorkspaceDidActivateApplicationNotification = _.NSWorkspaceDidActivateApplicationNotification
+NSWorkspaceDidChangeFileLabelsNotification = _.NSWorkspaceDidChangeFileLabelsNotification
+NSWorkspaceDidDeactivateApplicationNotification = _.NSWorkspaceDidDeactivateApplicationNotification
+NSWorkspaceDidHideApplicationNotification = _.NSWorkspaceDidHideApplicationNotification
+NSWorkspaceDidLaunchApplicationNotification = _.NSWorkspaceDidLaunchApplicationNotification
+NSWorkspaceDidMountNotification = _.NSWorkspaceDidMountNotification
+NSWorkspaceDidPerformFileOperationNotification = _.NSWorkspaceDidPerformFileOperationNotification
+NSWorkspaceDidRenameVolumeNotification = _.NSWorkspaceDidRenameVolumeNotification
+NSWorkspaceDidTerminateApplicationNotification = _.NSWorkspaceDidTerminateApplicationNotification
+NSWorkspaceDidUnhideApplicationNotification = _.NSWorkspaceDidUnhideApplicationNotification
+NSWorkspaceDidUnmountNotification = _.NSWorkspaceDidUnmountNotification
+NSWorkspaceDidWakeNotification = _.NSWorkspaceDidWakeNotification
+NSWorkspaceDuplicateOperation = _.NSWorkspaceDuplicateOperation
+NSWorkspaceEncryptOperation = _.NSWorkspaceEncryptOperation
+NSWorkspaceLaunchConfigurationAppleEvent = _.NSWorkspaceLaunchConfigurationAppleEvent
+NSWorkspaceLaunchConfigurationArchitecture = _.NSWorkspaceLaunchConfigurationArchitecture
+NSWorkspaceLaunchConfigurationArguments = _.NSWorkspaceLaunchConfigurationArguments
+NSWorkspaceLaunchConfigurationEnvironment = _.NSWorkspaceLaunchConfigurationEnvironment
+NSWorkspaceLinkOperation = _.NSWorkspaceLinkOperation
+NSWorkspaceMoveOperation = _.NSWorkspaceMoveOperation
+NSWorkspaceRecycleOperation = _.NSWorkspaceRecycleOperation
+NSWorkspaceScreensDidSleepNotification = _.NSWorkspaceScreensDidSleepNotification
+NSWorkspaceScreensDidWakeNotification = _.NSWorkspaceScreensDidWakeNotification
+NSWorkspaceSessionDidBecomeActiveNotification = _.NSWorkspaceSessionDidBecomeActiveNotification
+NSWorkspaceSessionDidResignActiveNotification = _.NSWorkspaceSessionDidResignActiveNotification
+NSWorkspaceVolumeLocalizedNameKey = _.NSWorkspaceVolumeLocalizedNameKey
+NSWorkspaceVolumeOldLocalizedNameKey = _.NSWorkspaceVolumeOldLocalizedNameKey
+NSWorkspaceVolumeOldURLKey = _.NSWorkspaceVolumeOldURLKey
+NSWorkspaceVolumeURLKey = _.NSWorkspaceVolumeURLKey
+NSWorkspaceWillLaunchApplicationNotification = _.NSWorkspaceWillLaunchApplicationNotification
+NSWorkspaceWillPowerOffNotification = _.NSWorkspaceWillPowerOffNotification
+NSWorkspaceWillSleepNotification = _.NSWorkspaceWillSleepNotification
+NSWorkspaceWillUnmountNotification = _.NSWorkspaceWillUnmountNotification
+NSWritingDirectionAttributeName = _.NSWritingDirectionAttributeName
+
+# enums
+NSAWTEventType = 16
+NSAboveBottom = 4
+NSAboveTop = 1
+NSAddTraitFontAction = 2
+NSAdobeCNS1CharacterCollection = 1
+NSAdobeGB1CharacterCollection = 2
+NSAdobeJapan1CharacterCollection = 3
+NSAdobeJapan2CharacterCollection = 4
+NSAdobeKorea1CharacterCollection = 5
+NSAlertAlternateReturn = 0
+NSAlertDefaultReturn = 1
+NSAlertErrorReturn = -2
+NSAlertFirstButtonReturn = 1000
+NSAlertOtherReturn = -1
+NSAlertSecondButtonReturn = 1001
+NSAlertThirdButtonReturn = 1002
+NSAllScrollerParts = 2
+NSAlphaFirstBitmapFormat = 1
+NSAlphaNonpremultipliedBitmapFormat = 2
+NSAlphaShiftKeyMask = 65536
+NSAlternateKeyMask = 524288
+NSAnimationBlocking = 0
+NSAnimationEaseIn = 1
+NSAnimationEaseInOut = 0
+NSAnimationEaseOut = 2
+NSAnimationEffectDisappearingItemDefault = 0
+NSAnimationEffectPoof = 10
+NSAnimationLinear = 3
+NSAnimationNonblocking = 1
+NSAnimationNonblockingThreaded = 2
+NSAnyEventMask = -1
+NSAnyType = 0
+NSAppKitDefined = 13
+NSAppKitDefinedMask = 8192
+NSAppKitVersionNumber10_0 = 577
+NSAppKitVersionNumber10_1 = 620
+NSAppKitVersionNumber10_2 = 663
+NSAppKitVersionNumber10_2_3 = 663.60000000000002
+NSAppKitVersionNumber10_3 = 743
+NSAppKitVersionNumber10_3_2 = 743.13999999999999
+NSAppKitVersionNumber10_3_3 = 743.20000000000005
+NSAppKitVersionNumber10_3_5 = 743.24000000000001
+NSAppKitVersionNumber10_3_7 = 743.33000000000004
+NSAppKitVersionNumber10_3_9 = 743.36000000000001
+NSAppKitVersionNumber10_4 = 824
+NSAppKitVersionNumber10_4_1 = 824.10000000000002
+NSAppKitVersionNumber10_4_3 = 824.23000000000002
+NSAppKitVersionNumber10_4_4 = 824.33000000000004
+NSAppKitVersionNumber10_4_7 = 824.40999999999997
+NSAppKitVersionNumber10_5 = 949
+NSAppKitVersionNumber10_5_2 = 949.26999999999998
+NSAppKitVersionNumber10_5_3 = 949.33000000000004
+NSAppKitVersionNumberWithColumnResizingBrowser = 685.00000000000000
+NSAppKitVersionNumberWithContinuousScrollingBrowser = 680.00000000000000
+NSAppKitVersionNumberWithCursorSizeSupport = 682.00000000000000
+NSAppKitVersionNumberWithCustomSheetPosition = 686.00000000000000
+NSAppKitVersionNumberWithDeferredWindowDisplaySupport = 1019.0000000000000
+NSAppKitVersionNumberWithDirectionalTabs = 631.00000000000000
+NSAppKitVersionNumberWithDockTilePlugInSupport = 1001.0000000000000
+NSAppKitVersionNumberWithPatternColorLeakFix = 641.00000000000000
+NSApplicationActivateAllWindows = 1
+NSApplicationActivateIgnoringOtherApps = 2
+NSApplicationActivatedEventType = 1
+NSApplicationActivationPolicyAccessory = 1
+NSApplicationActivationPolicyProhibited = 2
+NSApplicationActivationPolicyRegular = 0
+NSApplicationDeactivatedEventType = 2
+NSApplicationDefined = 15
+NSApplicationDefinedMask = 32768
+NSApplicationDelegateReplyCancel = 1
+NSApplicationDelegateReplyFailure = 2
+NSApplicationDelegateReplySuccess = 0
+NSApplicationPresentationAutoHideDock = 1
+NSApplicationPresentationAutoHideMenuBar = 4
+NSApplicationPresentationDefault = 0
+NSApplicationPresentationDisableAppleMenu = 16
+NSApplicationPresentationDisableForceQuit = 64
+NSApplicationPresentationDisableHideApplication = 256
+NSApplicationPresentationDisableMenuBarTransparency = 512
+NSApplicationPresentationDisableProcessSwitching = 32
+NSApplicationPresentationDisableSessionTermination = 128
+NSApplicationPresentationHideDock = 2
+NSApplicationPresentationHideMenuBar = 8
+NSAscendingPageOrder = 1
+NSAtBottom = 5
+NSAtTop = 2
+NSAttachmentCharacter = 65532
+NSAttributedStringEnumerationLongestEffectiveRangeNotRequired = 1048576
+NSAttributedStringEnumerationReverse = 2
+NSAutoPagination = 0
+NSAutosaveOperation = 3
+NSBMPFileType = 1
+NSBackTabCharacter = 25
+NSBackgroundStyleDark = 1
+NSBackgroundStyleLight = 0
+NSBackgroundStyleLowered = 3
+NSBackgroundStyleRaised = 2
+NSBackgroundTab = 1
+NSBackingStoreBuffered = 2
+NSBackingStoreNonretained = 1
+NSBackingStoreRetained = 0
+NSBackspaceCharacter = 8
+NSBacktabTextMovement = 18
+NSBeginFunctionKey = 63274
+NSBelowBottom = 6
+NSBelowTop = 3
+NSBevelLineJoinStyle = 2
+NSBezelBorder = 2
+NSBlueControlTint = 1
+NSBoldFontMask = 2
+NSBorderlessWindowMask = 0
+NSBottomTabsBezelBorder = 2
+NSBoxCustom = 4
+NSBoxOldStyle = 3
+NSBoxPrimary = 0
+NSBoxSecondary = 1
+NSBoxSeparator = 2
+NSBreakFunctionKey = 63282
+NSBrowserAutoColumnResizing = 1
+NSBrowserDropAbove = 1
+NSBrowserDropOn = 0
+NSBrowserNoColumnResizing = 0
+NSBrowserUserColumnResizing = 2
+NSButtLineCapStyle = 0
+NSCMYKColorSpaceModel = 2
+NSCMYKModeColorPanel = 2
+NSCancelButton = 0
+NSCancelTextMovement = 23
+NSCarriageReturnCharacter = 13
+NSCellAllowsMixedState = 16
+NSCellChangesContents = 14
+NSCellDisabled = 0
+NSCellEditable = 3
+NSCellHasImageHorizontal = 12
+NSCellHasImageOnLeftOrBottom = 13
+NSCellHasOverlappingImage = 11
+NSCellHighlighted = 5
+NSCellHitContentArea = 1
+NSCellHitEditableTextArea = 2
+NSCellHitNone = 0
+NSCellHitTrackableArea = 4
+NSCellIsBordered = 10
+NSCellIsInsetButton = 15
+NSCellLightsByBackground = 9
+NSCellLightsByContents = 6
+NSCellLightsByGray = 7
+NSCellState = 1
+NSCenterTabStopType = 2
+NSCenterTextAlignment = 2
+NSChangeAutosaved = 4
+NSChangeBackgroundCell = 8
+NSChangeBackgroundCellMask = 8
+NSChangeCleared = 2
+NSChangeDone = 0
+NSChangeGrayCell = 4
+NSChangeGrayCellMask = 4
+NSChangeReadOtherContents = 3
+NSChangeRedone = 5
+NSChangeUndone = 1
+NSCircularBezelStyle = 7
+NSCircularSlider = 1
+NSClearControlTint = 7
+NSClearDisplayFunctionKey = 63290
+NSClearLineFunctionKey = 63289
+NSClipPagination = 2
+NSClockAndCalendarDatePickerStyle = 1
+NSClosableWindowMask = 2
+NSClosePathBezierPathElement = 3
+NSCollectionViewDropBefore = 1
+NSCollectionViewDropOn = 0
+NSColorListModeColorPanel = 5
+NSColorPanelAllModesMask = 65535
+NSColorPanelCMYKModeMask = 4
+NSColorPanelColorListModeMask = 32
+NSColorPanelCrayonModeMask = 128
+NSColorPanelCustomPaletteModeMask = 16
+NSColorPanelGrayModeMask = 1
+NSColorPanelHSBModeMask = 8
+NSColorPanelRGBModeMask = 2
+NSColorPanelWheelModeMask = 64
+NSColorRenderingIntentAbsoluteColorimetric = 1
+NSColorRenderingIntentDefault = 0
+NSColorRenderingIntentPerceptual = 3
+NSColorRenderingIntentRelativeColorimetric = 2
+NSColorRenderingIntentSaturation = 4
+NSCommandKeyMask = 1048576
+NSCompositeClear = 0
+NSCompositeCopy = 1
+NSCompositeDestinationAtop = 9
+NSCompositeDestinationIn = 7
+NSCompositeDestinationOut = 8
+NSCompositeDestinationOver = 6
+NSCompositeHighlight = 12
+NSCompositePlusDarker = 11
+NSCompositePlusLighter = 13
+NSCompositeSourceAtop = 5
+NSCompositeSourceIn = 3
+NSCompositeSourceOut = 4
+NSCompositeSourceOver = 2
+NSCompositeXOR = 10
+NSCompressedFontMask = 512
+NSCondensedFontMask = 64
+NSContentsCellMask = 1
+NSContinuousCapacityLevelIndicatorStyle = 1
+NSControlGlyph = 16777215
+NSControlKeyMask = 262144
+NSCrayonModeColorPanel = 7
+NSCriticalAlertStyle = 2
+NSCriticalRequest = 0
+NSCursorPointingDevice = 2
+NSCursorUpdate = 17
+NSCursorUpdateMask = 131072
+NSCurveToBezierPathElement = 2
+NSCustomPaletteModeColorPanel = 4
+NSDecimalTabStopType = 3
+NSDefaultControlTint = 0
+NSDefaultTokenStyle = 0
+NSDeleteCharFunctionKey = 63294
+NSDeleteCharacter = 127
+NSDeleteFunctionKey = 63272
+NSDeleteLineFunctionKey = 63292
+NSDescendingPageOrder = -1
+NSDeviceIndependentModifierFlagsMask = -65536
+NSDeviceNColorSpaceModel = 4
+NSDirectSelection = 0
+NSDisclosureBezelStyle = 5
+NSDiscreteCapacityLevelIndicatorStyle = 2
+NSDisplayWindowRunLoopOrdering = 600000
+NSDocModalWindowMask = 64
+NSDockWindowLevel = 20
+NSDoubleType = 6
+NSDownArrowFunctionKey = 63233
+NSDownTextMovement = 22
+NSDragOperationAll = 15
+NSDragOperationAll_Obsolete = 15
+NSDragOperationCopy = 1
+NSDragOperationDelete = 32
+NSDragOperationEvery = -1
+NSDragOperationGeneric = 4
+NSDragOperationLink = 2
+NSDragOperationMove = 16
+NSDragOperationNone = 0
+NSDragOperationPrivate = 8
+NSDrawerClosedState = 0
+NSDrawerClosingState = 3
+NSDrawerOpenState = 2
+NSDrawerOpeningState = 1
+NSEndFunctionKey = 63275
+NSEnterCharacter = 3
+NSEraDatePickerElementFlag = 256
+NSEraserPointingDevice = 3
+NSEvenOddWindingRule = 1
+NSEventMaskBeginGesture = 524288
+NSEventMaskEndGesture = 1048576
+NSEventMaskGesture = 536870912
+NSEventMaskMagnify = 1073741824
+NSEventMaskRotate = 262144
+NSEventMaskSwipe = -2147483648
+NSEventTypeBeginGesture = 19
+NSEventTypeEndGesture = 20
+NSEventTypeGesture = 29
+NSEventTypeMagnify = 30
+NSEventTypeRotate = 18
+NSEventTypeSwipe = 31
+NSExclude10_4ElementsIconCreationOption = 4
+NSExcludeQuickDrawElementsIconCreationOption = 2
+NSExecuteFunctionKey = 63298
+NSExpandedFontMask = 32
+NSF10FunctionKey = 63245
+NSF11FunctionKey = 63246
+NSF12FunctionKey = 63247
+NSF13FunctionKey = 63248
+NSF14FunctionKey = 63249
+NSF15FunctionKey = 63250
+NSF16FunctionKey = 63251
+NSF17FunctionKey = 63252
+NSF18FunctionKey = 63253
+NSF19FunctionKey = 63254
+NSF1FunctionKey = 63236
+NSF20FunctionKey = 63255
+NSF21FunctionKey = 63256
+NSF22FunctionKey = 63257
+NSF23FunctionKey = 63258
+NSF24FunctionKey = 63259
+NSF25FunctionKey = 63260
+NSF26FunctionKey = 63261
+NSF27FunctionKey = 63262
+NSF28FunctionKey = 63263
+NSF29FunctionKey = 63264
+NSF2FunctionKey = 63237
+NSF30FunctionKey = 63265
+NSF31FunctionKey = 63266
+NSF32FunctionKey = 63267
+NSF33FunctionKey = 63268
+NSF34FunctionKey = 63269
+NSF35FunctionKey = 63270
+NSF3FunctionKey = 63238
+NSF4FunctionKey = 63239
+NSF5FunctionKey = 63240
+NSF6FunctionKey = 63241
+NSF7FunctionKey = 63242
+NSF8FunctionKey = 63243
+NSF9FunctionKey = 63244
+NSFPCurrentField = 134
+NSFPPreviewButton = 131
+NSFPPreviewField = 128
+NSFPRevertButton = 130
+NSFPSetButton = 132
+NSFPSizeField = 129
+NSFPSizeTitle = 133
+NSFileHandlingPanelCancelButton = 0
+NSFileHandlingPanelOKButton = 1
+NSFileWrapperReadingImmediate = 1
+NSFileWrapperReadingWithoutMapping = 2
+NSFileWrapperWritingAtomic = 1
+NSFileWrapperWritingWithNameUpdating = 2
+NSFindFunctionKey = 63301
+NSFindPanelActionNext = 2
+NSFindPanelActionPrevious = 3
+NSFindPanelActionReplace = 5
+NSFindPanelActionReplaceAll = 4
+NSFindPanelActionReplaceAllInSelection = 8
+NSFindPanelActionReplaceAndFind = 6
+NSFindPanelActionSelectAll = 9
+NSFindPanelActionSelectAllInSelection = 10
+NSFindPanelActionSetFindString = 7
+NSFindPanelActionShowFindPanel = 1
+NSFindPanelSubstringMatchTypeContains = 0
+NSFindPanelSubstringMatchTypeEndsWith = 3
+NSFindPanelSubstringMatchTypeFullWord = 2
+NSFindPanelSubstringMatchTypeStartsWith = 1
+NSFitPagination = 1
+NSFixedPitchFontMask = 1024
+NSFlagsChanged = 12
+NSFlagsChangedMask = 4096
+NSFloatType = 3
+NSFloatingPointSamplesBitmapFormat = 4
+NSFloatingWindowLevel = 3
+NSFocusRingAbove = 2
+NSFocusRingBelow = 1
+NSFocusRingOnly = 0
+NSFocusRingTypeDefault = 0
+NSFocusRingTypeExterior = 2
+NSFocusRingTypeNone = 1
+NSFontAntialiasedIntegerAdvancementsRenderingMode = 3
+NSFontAntialiasedRenderingMode = 1
+NSFontBoldTrait = 2
+NSFontClarendonSerifsClass = 1073741824
+NSFontCollectionApplicationOnlyMask = 1
+NSFontCondensedTrait = 64
+NSFontDefaultRenderingMode = 0
+NSFontExpandedTrait = 32
+NSFontFamilyClassMask = -268435456
+NSFontFreeformSerifsClass = 1879048192
+NSFontIntegerAdvancementsRenderingMode = 2
+NSFontItalicTrait = 1
+NSFontModernSerifsClass = 805306368
+NSFontMonoSpaceTrait = 1024
+NSFontOldStyleSerifsClass = 268435456
+NSFontOrnamentalsClass = -1879048192
+NSFontPanelAllEffectsModeMask = 1048320
+NSFontPanelAllModesMask = -1
+NSFontPanelCollectionModeMask = 4
+NSFontPanelDocumentColorEffectModeMask = 2048
+NSFontPanelFaceModeMask = 1
+NSFontPanelShadowEffectModeMask = 4096
+NSFontPanelSizeModeMask = 2
+NSFontPanelStandardModesMask = 65535
+NSFontPanelStrikethroughEffectModeMask = 512
+NSFontPanelTextColorEffectModeMask = 1024
+NSFontPanelUnderlineEffectModeMask = 256
+NSFontSansSerifClass = -2147483648
+NSFontScriptsClass = -1610612736
+NSFontSlabSerifsClass = 1342177280
+NSFontSymbolicClass = -1073741824
+NSFontTransitionalSerifsClass = 536870912
+NSFontUIOptimizedTrait = 4096
+NSFontUnknownClass = 0
+NSFontVerticalTrait = 2048
+NSFormFeedCharacter = 12
+NSFunctionKeyMask = 8388608
+NSGIFFileType = 2
+NSGlyphAttributeBidiLevel = 2
+NSGlyphAttributeElastic = 1
+NSGlyphAttributeInscribe = 5
+NSGlyphAttributeSoft = 0
+NSGlyphInscribeAbove = 2
+NSGlyphInscribeBase = 0
+NSGlyphInscribeBelow = 1
+NSGlyphInscribeOverBelow = 4
+NSGlyphInscribeOverstrike = 3
+NSGradientConcaveStrong = 2
+NSGradientConcaveWeak = 1
+NSGradientConvexStrong = 4
+NSGradientConvexWeak = 3
+NSGradientDrawsAfterEndingLocation = 2
+NSGradientDrawsBeforeStartingLocation = 1
+NSGradientNone = 0
+NSGraphiteControlTint = 6
+NSGrayColorSpaceModel = 0
+NSGrayModeColorPanel = 0
+NSGrooveBorder = 3
+NSHSBModeColorPanel = 3
+NSHUDWindowMask = 8192
+NSHeavierFontAction = 5
+NSHelpButtonBezelStyle = 9
+NSHelpFunctionKey = 63302
+NSHelpKeyMask = 4194304
+NSHighlightModeMatrix = 1
+NSHomeFunctionKey = 63273
+NSHorizontalRuler = 0
+NSHourMinuteDatePickerElementFlag = 12
+NSHourMinuteSecondDatePickerElementFlag = 14
+NSIdentityMappingCharacterCollection = 0
+NSIllegalTextMovement = 0
+NSImageAbove = 5
+NSImageAlignBottom = 5
+NSImageAlignBottomLeft = 6
+NSImageAlignBottomRight = 7
+NSImageAlignCenter = 0
+NSImageAlignLeft = 4
+NSImageAlignRight = 8
+NSImageAlignTop = 1
+NSImageAlignTopLeft = 2
+NSImageAlignTopRight = 3
+NSImageBelow = 4
+NSImageCacheAlways = 1
+NSImageCacheBySize = 2
+NSImageCacheDefault = 0
+NSImageCacheNever = 3
+NSImageCellType = 2
+NSImageFrameButton = 4
+NSImageFrameGrayBezel = 2
+NSImageFrameGroove = 3
+NSImageFrameNone = 0
+NSImageFramePhoto = 1
+NSImageInterpolationDefault = 0
+NSImageInterpolationHigh = 3
+NSImageInterpolationLow = 2
+NSImageInterpolationMedium = 4
+NSImageInterpolationNone = 1
+NSImageLeft = 2
+NSImageLoadStatusCancelled = 1
+NSImageLoadStatusCompleted = 0
+NSImageLoadStatusInvalidData = 2
+NSImageLoadStatusReadError = 4
+NSImageLoadStatusUnexpectedEOF = 3
+NSImageOnly = 1
+NSImageOverlaps = 6
+NSImageRepLoadStatusCompleted = -6
+NSImageRepLoadStatusInvalidData = -4
+NSImageRepLoadStatusReadingHeader = -2
+NSImageRepLoadStatusUnexpectedEOF = -5
+NSImageRepLoadStatusUnknownType = -1
+NSImageRepLoadStatusWillNeedAllData = -3
+NSImageRepMatchesDevice = 0
+NSImageRight = 3
+NSImageScaleAxesIndependently = 1
+NSImageScaleNone = 2
+NSImageScaleProportionallyDown = 0
+NSImageScaleProportionallyUpOrDown = 3
+NSIndexedColorSpaceModel = 5
+NSInformationalAlertStyle = 1
+NSInformationalRequest = 10
+NSInsertCharFunctionKey = 63293
+NSInsertFunctionKey = 63271
+NSInsertLineFunctionKey = 63291
+NSIntType = 1
+NSItalicFontMask = 1
+NSJPEG2000FileType = 5
+NSJPEGFileType = 3
+NSJustifiedTextAlignment = 3
+NSKeyDown = 10
+NSKeyDownMask = 1024
+NSKeyUp = 11
+NSKeyUpMask = 2048
+NSLABColorSpaceModel = 3
+NSLandscapeOrientation = 1
+NSLeftArrowFunctionKey = 63234
+NSLeftMouseDown = 1
+NSLeftMouseDownMask = 2
+NSLeftMouseDragged = 6
+NSLeftMouseDraggedMask = 64
+NSLeftMouseUp = 2
+NSLeftMouseUpMask = 4
+NSLeftTabStopType = 0
+NSLeftTabsBezelBorder = 1
+NSLeftTextAlignment = 0
+NSLeftTextMovement = 19
+NSLighterFontAction = 6
+NSLineBorder = 1
+NSLineBreakByCharWrapping = 1
+NSLineBreakByClipping = 2
+NSLineBreakByTruncatingHead = 3
+NSLineBreakByTruncatingMiddle = 5
+NSLineBreakByTruncatingTail = 4
+NSLineBreakByWordWrapping = 0
+NSLineDoesntMove = 0
+NSLineMovesDown = 3
+NSLineMovesLeft = 1
+NSLineMovesRight = 2
+NSLineMovesUp = 4
+NSLineSeparatorCharacter = 8232
+NSLineSweepDown = 2
+NSLineSweepLeft = 0
+NSLineSweepRight = 1
+NSLineSweepUp = 3
+NSLineToBezierPathElement = 1
+NSLinearSlider = 0
+NSListModeMatrix = 2
+NSMacintoshInterfaceStyle = 3
+NSMainMenuWindowLevel = 24
+NSMenuFunctionKey = 63285
+NSMenuPropertyItemAccessibilityDescription = 32
+NSMenuPropertyItemAttributedTitle = 2
+NSMenuPropertyItemEnabled = 16
+NSMenuPropertyItemImage = 8
+NSMenuPropertyItemKeyEquivalent = 4
+NSMenuPropertyItemTitle = 1
+NSMiniControlSize = 2
+NSMiniaturizableWindowMask = 4
+NSMiterLineJoinStyle = 0
+NSMixedState = -1
+NSModalPanelWindowLevel = 8
+NSModeSwitchFunctionKey = 63303
+NSMomentaryChangeButton = 5
+NSMomentaryLight = 7
+NSMomentaryLightButton = 0
+NSMomentaryPushButton = 0
+NSMomentaryPushInButton = 7
+NSMouseEntered = 8
+NSMouseEnteredMask = 256
+NSMouseEventSubtype = 0
+NSMouseExited = 9
+NSMouseExitedMask = 512
+NSMouseMoved = 5
+NSMouseMovedMask = 32
+NSMoveToBezierPathElement = 0
+NSNarrowFontMask = 16
+NSNativeShortGlyphPacking = 5
+NSNaturalTextAlignment = 4
+NSNewlineCharacter = 10
+NSNextFunctionKey = 63296
+NSNextStepInterfaceStyle = 1
+NSNoBorder = 0
+NSNoCellMask = 0
+NSNoFontChangeAction = 0
+NSNoImage = 0
+NSNoInterfaceStyle = 0
+NSNoModeColorPanel = -1
+NSNoScrollerParts = 0
+NSNoTabsBezelBorder = 4
+NSNoTabsLineBorder = 5
+NSNoTabsNoBorder = 6
+NSNoTitle = 0
+NSNoUnderlineStyle = 0
+NSNonStandardCharacterSetFontMask = 8
+NSNonZeroWindingRule = 0
+NSNonactivatingPanelMask = 128
+NSNormalWindowLevel = 0
+NSNullCellType = 0
+NSNullGlyph = 0
+NSNumericPadKeyMask = 2097152
+NSOKButton = 1
+NSOPENGL_CURRENT_VERSION = 1
+NSOffState = 0
+NSOnOffButton = 6
+NSOnState = 1
+NSOnlyScrollerArrows = 1
+NSOpenGLCPRasterizationEnable = 221
+NSOpenGLCPStateValidation = 301
+NSOpenGLCPSurfaceOpacity = 236
+NSOpenGLCPSurfaceOrder = 235
+NSOpenGLCPSwapInterval = 222
+NSOpenGLCPSwapRectangle = 200
+NSOpenGLCPSwapRectangleEnable = 201
+NSOpenGLGOClearFormatCache = 502
+NSOpenGLGOFormatCacheSize = 501
+NSOpenGLGOResetLibrary = 504
+NSOpenGLGORetainRenderers = 503
+NSOpenGLPFAAccelerated = 73
+NSOpenGLPFAAcceleratedCompute = 97
+NSOpenGLPFAAccumSize = 14
+NSOpenGLPFAAllRenderers = 1
+NSOpenGLPFAAllowOfflineRenderers = 96
+NSOpenGLPFAAlphaSize = 11
+NSOpenGLPFAAuxBuffers = 7
+NSOpenGLPFAAuxDepthStencil = 57
+NSOpenGLPFABackingStore = 76
+NSOpenGLPFAClosestPolicy = 74
+NSOpenGLPFAColorFloat = 58
+NSOpenGLPFAColorSize = 8
+NSOpenGLPFACompliant = 83
+NSOpenGLPFADepthSize = 12
+NSOpenGLPFADoubleBuffer = 5
+NSOpenGLPFAFullScreen = 54
+NSOpenGLPFAMPSafe = 78
+NSOpenGLPFAMaximumPolicy = 52
+NSOpenGLPFAMinimumPolicy = 51
+NSOpenGLPFAMultiScreen = 81
+NSOpenGLPFAMultisample = 59
+NSOpenGLPFANoRecovery = 72
+NSOpenGLPFAOffScreen = 53
+NSOpenGLPFAPixelBuffer = 90
+NSOpenGLPFARemotePixelBuffer = 91
+NSOpenGLPFARendererID = 70
+NSOpenGLPFARobust = 75
+NSOpenGLPFASampleAlpha = 61
+NSOpenGLPFASampleBuffers = 55
+NSOpenGLPFASamples = 56
+NSOpenGLPFAScreenMask = 84
+NSOpenGLPFASingleRenderer = 71
+NSOpenGLPFAStencilSize = 13
+NSOpenGLPFAStereo = 6
+NSOpenGLPFASupersample = 60
+NSOpenGLPFAVirtualScreenCount = 128
+NSOpenGLPFAWindow = 80
+NSOtherMouseDown = 25
+NSOtherMouseDownMask = 33554432
+NSOtherMouseDragged = 27
+NSOtherMouseDraggedMask = 134217728
+NSOtherMouseUp = 26
+NSOtherMouseUpMask = 67108864
+NSOtherTextMovement = 0
+NSOutlineViewDropOnItemIndex = -1
+NSPNGFileType = 4
+NSPageDownFunctionKey = 63277
+NSPageUpFunctionKey = 63276
+NSParagraphSeparatorCharacter = 8233
+NSPasteboardReadingAsData = 0
+NSPasteboardReadingAsKeyedArchive = 4
+NSPasteboardReadingAsPropertyList = 2
+NSPasteboardReadingAsString = 1
+NSPasteboardWritingPromised = 512
+NSPathStyleNavigationBar = 1
+NSPathStylePopUp = 2
+NSPathStyleStandard = 0
+NSPatternColorSpaceModel = 6
+NSPauseFunctionKey = 63280
+NSPenLowerSideMask = 2
+NSPenPointingDevice = 1
+NSPenTipMask = 1
+NSPenUpperSideMask = 4
+NSPeriodic = 16
+NSPeriodicMask = 65536
+NSPlainTextTokenStyle = 1
+NSPopUpArrowAtBottom = 2
+NSPopUpArrowAtCenter = 1
+NSPopUpMenuWindowLevel = 101
+NSPopUpNoArrow = 0
+NSPortraitOrientation = 0
+NSPositiveDoubleType = 7
+NSPositiveFloatType = 4
+NSPositiveIntType = 2
+NSPosterFontMask = 256
+NSPowerOffEventType = 1
+NSPressedTab = 2
+NSPrevFunctionKey = 63295
+NSPrintFunctionKey = 63288
+NSPrintPanelShowsCopies = 1
+NSPrintPanelShowsOrientation = 8
+NSPrintPanelShowsPageRange = 2
+NSPrintPanelShowsPageSetupAccessory = 256
+NSPrintPanelShowsPaperSize = 4
+NSPrintPanelShowsPreview = 131072
+NSPrintPanelShowsPrintSelection = 32
+NSPrintPanelShowsScaling = 16
+NSPrintScreenFunctionKey = 63278
+NSPrinterTableError = 2
+NSPrinterTableNotFound = 1
+NSPrinterTableOK = 0
+NSPrintingCancelled = 0
+NSPrintingFailure = 3
+NSPrintingReplyLater = 2
+NSPrintingSuccess = 1
+NSProgressIndicatorBarStyle = 0
+NSProgressIndicatorPreferredAquaThickness = 12
+NSProgressIndicatorPreferredLargeThickness = 18
+NSProgressIndicatorPreferredSmallThickness = 10
+NSProgressIndicatorPreferredThickness = 14
+NSProgressIndicatorSpinningStyle = 1
+NSPushInCell = 2
+NSPushInCellMask = 2
+NSPushOnPushOffButton = 1
+NSRGBColorSpaceModel = 1
+NSRGBModeColorPanel = 1
+NSRadioButton = 4
+NSRadioModeMatrix = 0
+NSRangeDateMode = 1
+NSRatingLevelIndicatorStyle = 3
+NSRecessedBezelStyle = 13
+NSRedoFunctionKey = 63300
+NSRegularControlSize = 0
+NSRegularSquareBezelStyle = 2
+NSRelevancyLevelIndicatorStyle = 0
+NSRemoveTraitFontAction = 7
+NSResetCursorRectsRunLoopOrdering = 700000
+NSResetFunctionKey = 63283
+NSResizableWindowMask = 8
+NSReturnTextMovement = 16
+NSRightArrowFunctionKey = 63235
+NSRightMouseDown = 3
+NSRightMouseDownMask = 8
+NSRightMouseDragged = 7
+NSRightMouseDraggedMask = 128
+NSRightMouseUp = 4
+NSRightMouseUpMask = 16
+NSRightTabStopType = 1
+NSRightTabsBezelBorder = 3
+NSRightTextAlignment = 1
+NSRightTextMovement = 20
+NSRoundLineCapStyle = 1
+NSRoundLineJoinStyle = 1
+NSRoundRectBezelStyle = 12
+NSRoundedBezelStyle = 1
+NSRoundedDisclosureBezelStyle = 14
+NSRoundedTokenStyle = 2
+NSRuleEditorNestingModeCompound = 2
+NSRuleEditorNestingModeList = 1
+NSRuleEditorNestingModeSimple = 3
+NSRuleEditorNestingModeSingle = 0
+NSRuleEditorRowTypeCompound = 1
+NSRuleEditorRowTypeSimple = 0
+NSRunAbortedResponse = -1001
+NSRunContinuesResponse = -1002
+NSRunStoppedResponse = -1000
+NSSaveAsOperation = 1
+NSSaveOperation = 0
+NSSaveToOperation = 2
+NSScaleNone = 2
+NSScaleProportionally = 0
+NSScaleToFit = 1
+NSScreenChangedEventType = 8
+NSScreenSaverWindowLevel = 1000
+NSScrollLockFunctionKey = 63279
+NSScrollWheel = 22
+NSScrollWheelMask = 4194304
+NSScrollerArrowsDefaultSetting = 0
+NSScrollerArrowsMaxEnd = 0
+NSScrollerArrowsMinEnd = 1
+NSScrollerArrowsNone = 2
+NSScrollerDecrementArrow = 1
+NSScrollerDecrementLine = 4
+NSScrollerDecrementPage = 1
+NSScrollerIncrementArrow = 0
+NSScrollerIncrementLine = 5
+NSScrollerIncrementPage = 3
+NSScrollerKnob = 2
+NSScrollerKnobSlot = 6
+NSScrollerNoPart = 0
+NSSearchFieldClearRecentsMenuItemTag = 1002
+NSSearchFieldNoRecentsMenuItemTag = 1003
+NSSearchFieldRecentsMenuItemTag = 1001
+NSSearchFieldRecentsTitleMenuItemTag = 1000
+NSSegmentStyleAutomatic = 0
+NSSegmentStyleCapsule = 5
+NSSegmentStyleRoundRect = 3
+NSSegmentStyleRounded = 1
+NSSegmentStyleSmallSquare = 6
+NSSegmentStyleTexturedRounded = 2
+NSSegmentStyleTexturedSquare = 4
+NSSegmentSwitchTrackingMomentary = 2
+NSSegmentSwitchTrackingSelectAny = 1
+NSSegmentSwitchTrackingSelectOne = 0
+NSSelectByCharacter = 0
+NSSelectByParagraph = 2
+NSSelectByWord = 1
+NSSelectFunctionKey = 63297
+NSSelectedTab = 0
+NSSelectingNext = 1
+NSSelectingPrevious = 2
+NSSelectionAffinityDownstream = 1
+NSSelectionAffinityUpstream = 0
+NSServiceApplicationLaunchFailedError = 66561
+NSServiceApplicationNotFoundError = 66560
+NSServiceErrorMaximum = 66817
+NSServiceErrorMinimum = 66560
+NSServiceInvalidPasteboardDataError = 66563
+NSServiceMalformedServiceDictionaryError = 66564
+NSServiceMiscellaneousError = 66800
+NSServiceRequestTimedOutError = 66562
+NSShadowlessSquareBezelStyle = 6
+NSShiftKeyMask = 131072
+NSShowControlGlyphs = 1
+NSShowInvisibleGlyphs = 2
+NSSingleDateMode = 0
+NSSingleUnderlineStyle = 1
+NSSizeDownFontAction = 4
+NSSizeUpFontAction = 3
+NSSmallCapsFontMask = 128
+NSSmallControlSize = 1
+NSSmallIconButtonBezelStyle = 2
+NSSmallSquareBezelStyle = 10
+NSSpecialPageOrder = 0
+NSSpeechImmediateBoundary = 0
+NSSpeechSentenceBoundary = 2
+NSSpeechWordBoundary = 1
+NSSpellingStateGrammarFlag = 2
+NSSpellingStateSpellingFlag = 1
+NSSplitViewDividerStylePaneSplitter = 3
+NSSplitViewDividerStyleThick = 1
+NSSplitViewDividerStyleThin = 2
+NSSquareLineCapStyle = 2
+NSSquareStatusItemLength = -2
+NSStatusWindowLevel = 25
+NSStopFunctionKey = 63284
+NSStringDrawingDisableScreenFontSubstitution = 4
+NSStringDrawingOneShot = 16
+NSStringDrawingTruncatesLastVisibleLine = 32
+NSStringDrawingUsesDeviceMetrics = 8
+NSStringDrawingUsesFontLeading = 2
+NSStringDrawingUsesLineFragmentOrigin = 1
+NSSubmenuWindowLevel = 3
+NSSwitchButton = 3
+NSSysReqFunctionKey = 63281
+NSSystemDefined = 14
+NSSystemDefinedMask = 16384
+NSSystemFunctionKey = 63287
+NSTIFFCompressionCCITTFAX3 = 3
+NSTIFFCompressionCCITTFAX4 = 4
+NSTIFFCompressionJPEG = 6
+NSTIFFCompressionLZW = 5
+NSTIFFCompressionNEXT = 32766
+NSTIFFCompressionNone = 1
+NSTIFFCompressionOldJPEG = 32865
+NSTIFFCompressionPackBits = 32773
+NSTIFFFileType = 0
+NSTabCharacter = 9
+NSTabTextMovement = 17
+NSTableColumnAutoresizingMask = 1
+NSTableColumnNoResizing = 0
+NSTableColumnUserResizingMask = 2
+NSTableViewDraggingDestinationFeedbackStyleNone = -1
+NSTableViewDraggingDestinationFeedbackStyleRegular = 0
+NSTableViewDraggingDestinationFeedbackStyleSourceList = 1
+NSTableViewDropAbove = 1
+NSTableViewDropOn = 0
+NSTableViewFirstColumnOnlyAutoresizingStyle = 5
+NSTableViewGridNone = 0
+NSTableViewLastColumnOnlyAutoresizingStyle = 4
+NSTableViewNoColumnAutoresizing = 0
+NSTableViewReverseSequentialColumnAutoresizingStyle = 3
+NSTableViewSelectionHighlightStyleNone = -1
+NSTableViewSelectionHighlightStyleRegular = 0
+NSTableViewSelectionHighlightStyleSourceList = 1
+NSTableViewSequentialColumnAutoresizingStyle = 2
+NSTableViewSolidHorizontalGridLineMask = 2
+NSTableViewSolidVerticalGridLineMask = 1
+NSTableViewUniformColumnAutoresizingStyle = 1
+NSTabletPoint = 23
+NSTabletPointEventSubtype = 1
+NSTabletPointMask = 8388608
+NSTabletProximity = 24
+NSTabletProximityEventSubtype = 2
+NSTabletProximityMask = 16777216
+NSTerminateCancel = 0
+NSTerminateLater = 2
+NSTerminateNow = 1
+NSTextBlockAbsoluteValueType = 0
+NSTextBlockBaselineAlignment = 3
+NSTextBlockBorder = 0
+NSTextBlockBottomAlignment = 2
+NSTextBlockHeight = 4
+NSTextBlockMargin = 1
+NSTextBlockMaximumHeight = 6
+NSTextBlockMaximumWidth = 2
+NSTextBlockMiddleAlignment = 1
+NSTextBlockMinimumHeight = 5
+NSTextBlockMinimumWidth = 1
+NSTextBlockPadding = -1
+NSTextBlockPercentageValueType = 1
+NSTextBlockTopAlignment = 0
+NSTextBlockWidth = 0
+NSTextCellType = 1
+NSTextFieldAndStepperDatePickerStyle = 0
+NSTextFieldDatePickerStyle = 2
+NSTextFieldRoundedBezel = 1
+NSTextFieldSquareBezel = 0
+NSTextListPrependEnclosingMarker = 1
+NSTextReadInapplicableDocumentTypeError = 65806
+NSTextReadWriteErrorMaximum = 66303
+NSTextReadWriteErrorMinimum = 65792
+NSTextStorageEditedAttributes = 1
+NSTextStorageEditedCharacters = 2
+NSTextTableAutomaticLayoutAlgorithm = 0
+NSTextTableFixedLayoutAlgorithm = 1
+NSTextWriteInapplicableDocumentTypeError = 66062
+NSTextWritingDirectionEmbedding = 0
+NSTextWritingDirectionOverride = 2
+NSTexturedBackgroundWindowMask = 256
+NSTexturedRoundedBezelStyle = 11
+NSTexturedSquareBezelStyle = 8
+NSThickSquareBezelStyle = 3
+NSThickerSquareBezelStyle = 4
+NSTickMarkAbove = 1
+NSTickMarkBelow = 0
+NSTickMarkLeft = 1
+NSTickMarkRight = 0
+NSTimeZoneDatePickerElementFlag = 16
+NSTitledWindowMask = 1
+NSToggleButton = 2
+NSToolbarDisplayModeDefault = 0
+NSToolbarDisplayModeIconAndLabel = 1
+NSToolbarDisplayModeIconOnly = 2
+NSToolbarDisplayModeLabelOnly = 3
+NSToolbarItemVisibilityPriorityHigh = 1000
+NSToolbarItemVisibilityPriorityLow = -1000
+NSToolbarItemVisibilityPriorityStandard = 0
+NSToolbarItemVisibilityPriorityUser = 2000
+NSToolbarSizeModeDefault = 0
+NSToolbarSizeModeRegular = 1
+NSToolbarSizeModeSmall = 2
+NSTopTabsBezelBorder = 0
+NSTornOffMenuWindowLevel = 3
+NSTouchEventSubtype = 3
+NSTouchPhaseAny = -1
+NSTouchPhaseBegan = 1
+NSTouchPhaseCancelled = 16
+NSTouchPhaseEnded = 8
+NSTouchPhaseMoved = 2
+NSTouchPhaseStationary = 4
+NSTouchPhaseTouching = 7
+NSTrackModeMatrix = 3
+NSTrackingActiveAlways = 128
+NSTrackingActiveInActiveApp = 64
+NSTrackingActiveInKeyWindow = 32
+NSTrackingActiveWhenFirstResponder = 16
+NSTrackingAssumeInside = 256
+NSTrackingCursorUpdate = 4
+NSTrackingEnabledDuringMouseDrag = 1024
+NSTrackingInVisibleRect = 512
+NSTrackingMouseEnteredAndExited = 1
+NSTrackingMouseMoved = 2
+NSTypesetterBehavior_10_2 = 2
+NSTypesetterBehavior_10_2_WithCompatibility = 1
+NSTypesetterBehavior_10_3 = 3
+NSTypesetterBehavior_10_4 = 4
+NSTypesetterContainerBreakAction = 32
+NSTypesetterHorizontalTabAction = 4
+NSTypesetterLatestBehavior = -1
+NSTypesetterLineBreakAction = 8
+NSTypesetterOriginalBehavior = 0
+NSTypesetterParagraphBreakAction = 16
+NSTypesetterWhitespaceAction = 2
+NSTypesetterZeroAdvancementAction = 1
+NSUnboldFontMask = 4
+NSUnderlinePatternDash = 512
+NSUnderlinePatternDashDot = 768
+NSUnderlinePatternDashDotDot = 1024
+NSUnderlinePatternDot = 256
+NSUnderlinePatternSolid = 0
+NSUnderlineStyleDouble = 9
+NSUnderlineStyleNone = 0
+NSUnderlineStyleSingle = 1
+NSUnderlineStyleThick = 2
+NSUndoFunctionKey = 63299
+NSUnifiedTitleAndToolbarWindowMask = 4096
+NSUnitalicFontMask = 16777216
+NSUnknownColorSpaceModel = -1
+NSUnknownPageOrder = 2
+NSUnknownPointingDevice = 0
+NSUnscaledWindowMask = 2048
+NSUpArrowFunctionKey = 63232
+NSUpTextMovement = 21
+NSUpdateWindowsRunLoopOrdering = 500000
+NSUserFunctionKey = 63286
+NSUserInterfaceLayoutDirectionLeftToRight = 0
+NSUserInterfaceLayoutDirectionRightToLeft = 1
+NSUtilityWindowMask = 16
+NSVariableStatusItemLength = -1
+NSVerticalRuler = 1
+NSViaPanelFontAction = 1
+NSViewHeightSizable = 16
+NSViewLayerContentsPlacementBottom = 8
+NSViewLayerContentsPlacementBottomLeft = 9
+NSViewLayerContentsPlacementBottomRight = 7
+NSViewLayerContentsPlacementCenter = 3
+NSViewLayerContentsPlacementLeft = 10
+NSViewLayerContentsPlacementRight = 6
+NSViewLayerContentsPlacementScaleAxesIndependently = 0
+NSViewLayerContentsPlacementScaleProportionallyToFill = 2
+NSViewLayerContentsPlacementScaleProportionallyToFit = 1
+NSViewLayerContentsPlacementTop = 4
+NSViewLayerContentsPlacementTopLeft = 11
+NSViewLayerContentsPlacementTopRight = 5
+NSViewLayerContentsRedrawBeforeViewResize = 3
+NSViewLayerContentsRedrawDuringViewResize = 2
+NSViewLayerContentsRedrawNever = 0
+NSViewLayerContentsRedrawOnSetNeedsDisplay = 1
+NSViewMaxXMargin = 4
+NSViewMaxYMargin = 32
+NSViewMinXMargin = 1
+NSViewMinYMargin = 8
+NSViewNotSizable = 0
+NSViewWidthSizable = 2
+NSWantsBidiLevels = 4
+NSWarningAlertStyle = 0
+NSWheelModeColorPanel = 6
+NSWindowAbove = 1
+NSWindowBackingLocationDefault = 0
+NSWindowBackingLocationMainMemory = 2
+NSWindowBackingLocationVideoMemory = 1
+NSWindowBelow = -1
+NSWindowCloseButton = 0
+NSWindowCollectionBehaviorCanJoinAllSpaces = 1
+NSWindowCollectionBehaviorDefault = 0
+NSWindowCollectionBehaviorIgnoresCycle = 64
+NSWindowCollectionBehaviorManaged = 4
+NSWindowCollectionBehaviorMoveToActiveSpace = 2
+NSWindowCollectionBehaviorParticipatesInCycle = 32
+NSWindowCollectionBehaviorStationary = 16
+NSWindowCollectionBehaviorTransient = 8
+NSWindowDepthOnehundredtwentyeightBitRGB = 544
+NSWindowDepthSixtyfourBitRGB = 528
+NSWindowDepthTwentyfourBitRGB = 520
+NSWindowDocumentIconButton = 4
+NSWindowExposedEventType = 0
+NSWindowMiniaturizeButton = 1
+NSWindowMovedEventType = 4
+NSWindowNumberListAllApplications = 1
+NSWindowNumberListAllSpaces = 16
+NSWindowOut = 0
+NSWindowSharingNone = 0
+NSWindowSharingReadOnly = 1
+NSWindowSharingReadWrite = 2
+NSWindowToolbarButton = 3
+NSWindowZoomButton = 2
+NSWindows95InterfaceStyle = 2
+NSWorkspaceLaunchAllowingClassicStartup = 131072
+NSWorkspaceLaunchAndHide = 1048576
+NSWorkspaceLaunchAndHideOthers = 2097152
+NSWorkspaceLaunchAndPrint = 2
+NSWorkspaceLaunchAsync = 65536
+NSWorkspaceLaunchDefault = 196608
+NSWorkspaceLaunchInhibitingBackgroundOnly = 128
+NSWorkspaceLaunchNewInstance = 524288
+NSWorkspaceLaunchPreferringClassic = 262144
+NSWorkspaceLaunchWithoutActivation = 512
+NSWorkspaceLaunchWithoutAddingToRecents = 256
+NSWritingDirectionLeftToRight = 0
+NSWritingDirectionNatural = -1
+NSWritingDirectionRightToLeft = 1
+NSYearMonthDatePickerElementFlag = 192
+NSYearMonthDayDatePickerElementFlag = 224
