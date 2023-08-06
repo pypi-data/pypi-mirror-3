@@ -1,0 +1,691 @@
+Metadata-Version: 1.0
+Name: Products.salesforcepfgadapter
+Version: 1.9.1
+Summary: PloneFormGen adapter allowing for creation of arbitrary Salesforce.com         records based on data collected from a web form
+Home-page: http://groups.google.com/group/plonesf
+Author: Plone/Salesforce Integration Group
+Author-email: plonesf@googlegroups.com
+License: GPL
+Description: Overview
+        ========
+        
+        The Salesforce-PloneFormGen adapter provides the ability to create, read and
+        update in a Salesforce.com database via a PloneFormGen form.
+        
+        Using the wonderful foundation that is provided by `PloneFormGen`_ (and Plone for
+        that matter), the task of creating a form that collects and validates some
+        desired information is no longer a task that requires developer intervention,
+        but can be done by the content editor with a decent grasp of the Plone user
+        interface.  Having this data inside the CMS or emailed is only of limited use
+        however.
+        
+        .. _PloneFormGen: http://plone.org/products/ploneformgen
+        
+        Salesforce.com provides an extensible, powerful platform from which
+        to do Customer Relationship Management (CRM) tasks ranging from sales,
+        marketing, nonprofit constituent organizing, and customer service. The
+        Salesforce PFG Adapter allows the pragmatic joining of a best of breed CMS
+        and CRM so that each can focus on its own strengths in a way that is easy for
+        non-developers to use.
+        
+        Salesforce.com offers functionality called web-to-lead, but aside from 
+        PloneFormGen's many strengths over the web-to-lead form builder this software 
+        offers the following additional features:
+        
+        - Configurable validation of individual form fields
+        - Ability to create as many different records as you'd like from the results 
+          of one form
+        - Ability to create custom sObject records with your form
+        - Ability to create whichever type of sObject records, whereas web-to-lead
+          creates a Lead record, which can only be converted to a Contact, Account, or
+          Opportunity record. Want to directly create a Campaign record from a form?  
+          That's fine.
+        - Ability to create multiple records that are related to each other (i.e. 
+          create an Account record, then create a Contact record with the previously 
+          created Account's Id filling the Contact's AccountId field.)
+        
+        Usage
+        =====
+        
+        Connecting a PloneFormGen form to Salesforce is accomplished by adding a
+        "Salesforce Adapter" to a PloneFormGen form folder.  Typically the site editor
+        responsible setting up the form will:
+        
+         1. Create a PloneFormGen form with the necessary fields.
+         2. Add a Salesforce Adapter to the form via Plone's add menu.
+         3. Configure the adapter by selecting:
+        
+           * the type of Salesforce.com object the adapter should create or update
+           * the "field mapping" that specifies the correspondence between fields in
+             the form and fields in Salesforce.
+           * whether the adapter should create a new object, or edit an existing one
+             found by matching some expression.
+        
+        
+        Mapping Form Fields
+        -------------------
+        
+        Once you've chosen your sObject type, moving through to the "field mapping"
+        management screen will display a two-column form for setting which Salesforce 
+        field will be populated by each field on your form. Each field on your form is
+        represented by a single row, with the form field name in the left column, and a
+        drop-down selection menu of all available Salesforce fields on the right. 
+        Select the desired Salesforce field for each form field and click "Save". 
+         
+        NB: While it is not required to map every form field to a Salesforce field,
+        you will want to make sure that all the sObject fields defined as required
+        fields in your Salesforce configuration *do* have a mapping.  Otherwise, the
+        sObject will not be succesfully created on submission of the form.  All required
+        fields for your chosen sObject should be marked accordingly and appear at the
+        top of the list of options.
+        
+        Should you go back and switch to a different sObject type after having provided
+        a  mapping at any time, you'll want to recreate your desired mapping.  This is
+        intended behavior, since the update would fail (or worse, produce very
+        confusing results) if the previously selected sObject type's mapping were
+        maintained.
+        
+        
+        Preset Values
+        -------------
+        
+        Sometimes you want every object created by a particular form to have the same
+        value for a particular field.  For instance, you might want to set the "Lead
+        Source" field of a Lead to "Web".  This can be accomplished using the "Preset
+        Field Values" setting.
+        
+        In the left column, enter the value you want to store in the field.  (e.g. "Web")
+        
+        In the right column, select the field in which the value should be stored. (e.g.
+        Lead Source)
+        
+        If you need a more complicated expression in order to determine the value, you
+        could instead create a hidden form field, edit its default value override
+        expression, and map it using the form field mapping setting.
+        
+        
+        Chained Adapters
+        ----------------
+        
+        Salesforce-PloneFormGen adapters can be used to create multiple related
+        objects from a single form.  e.g. creating a Contact linked to an Account::
+        
+         -----------                -------------
+         | Account |                | Contact   |
+         -----------                -------------
+         | Id      | -------------> | AccountId |
+         | Name    |                | LastName  |
+         -----------                -------------
+        
+        To create this link, the 'AccountId' external key of the Contact object needs
+        to be set to the Id of the Account it should be associated with.  This can be
+        accomplished with Salesforce-PloneFormGen by creating one Salesforce Adapter
+        for the Account and one Salesforce adapter for the Contact, and then setting
+        the "Configure Parent Adapters" setting of the contact adapter so that it maps
+        the Id from the account adapter to the AccountId field of the Contact.
+        
+        In this setup, the Account adapter will be run before the Contact adapter
+        regardless of ordering within the PloneFormGen form.  In this sense, 
+        the "Contact" adapter is *dependent upon* the result from the "Account" 
+        adapter. Upon creation of the "Account" within Salesforce.com an Id like 
+        "01r600123009QiJ", will be returned along with the API response.  This will 
+        then be saved and used by the Contact record which is created subsequently.
+        Care is taken via validation that "circularly dependent" adapters can not be
+        accidentally configured.
+        
+        
+        Updating Existing Objects
+        -------------------------
+        
+        By default a Salesforce Adapter will always create new objects in Salesforce.
+        It is also possible to use them in an "update" mode in which the form will
+        find an object in Salesforce matching a given expression, load the form with
+        values from that object, and then save changes to the object when the form
+        is submitted.
+        
+        This can be set up using the following settings on the "create vs. update"
+        section of the Salesforce Adapter configuration:
+        
+         Creation Mode
+           Set to 'create' to always create a new object (default).  Set to 'update'
+           to try to find and update an existing object.
+         
+         Expression to match existing object for update
+           Enter a TALES expression which evaluates to a SOQL WHERE clause that returns
+           the Salesforce.com object you want to update.  If you interpolate input from
+           the request into single quotes in the SOQL statement, be sure to escape it
+           using the sanitize_soql method. For example, the following could be used to
+           match objects whose Username__c field equals a value passed in the 'username'
+           parameter of the request::
+            
+            python:"Username__c='" + sanitize_soql(request.form.get('username', '')) + "'"
+        
+         Behavior if no existing object found
+           Determines the desired behavior in case no object was found matching the
+           given expression.  If set to 'Fail with an error message.', an error will be
+           displayed (default).  If set to 'create', a new object will be created instead.
+        
+        NB: The adapters accomplish prepopulation of form fields by modifying the
+        default value override for all mapped fields.  Default value overrides that
+        have already been customized will be left intact.
+        
+        NB: Salesforce is queried using the match expression only when the form is
+        first loaded; at which point the Salesforce Id of the object that was found
+        is stored in a Zope session.  This ensures that changes are always saved to
+        the same object that was loaded, even if other changes happened to the database
+        in the meantime.  However, it does mean that if the user's session is destroyed
+        (such as during a Zope restart), then submitting the form will fail.
+        
+        When using chained adapters, some adapters could be used in update mode while
+        others are used in create mode.  For example, this could be used to add a new
+        Opportunity associated with an existing Account.  Currently this requires
+        setting up at least one form field mapping for each adapter to work properly.
+        In addition, the behavior if a single field is mapped by multiple adapters is
+        not yet defined.
+        
+        When Things Break
+        -----------------
+        
+        Sometimes temporary errors may occur when trying to write to Salesforce (for
+        example, if Salesforce is undergoing maintenance).  If this occurs when trying
+        to process an adapter whose "creation mode" is set to "create," a fallback
+        mechanism will try to record the information in an alternate way.
+        
+        If any savedata adapter is present (whether or not it is enabled),
+        the data will be saved using it.  In addition, regardless of whether a savedata
+        adapter is present, an e-mail will be sent to the e-mail address configured in
+        the Plone site's e-mail settings, to report that saving to Salesforce failed.
+        A site administrator can then take action based on this e-mail as necessary.
+        The end user is directed to the normal form thank you page, so that they are
+        not inconvenienced by the error writing to Salesforce.
+        
+        There is no fallback mechanism for adapters in update mode, since this mode
+        requires reading from Salesforce as well.
+        
+        
+        Dependencies
+        ============
+        
+        Tested with Plone 2.5.x, 3.x, and 4.0a2.
+        
+        Depends upon the beatbox library >= 16.0, which is a Python wrapper to the
+        Salesforce.com API.  You must have a Salesforce.com account that provides API
+        access.
+        
+        SalesforceBaseConnector >= 1.2b1. See 
+        http://plone.org/products/salesforcebaseconnector
+        
+        PloneFormGen and related dependencies.
+        
+        DataGridField >= 1.6.x.
+        
+         
+        Installation
+        ============
+        
+        Typical for a Zope/Plone product:
+        
+        * Add the Products.salesforcepfgadapter egg to your buildout.  (Or on a
+          non-buildout installation, install the product and dependencies as
+          appropriate.)
+        
+        * Rerun buildout and restart Zope.
+        
+        * If you don't have a Salesforce Base Connector (portal_salesforcebaseconnector)
+          in the root of your site yet, add one via the ZMI add menu, and configure its
+          login credentials.
+        
+        * Go to the Site Setup page in the Plone interface and click on the Add/Remove
+          Products link. Choose salesforcepfgadapter (check its checkbox) and click the 
+          Install button. If not done already, this will install PloneFormGen in 
+          addition to the salesforcepfgadapter.  If PloneFormGen is not available on the 
+          Add/Remove Products list, it usually means that the product did not load due 
+          to missing prerequisites.
+        
+        Permissions
+        ===========
+        
+        See Permissions section of README.txt within PloneFormGen.
+        
+        Security
+        ========
+        
+        See Security section of README.txt within PloneFormGen.
+        
+        Known Problems
+        ==============
+        
+        See Known Problems section of README.txt within PloneFormGen. In addition:
+        
+        - Beatbox, the underlying Python wrapper library to the Salesforce.com API 
+          does not raise a custom exception in the scenario of the API being 
+          unavailable due to scheduled maintenance as is evident within the following 
+          response: SoapFaultError: 'UNKNOWN_EXCEPTION' 'UNKNOWN_EXCEPTION: Server 
+          unavailable due to scheduled maintenance'
+        
+        
+        Further Information
+        ===================
+        
+        Product home is http://plone.org/products/salesforcepfgadapter. A 
+        `documentation area`_ and `issue tracker`_ are available at the linked 
+        locations.
+        
+        .. _documentation area: http://plone.org/documentation/kb/integrating-plone-with-salesforce
+        .. _issue tracker: http://plone.org/products/salesforcepfgadapter/issues
+        
+        A Google Group, called `Plone Salesforce Integration`_ exists with the sole 
+        aim of discussing and developing tools to make Plone integrate well with
+        Salesforce.com.  If you have a question, joining this group and posting to the 
+        mailing list is the likely best way to get support.
+        
+        .. _Plone Salesforce Integration: http://groups.google.com/group/plonesf
+        
+        Failing that, please try using the Plone users' mailing list or the #plone irc 
+        channel for support requests. If you are unable to get your questions answered 
+        there, or are interested in helping develop the product, see the credits below 
+        for individuals you might contact.
+        
+        
+        Credits
+        =======
+        
+        The Plone & Salesforce crew in Seattle and Portland:
+        
+        - Jon Baldivieso <jonb --AT-- groundwire --DOT-- org>
+        - Andrew Burkhalter <andrewburkhalter --AT-- gmail --DOT-- com>
+        - Brian Gershon <briang --AT-- webcollective --DOT-- coop>
+        - David Glick <davidglick --AT-- groundwire --DOT-- org> 
+        - Jesse Snyder <jesses --AT-- npowerseattle --DOT-- org>
+        - Alex Tokar <alext --AT-- webcollective --DOT-- coop>
+        
+        With special PloneFormGen guest star:
+        
+        - Steve McMahon <steve@dcn.org> 
+        
+        Jesse Snyder and NPower Seattle for the foundation of code that has become
+        Salesforce Base Connector
+         
+        Simon Fell for providing the beatbox Python wrapper to the Salesforce.com API
+         
+        Salesforce.com Foundation and Enfold Systems for their gift and work on 
+        beatbox (see: 
+        http://gokubi.com/archives/onenorthwest-gets-grant-from-salesforcecom-to-integrate-with-plone)
+        
+        See the CHANGES.txt file for the growing list of people who helped
+        with particular features or bugs.
+        
+        
+        License
+        =======
+        
+        Distributed under the GPL.
+        
+        See LICENSE.txt and LICENSE.GPL for details.
+        
+        
+        Changelog
+        =========
+        
+        1.9.1 (2012-02-01)
+        
+        - If there's a field named ``credit_card``, don't include it in the fallback
+          email.
+          [davisagli]
+        
+        1.9.0 (2012-1-27)
+        
+        - Avoid caching Salesforce field info on the adapter instance. Instead, use
+          the type description cache of the beatbox client (which can be purged via
+          the Salesforce base connector in the ZMI).
+          [davisagli]
+        
+        - Include the exception message in the fallback e-mail.
+          [davisagli]
+        
+        - Add a view and action to FormFolders which summarizes the configuration of
+          all Salesforce adapters.
+          [jessesnyder]
+        
+        1.9.0b1 (2010-12-23)
+        
+        - Add fallback logic for when the adapter cannot write to Salesforce. In this
+          case it will first try saving to an enabled savedata adapter, if present.
+          Next it will try saving to a disabled savedata adapter, if present. Finally
+          it will try sending an e-mail to the site's admin e-mail address. An e-mail
+          is sent in all 3 cases to alert the administrator that writing to Salesforce
+          failed. If one of the fallbacks succeeds, the user filling out the form will
+          see the normal thank you page instead of an error.
+          [davisagli]
+        
+        1.8.0 (2010-12-01)
+        
+        - Add a new option for what to do in update mode if no object is found:
+          "Silently skip this and any subsequent Salesforce adapters"
+          [davisagli]
+        
+        1.7.0 (2010-11-16)
+        
+        - Obtain an Id from adapters in update mode even if they don't have any fields
+          mapped, so that that Id can be used from a chained adapter. This makes it
+          possible to create objects with a lookup field to an existing object that
+          is found by an arbitrary SOQL expression, rather than simply by its Id.
+          [davisagli]
+        
+        1.6.4 (2010-08-27)
+        
+        - Fix regression introduced in 1.6.2 for salesforcepfgadapter subclasses
+          that don't provide the creationMode field, only for real this time.
+          [jbaldivieso]
+        
+        1.6.3 (2010-08-15)
+        
+        - Fix regression introduced in 1.6.2 for salesforcepfgadapter subclasses
+          that don't provide the creationMode field.
+          [davisagli]
+        
+        1.6.2 (2010-08-03)
+        
+        - Properly handle blank form fields in update mode by nullifying the
+          corresponding Salesforce field.
+          [yomatters]
+        
+        1.6.1 (2010-03-26)
+        
+        - Fix regressions in Plone 2.5.
+          [davisagli]
+        
+        - Fix regression in Plone 4 of timezone handling of datetimes when
+          prepopulating fields.
+          [davisagli]
+        
+        - Add support for TALES expressions in the preset value map.
+          [davisagli]
+        
+        1.6.0 (2010-02-24)
+        
+        - Fix a regression from hiding read-only fields from the UI -- createable
+          fields still need to be an option even if they aren't updateable. This
+          closes http://plone.org/products/salesforcepfgadapter/issues/17
+          [davisagli]
+        
+        - Code defensively so that the SFPFG adapter modified handler doesn't fail
+          when encountering adapter subclasses that don't have a 'creationMode' field.
+          [davisagli]
+        
+        1.6b2 (2009-12-11)
+        
+        - Don't show read-only fields as options in the field mapping UI. This closes
+          issue #14.
+          [davisagli]
+        
+        - Remove obsolete actions from the type configuration. This closes issue #16.
+          [davisagli]
+        
+        - Allow mapping the filename and mimetype of file uploads to fields in SFDC
+          (probably on an Attachment object) in addition to the data itself.
+          [davisagli]
+        
+        - Added ability to view and update values from existing Salesforce objects,
+          found by matching an arbitrary expression.  See the README for details.
+          [davisagli]
+        
+        - Restored Plone 2.5 support and added compatibility with Plone 4.
+          [davisagli]
+        
+        - Added a 'Preset field values' setting so that hardcoded values can be mapped
+          to Salesforce fields without having to create a hidden form field. Thanks to
+          Jon Stahl for the suggestion.
+          [davisagli]
+        
+        1.6b1 (2009-09-08)
+        
+        - Adjust calls to the salesforcebaseconnector query method to use a single
+          full SOQL statement.  beatbox >= 16.0dev is now required.
+          [davisagli]
+        
+        - Use the field id instead of title as the key column for the field mapping,
+          so that it's possible to set the mapping programmatically without worrying
+          about the titles.
+          [davisagli]
+        
+        - Cut out duplicate setup code and unnecessary API calls throughout testing
+          with use of onsetup decorator.
+          [andrewb]
+        
+        - Move substantial portions of package installation to GenericSetup.
+          [andrewb]
+        
+        - No longer supporting Plone 2.5, pull out all the complex workarounds
+          associated with support older version.
+          [andrewb]
+        
+        - Added metadata.xml to GenericSetup profile.
+          [andrewb]
+        
+        
+        1.5.2 - released August 13, 2009
+        
+        - Fix broken release.
+          [davisagli]
+        
+        1.5.1 - released August 12, 2009
+        
+        - Fix for issue #13, whereby hitting the next button while editing a
+          Salesforce Adapter with PloneFormGen 1.5b2 redirected off to the Form
+          Folder's Quick Edit UI, rather than the field mapping UI as expected.
+          [andrewb]
+        
+        1.5  - released February 18, 2009
+        
+        - Clean-up of overly long lines (e.g. > 80 chars) in README.txt
+          [andrewb]
+        
+        1.5rc1
+        
+        - Added information about known issue #30 within dependency DataGridField.
+          http://plone.org/products/datagridfield/issues/30
+          [andrewb]
+        
+        - Added read_permission protection to how Salesforce Adapters have been
+          configured.  The title is viewable by all, but the SFObjectType, fieldMap,
+          and dependencyMap fields are now only visible to those with the
+          ModifyPortalContent permission.  Now 'base_view' respects this when
+          regurgitating the values on any give adapter object
+          [andrewb]
+        
+        - Stop using trademarked Salesforce.com icon
+          [davisagli]
+        
+        1.5a3
+        
+        - Better handling of empty FormIntegerField values, which when left blank were
+          filled by an empty string that was being passed along within the created
+          object.  In the case of a string-like field, this was fine, but integer
+          fields (i.e. documented as xsd:double and xsd:int format in the SF WSDL)
+          were another story.  This resolves:
+          http://plone.org/products/salesforcepfgadapter/issues/8
+          Note: If a FormIntegerField was a required field and therefore came through
+          as expected in the request, this was handled properly
+          [andrewb, thanks greenstork for bug report]
+        
+        
+        1.5a2
+        
+        - The mutator for our SFObjectType field now takes into account the fact that
+          there could exist invalid field mappings and/or dependency mappings for the
+          ultimately chosen sObject type, which could lead to an Invalid Field
+          exception, should the mappings not be reconfigured.  This is primarily
+          useful in the case where the user sets up an adapter to create one field
+          type, but later switches to another.  This fixes the following issue:
+          http://plone.org/products/salesforcepfgadapter/issues/7
+          [andrewb]
+        
+        - Appropriate cleanup of renamed and/or removed adapters with the Parent
+          Adapter mapping interface.  Similar approach to what exists for field
+          mapping cleanup.
+          [andrewb]
+        
+        - Better handling of empty FormDateField values, which were plagued by errors
+          casting to DateTime format and if successful an invalid xsd:dateTime format.
+          This resolves:
+          http://plone.org/products/salesforcepfgadapter/issues/6
+          http://plone.org/products/salesforcepfgadapter/issues/5
+          Note: If a FormDateField was a required field and therefore came through as
+          expected in the request, this was handled properly
+          [andrewb, thanks greenstork for bug report]
+        
+        - Adding support for PloneFormGen's FormFileField type to be populated with a
+          binary file and uploaded directly to Salesforce.com upon proper base64
+          encoding. There may be other use cases, but the Attachment type in
+          Salesforce can be associated with any other type, as related by the
+          ParentId, field and is where binary data, stored on the Body field, is
+          typically associated with a record.
+          [andrewb]
+        
+        - In order to reduce the configuration burden upon the user (i.e. placing
+          Salesforce Adapters in the order they will need to operate), we build and
+          run adapters from the final adapter within the folder.  This adapter in turn
+          manages the needed order and creates the Salesforce records appropriately.
+          The 1.5a1 release, however, does not account for disabled adapters.  I.E.
+          those that are checked off in the form folder's adapter field. This is now
+          fixed. See:
+          http://plone.org/products/salesforcepfgadapter/issues/3
+          [andrewb]
+        
+        - In the same category as the following issue:
+          http://plone.org/products/salesforcepfgadapter/issues/3, we need to account
+          for those adapters with an "execCondition" that fails. This is now fixed.
+          See: http://plone.org/products/salesforcepfgadapter/issues/4
+          [andrewb]
+        
+        
+        1.5a1
+        
+        - Adding new DataGridField FixedColumn with visibility set to false for the
+          the 'fieldMap' schema field on the Salesforce Adapter, which stores the
+          relative path from the parent form to the field in question.  Previously, we
+          were 'building' the data structure for the soon to be created Salesforce
+          object based on mappings keyed off of each field's title.  Since titles
+          aren't necessarily unique, this was fragile and with the introduction of
+          support for mapping fieldset-based fields, the code was getting ridiculous.
+          *NOTE*: If jumping to this version of salesforcepfgadpater from previous
+          versions, you'll need to reinstall the product from the ZMI or the
+          Add/Remove Products control panel. This will trigger the migration of all
+          existing Salesforce Adapter objects, to include this essential new column
+          for the field map.
+          [andrewb]
+        
+        - Reworking overly fragile 'do we need to migrate' infrastructure for versions
+          prior to 1.0rc1 which assumed that we'd be listing all known versions to the
+          end of time and also that running a profiles steps wouldn't bump the
+          installedversion attribute on an installed product, as it now appears to do
+          in CMFQIT version 2.1.4. This should allow for a simultaneous Plone 3.1.x
+          migration and Salesforce PFG Adapter upgrade.
+          [andrewb]
+        
+        - Added support for form fields within a folderish "fieldset" both from a
+          mapping and creation within Salesforce.com objects perspective.
+          [andrewb]
+        
+        - Adding test/code coverage protecting against a maximum recursion depth
+          exceeded error via a direct call to getSortedSFAdapters.  This is feasible
+          in the case where Salesforce Adapters are configured outside the context
+          of the existing Archetype validation code.
+          [andrewb]
+        
+        - Added support for "chained adapters" (that is, forms that create separate,
+          but linked SF objects) including: schema extensions for adapters, validation
+          against circular chains, and execution of chains in the correct order.
+          [jbaldivieso, andrewb]
+        
+        1.0 - released April 4, 2008
+        
+        - Added test coverage of onSuccess, the critical piece in ensuring that
+          our form values make their way into Salesforce.com as the appropriate
+          SFObject type with configured mapping.  I suppose test coverage of
+          the main functionality is okay during an rc cycle :)
+          [andrewb]
+        
+        1.0rc2
+        
+        - Using proper Generic Setup API "runAllImportStepsFromProfile", rather than
+          deprecated "setImportContext".  For more information, see the very helpful:
+          http://www.nabble.com/Product-install-regression--td14165955.html#a14165955
+          [andrewb]
+        
+        - Cleaning up naughty "import \*" statement within Install.py
+          [andrewb]
+        
+        1.0rc1
+        
+        - Providing test and migration for legacy adapters that didn't have the
+          capability to mark required fields in the UI
+          [andrewb, jessesnyder]
+        
+        - Renaming the Salesforce PFG Adapter's archetype_name to Salesforce
+          Adapter, in attempt to increase non-technical accessibility.
+          Provided migration for the same
+          [andrewb, jessesnyder]
+        
+         - Add zope security checks to methods in the SalesforcePFGAdapter class
+           [jessesnyder]
+        
+         - Tweaked i18n infrastructure and added German translation.
+           [davisagli]
+        
+         - Don't show extraneous schemata in Plone3
+           [jessesnyder]
+        
+         - Ran Zope's test coverage feature against our code base and extended test
+           coverage to key parts of the public aspects of our code base
+           [andrewb]
+        
+         - Implement IMultiPageSchema so that schemata can be processed separately and
+           in order, since the field mapping schemata depends on the default schemata
+           being submitted first.
+           [jessesnyder]
+        
+         - Re-ordered the adapter's schemata to put 'field mapping' before
+           'overrides'. [davisagli]
+        
+         - Worked around FGDateField issue to format submitted dates properly for
+           Salesforce.com input. Used DateTime.HTML4() method on field value
+           [ghnatiuk, davisagli]
+        
+         - Adding labeling to the field mapping ui to show those fields for the
+           chosen SFObject, which are non-nillable (i.e required) and don't have a
+           computed value (i.e. as in a unique id, which is required but you have no
+           control over)
+           [jessesnyder, andrewb]
+        
+         - Sorting of fields that are required first, then those that are optional
+           second in the field mapping ui
+           [jessesnyder, andrewb]
+        
+        1.0-alpha2
+        
+         - Worked around issue where the DataGridField strips proceeding/trailing
+           spaces for its FixedRow values, but our generateFormFieldRows method did
+           not, thus each save of the adapter produced duplicate mappings in the
+           DataGridField UI
+           [jessesnyder, andrewb]
+        
+         - Providing custom mutator for the field map user interface, which now
+           auto-cleans up those fields that have been removed or re-titled
+           [jessesnyder, andrewb]
+        
+        1.0-alpha1
+        
+         - Initial import and creation of standalone product originally created at the
+           following branch:
+        
+             - http://svn.plone.org/svn/collective/PloneFormGen/branches/salesforce_adapter_branch/
+        
+        
+Keywords: Zope CMF Plone Salesforce.com CRM PloneFormGen forms integration
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Framework :: Zope2
+Classifier: Framework :: Plone
