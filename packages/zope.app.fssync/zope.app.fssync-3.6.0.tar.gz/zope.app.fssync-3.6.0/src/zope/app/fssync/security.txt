@@ -1,0 +1,132 @@
+Security Issues
+===============
+
+The Python API of zope.fssync does not care about security. The 
+web-based API however has to deal with security issues which mainly 
+depends on the permissions to access serialization and 
+deserialization adapters.
+    
+By default the permissions are set as follows:
+
+    read access to content and annotations requires zope.View;
+    
+    write access requires zope.ManageContent;
+    
+    access to page templates and zope.app.module.manager 
+    requires zope.ManageCode;
+    
+    and access to everything else zope.ManageSite.   
+    
+If you need more fine grained distinctions, e.g. differential read 
+and write access, you must specify the appropriate permissions for 
+registered serialization and deserialization adapters.
+
+Let's start with some objects on the server side:
+
+    >>> root = getRootFolder()
+    >>> from zope.app.file import File
+    >>> serverfile1 = root[u'file1.txt'] = File('A text file', 'text/plain')
+    >>> serverfile2 = root[u'file2.txt'] = File('Another file', 'text/plain')
+
+The root folder has a SiteManager which should only be accessible to
+site managers. This access is governed by the serialization adapters. The 
+factories of these adapters are registered as named utilities. 
+FSSync first looks whether a class based adapter is registered:
+
+    >>> from zope.fssync.interfaces import ISynchronizer, ISynchronizerFactory
+    >>> sm = root.getSiteManager()
+    >>> zope.component.getUtility(ISynchronizerFactory, 
+    ...                     name='zope.app.component.site.LocalSiteManager')
+    Traceback (most recent call last):
+    ...
+    ComponentLookupError: (..., '...LocalSiteManager')
+
+Since no special serializer is registered we must check the security 
+settings of the default serializer which should be registered as a unnamed
+ISynchronizerFactory:
+
+    >>> factory = zope.component.getUtility(ISynchronizerFactory) 
+    >>> checker = getattr(factory, '__Security_checker__', None)
+    >>> checker
+    <zope.security.checker.Checker object at ...>
+    >>> sorted(checker.get_permissions.items())
+    [('__call__', 'zope.ManageSite'), ...]
+
+Reading with Different Permissions
+----------------------------------
+
+The global manager has all permissions and thus is able to check out all 
+objects:
+
+    >>> from zope.app.fssync.fssync import FSSync
+    >>> rooturl = 'http://globalmgr:globalmgrpw@localhost'
+    >>> admin = FSSync(network=TestNetwork(), rooturl=rooturl)
+
+Note that the ++etc++site subtree is part of the checkout:
+
+    >>> admin.checkout(checkoutdir)
+    N .../root/
+    U .../root/++etc++site
+    U .../root/file1.txt
+    N .../root/@@Zope/Extra/file1.txt/
+    U .../root/@@Zope/Extra/file1.txt/contentType
+    U .../root/file2.txt
+    N .../root/@@Zope/Extra/file2.txt/
+    U .../root/@@Zope/Extra/file2.txt/contentType
+    N .../@@Zope/Annotations/root/
+    U .../@@Zope/Annotations/root/zope.app.dublincore.ZopeDublinCore
+    U .../@@Zope/Annotations/root/zope.app.security.AnnotationPrincipalRoleManager
+    All done.
+    
+    >>> cleanUpTree(checkoutdir)
+
+Now we perform the same checkout with the limited permission of a content 
+manager which has no access to the site manager:
+
+    >>> rooturl = 'http://cm:cmpw@localhost'
+    >>> contentmanager = FSSync(network=TestNetwork(), rooturl=rooturl)
+    >>> contentmanager.checkout(checkoutdir)
+    N .../root/
+    U .../root/file1.txt
+    U .../root/file2.txt
+    N .../@@Zope/Annotations/root/
+    U .../@@Zope/Annotations/root/zope.app.dublincore.ZopeDublinCore
+    All done.
+    
+    >>> cleanUpTree(checkoutdir)
+
+
+Limited Write Permissions
+-------------------------
+
+What if we want to restrict the write access to specific users? 
+This is easy since deserialize permissions are separated from 
+the serialize permissions:
+
+    >>> rooturl = 'http://rom:rompw@localhost'
+    >>> readonly = FSSync(network=TestNetwork(handle_errors=False),
+    ...                   rooturl=rooturl)
+    >>> readonly.checkout(checkoutdir)
+    N .../root/
+    U .../root/file1.txt
+    U .../root/file2.txt
+    All done.
+
+    >>> localfile1 = os.path.join(checkoutdir, 'root', 'file1.txt')
+    >>> fp = open(localfile1, 'w')
+    >>> fp.write('A modified text file')
+    >>> fp.close()
+
+One security level is realized by the commit view which requires 
+the ManageContent permission:
+
+    >>> readonly.commit(localfile1)
+    Traceback (most recent call last):
+    ...
+    Unauthorized: ...
+
+
+TODO:
+-----
+
+Write a test for unprotected views.

@@ -1,0 +1,66 @@
+Pickle Issues
+=============
+
+Pickling large and complex objects can be tricky, since the boundaries 
+of arbitrary objects are often complex and difficult to define.
+
+To illustrate possible problems it is sufficient to look at a 
+single folder with a local site manager:
+
+>>> root = getRootFolder()
+>>> from zope.app.folder import Folder
+>>> from zope.app.component.site import LocalSiteManager
+>>> folder1 = root[u'folder1'] = Folder()
+>>> sm1 = LocalSiteManager(folder1)
+>>> folder1.setSiteManager(sm1)
+
+>>> from zope.xmlpickle import dumps
+>>> before = len(dumps(folder1))
+
+Now we add a second folder:
+
+>>> folder2 = root[u'folder2'] = Folder()
+>>> sm2 = LocalSiteManager(folder2)
+>>> folder2.setSiteManager(sm2)
+
+Let's look at the pickle of our first folder again:
+
+>>> after = len(dumps(folder1))
+
+Then Let's compare.
+
+>>> before < after
+True
+
+Bang! The pickle size increased. That means that the pickle of 
+folder1 contains additional data probably from folder2 or at 
+least it's parent. How complex and unpredictable
+the situation is shows the following relation:
+
+>>> len(dumps(folder1)) > len(dumps(root))
+True
+
+Let's try the same with a location aware pickler. The location
+aware pickler saves persistent references to locatable objects and 
+thus stops pickling when a pointer leads to an object outside
+the tree of sublocations:
+
+>>> from zope.app.fssync.fspickle import dumps
+>>> before = len(dumps(folder1))
+
+>>> folder3 = root[u'folder3'] = Folder()
+>>> sm = LocalSiteManager(folder3)
+>>> folder3.setSiteManager(sm)
+
+>>> after = len(dumps(folder1))
+>>> after == before
+True
+
+>>> len(dumps(root)) > len(dumps(folder1))
+True
+
+
+To Do
+=====
+
+Write test for pickles with sorted dict items.

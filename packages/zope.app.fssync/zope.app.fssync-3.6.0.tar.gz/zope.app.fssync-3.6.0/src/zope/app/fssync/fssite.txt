@@ -1,0 +1,169 @@
+Synchronize a Site
+==================
+
+Pickling large and complex objects can be tricky, since the boundaries 
+of arbitrary objects are often complex and difficult to define.
+
+To illustrate possible problems it is sufficient to look at a site, i.e.
+single folder with a local site manager:
+
+    >>> from zope import component
+    >>> root = getRootFolder()
+    >>> from zope.app.folder import Folder
+    >>> from zope.app.component.site import LocalSiteManager
+    >>> folder1 = root[u'folder1'] = Folder()
+    >>> sm1 = LocalSiteManager(folder1)
+    >>> folder1.setSiteManager(sm1)
+
+    >>> from zope.xmlpickle import dumps
+    >>> before = len(dumps(folder1))
+
+Now we add a second folder:
+
+    >>> folder2 = root[u'folder2'] = Folder()
+    >>> sm2 = LocalSiteManager(folder2)
+    >>> folder2.setSiteManager(sm2)
+
+Let's look at the pickle of our first folder again:
+
+    >>> after = len(dumps(folder1))
+
+Then Let's compare.
+
+    >>> before < after
+    True
+
+Bang! The pickle size increased. That means that the pickle of folder1 
+contains additional data probably from folder2 or at least it's parent.
+How complex and unpredictable the situation can be shows the 
+following relation:
+
+    >>> len(dumps(folder1)) > len(dumps(root))
+    True
+
+Let's try the same with a location aware pickler. A location aware 
+pickler saves persistent references to locatable objects and thus 
+stops pickling when a pointer leads to an object outside the tree:
+
+    >>> from zope.fssync.pickle import XMLPickler
+    >>> before = len(XMLPickler(folder1).dumps())
+
+    >>> folder3 = root[u'folder3'] = Folder()
+    >>> sm = LocalSiteManager(folder3)
+    >>> folder3.setSiteManager(sm)
+
+    >>> after = len(XMLPickler(folder1).dumps())
+    >>> after == before
+    True
+
+Now the relation of the overall sizes looks plausible:
+
+    >>> len(XMLPickler(root).dumps()) > len(XMLPickler(folder1).dumps())
+    True
+
+A site can be a rather complex structure which contains many special
+objects like catalogs and caches besides the content objects. 
+Here we build a small sample:
+
+    >>> root = getRootFolder()
+    >>> from zope.lifecycleevent import ObjectCreatedEvent
+    >>> serverfolder = root[u'test'] = Folder()
+    >>> zope.event.notify(ObjectCreatedEvent(serverfolder))
+    >>> sm = LocalSiteManager(serverfolder)
+    >>> zope.event.notify(ObjectCreatedEvent(sm))
+    >>> serverfolder.setSiteManager(sm)
+    
+    >>> from zope.app.component.interfaces import ISite
+    >>> ISite.providedBy(serverfolder)
+    True
+    
+    >>> from zope.app.file import File
+    >>> serverfile1 = File('A text file', 'text/plain')
+    >>> serverfile2 = File('Another text file', 'text/plain')
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile1))
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile2))
+    >>> serverfolder[u'file1.txt'] = serverfile1
+    >>> serverfolder[u'file2.txt'] = serverfile2
+
+On the client side we need a directory for the initial checkout:
+
+    >>> os.path.exists(checkoutdir)
+    True
+    
+    >>> from zope.app.fssync.fssync import FSSync
+    >>> rooturl = 'http://globalmgr:globalmgrpw@localhost/test'
+    >>> zsync = FSSync(network=TestNetwork(), rooturl=rooturl)
+
+Now we can call the checkout method:
+
+    >>> zsync.checkout(checkoutdir)
+    N .../test/
+    U .../test/++etc++site
+    U .../test/file1.txt
+    N .../test/@@Zope/Extra/file1.txt/
+    U .../test/@@Zope/Extra/file1.txt/contentType
+    N .../test/@@Zope/Annotations/file1.txt/
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/file2.txt
+    N .../test/@@Zope/Extra/file2.txt/
+    U .../test/@@Zope/Extra/file2.txt/contentType
+    N .../test/@@Zope/Annotations/file2.txt/
+    U .../test/@@Zope/Annotations/file2.txt/zope.app.dublincore.ZopeDublinCore
+    N .../@@Zope/Annotations/test/
+    U .../@@Zope/Annotations/test/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+
+If we want to import (or reimport) the data into a content space 
+we can use the checkin command:
+
+    >>> localdir = os.path.join(checkoutdir, 'test')
+    >>> del root[u'test']
+    >>> zsync.checkin(localdir)
+    >>> serverfolder = root[u'test']
+    >>> sorted(serverfolder.keys())
+    [u'file1.txt', u'file2.txt']
+    >>> serverfolder[u'file1.txt'].data
+    'A text file'
+    >>> serverfolder.getSiteManager()
+    <LocalSiteManager ++etc++site>
+
+In the example above the whole site manager is pickled into a single
+file. If we want to break the site manager up into parts we can provide
+a directory serializer for the site manager:
+
+    >>> from zope.fssync import synchronizer
+    >>> from zope.fssync import interfaces
+    >>> component.provideUtility(
+    ...     synchronizer.DirectorySynchronizer, 
+    ...     interfaces.ISynchronizerFactory,
+    ...     name='zope.app.component.site.LocalSiteManager')
+    
+    >>> zsync.checkout(checkoutdir)
+    D .../test/++etc++site
+    N .../test/++etc++site/
+    U .../test/++etc++site/default
+    ...
+    
+Note that the merger removed the old ++etc++site file and replaced it 
+with a directory. Again we try to reimport the site manager, now from 
+a directory:
+
+    >>> del root[u'test']
+    >>> zsync.checkin(localdir)
+
+    >>> serverfolder = root[u'test']
+    >>> ISite.providedBy(serverfolder)
+    True
+    >>> sorted(serverfolder.keys())
+    [u'file1.txt', u'file2.txt']
+    >>> serverfolder[u'file1.txt'].data
+    'A text file'
+    >>> sm = serverfolder.getSiteManager()
+    >>> sm
+    <LocalSiteManager ++etc++site>
+    >>> sorted(sm.keys())
+    [u'default']
+
+
+

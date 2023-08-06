@@ -1,0 +1,173 @@
+Merge Command
+=============
+
+The merge command copies changes from one checkout to another. It only
+copies changes and additions; it doesn't copy deletions. Its purpose
+is to allow changes on one server to be moved to another via
+fssync. For example, it could be used to move changes from a
+development to a production instance.
+
+Let's begin by creating a server with some data.
+
+    >>> root = getRootFolder()
+    >>> from zope.app.folder import Folder
+    >>> from zope.lifecycleevent import ObjectCreatedEvent
+    >>> serverfolder = root[u'test'] = Folder()
+    >>> from zope.app.file import File
+    >>> serverfile1 = File('A\nB\nC', 'text/plain')
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile1))
+    >>> serverfolder[u'file1.txt'] = serverfile1
+    >>> serverfile2 = File('A\nB\nC', 'text/plain')
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile2))
+    >>> serverfolder[u'file2.txt'] = serverfile2
+
+Now let's create two checkouts.
+
+    >>> os.path.exists(checkoutdir)
+    True
+    >>> os.path.exists(checkoutdir2)
+    True
+
+Now let's do the checkouts.
+
+    >>> from zope.app.fssync.fssync import FSSync
+    >>> rooturl = 'http://globalmgr:globalmgrpw@localhost/test'
+    >>> network = TestNetwork(handle_errors=True)
+    >>> zsync = FSSync(network=network, rooturl=rooturl)
+
+    >>> zsync.checkout(checkoutdir)
+    N .../test/
+    U .../test/file1.txt
+    N .../test/@@Zope/Extra/file1.txt/
+    U .../test/@@Zope/Extra/file1.txt/contentType
+    N .../test/@@Zope/Annotations/file1.txt/
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/file2.txt
+    N .../test/@@Zope/Extra/file2.txt/
+    U .../test/@@Zope/Extra/file2.txt/contentType
+    N .../test/@@Zope/Annotations/file2.txt/
+    U .../test/@@Zope/Annotations/file2.txt/zope.app.dublincore.ZopeDublinCore
+    N .../@@Zope/Annotations/test/
+    U .../@@Zope/Annotations/test/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+    >>> zsync.checkout(checkoutdir2)
+    N .../test/
+    U .../test/file1.txt
+    N .../test/@@Zope/Extra/file1.txt/
+    U .../test/@@Zope/Extra/file1.txt/contentType
+    N .../test/@@Zope/Annotations/file1.txt/
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/file2.txt
+    N .../test/@@Zope/Extra/file2.txt/
+    U .../test/@@Zope/Extra/file2.txt/contentType
+    N .../test/@@Zope/Annotations/file2.txt/
+    U .../test/@@Zope/Annotations/file2.txt/zope.app.dublincore.ZopeDublinCore
+    N .../@@Zope/Annotations/test/
+    U .../@@Zope/Annotations/test/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+Now we'll make some changes to one of the checkouts.
+
+    >>> localfile1 = os.path.join(checkoutdir, 'test', 'file1.txt')
+    >>> fp = open(localfile1, 'w')
+    >>> fp.write('A modified text file')
+    >>> fp.close()
+
+An addition.
+
+    >>> localfile3 = os.path.join(checkoutdir, 'test', 'file3.txt')
+    >>> fp = open(localfile3, 'w')
+    >>> fp.write('A new text file')
+    >>> fp.close()
+    >>> zsync.add(localfile3)
+    A .../test/file3.txt
+
+A new directory.
+
+    >>> sitedir = os.path.join(checkoutdir, 'test', 'newfolder')
+    >>> os.mkdir(sitedir)
+    >>> zsync.add(sitedir)
+    A .../test/newfolder/
+
+Here's a deletion.
+
+    >>> os.unlink(os.path.join(checkoutdir, 'test', 'file2.txt'))
+    >>> zsync.remove(os.path.join(checkoutdir, 'test', 'file2.txt'))
+    R .../test/file2.txt
+
+Now we commit our changes.
+
+    >>> zsync.commit(os.path.join(checkoutdir, 'test'))
+    U .../test/file1.txt
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    D .../test/file2.txt
+    D .../test/@@Zope/Extra/file2.txt/contentType
+    D .../test/@@Zope/Extra/file2.txt/
+    D .../test/@@Zope/Annotations/file2.txt/zope.app.dublincore.ZopeDublinCore
+    D .../test/@@Zope/Annotations/file2.txt/
+    U .../test/file3.txt
+    N .../test/@@Zope/Extra/file3.txt/
+    U .../test/@@Zope/Extra/file3.txt/contentType
+    N .../test/@@Zope/Annotations/file3.txt/
+    U .../test/@@Zope/Annotations/file3.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/newfolder/
+    N .../test/@@Zope/Annotations/newfolder/
+    U .../test/@@Zope/Annotations/newfolder/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+At this point the two checkouts are not in sync.
+
+    >>> f1 = open(os.path.join(checkoutdir, 'test', 'file1.txt'))
+    >>> f2 = open(os.path.join(checkoutdir2, 'test', 'file1.txt'))
+    >>> f1.read() == f2.read()
+    False
+
+    >>> f1.close()
+    >>> f2.close()
+
+Now we'll merge changes from one checkout to the other.
+
+    >>> zsync.merge((checkoutdir, checkoutdir2))
+    M .../test/file1.txt
+    A .../test/file3.txt
+    A .../test/newfolder/
+    All done.
+
+The status command reflects the local changes.
+
+    >>> zsync.status(os.path.join(checkoutdir2, 'test'))
+    / .../test/
+    M .../test/file1.txt
+    = .../test/file2.txt
+    A .../test/file3.txt
+    A .../test/newfolder/
+
+The change and the addition were picked up, but the deletion wasn't.
+
+Let's confirm that the changed and added files made it.
+
+    >>> f1 = open(os.path.join(checkoutdir, 'test', 'file1.txt'))
+    >>> f2 = open(os.path.join(checkoutdir2, 'test', 'file1.txt'))
+    >>> f1.read() == f2.read()
+    True
+
+    >>> f1.close()
+    >>> f2.close()
+
+    >>> f1 = open(os.path.join(checkoutdir, 'test', 'file3.txt'))
+    >>> f2 = open(os.path.join(checkoutdir2, 'test', 'file3.txt'))
+    >>> f1.read() == f2.read()
+    True
+
+    >>> f1.close()
+    >>> f2.close()
+
+    >>> os.path.isdir(os.path.join(checkoutdir2, 'test', 'newfolder'))
+    True
+
+Let's make sure that extras were also copied over.
+
+    >>> open(os.path.join(checkoutdir2, 'test', '@@Zope', 'Extra',
+    ...     'file3.txt', 'contentType')).read()
+    '<?xml version="1.0" encoding="utf-8" ?>\n<pickle> <string>text/plain</string> </pickle>\n'

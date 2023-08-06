@@ -1,0 +1,481 @@
+Using FSSync
+============
+
+The fssync package allows users to download objects from a Zope3 server
+to the local disk, edit the objects offline and synchronize the
+modifications with the server later on.
+
+Let's start with some basic infrastructure on the server side. We
+assume that a folder with some content already exists:
+
+    >>> root = getRootFolder()
+    >>> from zope.app.folder import Folder
+    >>> from zope.lifecycleevent import ObjectCreatedEvent
+    >>> from zope.lifecycleevent import ObjectModifiedEvent
+    >>> serverfolder = root[u'test'] = Folder()
+    >>> from zope.app.file import File
+    >>> serverfile1 = File('A text file', 'text/plain')
+    >>> serverfile2 = File('Another text file', 'text/plain')
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile1))
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile2))
+    >>> serverfolder[u'file1.txt'] = serverfile1
+    >>> serverfolder[u'file2.txt'] = serverfile2
+
+On the client side we need a directory for the initial checkout:
+
+    >>> os.path.exists(checkoutdir)
+    True
+
+
+Serialization format
+--------------------
+
+On the server side everything must be registered in a manner that we
+are allowed to access the serialized data (see registration.txt for
+details). The serialized content is delivered in a Zope3 specific
+SNARF archive.
+SNARF (Simple New ARchival Format) is a very simple format that
+basically puts one file after another. Here we download it by calling
+the @@toFS.snarf view to give an impression of the internal structure
+of this format:
+
+    >>> headers = {'Authorization':'Basic globalmgr:globalmgrpw'}
+    >>> conn = PublisherConnection('localhost')
+    >>> conn.request('GET', 'test/@@toFS.snarf', headers=headers)
+    >>> print conn.getresponse().read(-1)
+    00000227 @@Zope/Annotations/test/@@Zope/Entries.xml
+    <?xml version='1.0' encoding='utf-8'?>
+    <entries>
+      <entry name="zope.app.dublincore.ZopeDublinCore"
+             keytype="__builtin__.str"
+             type="zope.dublincore.annotatableadapter.ZDCAnnotationData"
+             />
+    </entries>
+    00000768 @@Zope/Annotations/test/zope.app.dublincore.ZopeDublinCore
+    <?xml version="1.0" encoding="utf-8" ?>
+    <pickle>
+    ...
+    </pickle>
+    00000247 @@Zope/Entries.xml
+    <?xml version='1.0' encoding='utf-8'?>
+    <entries>
+      <entry name="test"
+             keytype="__builtin__.unicode"
+             type="zope.app.folder.folder.Folder"
+             factory="zope.app.folder.folder.Folder"
+             id="/test"
+             />
+    </entries>
+    00000440 test/@@Zope/Entries.xml
+    <?xml version='1.0' encoding='utf-8'?>
+    <entries>
+      <entry name="file1.txt"
+             keytype="__builtin__.unicode"
+             type="zope.app.file.file.File"
+             factory="zope.app.file.file.File"
+             id="/test/file1.txt"
+             />
+      <entry name="file2.txt"
+             keytype="__builtin__.unicode"
+             type="zope.app.file.file.File"
+             factory="zope.app.file.file.File"
+             id="/test/file2.txt"
+             />
+    </entries>
+    00000227 test/@@Zope/Annotations/file1.txt/@@Zope/Entries.xml
+    <?xml version='1.0' encoding='utf-8'?>
+    <entries>
+      <entry name="zope.app.dublincore.ZopeDublinCore"
+             keytype="__builtin__.str"
+             type="zope.dublincore.annotatableadapter.ZDCAnnotationData"
+             />
+    </entries>
+    00001046 test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    <?xml version="1.0" encoding="utf-8" ?>
+    <pickle>
+    ...
+    </pickle>
+    00000227 test/@@Zope/Annotations/file2.txt/@@Zope/Entries.xml
+    <?xml version='1.0' encoding='utf-8'?>
+    <entries>
+      <entry name="zope.app.dublincore.ZopeDublinCore"
+             keytype="__builtin__.str"
+             type="zope.dublincore.annotatableadapter.ZDCAnnotationData"
+             />
+    </entries>
+    00001046 test/@@Zope/Annotations/file2.txt/zope.app.dublincore.ZopeDublinCore
+    <?xml version="1.0" encoding="utf-8" ?>
+    <pickle>
+    ...
+    </pickle>
+    00000167 test/@@Zope/Extra/file1.txt/@@Zope/Entries.xml
+    <?xml version='1.0' encoding='utf-8'?>
+    <entries>
+      <entry name="contentType"
+             keytype="__builtin__.str"
+             type="__builtin__.str"
+             />
+    </entries>
+    00000087 test/@@Zope/Extra/file1.txt/contentType
+    <?xml version="1.0" encoding="utf-8" ?>
+    <pickle> <string>text/plain</string> </pickle>
+    00000167 test/@@Zope/Extra/file2.txt/@@Zope/Entries.xml
+    <?xml version='1.0' encoding='utf-8'?>
+    <entries>
+      <entry name="contentType"
+             keytype="__builtin__.str"
+             type="__builtin__.str"
+             />
+    </entries>
+    00000087 test/@@Zope/Extra/file2.txt/contentType
+    <?xml version="1.0" encoding="utf-8" ?>
+    <pickle> <string>text/plain</string> </pickle>
+    00000011 test/file1.txt
+    A text file00000017 test/file2.txt
+    Another text file
+
+Note that the main content is directly serialized whereas extra
+attributes and metadata are pickled in an XML format.
+
+
+Initial Checkout
+----------------
+
+We perform an initial checkout to see what happens. We mimic the
+command line syntax
+
+    zsync checkout http://user:password@host:port/path targetdir
+
+by using the corresponding FSSync command object. (The zsync script
+can be found in this directory. Type ``zsync help`` for a list of
+available commands).
+The FSSync object must be initialized with all relevant connection data.
+For the sake of this doctest we need also a special network instance:
+
+    >>> from zope.app.fssync.fssync import FSSync
+    >>> rooturl = 'http://globalmgr:globalmgrpw@localhost/test'
+    >>> network = TestNetwork(handle_errors=False)
+    >>> zsync = FSSync(network=network, rooturl=rooturl)
+
+Now we can call the checkout method:
+
+    >>> zsync.checkout(checkoutdir)
+    N .../test/
+    U .../test/file1.txt
+    N .../test/@@Zope/Extra/file1.txt/
+    U .../test/@@Zope/Extra/file1.txt/contentType
+    N .../test/@@Zope/Annotations/file1.txt/
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/file2.txt
+    N .../test/@@Zope/Extra/file2.txt/
+    U .../test/@@Zope/Extra/file2.txt/contentType
+    N .../test/@@Zope/Annotations/file2.txt/
+    U .../test/@@Zope/Annotations/file2.txt/zope.app.dublincore.ZopeDublinCore
+    N .../@@Zope/Annotations/test/
+    U .../@@Zope/Annotations/test/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+The printout shows all new directories and updated files. As you can see,
+the file content is directly mapped onto the filesystem whereas extra data
+and metadata are stored in special @@Zope
+directories.
+
+
+Local Modifications
+-------------------
+
+Now we can edit the content and metadata on the local filesystem.
+
+    >>> localdir = os.path.join(checkoutdir, 'test')
+    >>> localfile1 = os.path.join(localdir, 'file1.txt')
+    >>> fp = open(localfile1, 'w')
+    >>> fp.write('A modified text file')
+    >>> fp.close()
+
+The status command lists all local modifications:
+
+    >>> zsync.status(localdir)
+    / .../test/
+    M .../test/file1.txt
+    = .../test/file2.txt
+
+You can also turn off verbose mode to have it only list interesting lines.
+
+    >>> zsync.status(localdir, verbose=False)
+    M .../test/file1.txt
+
+If we want to add a file to the repository we must update the local
+list of entries by calling the add command explicitely:
+
+    >>> newlocalfile = os.path.join(localdir, 'file3.txt')
+    >>> fp = open(newlocalfile, 'w')
+    >>> fp.write('A new local text file')
+    >>> fp.close()
+
+    >>> zsync.add(newlocalfile)
+    A .../test/file3.txt
+
+    >>> zsync.status(localdir)
+    / .../test/
+    M .../test/file1.txt
+    = .../test/file2.txt
+    A .../test/file3.txt
+
+
+Commiting Modifications
+-----------------------
+
+Before we commit our local modifications we should check whether our
+local repository is still up to date. Let's say that by a coincidence
+someone else edited the same file on the server:
+
+    >>> serverfile1.data = 'Ooops'
+    >>> zope.event.notify(ObjectModifiedEvent(serverfile1))
+
+    >>> zsync.commit(localdir)
+    Traceback (most recent call last):
+    ...
+    Error: Up-to-date check failed:
+    test/file1.txt
+    test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+
+We must update the local files and resolve all conflicts before
+we can proceed:
+
+    >>> zsync.update(localdir)
+    C .../test/file1.txt
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    A .../test/file3.txt
+    All done.
+
+The conflicts are marked in a diff3 manner:
+
+    >>> print open(localfile1).read()
+    <<<<<<< .../test/file1.txt
+    A modified text file=======
+    Ooops>>>>>>> .../test/file1.txt
+    <BLANKLINE>
+
+We need to resolve the conflict:
+
+    >>> fp = open(localfile1, 'w')
+    >>> fp.write('A resolved conflict')
+    >>> fp.close()
+    >>> zsync.resolve(localfile1)
+
+Now we can commit our work and have a look at the resulting events:
+
+    >>> def traceEvent(event):
+    ...     print event.__class__.__name__,
+    ...     print getattr(event.object, '__name__', ''),
+    ...     descriptions = getattr(event, 'descriptions', None)
+    ...     if descriptions is not None:
+    ...         for desc in descriptions:
+    ...             print desc.__class__.__name__,
+    ...     print ''
+
+    >>> zope.event.subscribers.append(traceEvent)
+    >>> import time
+    >>> time.sleep(0.1)
+    >>> zsync.commit(localdir)
+    BeforeTraverseEvent None
+    BeforeTraverseEvent test
+    BeforeTraverseEvent fromFS.snarf
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent file1.txt ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectCreatedEvent
+    ObjectAddedEvent file3.txt
+    ContainerModifiedEvent test
+    ObjectModifiedEvent  ObjectSynchronized
+    EndRequestEvent run
+    U .../test/file1.txt
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/file3.txt
+    N .../test/@@Zope/Extra/file3.txt/
+    U .../test/@@Zope/Extra/file3.txt/contentType
+    N .../test/@@Zope/Annotations/file3.txt/
+    U .../test/@@Zope/Annotations/file3.txt/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+Let's check whether the server objects have been updated accordingly:
+
+    >>> serverfile1.data
+    'A resolved conflict'
+    >>> serverfile1.getSize() == len(serverfile1.data)
+    True
+    >>> u'file3.txt' in serverfolder.keys()
+    True
+
+
+Checkin
+-------
+
+If we want to import (or reimport) the data into a content space
+we can use the checkin command:
+
+    >>> del root[u'test']
+    ObjectRemovedEvent test
+    ContainerModifiedEvent None
+
+    >>> zsync.checkin(localdir)
+    BeforeTraverseEvent None
+    BeforeTraverseEvent checkin.snarf
+    ObjectCreatedEvent None
+    ObjectAddedEvent test
+    ContainerModifiedEvent None
+    ObjectCreatedEvent
+    ObjectAddedEvent file1.txt
+    ContainerModifiedEvent test
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent file1.txt Attributes
+    ObjectCreatedEvent
+    ObjectAddedEvent file2.txt
+    ContainerModifiedEvent test
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent file2.txt Attributes
+    ObjectCreatedEvent
+    ObjectAddedEvent file3.txt
+    ContainerModifiedEvent test
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent file3.txt Attributes
+    ObjectModifiedEvent  ObjectSynchronized
+    EndRequestEvent run
+
+    >>> serverfolder = root[u'test']
+    >>> sorted(serverfolder.keys())
+    [u'file1.txt', u'file2.txt', u'file3.txt']
+    >>> serverfile1 = serverfolder[u'file1.txt']
+    >>> print serverfile1.data
+    A resolved conflict
+    >>> serverfile1.getSize() == len(serverfile1.data)
+    True
+
+We need to make sure that the top-level name doesn't already exist,
+or existing data can get screwed:
+
+    >>> zsync.checkin(localdir)
+    Traceback (most recent call last):
+    ...
+    SynchronizationError: object already exists 'test'
+
+
+Let's test changing metadata.
+
+First let's examine an existing metadata file.
+
+    >>> path = (os.path.join(localdir, '@@Zope', 'Extra', 'file1.txt',
+    ...     'contentType'))
+    >>> open(path).read()
+    '<?xml version="1.0" encoding="utf-8" ?>\n<pickle> <string>text/plain</string> </pickle>\n'
+
+Now let's change it.
+
+    >>> f = open(path, 'w')
+    >>> f.write('<?xml version="1.0" encoding="utf-8" ?>\n<pickle>\n')
+    >>> f.write('<string>text/html</string>\n</pickle>\n')
+    >>> f.close()
+
+Now we commit our changes.
+
+    >>> zsync.update(localdir)
+    BeforeTraverseEvent None
+    BeforeTraverseEvent test
+    BeforeTraverseEvent toFS.snarf
+    EndRequestEvent show
+    M .../test/@@Zope/Extra/file1.txt/contentType
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/@@Zope/Annotations/file2.txt/zope.app.dublincore.ZopeDublinCore
+    U .../test/@@Zope/Annotations/file3.txt/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+    >>> zsync.commit(localdir)
+    BeforeTraverseEvent None
+    BeforeTraverseEvent test
+    BeforeTraverseEvent fromFS.snarf
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent file1.txt Attributes
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    EndRequestEvent run
+    C .../test/@@Zope/Extra/file1.txt/contentType
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+The problem is that we formatted the XML slightly differently than the
+synchronizer does. Thus the client thinks there's a conflict after the
+commit. The solution is to set overwrite_local to True on the FSSync's
+merger object. (This is normally done in the FSSync constructor, but
+we'll do it manually in this test.)
+
+Let's return things to how they were.
+
+    >>> zsync.revert(path)
+    Reverted .../test/@@Zope/Extra/file1.txt/contentType
+
+    >>> serverfile1.contentType = 'text/plain'
+    >>> zsync.update(localdir)
+    BeforeTraverseEvent None
+    BeforeTraverseEvent test
+    BeforeTraverseEvent toFS.snarf
+    EndRequestEvent show
+    U .../test/@@Zope/Extra/file1.txt/contentType
+    All done.
+
+Make our metadata change again.
+
+    >>> f = open(path, 'w')
+    >>> f.write('<?xml version="1.0" encoding="utf-8" ?>\n<pickle>\n')
+    >>> f.write('<string>text/html</string>\n</pickle>\n')
+    >>> f.close()
+    >>> zsync.update(localdir)
+    BeforeTraverseEvent None
+    BeforeTraverseEvent test
+    BeforeTraverseEvent toFS.snarf
+    EndRequestEvent show
+    M .../test/@@Zope/Extra/file1.txt/contentType
+    All done.
+
+Now we commit again, but this time using overwrite_local.
+
+    >>> zsync.fsmerger.overwrite_local = True
+    >>> zsync.commit(localdir)
+    BeforeTraverseEvent None
+    BeforeTraverseEvent test
+    BeforeTraverseEvent fromFS.snarf
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent file1.txt Attributes
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    ObjectModifiedEvent  ObjectSynchronized
+    EndRequestEvent run
+    U .../test/@@Zope/Extra/file1.txt/contentType
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+Let's confirm that the change was made.
+
+    >>> serverfile1.contentType
+    'text/html'
+
+Also, note that our metadata file was overwritten with the server verion.
+
+    >>> open(path).read()
+    '<?xml version="1.0" encoding="utf-8" ?>/n<pickle> <string>text/html</string> </pickle>/n'
+
+Clean up
+--------
+
+    >>> zope.event.subscribers.remove(traceEvent)

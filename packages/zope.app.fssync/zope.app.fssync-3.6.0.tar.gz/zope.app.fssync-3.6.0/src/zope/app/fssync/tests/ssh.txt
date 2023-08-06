@@ -1,0 +1,119 @@
+SSH Networking
+==============
+
+The ssh module provides ssh networking classes. The main class is
+SSHConnection, which follows the httplib.HTTPConnection interface.
+
+This class don't provide complete compatibility with httplib; it only
+implements the parts that zope.app.fssync expects.
+
+
+Response
+--------
+
+In order to handle reponses the ssh connection uses an adapter that
+makes a file look like a socket. This adapter is then used to create
+an HTTPResponse.
+
+    >>> from zope.app.fssync.ssh import FileSocket
+    >>> from httplib import HTTPResponse
+
+    >>> data = """HTTP/1.0 302 Found\r
+    ... Location: http://www.google.ca/\r
+    ... Cache-Control: private\r
+    ... Content-Type: text/html; charset=UTF-8\r
+    ... Set-Cookie: PREF=ID=6bcca0d3fbdb7918:TM=1229706725:LM=1229706725:S=Io4QKPOm7laH7W7q; expires=Sun, 19-Dec-2010 17:12:05 GMT; path=/; domain=.google.com\r
+    ... Date: Fri, 19 Dec 2008 17:12:05 GMT\r
+    ... Server: gws\r
+    ... Content-Length: 218\r
+    ... Connection: Close\r
+    ... \r
+    ... <HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">
+    ... <TITLE>302 Moved</TITLE></HEAD><BODY>
+    ... <H1>302 Moved</H1>
+    ... The document has moved
+    ... <A HREF="http://www.google.ca/">here</A>.
+    ... </BODY></HTML>"""
+
+    >>> from cStringIO import StringIO
+    >>> f = StringIO()
+    >>> f.write(data)
+    >>> f.seek(0)
+    >>> s = FileSocket(f)
+    >>> r = HTTPResponse(s)
+    >>> r.begin()
+
+Now let's make sure that the response looks right.
+
+    >>> r.msg['Content-type']
+    'text/html; charset=UTF-8'
+
+    >>> r.reason
+    'Found'
+
+    >>> r.fp.read()
+    '<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>302 Moved</TITLE></HEAD><BODY>\n<H1>302 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.ca/">here</A>.\n</BODY></HTML>'
+
+Excellent.
+
+Connection
+----------
+
+The connection class should be tested here. This will be hard since it
+requires lots of stuff like having ssh agent running, host keys, and
+having an ssh server running. For now let's just do what we can.
+
+    >>> from zope.app.fssync.ssh import SSHConnection
+    >>> c = SSHConnection('localhost:12345')
+    >>> c.putrequest('GET', '/')
+    Traceback (most recent call last):
+    ...
+    error: (111, 'Connection refused')
+
+We get an error here because we're not running an ssh server on port
+12345.
+
+Even though we don't have a real encrypted network connection, let's
+see what the connection object would send over the ssh channel.
+    >>> class StubFile(object):
+    ...     def write(self, data):
+    ...         print repr(data)
+    >>> class StubChannel(object):
+    ...     def close(self): pass
+    >>> c.channel = StubChannel()
+    >>> c.channelw = StubFile()
+    >>> c.putheader('Header Name', 'Header value')
+    'Header Name: Header value\r\n'
+
+    >>> c.endheaders()
+    '\r\n'
+
+    >>> c.send('this is some data')
+    'this is some data'
+
+The connection understands data sent back from the ssh server as a
+HTTP response. We can demo this by using a fake server response.
+
+    >>> from cStringIO import StringIO
+    >>> f = StringIO("""HTTP/1.0 200 OK\r\nHeader: value\r\n\r\nBody""")
+    >>> f.seek(0)
+    >>> c.channelr = f
+    >>> class StubTransport(object):
+    ...     def close(self): pass
+    >>> c.transport = StubTransport()
+
+Now we can test the response.
+
+    >>> r = c.getresponse()
+    >>> r
+    <httplib.HTTPResponse instance at 0x...>
+
+    >>> r.getheaders()
+    [('header', 'value')]
+
+    >>> r.status
+    200
+
+    >>> r.read()
+    'Body'
+

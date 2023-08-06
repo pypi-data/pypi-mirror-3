@@ -1,0 +1,138 @@
+Merge support
+=============
+
+Note: This is a platform specific test that doesn't run on Windows since
+the merge utility uses the diff3 command.
+
+Let's start with some basic infrastructure on the server side. We assume 
+that a folder with some content already exists:
+
+    >>> root = getRootFolder()
+    >>> from zope.app.folder import Folder
+    >>> from zope.lifecycleevent import ObjectCreatedEvent
+    >>> serverfolder = root[u'test'] = Folder()
+    >>> from zope.app.file import File
+    >>> serverfile1 = File('A\nB\nC', 'text/plain')
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile1))
+    >>> serverfolder[u'file1.txt'] = serverfile1
+
+On the client side we need a directory for the initial checkout:
+
+    >>> os.path.exists(checkoutdir)
+    True
+
+We perform an initial checkout:
+
+    >>> from zope.app.fssync.fssync import FSSync
+    >>> rooturl = 'http://globalmgr:globalmgrpw@localhost/test'
+    >>> network = TestNetwork(handle_errors=True)
+    >>> zsync = FSSync(network=network, rooturl=rooturl)
+
+Now we can call the checkout method:
+
+    >>> zsync.checkout(checkoutdir)
+    N .../test/
+    U .../test/file1.txt
+    N .../test/@@Zope/Extra/file1.txt/
+    U .../test/@@Zope/Extra/file1.txt/contentType
+    N .../test/@@Zope/Annotations/file1.txt/
+    U .../test/@@Zope/Annotations/file1.txt/zope.app.dublincore.ZopeDublinCore
+    N .../@@Zope/Annotations/test/
+    U .../@@Zope/Annotations/test/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+
+    >>> localdir = os.path.join(checkoutdir, 'test')
+    >>> localfile1 = os.path.join(localdir, 'file1.txt')
+
+
+Merging
+-------
+
+Changes on the server are merged (via diff3) into the local files.
+
+    >>> fp = open(localfile1, 'w')
+    >>> fp.write('A\nB\nC\nD')
+    >>> fp.close()
+    
+    >>> serverfile1.data = 'A\nX\nB\nC\nD'
+    >>> zsync.update(localdir)
+    M .../test/file1.txt
+    All done.
+    
+    >>> print file(localfile1).read()
+    A
+    X
+    B
+    C
+    D
+
+Binary data are handled differently. It's up to the serializer
+to correctly classify the data as binary. Let's start with a 
+incorrect assignment of the content type:
+
+    >>> serverfile2 = File('01\n01\n01', 'text/plain')
+    >>> zope.event.notify(ObjectCreatedEvent(serverfile2))
+    >>> serverfolder[u'file2.binary'] = serverfile2
+    >>> zsync.update(localdir)
+    U .../test/file2.binary
+    N .../test/@@Zope/Extra/file2.binary/
+    U .../test/@@Zope/Extra/file2.binary/contentType
+    N .../test/@@Zope/Annotations/file2.binary/
+    U .../test/@@Zope/Annotations/file2.binary/zope.app.dublincore.ZopeDublinCore
+    U .../@@Zope/Annotations/test/zope.app.dublincore.ZopeDublinCore
+    All done.
+    
+    >>> localfile2 = os.path.join(localdir, 'file2.binary')
+    >>> fp = open(localfile2, 'wb')
+    >>> fp.write('01\n01\n01\n01')
+    >>> fp.close()
+    >>> zsync.status(localdir)
+    / .../test/
+    ...
+    M .../test/file2.binary
+    
+    >>> serverfile2.data = '11\n01\n01'
+    >>> zsync.update(localdir)
+    M .../test/file2.binary
+    All done.
+    
+Since the serializer declared these data as non-binary, the changes
+are merged:
+
+    >>> print file(localfile2).read()
+    11
+    01
+    01
+    01
+    
+We commit the merged data to keep server and local file again in sync:
+
+    >>> zsync.commit(localdir)
+    U .../test/file2.binary
+    U .../test/@@Zope/Annotations/file2.binary/zope.app.dublincore.ZopeDublinCore
+    All done.
+
+Now we correct the mistaken classification of the binary file:
+    
+    >>> serverfile2.contentType = 'binary/unknown'
+    >>> zsync.update(localdir)
+    U .../test/@@Zope/Extra/file2.binary/contentType
+    All done.
+
+Again we modify the local file:
+
+    >>> serverfile2.data = '01\n01\n01'
+    >>> fp = open(localfile2, 'wb')
+    >>> fp.write('01\n01\n01\n01\n01')
+    >>> fp.close()
+    >>> zsync.status(localdir)
+    / .../test/
+    ...
+    M .../test/file2.binary
+    
+Now we get a conflict, since binaries cannot be merged:
+
+    >>> zsync.update(localdir)
+    C .../test/file2.binary
+    All done.
