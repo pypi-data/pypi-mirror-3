@@ -1,0 +1,88 @@
+Metadata-Version: 1.0
+Name: useless.pipes
+Version: 0.0.1
+Summary: Sugar around generators.
+Home-page: http://github.com/kaste/useless.pipes
+Author: herr kaste
+Author-email: herr.kaste@gmail.com
+License: UNKNOWN
+Description: Pseudo-hacky sugar around generators. If you write nested for loops or nested functions ``a(b(c([1,2,3])))`` this might help you. 
+        
+        
+        Basically it looks like this::
+        
+        	[1, 2, 3] | add(2) | list == [3, 4, 5]
+        
+        where
+        
+        ::
+        	
+        	@worker
+        	def add(items, n):
+        		for i in items:
+        			yield i + n
+        
+        The leftmost argument always is the iterator coming from the left side. The other arguments represent a bound state. Using this worker is a two-step process.
+        
+        :: 
+        
+        	adder = add(2)                # bind a state in a closure
+        	adder([1, 2, 3]) == [3, 4, 5] # apply an iterator
+        
+        workers tend to be very simple and short, reusable and easy to test.
+        
+        ::
+        
+        	@worker
+        	def echo(items):
+        		for i in items: yield i
+        	echo = echo()   # echo 'has' no state
+        	assert [1, 2, 3] | echo == [1, 2, 3]
+        
+        
+        
+        
+        Sometimes you can achieve something like this::
+        
+        
+        	filter_audio_files = fs.filter_by_ext(['.mp3'])
+        
+        	@producer
+        	def folders_with_audio_files(path):
+        	    for root, folders, filenames in os.walk(path):
+        	        if any(filenames | filter_audio_files):
+        	            yield root
+        
+        
+        	@worker
+        	def that_need_fix(paths):
+        		for path in paths:
+        			files     = listdir(path) | filter_audio_files | join_path(path) | list
+        			dos_names = files | get_83DOS_name | list
+        
+        			if files.sort() != dos_names.sort():
+        				yield path
+        	that_need_fix = that_need_fix()
+        
+        
+        	# and the outermost commands in a script then look like this
+        
+        	#give me all folders with mp3-files inside, e.g. print them to stdout
+        	folders_with_audio_files(root)
+        	#give me all folder that need a specific fix, aka dry-mode
+        	folders_with_audio_files(root) | that_need_fix 
+        	#actually apply a fix to these folders
+        	folders_with_audio_files(root) | that_need_fix | apply_fix
+        
+        
+        
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries
