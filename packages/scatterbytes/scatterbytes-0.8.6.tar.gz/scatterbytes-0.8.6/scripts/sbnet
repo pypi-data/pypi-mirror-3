@@ -1,0 +1,317 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import time
+import signal
+import datetime
+import threading
+import logging
+import logging.handlers
+from argparse import ArgumentParser
+import M2Crypto
+import M2Crypto.Rand
+import M2Crypto.threading
+from scatterbytes.config import find_config_dir
+from scatterbytes.client.node import ClientNodeConfig
+from scatterbytes.storage.node import StorageNodeConfig
+from scatterbytes.client.xmlrpc import create_client_node
+from scatterbytes.storage.xmlrpc import create_storage_node
+from scatterbytes.storage.xmlrpc import ThreadedStorageNodeServer
+
+logger = logging.getLogger('sbnet')
+
+def setup(config_class, node_factory):
+    config = config_class.get_config()
+    print 'Your configuration file is located at %s' % config.config_path
+    print 'You can edit the configuration file with a text editor.'
+    if not config.get('node_id'):
+        raw_node_id = raw_input('Enter the node_id assigned to you: ')
+        config.set('node_id', raw_node_id.strip())
+    if not config.get('recert_code'):
+        raw_recert_code = raw_input('Enter the recert_code assigned to you: ')
+        config.set('recert_code', raw_recert_code.strip())
+    config.save()
+    # See if we have a cert.
+    if not os.path.exists(config.cert_path):
+        print 'Fetching your certificate.'
+        node = node_factory(config=config)
+        node.request_new_certificate()
+
+def setup_storage_node(args):
+    setup(StorageNodeConfig, create_storage_node)
+
+def setup_client_node(args):
+    setup(ClientNodeConfig, create_client_node)
+
+def list_volumes(args):
+    client_node = create_client_node()
+    response = client_node.list_volumes()
+    print
+    print '*** Volume Information ***'
+    print
+    print 'Name'.ljust(20), 'Mirrors'
+    print
+    for v in response['volumes']:
+        print v['name'].ljust(20), v['mirror_count']
+
+def create_volume(args):
+    client_node = create_client_node()
+    response = client_node.create_volume(args.volume_name, args.mirror_count)
+    if 'message' in response:
+        print response['message']
+
+def upload_file(args):
+    file_path = args.file_path
+    volume_name = args.volume_name
+    client_node = create_client_node()
+    file_chunks_path = client_node.prepare_file(file_path)
+    client_node.upload_file_chunks(
+        file_chunks_path, volume_name, file_name=args.file_name
+    )
+
+def delete_file(args):
+    file_name = args.file_name
+    volume_name = args.volume_name
+    client_node = create_client_node()
+    response = client_node.delete_file(
+        file_name, volume_name
+    )
+    if 'message' in response:
+        print response['message']
+
+def download_file(args):
+    file_name = args.file_name
+    volume_name = args.volume_name
+    output_path = args.output_path
+    client_node = create_client_node()
+    client_node.download_file(
+        file_name, output_path, volume_name=volume_name
+    )
+
+def _format_column_data(column_data):
+    if not column_data:
+        return
+    print column_data
+    row_length = len(column_data[0])
+    col_widths = [0,] * row_length
+    def make_print_value(value):
+        if isinstance(value, datetime.datetime):
+            print_value = value.strftime('%Y-%m-%d %H:%M')
+        else:
+            print_value = str(value)
+        return print_value
+    # first, determine column widths and format data
+    for row in column_data:
+        for (i, value) in enumerate(row):
+            print_value = make_print_value(value)
+            if len(print_value) > col_widths[i]:
+                col_widths[i] = len(print_value)
+    # add padding
+    new_data = ['',]
+    for row in column_data:
+        new_row = ['',] * row_length
+        for (i, value) in enumerate(row):
+            padding_size = col_widths[i]
+            print_value = make_print_value(value)
+            # make integers align right
+            if isinstance(value, int):
+                padded_value = print_value.rjust(padding_size).ljust(1)
+            padded_value = print_value.ljust(padding_size + 1)
+            new_row[i] = padded_value
+        new_data.append(new_row)
+    return new_data
+   
+
+def list_files(args):
+    volume_name = args.volume_name
+    long_format = args.long_format
+    with_metadata = args.with_metadata
+    client_node = create_client_node()
+    detail_level = 0
+    if long_format:
+        detail_level = 1
+    if with_metadata:
+        detail_level = 2
+    result = client_node.list_files(volume_name, detail_level)
+    column_data = []
+    for rset in result:
+        row = []
+        if len(rset) == 1:
+            row.append(rset[0])
+        else:
+            # size, init time, flags, file name
+            row = [rset[i] for i in (1, 3, 2, 0)]
+        if with_metadata:
+            m_values = []
+            for (key, value) in rset[4].items():
+                m_values.append('%s: %s' % (key, value))
+            m_value = ', '.join(m_values)
+            row.append(m_value)
+        column_data.append(row)
+    if not column_data:
+        print 'no files'
+        return
+    for row in _format_column_data(column_data):
+        print ''.join(row)
+
+def serve(args):
+
+    def setup_logging(config):
+        log_filepath = config.get('log_path')
+        handler = logging.handlers.RotatingFileHandler(
+            log_filepath, maxBytes=1024**2, backupCount=10
+        )
+        fmt = '%(asctime)s: %(levelname)s : %(name)s : %(message)s'
+        formatter = logging.Formatter(fmt)
+        handler.setFormatter(formatter)
+        root_logger = logging.getLogger()
+        logging.getLogger().addHandler(handler)
+        debug = config.get('debug')
+        if debug:
+            root_logger.setLevel(logging.DEBUG)
+        else:
+            root_logger.setLevel(logging.INFO)
+    config = StorageNodeConfig.get_config()
+    setup_logging(config)
+    listen_address = config.get('listen_address')
+    listen_port = config.get('listen_port')
+
+    def signal_handler(signum, frame):
+        logger.info('caught signal ... shutting down ...')
+        server.shutdown()
+        M2Crypto.Rand.save_file(
+            os.path.join(config.data_directory, 'randpool.dat')
+        )
+        M2Crypto.threading.cleanup()
+        sys.exit(0)
+
+    storage_node = create_storage_node()
+    # seed random number generator
+    seed_path = os.path.join(config.data_directory, 'randpool.dat')
+    if os.path.exists(seed_path):
+        M2Crypto.Rand.load_file(seed_path, -1)
+    M2Crypto.threading.init()
+    server = ThreadedStorageNodeServer(storage_node)
+    t = threading.Thread(target=server.serve_forever)
+    t.start()
+    # Now that the https server is running, let the storage_node daemon(s)
+    # start.
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    storage_node.startup()
+    # just wait until we're asked to exit
+    # got to keep this process going for the signal handler to work
+    while 1:
+        time.sleep(.1)
+
+
+def create_parsers():
+
+    # see if config files exist
+    storage_node_config_path = os.path.join(
+        find_config_dir(), StorageNodeConfig.config_name
+    )
+    client_node_config_path = os.path.join(
+        find_config_dir(), ClientNodeConfig.config_name
+    )
+
+    parser = ArgumentParser(prog='sbnet')
+    subparsers = parser.add_subparsers(help='sub-command help')
+    client_setup_parser = subparsers.add_parser(
+        'setup-client', help='configure client node'
+    )
+    client_setup_parser.set_defaults(func=setup_client_node)
+    # storage node setup 
+    storage_setup_parser = subparsers.add_parser(
+        'setup-storage', help='configure storage node'
+    )
+    storage_setup_parser.set_defaults(func=setup_storage_node)
+    # list volumes
+    list_volume_parser = subparsers.add_parser(
+        'list-volumes', help='list volumes'
+    )
+    list_volume_parser.set_defaults(func=list_volumes)
+    # create volume
+    create_volume_parser = subparsers.add_parser(
+        'create-volume', help='create a new volume'
+    )
+    create_volume_parser.add_argument(
+        'volume_name', type=str, help='volume name'
+    )
+    create_volume_parser.add_argument(
+        '--mirror-count', type=int, default=3, help='number of mirrors',
+    )
+    create_volume_parser.set_defaults(func=create_volume)
+    # upload file
+    upload_parser = subparsers.add_parser(
+        'upload', help='upload a file'
+    )
+    upload_parser.add_argument(
+        'file_path', type=str, help='path to the file'
+    )
+    upload_parser.add_argument(
+        '--volume-name', '-v', type=str, help='volume to put the file on'
+    )
+    upload_parser.add_argument(
+        '--file-name', '-n', type=str, help='name to refernece this file with'
+    )
+    upload_parser.set_defaults(func=upload_file)
+    # delete file
+    delete_parser = subparsers.add_parser(
+        'delete', help='delete a file'
+    )
+    delete_parser.add_argument(
+        'file_name', type=str, help='name of the file to delete'
+    )
+    delete_parser.add_argument(
+        '--volume-name', '-v', type=str,
+        help='volume on which the file resides'
+    )
+    delete_parser.set_defaults(func=delete_file)
+    # download file
+    download_parser = subparsers.add_parser(
+        'download', help='download a file'
+    )
+    download_parser.add_argument(
+        'file_name', type=str, help='name of the file to download'
+    )
+    download_parser.add_argument(
+        'output_path', type=str,
+    )
+    download_parser.add_argument(
+        '--volume-name', '-v', type=str, default='default',
+        help='volume on which the file resides'
+    )
+    download_parser.set_defaults(func=download_file)
+    # list files
+    list_parser = subparsers.add_parser(
+        'list', help='list all files'
+    )
+    list_parser.add_argument(
+        '--volume-name', '-v', type=str, default='default',
+        help='volume on which to list files'
+    )
+    list_parser.add_argument(
+        '--long-format', '-l', action='store_true',
+        help='show init date, size and flags'
+    )
+    list_parser.add_argument(
+        '--with-metadata', '-m', action='store_true',
+        help='include metadata'
+    )
+    list_parser.set_defaults(func=list_files)
+    # serve storage node
+    if os.path.exists(storage_node_config_path):
+        serve_parser = subparsers.add_parser(
+            'serve', help='startup storage node server'
+        )
+        serve_parser.set_defaults(func=serve)
+    return parser
+
+parser = create_parsers()
+
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    args.func(args)
