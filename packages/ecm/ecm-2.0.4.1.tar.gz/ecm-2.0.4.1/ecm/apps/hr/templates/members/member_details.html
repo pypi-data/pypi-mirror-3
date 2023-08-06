@@ -1,0 +1,218 @@
+{% extends "hr_base.html" %}
+
+{% block hr_stylesheets %}<link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}accounting/css/classes.css" />{% endblock %}
+
+{% block headtitle %}Member Details - {{ member.name }}{% endblock %}
+
+
+{% block breadcrumbs %}
+<li><a href="/">Home</a></li>
+<li><a href="/hr/">Human Resources</a></li>
+<li><a href="/hr/members/">Members</a></li>
+<li class="active"><a href="/hr/members/{{ member.characterID }}">{{ member.name }}</a></li>
+{% endblock %}
+
+{% block main_content %}
+<div class="page-header">
+  <h1 {%if not member.corped %}class="error"{% endif %}>{{ member.name }}{%if not member.corped %} NOT CORPED{% endif %}
+  <small>{{ member.nickname }}</small>
+  </h1>
+</div>
+
+<div class="row-fluid">
+  <div class="span4">
+    <img src="http://image.eveonline.com/Character/{{ member.characterID }}_256.jpg"></img>
+    {% if killboardUrl %}
+    <a class="kill" href="{{killboardUrl}}?a=search&searchtype=pilot&searchphrase={{member.name|iriencode}}">Link to killboard</a>
+    {%endif%}
+  </div>
+  <div class="span8">
+    <dl>
+      <dt>Corp Date</dt><dd>{{ member.corpDate|ecm_datetime }}</dd>
+      <dt>Last Login</dt><dd>{{ member.lastLogin|ecm_datetime }}</dd>
+      <dt>Last Logoff</dt><dd>{{ member.lastLogoff|ecm_datetime }}</dd>
+      <dt>Avg. Session Duration (30 Days)</dt><dd>{{ sessiondata.sessionlength|ecm_time }}</dd>
+      <dt>Logged in (last 30 Days)</dt><dd>{{ sessiondata.30days|ecm_time }}</dd>
+      <dt>Logged in (last 7 Days)</dt><dd>{{ sessiondata.7days|ecm_time }}</dd>
+      <dt>Base Office</dt><dd>{% if member.baseID %}{{ member.base }}{% else %}None{% endif %}</dd>
+      <dt>Owned by</dt><dd>{{ member.owner_permalink|safe }}</dd>
+      <dt>Latest location</dt><dd>{{ member.location }} <em>({%if member.ship %}{{ member.ship }}{% else %}Docked{% endif %})</em> on {{ member.date|ecm_datetime }}</dd>
+      <dt>Links</dt><dd><a class="kill" href="http://eve-kill.net/?a=pilot_detail&plt_external_id={{member.characterID|iriencode}}">EVE-Kill</a></dd>
+      <dd><a class="evewho" href="http://evewho.com/pilot/{{member.name|iriencode}}">EVE WHO</a></dd>
+      <dd><a class="eveboard" href="http://eveboard.com/pilot/{{member.name|iriencode}}">EVEBoard</a></dd>
+      <dd><a class="evesearch" href="http://eve-search.com/search/author/{{member.name|iriencode}}">EVE-Search</a></dd>
+      <dd><a class="evegate" href="https://gate.eveonline.com/Profile/{{member.name|iriencode}}">EVE Gate</a></dd>
+    </dl>
+  </div>
+</div>
+
+<h3>Notes</h3>
+<p id="notes" class="editable" >{{ member.notes|default_if_none:"" }}</p>
+
+<h3>Access Level</h3>
+<div class="row-fluid row-{{ member.color }}">
+  <strong>
+    {% if member.is_director %}
+    DIRECTOR
+    {% else %}
+    {{ member.accessLvl }}
+    {% endif %}
+  </strong>
+</div>
+
+<div class="row-fluid">
+  <div class="span6">
+    <h3>Titles</h3>
+    <ul>{% for title in member.titles.all %}
+      <li>{{ title.permalink|safe }}</li>
+      {% empty %}
+      <p>No titles</p>
+    {% endfor %}</ul>
+  </div>
+  <div class="span6">
+    <h3>Extra Roles</h3>
+    <ul>{% for role in member.roles_no_director %}
+      <li>{{ role.permalink|safe }}</li>
+      {% empty %}
+      <p>No extra roles</p>
+    {% endfor %}</ul>
+  </div>
+</div>
+      
+
+<h3>Login-History</h3>
+<table class="table table-bordered table-condensed">
+  <thead>
+  <tr>
+    <th class="top" scope="col">Login</th>
+    <th class="top" scope="col">Logout</th>
+    <th class="top" scope="col">Duration</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for login in logins %}
+    <tr>
+      <td>{{ login.session_begin|ecm_datetime }}</td>
+      <td>{{ login.session_end|ecm_datetime }}</td>
+      <td>{{ login.session_seconds|ecm_time }}</td>
+  </tr>
+    {% empty %}
+    <tr><td colspan="3">No Data.</td></tr>
+  {% endfor %}
+  </tbody>
+  <tfoot>
+  	<tr>
+	  <th>Last Week: {{ lastWeek|ecm_time }}</th>
+	  <th>Last Month: {{ lastMonth|ecm_time }}</th>
+	  <th>Total: {{ total|ecm_time }}</th>
+	</tr>
+  </tfoot>
+</table>
+
+
+<h3>Security Access Changes</h3>
+<table class="table table-bordered table-condensed" id="access_changes_table">
+  <thead>
+    <tr>
+      <th class="top" scope="col" >Change</th>
+      <th class="top" scope="col" >Title/Role</th>
+      <th class="top" scope="col" >Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td colspan="3" class="dataTables_empty">Loading data from server...</td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <th>Change</th>
+      <th>Title/Role</th>
+      <th>Date</th>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- Skill List  -->
+<!-- ##########################################################################
+     # Type    Item    Price    Station    Issued
+     ########################################################################## -->
+<h3>Skills</h3>
+<h4>Current Skills: {{skill_count}} (Skill Points: {{skillpoint_count}})</h4>
+
+<div id="skills-tree"></div>
+
+<!-- /skill list -->
+{% endblock %}
+
+{% block compressed_javascripts %}
+<script type="text/javascript" src="{{ STATIC_URL }}ecm/js/lib/jquery.jstree.js"></script>
+{% endblock %}
+
+{% block post_javascripts %}
+<script type="text/javascript">
+
+$(document).ready(function() {
+	$('#skills-tree').jstree({
+        plugins: [ 'themes' , 'json_data' , 'ui',  'types' ],
+        json_data: { data: {{skills_tree|safe}} },
+        core: {
+            animation : 150,
+            html_titles : true
+        },
+        ui: {
+            select_limit : 1
+        },
+        themes: {
+            url : '{{ STATIC_URL }}hr/css/jstree.css',
+            dots : false
+        },
+        types: {
+            valid_children: [ 'group', 'skill', ],
+            types: {
+                group: {
+                    valid_children: [ 'skill' ],
+                    open_node: true,
+                    close_node: true
+                },
+                skill: {
+                    icon: {
+                        image: '{{ STATIC_URL }}hr/img/skillbook.png'
+                    },
+                    valid_children: 'none',
+                    open_node: true,
+                    close_node: true
+                },
+            }
+        },
+    });
+
+    $('#access_changes_table').dataTable($.extend(true, {}, DATATABLE_DEFAULTS, {
+        sAjaxSource : "/hr/members/{{ member.characterID }}/accesschanges/data/",
+        aoColumns: [
+            { sTitle: "Change",     sWidth: "15%", sType: "html" ,  bSortable: false },
+            { sTitle: "Title/Role", sWidth: "60%", sType: "html" ,  bSortable: false },
+            { sTitle: "Date",       sWidth: "25%", sType: "string", bSortable: false }
+        ],
+        fnRowCallback : function(nRow, aData, iDisplayIndex, iDisplayIndexFull) {
+            if (aData[0]) {
+                $('td:eq(0)', nRow).html('<img src="{{ STATIC_URL }}ecm/img/plus.png"></img>');
+            } else {
+                $('td:eq(0)', nRow).html('<img src="{{ STATIC_URL }}ecm/img/minus.png"></img>');
+            }
+            return nRow;
+        },
+    }));
+});
+/* Apply a jEditable handler to the "notes" paragraph */
+$('#notes').editable( '/hr/members/{{ member.characterID }}/updatenotes/', {
+    placeholder: 'Click to add notes...',
+    style: 'inherit',
+    cssClass: 'edited',
+    callback: function( sValue, y ) {
+        $('#notes').html(sValue);
+    },
+    tooltip   : 'Click to edit...'
+});
+</script>
+{% endblock %}
