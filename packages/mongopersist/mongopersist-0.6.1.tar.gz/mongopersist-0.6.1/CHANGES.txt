@@ -1,0 +1,124 @@
+=======
+CHANGES
+=======
+
+0.6.1 (2012-03-28)
+------------------
+
+- Added quite detailed debug logging around collection methods
+
+0.6.0 (2012-03-12)
+------------------
+
+- Switched to optimisitc data dumping, which approaches transactions by
+  dumping early and as the data comes. All changes are undone when the
+  transaction fails/aborts. See ``optimistic-data-dumping.txt`` for
+  details. Here are some of the new features:
+
+  * Data manager keeps track of all original docs before their objects are
+    modified, so any change can be done.
+
+  * Added an API to data manager (``DataManager.insert(obj)``) to insert an
+    object in the database.
+
+  * Added an API to data manager (``DataManager.remove(obj)``) to remove an
+    object from the database.
+
+  * Data can be flushed to Mongo (``DataManager.flush()``) at any point of the
+    transaction retaining the ability to completely undo all changes. Flushing
+    features the following characteristics:
+
+    + During a given transaction, we guarantee that the user will always receive
+      the same Python object. This requires that flush does not reset the object
+      cache.
+
+    + The ``_p_serial`` is increased by one. (Automatically done in object
+      writer.)
+
+    + The object is removed from the registered objects and the ``_p_changed``
+      flag is set to ``False``.
+
+    + Before flushing, potential conflicts are detected.
+
+  * Implemented a flushing policy: Changes are always flushed before any query
+    is made. A simple wrapper for the ``pymongo`` collection
+    (``CollectionWrapper``) ensures that flush is called before the correct
+    method calls. Two new API methods ``DataManager.get_collection(db_name,
+    coll_name)`` and ``DataManager.get_collection_from_object(obj)``
+    allows one to quickly get a wrapped collection.
+
+- Renamed ``processSpec()`` to ``process_spec()`` to adhere to package nameing
+  convention.
+
+- Created a ``ProcessSpecDecorator`` that is used in the ``CollectionWrapper``
+  class to process the specs of the ``find()``, ``find_one()`` and
+  ``find_and_modify()`` collection methods.
+
+- The ``MongoContainer`` class now removes objects from the database upon
+  container removal is ``_m_remove_documents`` is ``True``. The default is
+  ``True``.
+
+- When adding an item to ``MongoContainer`` and the key is ``None``, then the
+  OID is chosen as the key. Ids are perfect key, because they are guaranteed
+  to be unique within the collection.
+
+- Since people did not like the setitem with ``None`` key implementation, I
+  also added the ``MongoContainer.add(value, key=None)`` method, which makes
+  specifying the key optional. The default implementation is to use the OID,
+  if the key is ``None``.
+
+- Removed ``fields`` argument from the ``MongoContainer.find(...)`` and
+  ``MongoContainer.find_one(...)`` methods, since it was not used.
+
+- If a container has N items, it took N+1 queries to load the list of items
+  completely. This was due to one query returning all DBRefs and then using
+  one query to load the state for each. Now, the first query loads all full
+  states and uses an extension to ``DataManager.setstate(obj, doc=None)`` to
+  load the state of the object with the previously queried data.
+
+- Changed ``MongoContainer.get_collection()`` to return a
+  ``CollectionWrapper`` instance.
+
+
+0.5.5 (2012-03-09)
+------------------
+
+- Feature: Moved ZODB dependency to test dependency
+
+- Bug: When an object has a SimpleContainer as attribute, then simply loading
+  this object would cause it to written at the end of the transaction. The
+  culprit was a persistent dictionary containing the SimpleContainer
+  state. This dictionary got modified during state load and caused it to be
+  registered as a changed object and it was marked as a ``_p_mongo_sub_object``
+  and had the original object as ``_p_mongo_doc_object``.
+
+
+0.5.4 (2012-03-05)
+------------------
+
+- Feature: Added a hook via the IMongoSpecProcessor adapter that gets called
+  before each find to process/log spec.
+
+0.5.3 (2012/01/16)
+------------------
+
+- Bug: ``MongoContainer`` did not emit any Zope container or lifecycle
+  events. This has been fixed by using the ``zope.container.contained``
+  helper functions.
+
+0.5.2 (2012-01-13)
+------------------
+
+- Feature: Added an interface for the ``MongoContainer`` class describing the
+  additional attributes and methods.
+
+0.5.1 (2011-12-22)
+------------------
+
+- Bug: The ``MongoContainer`` class did not implement the ``IContainer``
+  interface.
+
+0.5.0 (2011-11-04)
+------------------
+
+- Initial Release
