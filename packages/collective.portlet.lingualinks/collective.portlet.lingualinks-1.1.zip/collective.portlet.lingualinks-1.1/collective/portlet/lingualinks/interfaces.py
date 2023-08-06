@@ -1,0 +1,1 @@
+from collective.portlet.lingualinks.controlpanel import ILinguaLinksConfigurationSchema
