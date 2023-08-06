@@ -1,0 +1,28 @@
+# -*- coding: utf8 -*-
+from setuptools import setup, find_packages
+
+
+setup(
+    name='django-attest',
+    version='0.2.4',
+    description = 'Provides Django specific testing helpers to Attest',
+
+    author='Bradley Ayers',
+    author_email='bradley.ayers@gmail.com',
+    license='Simplified BSD',
+    url='https://github.com/bradleyayers/django-attest/',
+
+    packages=['django_attest'],
+    install_requires=['Django >=1.2', 'Attest >=0.5', 'distribute'],
+
+    classifiers = [
+        'Environment :: Web Environment',
+        'Framework :: Django',
+        'Intended Audience :: Developers',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python',
+        'Topic :: Internet :: WWW/HTTP',
+        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+    ],
+)
