@@ -1,0 +1,433 @@
+=======================================================================
+Extending lk_worker
+=======================================================================
+
+.. sidebar:: This page
+
+  .. contents::
+
+-----------------------------------------------------------------------
+Nodes as navigation
+-----------------------------------------------------------------------
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Context
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+The graph structure supported by lk_worker allows for navigation
+through a set of linked entities, and also provides access control
+based on that structure. Navigation and access control by themselves
+do not make business applications and the structure needs to be
+extended using application specific data, views and
+controls. Extension should be done in a flexible, configurable, way,
+rather than by code modification.
+
+There is no limit on what application any one node can be, nor is
+there any intention of limiting the data that can be associated with a
+node. There is no intention of limiting nodes according to, say, the
+type, class or application of a parent node. The flexibility,
+therefore, comes within the node itself. The user sees a consistent
+navigation structure, while the detail depends on the individual
+node. The overall user experience then depends on how the system
+designer chooses to lay out the structure (including the degree of
+flexibility given to users to create their own structures).
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Generalisation
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Any node may have arbitrary data extensions associated with it. If
+there are data extensions that support, say, project activities and
+book sales, then a node may have neither, either or both of these data
+extensions associated with it. Of course, any particular application
+may restrict what happens, but this remains the general case.
+
+The extension principle that supports this general case requires the
+code to consider, at every appropriate point, what data extensions are
+available and in use, and to invoke the relevant supporting code for
+each extension in turn. This requires that a data extension must come
+with a set of supporting code segments or data that can be used at
+appropriate points.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Complex extensions
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+A data extension is, in the simplest case, a table with a zero-to-one
+relationship with a node. That is, there cannot be more than one entry
+on the table for a given node.
+
+A more complex extension would involve a table with a many-to-one
+relationship with a node. Some care might be needed in system design
+to distinguish between multiple records attached to a node on the one
+hand, and multiple children of a node on the other. The decision
+whether to take one approach or the other depends on speed of
+implementation (it is marginally easier to use child nodes), volume of
+data (child nodes provide built in paged lists) and the need for
+flexibility in navigation and data linking. Attaching files to a node
+seems a reasonable use of a specific data extension, while attaching
+sub-activities to an activity would be best done using child nodes.
+
+In principle it is possible to construct a data extension that is a
+set of interlinked tables in its own right. In this case, node
+navigation is used to reach the data while navigation within the data
+is provided by application specific code. Such an application is
+likely to be less flexible than one based on smaller extensions and
+node navigation but may be better able to support special application
+interfaces and relationships that are not obviously hierarchical.
+
+The advantage of hanging a complex extension onto a node is that the
+node navigation becomes a type of menu and the node based acccess
+control can be applied. In many cases this advantage may be too
+difficult to use, or simply irrelevant. The extension mechanism is not
+meant to be applied officiously in the face of evidence that other
+methods are better.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Applications are node types
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+An application is a collection of data and business processes that
+address some business issue.
+
+At its simplest, an application could re-use data structures, perhaps
+doing no more than defining a possible set of values for a status
+field, or defining a work-flow suited to a particular business
+context. In effect, this defines a node type.
+
+A more complex application might require extension data items specific
+to that application, but might still rely on the generalised display
+and edit facilities. Again, this can be thought of as a node type.
+
+More complex still, an application would provide special user
+interface displays intended to support business processes in some
+specific way. In principle, such an application may also manage the
+way in which nodes are added to the structure and the types of nodes
+that could be added.
+
+The lk_worker extensions are, at this stage, limited to defining node
+types. It is, of course, possible to define a node type that takes a
+user to a different world, but lk_worker itself assumes that
+applications are built using some combinations of node type and node
+access permission.
+ 
+A node type consists of some combination of data items, a set of
+actions that the user might be able to do (read, modify, delete and
+other context dependent variants on these ideas), some application
+specific variations on node data (such as status), and appropriate
+views to support the business processes.
+
+-----------------------------------------------------------------------
+Extension Structure
+-----------------------------------------------------------------------
+
+The extension points are built in to a model/view/controller
+structure. Application developers write plug-ins to fit with these
+extension points.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Model
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+The model provides for data fetch and store and related behind the
+scenes activities. There are a number of extension points for read,
+write, validate and so on. The internal structure assumes that a node
+can have actual data for none, some, or all, of the possible
+extensions. Code that uses the model can use as much or as little of
+the available data as required.
+
+Each model plug-in is generally expected to deal with a single table
+or data structure linked to the node.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+View
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Views handle the presentation and capture of sub-sets of data. 
+
+A view plug-in is generally expected to handle the fields relating to
+an associated model plug-in.  The plug-in has access to user
+privileges, so fields may be set read-only, or not displayed at all,
+as required.
+
+However, different applications may need quite different views of the
+data, and there may be times when a single view plug-in might combine
+a number of different data extensions.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Controller
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+A controller handles the logic of an application, responding to user
+actions and displaying appropriate pages. The standard lk_worker
+controller expects a particular set of responses (display for edit,
+recive updates, display for viewing, add new item and so on) and sets
+up an extension point for each of these responses. Each plug-in is
+named, and the main controller invokes the plug-in corresponding to
+the type of the node that is the subject of the response.
+
+-----------------------------------------------------------------------
+Extension Interfaces
+-----------------------------------------------------------------------
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Type definition
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+A type definition is made up of:
+
+- name
+
+  A human readable type name - this value is stored in the node data
+  and is the key to all subsequent interpretation.
+
+* tabs = 'nd.type.tabs'
+
+  A set of URLs relating to the current node that are to appear in the
+  navigation area of a page. The basic set consists of:
+
+  - display: show a read-only page
+
+  - detail: show an edit/update page
+
+  - list: list all child nodes
+
+  - search: search from this node downwards
+
+
+  Since nodes may contain any data (and be of any type) these standard
+  links will normally be to the generalised code. The generalised code
+  supports user interface extensions and may be sufficient in many
+  cases. The standard url dispatcher also supports type dependent
+  controllers which provide flexibility at the aplication level.
+
+  Other links may be added to support business process actions.
+  Generally, the presence or absence of a link on a user's view is
+  controlled by user access permissions.
+
+* other data
+
+  There will also be special text and codes that are interpretable by
+  the application. Specifically, there may be option lists that are
+  specific to the application. For example, a set of possible
+  priorities. Option lists take a specific structure.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+User Interface Controllers
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Controllers respond to URLs. For URLs that contain a node reference,
+the dispatcher can invoke a controller that depends on the type of the
+node. This has the effect of turning a node type into an application.
+
+
+  - display an editable page = 'nd.controller.display.edit'
+
+  - display a page for adding a new entry = 'nd.controller.display.add'
+
+  - display data read-only = 'nd.controller.display.formatted'
+
+  - display a list of sub-nodes = 'nd.controller.display.list'
+
+  - present a default page = 'nd.controller.display.default'
+
+  - respond to a POST = 'nd.controller.respond.update'
+
+  - respond to a POST = 'nd.controller.respond.insert'
+
+  - respond to request for a file = 'nd.controller.download.file'
+
+Each of these code segments overrides the relevant generalised page
+and must provide a complete view for the page, using all of the
+relevant data for the node type. Node navigation is not handled or
+replaced by these code segments.
+
+The use of these type-specific pages assumes that data validation and
+insert/update is handled by the data specific code segments outlined
+in the next section.
+
+Any controller can, of course, make use of the user interface
+extensions.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Data definition
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+A data definition provides a number of code segments that support read,
+validate and update of the data.
+
+These extensions are not filtered by type, so, for any specific
+action, all the extensions are applied.
+
+* read/write/validate
+
+  Read from the database is managed using a node-based query that is
+  modified according to filtering or sorting options.  Adding entities
+  to this query allows for data extensions, but there is no guarantee
+  of the order in which entities are added.  At the same time, some
+  extensions involve multiple sub-records, or data from a separate
+  database, so separate queries for this data might be appropriate.
+  The data from the various queries is used to construct a single
+  object dictionary that can be passed to other processes so that
+  these other processes see a consistent picture of the data.
+
+  - extend query = 'nd.read.query.extend'
+
+    extend the given node query - perhaps using a join - to include
+    the data extension.
+
+  - extend data object = 'nd.read.data.extend'
+
+    Place the extension data into the data object. This could be a
+    simple as identifying the database entity from the returned result
+    of the node query, or a more complex construction of multiple
+    sub-records.
+
+  - write from an extended object = 'nd.write.data.extend'
+
+    Use an extended object (or possibly a sub-set of one) as a data
+    source to write data back to the database. 
+
+  - delete from an extended object = 'nd.delete.data.extend'
+
+    Use an extended object to identify, and delete, entries in the
+    database.
+
+  - validate data in an extended object = 'nd.validate.data.extend'
+
+    Validate the data in the given extended object and raise errors.
+
+  - compare data in extended objects = 'nd.compare.data.extend'
+
+    Compare two extended objects and report on differences
+
+* search
+
+  Search requires the creation and the application of a filter. A
+  filter is simply a dictionary containing named values. The following
+  item is part of the data interface because it does not depend on the
+  user interface and can be used by other code.
+
+
+  - extend filter query = 'nd.search.query.extend'
+
+    Extend a filter query using the given filter.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+User Interface
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+These items extend the generalised interface.  They will normally be
+invoked for every node, regardless of whether the node has the
+relevant data extension.  Since every data extension can be seen on
+the generalised interface the user may potentially populate any or all
+data extensions on any one node.  The data extension code must impose
+any limitations that might be required by the application context by
+applying relevant conditions from other data or by applying access
+permissions.
+
+* Node display and interaction
+
+  - add form elements = 'nd.view.form.extend'
+
+    Place form elements on to the given display form.
+
+  - populate form elements = 'nd.view.form.populate'
+
+    Place data from the data object into the form elements.
+
+  - process form elements = 'nd.view.form.process'
+
+    Validate user input.
+
+  - store from form elements = 'nd.view.form.store'
+
+    Store the data to the database.
+
+  - Populate the main page in the display page = 'nd.display.main'
+
+    Provide some text that can appear in the main body of the display
+    page.
+
+  - Populate the sidebar in the display page = 'nd.display.side'
+
+    Provide some text that can appear in the side bar of the display
+    page.
+
+
+* search
+
+  Search requires the creation and the application of a filter. A
+  filter is simply a dictionary containing named values. These items
+  extend the user interface accordingly.
+
+  - make filter form = 'nd.search.form.extend'
+
+    Add form elements to a form to give the user a search facility on
+    this data.
+
+  - fill form from filter = 'nd.search.form.populate'
+
+    Given a filter, populate the form
+
+  - Populate the filter object = 'nd.search.form.store'
+
+    Place items from the form into the filter object.
+
+  - make filter from form
+
+    Given a form, construct the elements of the filter.
+
+-----------------------------------------------------------------------
+Linking into the node structure
+-----------------------------------------------------------------------
+
+Extensions and types are registered in a static instance of the
+ExtensionStore class.  The data structures that are used to define the
+data extensions and types are held somewhere within each package and
+passed to the register method of the ExtensionStore.
+
+There are, in principle, (and possibly 'at'least') four ways of having
+a type or extension register itself:
+
+1. For each extension or group of extensions, place a code module into
+   an 'extensions' directory that is accessible from the startup
+   environment.  Initialisation code in lk_worker will execute (that is,
+   import) all modules within this directory.
+
+   This method seems to challenge the software release process as it
+   becomes difficult to manage extensions that have different revision
+   cycles.
+
+#. For each extension or group of extensions, place a suitable
+   'import' statement into a startup.py module that is accessible from
+   the startup environment.
+
+   This keeps the configuration separate from the revision cycle.  It
+   is much the same as the ini file approach, with the disadvantage
+   that it is a separate file.
+
+#. Place references to the modules to be imported into the
+   initialisation file.
+
+   This keeps the configuration separate from the revision cycle.
+
+#. Have the lk_worker startup code search the full path for all
+   modules named 'nb_register_extension.py', or something similar, and
+   import each one.
+
+   This seems to do the job without explicit configuration, although
+   it leads to slow start-up and to the possibility of finding
+   something that is not actually what we want.
+
+The method that is used is a combination of the last two mechanisms.
+
+ - The ini file will contain one or more 'package = xxx' entries.
+
+ - Each package entry refers to a python package that is visible on the path.
+
+ - The package is then treated as a directory and searched for files
+   named 'nb_register_extension.py' or 'nb_register_*_extension.py'
+   and imports each one.
+
+
