@@ -1,0 +1,111 @@
+# -------------------------------------------------------------------------- #
+# Copyright 2010-2011, University of Chicago                                      #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+# -------------------------------------------------------------------------- #
+
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## RECIPE: Galaxy (Globus fork) common actions
+##
+## This recipe performs common actions required when installing the Globus
+## fork of Galaxy. If Galaxy is being installed on a domain with NFS/NIS,
+## this recipe must be run on the NFS/NIS server, and the galaxy-globus
+## recipe can be run on another node.
+##
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+gp_domain = node[:topology][:domains][node[:domain_id]]
+gp_node   = gp_domain[:nodes][node[:node_id]]
+homedirs  = gp_domain[:filesystem][:dir_homes]
+softdir   = gp_domain[:filesystem][:dir_software]
+
+galaxy_dir = "#{softdir}/#{node[:galaxy][:dir]}"
+
+go_endpoints = gp_domain[:go_endpoints].to_a
+
+if go_endpoints.size > 0
+	go_endpoint = go_endpoints[0]
+	go_endpoint = "#{go_endpoint[:user]}##{go_endpoint[:name]}" 
+else
+	go_endpoint = ""
+end
+
+
+group "galaxy" do
+  gid 4000
+end
+
+user "galaxy" do
+  comment "Galaxy User"
+  uid 4000
+  gid 4000
+  home "#{homedirs}/galaxy"
+  password "!"
+  shell "/bin/bash"
+  supports :manage_home => true
+  notifies :run, "execute[ypinit]"
+end
+
+# We need to run this for changes to take effect in the NIS server.
+execute "ypinit" do
+ only_if do gp_domain[:nis_server] end
+ user "root"
+ group "root"
+ command "make -C /var/yp"
+ action :nothing
+end
+
+if ! File.exists?(galaxy_dir)
+
+  directory "#{galaxy_dir}" do
+    owner "galaxy"
+    group "galaxy"
+    mode "0755"
+    action :create
+  end
+  
+  remote_file "#{node[:scratch_dir]}/galaxy-dist.tip.tar.gz" do
+    source "https://bitbucket.org/globusonline/galaxy-globus/get/tip.tar.gz"
+    owner "root"
+    group "root"    
+    mode "0644"
+  end
+
+  execute "tar" do
+    user "galaxy"
+    group "galaxy"
+    command "tar xzf #{node[:scratch_dir]}/galaxy-dist.tip.tar.gz --strip-components=1 --directory #{galaxy_dir}"
+    action :run
+  end  	
+
+  cookbook_file "#{galaxy_dir}/galaxy-setup.sh" do
+    source "galaxy-setup.sh"
+    owner "galaxy"
+    group "galaxy"
+    mode "0755"
+  end
+  
+  template "#{galaxy_dir}/universe_wsgi.ini" do
+    source "galaxy-universe.erb"
+    mode 0644
+    owner "galaxy"
+    group "galaxy"
+    variables(
+      :db_connect => "postgres:///galaxy?user=galaxy&password=galaxy&host=/var/run/postgresql",
+      :go_endpoint => go_endpoint
+    )
+  end  
+
+end
+  
