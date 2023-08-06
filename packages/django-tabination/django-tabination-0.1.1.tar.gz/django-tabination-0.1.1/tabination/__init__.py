@@ -1,0 +1,5 @@
+__VERSION__ = '0.1.1'
+__AUTHOR__ = 'Factor AG'
+__AUTHOR_EMAIL__ = 'webmaster@factor.ch'
+__MAINTAINER__ = 'Danilo Bargen'
+__MAINTAINER_EMAIL__ = 'gezuru@gmail.com'
