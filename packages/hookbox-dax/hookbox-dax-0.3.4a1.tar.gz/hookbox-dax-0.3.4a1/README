@@ -1,0 +1,188 @@
+= HookBox Notes =
+
+Hookbox is a comet server and message queue that tightly integrates with web application frameworks. The goal of Hookbox is to allow your web application (php, django, rails, etc.) to handle all of the logic pertaining to authentication, authorization, logging, message transformation, etc, while still hiding the hard parts of Comet.
+
+== Hookbox HTTP Api ==
+
+=== /publish ===
+
+Request
+
+    URL: [HOOKBOX]/publish
+
+Request Form:
+    channel_name: The destination to publish the message
+    payload: (default null) The payload for the message
+
+Responses
+    true: It worked
+    false: Some error occurred
+
+=== /channel_info ===
+
+Request
+
+    URL: [HOOKBOX]/channel_info
+
+Request Form:
+    channel_name: The destination to publish the message
+    payload: (default null) The payload for the message
+
+Response:
+    true: It worked
+    false: Some error occurred
+
+Response Data
+    channel_name (string): The name of the channel
+    subscribers (list): List of channel subscribers
+    reflective (bool): Does this channel reflect publishes to publisher
+    history (int): Length of history kept in the channel
+
+=== /set_channel_options ===
+
+Request
+
+    URL: [HOOKBOX]/set_channel_options
+
+Request Form:
+    channel_name: The name of the channel to modify with the given options.
+    reflective: (bool, default=true)
+    history_size: (int, default=0) Determines the size of the history kept per channel. This history is sent to users when they subscribe to a channel.
+    moderated: (bool, default=true) If true, then all events on the channel must be authorized via a callback.
+    moderated_publish: (bool, default=true) If true, publish events must be authorized via a callback.
+    moderated_subscribe: (bool, default=true) If true, subscribe events must be authorized via a callback.
+    moderated_unsubscribe: (bool, default=true) If true, unsubscribe events must be authorized via a callback.
+    presenceful: (bool, default=false) If true, presence lists will be attached to each publish frame. Also, SUBSCRIBED and UNSUBSCRIBED frames will be sent to all channel subscribers when another user subscribes or unsubscribes.
+    anonymous: (bool, default=false) If true, usernames will be omitted from publish frames
+Response:
+    true: It worked
+    false: Some error occurred
+
+Response Data
+    None
+
+== HookBox Webhooks ==
+
+Each webhook takes arguments in the form of a querystring encoded post body that should just work with existing form processing infrastructure.
+
+Each webhook returns a JSON list, of the form [ boolean, object ]. The first argument signifies the authorization/success of the operation, and the object contains various options that vary by hook type.
+
+All webhooks will have a "Cookie:" header with a value identical to the browser that caused the request to be initiated. The "context" of the webhook call should therefore contain a session for the originating browser.
+
+
+=== connect ===
+
+Request
+
+    URL: [ROOT]/connect
+
+Request Form:
+    (empty)
+
+Responses:
+    true: Authorize connection
+    false: Deny connection
+
+Response Options
+    name (optional): the Display Name for this connection; it will be used for presence.
+    auto_subscribe (optional): (list) A list of channels to attempt to auto-subscribe the user. Each will generate a subscribe callback.
+    auto_unsubscribe (optional): (list) A list of channels to attempt to auto-unsubscribe the user. Each will generate an unsubscribe callback.
+
+=== create channel ===
+
+Request
+    URL: [ROOT]/create_channel
+
+Request Form:
+    destination: The channel's URI
+
+
+Responses:
+    true: Authorize channel creation
+    false: Deny channel creation
+
+Response Options
+    history: (int, default 0) Specifies the amount of history that should be saved on the channel. When a user first subscribes they will be sent this history.
+    set_history: (list, default []) Pre-populates history for the channel
+
+Note: A create channel is issuing when a user subscribes to a non-existent destination. There will usually be a /subscribe callback immediately following a create_channel callback, unless the channel creation is denied.
+
+=== publish ===
+
+Request
+    URL: [ROOT]/publish
+
+Request Form:
+    destination: The channel's URI
+    payload: The json payload to be published
+
+Responses:
+    true: Authorize publishing
+    false: Deny publishing
+
+Response Options
+    override_payload (optional): If specified, this payload will be delivered instead of the original payload
+    auto_subscribe (optional): (list) A list of channels to attempt to auto-subscribe the user. Each will generate a subscribe callback.
+    auto_unsubscribe (optional): (list) A list of channels to attempt to auto-unsubscribe the user. Each will generate an unsubscribe callback.
+
+
+=== unsubscribe ===
+
+Request
+    URL: [ROOT]/unsubscribe
+
+Request Form:
+    destination: The channel's URI
+
+Responses:
+    true: Authorize unsubscribe
+    false: Deny unsubscribe
+
+Response Options
+    auto_subscribe (optional): (list) A list of channels to attempt to auto-subscribe the user. Each will generate a subscribe callback.
+    auto_unsubscribe (optional): (list) A list of channels to attempt to auto-unsubscribe the user. Each will generate an unsubscribe callback.
+
+
+=== disconnect ===
+
+Request
+    URL: [ROOT]/disconnect
+
+Request Form:
+    channels: (list) The channels the users was in.
+
+Responses:
+    true: Required (Doesn't really do anything)
+    false: Meaningless (but does the same as true.)
+
+Response Options
+    (None)
+
+== Overview ==
+
+A typical session with a Hookbox application might Look like this:
+
+1) User navigates to http://www.example.com/index.html
+    The user is given a login page, which he fills out.
+2) Browser POSTs to http://www.example.com/login
+    Included in the post body is the username and password
+3) Web application returns Cookie: session_id=abc;
+4) Web application redirects user to http://www.example.com/home
+    The user is now logged into the application and sees the gui
+5) Browser calls hookbox.connect('http://hookbox.example.com')
+6) Browser send a CONNECT frame to hookbox, including { cookie: "session_id=abc"; }
+7) Hookbox makes an HTTP POST to http://www.example.com/hookbox/connect
+    Hookbox includes the header "Cookie: session_id=abc;"
+8) The Web Application responds with a json payload: [ true, {}]
+    This gives authorization for the client to connect
+9) Browser calls hookbox.publish('test.location', ["Hello", "World"]
+
+10) Hookbox makes an HTTP POST to http://www.example.com/hookbox/publish
+    Hookbox includes the header "Cookie: session_id=abc;"
+    Hookbox includes a query string in the POST body with the data
+        payload=["Hello", "World"]
+        channel_name=test.location
+11) The Web app returns the json payload: [true, { } ]
+    This gives authorization for the client to publish the message
+12) Hookbox sends a PUBLISH frame to all clients currently subscribed to the
+    channel 'test.location'
