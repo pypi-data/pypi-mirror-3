@@ -1,0 +1,10 @@
+__version__ = "0.4.5-develop-3-gac1e4bf"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = 'develop'
+__git_remote_tracking_branch__ = 'origin/develop'
+__git_remote_url__ = 'git@gitserver:host/recipe-template-version.git'
+__git_head_hash__ = 'ac1e4bf2cc3e8d1599406252f1b5db744a554375'
+__git_head_subject__ = 'Revert "TRIVIAL changing git-py to gitpy"'
+__git_head_message__ = 'This reverts commit 82b3e059a952b770c37958549f92d9a35f01f79b.'
+__git_dirty_diff__ = ''
