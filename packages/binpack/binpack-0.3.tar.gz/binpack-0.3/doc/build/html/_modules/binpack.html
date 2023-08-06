@@ -1,0 +1,1136 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>binpack &mdash; binpack v0.1.1 documentation</title>
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="binpack v0.1.1 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">binpack v0.1.1 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for binpack</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">**Binpack** implements a protocol for binary packing of data. Binpack classes </span>
+<span class="sd">can be used to easily create user defined file types.</span>
+
+<span class="sd">Files packed using the ``binpack`` protocol will have a small *header* section </span>
+<span class="sd">that holds the file type and version information. The ``body`` part is a </span>
+<span class="sd">sequence of named data streams. These data streams can be converted </span>
+<span class="sd">transparently into/from Python objects and are accessed using a dictionary </span>
+<span class="sd">interface. The keys in this dictionary are sorted in a predictable order.</span>
+
+<span class="sd">Usage</span>
+<span class="sd">-----</span>
+
+<span class="sd">The easiest way to create new packing type is to use the ``new_type()`` class </span>
+<span class="sd">method of `BinPack`.   </span>
+
+<span class="sd">&gt;&gt;&gt; myfile = BinPack.new_type(&#39;myfile&#39;, header=&#39;myfile&#39;, version=&#39;0.1&#39;)</span>
+
+<span class="sd">Any number of fields of different types can be added</span>
+
+<span class="sd">&gt;&gt;&gt; myfile.add_field(&#39;foo&#39;)</span>
+<span class="sd">&gt;&gt;&gt; myfile.add_field(&#39;bar&#39;, Compressed(Bytes(&#39;bar has a default value!&#39;)))</span>
+
+<span class="sd">The order in which these fields are created is important because it is the same</span>
+<span class="sd">order that data is stored in the file. It is a good practice to leave the fields</span>
+<span class="sd">that hold large amounts of data to the end. Otherwise, these large chunks of </span>
+<span class="sd">data will be scanned in order to access a few bytes from a field that was saved </span>
+<span class="sd">in the end of the data stream.</span>
+
+<span class="sd">After all fields are configured, the new class must be locked. It is not </span>
+<span class="sd">possible to add new fields to locked classes. But once the class is locked, it </span>
+<span class="sd">is ready to create instances. Locked classes cannot be unlocked and should not </span>
+<span class="sd">be modified in any way.</span>
+
+<span class="sd">&gt;&gt;&gt; myfile.lock()</span>
+
+<span class="sd">A ``BinPack`` object opened in &#39;writing&#39; mode works like a dictionary. When you </span>
+<span class="sd">assign some value to a key, it is automatically serialized and saved to the</span>
+<span class="sd">file.</span>
+
+<span class="sd">&gt;&gt;&gt; F = StringIO()</span>
+<span class="sd">&gt;&gt;&gt; with myfile(F, mode=&#39;w&#39;) as data:</span>
+<span class="sd">...     data[&#39;foo&#39;] = &#39;data for foo&#39;</span>
+<span class="sd">...     F.getvalue()             # data is written to F as soon as possible</span>
+<span class="sd">&#39;\\xffmyfile\\xff0.1\\xff\\x0cdata for foo&#39;</span>
+
+<span class="sd">When the file is closed (which is automatic using the ``with`` statement, </span>
+<span class="sd">but manual otherwise), it writes any unwritten data to the file. If a field </span>
+<span class="sd">that does not have a default values was not assigned by the user, a ValueError </span>
+<span class="sd">is raised.</span>
+
+<span class="sd">The data for the &#39;bar&#39; field were automatically compressed in the data stream. </span>
+<span class="sd">Its default value should read &#39;bar has a default value!&#39;. Instead we</span>
+<span class="sd">see a bunch of seemly random bytes</span>
+
+<span class="sd">&gt;&gt;&gt; F.getvalue()</span>
+<span class="sd">&#39;\\xffmyfile\\xff0.1\\xff\\x0cdata for foo x\\x9cKJ,R\\xc8H,VHTHIMK,\\xcd)Q(K\\xcc)MU\\x04\\x00h\\xf1\\x08v&#39;</span>
+
+<span class="sd">Reading is similar to writing, and data is automatically converted to its</span>
+<span class="sd">desired type</span>
+<span class="sd">  </span>
+<span class="sd">&gt;&gt;&gt; F2 = StringIO(F.getvalue())</span>
+<span class="sd">&gt;&gt;&gt; with myfile(F2, close=True) as data:</span>
+<span class="sd">...     data[&#39;foo&#39;], data[&#39;bar&#39;]</span>
+<span class="sd">(&#39;data for foo&#39;, &#39;bar has a default value!&#39;)</span>
+
+<span class="sd">The ``close=True`` parameter used above tells the `BinPack` instance to </span>
+<span class="sd">automatically close the input file. This avoids a nested with statement that</span>
+<span class="sd">would be necessary for a safe manipulation of files.</span>
+
+<span class="sd">&gt;&gt;&gt; F2.closed, F.closed</span>
+<span class="sd">(True, False)</span>
+
+<span class="sd">Converters</span>
+<span class="sd">----------</span>
+
+<span class="sd">(Not ready yet)</span>
+
+<span class="sd">Versioning</span>
+<span class="sd">----------</span>
+
+<span class="sd">(Not ready yet)</span>
+
+<span class="sd">Data format</span>
+<span class="sd">-----------</span>
+
+<span class="sd">`binpack` uses a method for storing data that can be portable across different</span>
+<span class="sd">languages. Of course, if portability is an issue, python-specific fields such </span>
+<span class="sd">as &#39;Pickle&#39; must be avoided. </span>
+
+<span class="sd">Data is stored by `binpack` as a predictable sequence of bytes. </span>
+
+<span class="sd">The *header* part: </span>
+
+<span class="sd">  - The first byte of the file is always 0xFF. </span>
+<span class="sd">  - The following bytes are the ascii characters in the user-defined header, </span>
+<span class="sd">    which are specific of each `BinPack` subclass. </span>
+<span class="sd">  - Another 0xFF  marks the end of the header. </span>
+<span class="sd">  - The version string is appended and it is followed by a third 0xFF byte, </span>
+<span class="sd">    which sinalizes the end of the header.</span>
+<span class="sd">    </span>
+<span class="sd">The *body* part:</span>
+
+<span class="sd">  Each field is associated in the file with a sequence of bytes. Before this</span>
+<span class="sd">  sequence starts, however, we must tell how many bytes are present. This is </span>
+<span class="sd">  done using the following protocol:</span>
+<span class="sd">  </span>
+<span class="sd">  - The first byte is read. If it is less than 2^7, it is interpreted as the</span>
+<span class="sd">    size of the byte stream. This number of bytes is read and assigned to the </span>
+<span class="sd">    field.</span>
+<span class="sd">  - If the byte is greater than or equal to 2^7, the bytes are read until a byte</span>
+<span class="sd">    smaller than 2^7 is found. The numbers greater than or equal 2^7 are </span>
+<span class="sd">    subtracted by 2^7. The sequence of numbers is then interpreted as a single</span>
+<span class="sd">    number formed by a sequence of 7-bit integer in little-endian order. </span>
+<span class="sd">    </span>
+<span class="sd">    That is, if the bytes are b1, b2, ..., bn the result is given by </span>
+<span class="sd">       </span>
+<span class="sd">       N = (b1-128) + 2^7 * (b2-128) + 2^14 * (b3-128) + ... + 2^(n-1) * bn.</span>
+<span class="sd">    </span>
+<span class="sd">    The last byte was not subtracted by 128 (2^7) because it was already smaller</span>
+<span class="sd">    than 128. N is then the size of the following byte stream. This </span>
+<span class="sd">    number of bytes is then read and assigned to the current field.</span>
+<span class="sd">        </span>
+<span class="sd">The *header* and *body* nomenclature used in ``binpack`` refers only to how</span>
+<span class="sd">data is packed as binary stream. Of course, user formats may consider many </span>
+<span class="sd">fields in the *body* (in the sense of binpack) to be part of the header</span>
+<span class="sd">of its file and only a few fields that hold the bulk of the data to be part of</span>
+<span class="sd">the file body.</span>
+
+<span class="sd">API Documentation</span>
+<span class="sd">-----------------</span>
+
+<span class="sd">Class methods in BinPack</span>
+<span class="sd">````````````````````````</span>
+
+<span class="sd">.. autoclass:: BinPack</span>
+<span class="sd">   :members: set_header, get_header, set_version, get_version, add_field, </span>
+<span class="sd">             insert_field, del_field, lock, is_ready, new_type</span>
+<span class="sd">             </span>
+<span class="sd">Instance methods in BinPack</span>
+<span class="sd">```````````````````````````</span>
+
+<span class="sd">.. autoclass:: BinPack</span>
+<span class="sd">   :members: close</span>
+
+
+<span class="sd">Field types</span>
+<span class="sd">```````````</span>
+
+<span class="sd">.. autoclass:: Field</span>
+<span class="sd">   :members: encoder, decoder, default, default_enc</span>
+<span class="sd">   </span>
+<span class="sd">.. autoclass:: Bytes</span>
+
+<span class="sd">.. autoclass:: String</span>
+<span class="sd">   </span>
+<span class="sd">.. autoclass:: Pickle</span>
+<span class="sd">   </span>
+<span class="sd">.. autoclass:: Compressed</span>
+
+<span class="sd">Utility functions</span>
+<span class="sd">`````````````````</span>
+
+<span class="sd">.. autofunc:: raw_unpack</span>
+
+<span class="sd">.. autofunc:: header</span>
+
+<span class="sd">.. autofunc:: version</span>
+
+<span class="sd">.. autofunc:: full_header</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;BinPack&#39;</span><span class="p">,</span> <span class="s">&#39;Field&#39;</span><span class="p">,</span> <span class="s">&#39;Bytes&#39;</span><span class="p">,</span> <span class="s">&#39;String&#39;</span><span class="p">,</span> <span class="s">&#39;Pickle&#39;</span><span class="p">,</span> <span class="s">&#39;Compressed&#39;</span><span class="p">,</span>
+           <span class="s">&#39;raw_unpack&#39;</span><span class="p">,</span> <span class="s">&#39;header&#39;</span><span class="p">,</span> <span class="s">&#39;version&#39;</span><span class="p">,</span> <span class="s">&#39;full_header&#39;</span><span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">cStringIO</span> <span class="kn">import</span> <span class="n">StringIO</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">StringIO</span> <span class="kn">import</span> <span class="n">StringIO</span>
+
+<span class="c">#===============================================================================</span>
+<span class="c"># Auxiliary types</span>
+<span class="c">#===============================================================================</span>
+<span class="k">class</span> <span class="nc">lazydict</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">MutableMapping</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A lazy dictionary created from an iterator over (key, values).</span>
+<span class="sd">    </span>
+<span class="sd">    `lazydict` objects are initialized from a possibly infinite iterator over </span>
+<span class="sd">    (key, value) pairs and, optionally, a function `goodkeys` that marks if a </span>
+<span class="sd">    key will appear in the iterator or not. `goodkeys` is either a function </span>
+<span class="sd">    that return True for keys that appear in the iterator and False otherwise, </span>
+<span class="sd">    or a container type such as dict, list, tuple or set holding the valid keys.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">goodkeys</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_consumed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">goodkeys</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_isgood</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">True</span>
+        <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span><span class="n">goodkeys</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_isgood</span> <span class="o">=</span> <span class="n">goodkeys</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">goodkeys</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_isgood</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">goodkeys</span><span class="p">)</span><span class="o">.</span><span class="n">__contains__</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_isgood</span> <span class="o">=</span> <span class="n">goodkeys</span><span class="o">.</span><span class="n">__contains__</span>
+
+    <span class="k">def</span> <span class="nf">consume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Consume internal items iterator up to the given key&#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">stop_at</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">args</span><span class="p">:</span>
+            <span class="n">stop_at</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;accepts 1 or 2 arguments, </span><span class="si">%s</span><span class="s"> given&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">stop_at</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_consumed</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_isgood</span><span class="p">(</span><span class="n">stop_at</span><span class="p">)):</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_consumed</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_consumed</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="n">stop_at</span><span class="p">:</span>
+                            <span class="k">break</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;items have a duplicated key: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_consumed</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">consume</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">consume</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">consume</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">k</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_consumed</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">k</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">consume</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">consume</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+<span class="k">class</span> <span class="nc">nulldict</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">MutableMapping</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;All keys entered in a `nulldict` are sent to trash (or maybe to /dev/null)&#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="n">__getitem__</span> <span class="o">=</span> <span class="n">__setitem__</span> <span class="o">=</span> <span class="n">__delitem__</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">yield</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+<span class="n">BinPack</span> <span class="o">=</span> <span class="bp">None</span>
+<div class="viewcode-block" id="BinPack"><a class="viewcode-back" href="../index.html#binpack.BinPack">[docs]</a><span class="k">class</span> <span class="nc">BinPack</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">Mapping</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Packs binary data in a file.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    F : file object</span>
+<span class="sd">        File to be  read or written.</span>
+<span class="sd">    mode : &#39;r&#39; or &#39;w&#39;</span>
+<span class="sd">        Initialize binary pack in (r)ead or (w)rite mode.</span>
+<span class="sd">    close : bool</span>
+<span class="sd">        If True, it will also closes F when the ``.close()`` method is </span>
+<span class="sd">        invoked.</span>
+<span class="sd">    atomic : bool</span>
+<span class="sd">        In normal operation, it tries to save data as soon as possible and tries</span>
+<span class="sd">        to delay reading for as long as possible. If ``atomic`` is True, </span>
+<span class="sd">        these operations are all performed at once.</span>
+<span class="sd">    keep_items : True</span>
+<span class="sd">        It keeps a copy of objects inserted or written to file. For large</span>
+<span class="sd">        files, it may be a good idea to delete these objects once they are </span>
+<span class="sd">        not needed anymore. If ``keep_items`` is False, it tries to delete </span>
+<span class="sd">        objects ASAP. This means that most of the keys can be accessed</span>
+<span class="sd">        (read or write) only once.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">class</span> <span class="nc">__metaclass__</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">Mapping</span><span class="p">)):</span>
+        <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">):</span>
+
+            <span class="c"># Creates the BinPack class</span>
+            <span class="k">if</span> <span class="n">BinPack</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">Mapping</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
+
+            <span class="c"># Creates a BinPack sub-class</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># Check bases</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bases</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;BinPack subclasses do not accept multiple inheritance&#39;</span><span class="p">)</span>
+
+                <span class="c"># Ensure the locking mechanism</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">bases</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">base</span><span class="o">.</span><span class="n">is_locked</span><span class="p">():</span>
+                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Cannot subclass unlocked classes&#39;</span><span class="p">)</span>
+
+                <span class="c"># Creates new type and update its class dictionary</span>
+                <span class="n">new</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">Mapping</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">BinPack</span><span class="p">:</span>
+                    <span class="n">new</span><span class="o">.</span><span class="n">_cls_dict_</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;fields&#39;</span><span class="p">:</span> <span class="n">base</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;fields&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()}</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">new</span><span class="o">.</span><span class="n">_cls_dict_</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">return</span> <span class="n">new</span>
+
+    <span class="n">_cls_dict_</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">is_locked</span><span class="p">():</span>
+            <span class="k">return</span> <span class="nb">object</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tname</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">__name__</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;Class &quot;</span><span class="si">%s</span><span class="s">&quot; must be locked before instantiating objects&#39;</span> <span class="o">%</span> <span class="n">tname</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;r&#39;</span><span class="p">,</span> <span class="n">close</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">keep_items</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_undefined</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">if</span> <span class="n">keep_items</span> <span class="k">else</span> <span class="n">nulldict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sep</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_header</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span> <span class="k">else</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cls_dict</span><span class="p">[</span><span class="s">&#39;fields&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_close</span> <span class="o">=</span> <span class="n">close</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">closed</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="c"># Checks if mode is compatible with file&#39;s mode</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;r&#39;</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">mode</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;mode must be either &#39;r&#39; or &#39;w&#39;, got: &#39;</span><span class="si">%s</span><span class="s">&#39;&quot;</span> <span class="o">%</span> <span class="n">mode</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="s">&#39;mode&#39;</span><span class="p">,</span> <span class="s">&#39;rw&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;mode &#39;</span><span class="si">%s</span><span class="s">&#39; is incompatible with F&#39;s mode, &#39;</span><span class="si">%s</span><span class="s">&#39;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">mode</span><span class="p">))</span>
+
+        <span class="c"># Chooses file to save using atomic/non-atomic mode</span>
+        <span class="k">if</span> <span class="n">atomic</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_file_after</span> <span class="o">=</span> <span class="n">F</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s">&#39;r&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">file</span> <span class="o">=</span> <span class="n">StringIO</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">file</span> <span class="o">=</span> <span class="n">StringIO</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_file_after</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">file</span> <span class="o">=</span> <span class="n">F</span>
+
+        <span class="c"># Reads/writes the header/version to file</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s">&#39;r&#39;</span><span class="p">:</span>
+            <span class="n">init_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">raw_unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">)</span>
+                <span class="n">header</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="n">version</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">del</span> <span class="n">data</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">init_pos</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">header</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_header</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;bad header: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="nb">repr</span><span class="p">(</span><span class="n">header</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">version</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_version</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;bad version: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="nb">repr</span><span class="p">(</span><span class="n">version</span><span class="p">))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span> <span class="o">=</span> <span class="n">lazydict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_read_data</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cls_dict</span><span class="p">[</span><span class="s">&#39;full_header&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_read_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">raw_unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">)</span>
+        <span class="nb">next</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="nb">next</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">f</span><span class="p">,</span> <span class="nb">next</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="c">#===========================================================================</span>
+    <span class="c"># Context Manager/File</span>
+    <span class="c">#===========================================================================</span>
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_val</span><span class="p">,</span> <span class="n">exc_tb</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">exc_val</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+<div class="viewcode-block" id="BinPack.close"><a class="viewcode-back" href="../index.html#binpack.BinPack.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Close file.&#39;&#39;&#39;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s">&#39;w&#39;</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">:</span>
+                        <span class="n">default</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">default</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;missing data for field &#39;</span><span class="si">%s</span><span class="s">&#39;&quot;</span> <span class="o">%</span> <span class="n">k</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">default</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_write_defined</span><span class="p">()</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_after</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_after</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_close</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</div>
+    <span class="k">def</span> <span class="nf">_assure_opened</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">closed</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;I/O operation on closed file&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_cls_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_cls_dict_</span>
+
+    <span class="c">#===========================================================================</span>
+    <span class="c"># Abstract methods</span>
+    <span class="c">#===========================================================================</span>
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_assure_opened</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&#39;invalid key: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">key</span><span class="p">)</span>
+
+            <span class="c"># In read mode, it tries to fetch from the file</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s">&#39;r&#39;</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undefined</span>
+
+                <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undefined</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&#39;key was consumed: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">key</span><span class="p">)</span>
+
+                <span class="n">decoder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">decoder</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="k">return</span> <span class="n">value</span>
+
+            <span class="c"># In write mode, it checks for default values</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="n">default</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">default</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">default</span>
+                    <span class="k">raise</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_assure_opened</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s">&#39;r&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;cannot set items in read mode&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&#39;invalid key: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;key already saved to file&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_items</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write_defined</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_write_defined</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_assure_opened</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undefined</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">encoder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">encoder</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+                        <span class="k">print</span> <span class="s">&#39;error found writing key: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">k</span>
+                        <span class="k">raise</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">bytes7num</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_raw</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undefined</span>
+
+    <span class="c">#===========================================================================</span>
+    <span class="c"># Subtypes creation</span>
+    <span class="c">#===========================================================================</span>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BinPack.new_type"><a class="viewcode-back" href="../index.html#binpack.BinPack.new_type">[docs]</a>    <span class="k">def</span> <span class="nf">new_type</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns a new BinPack sub-type&#39;&#39;&#39;</span>
+
+        <span class="k">class</span> <span class="nc">NewType</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+            <span class="k">pass</span>
+        <span class="n">NewType</span><span class="o">.</span><span class="n">__name__</span> <span class="o">=</span> <span class="n">name</span>
+
+        <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">NewType</span><span class="o">.</span><span class="n">set_header</span><span class="p">(</span><span class="n">header</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">NewType</span><span class="o">.</span><span class="n">set_version</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">NewType</span>
+
+    <span class="c">#===========================================================================</span>
+    <span class="c"># Locking mechanism</span>
+    <span class="c">#===========================================================================</span></div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">is_locked</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return True when class is ready to instantiate methods&#39;&#39;&#39;</span>
+
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;locked&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BinPack.lock"><a class="viewcode-back" href="../index.html#binpack.BinPack.lock">[docs]</a>    <span class="k">def</span> <span class="nf">lock</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Prevents class from changing and allows creation of instances&#39;&#39;&#39;</span>
+
+        <span class="n">dic</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span>
+
+        <span class="c"># Check if class has the header and version are set properly</span>
+        <span class="k">if</span> <span class="s">&#39;header&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dic</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;must set &#39;header&#39; first&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s">&#39;version&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dic</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;must set &#39;version&#39; first&quot;</span><span class="p">)</span>
+
+
+        <span class="c"># Check if the class has some registered field </span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dic</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;fields&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;class must have at least one registered field&#39;</span><span class="p">)</span>
+
+        <span class="c"># Raw header, version and full header</span>
+        <span class="n">binary</span> <span class="o">=</span> <span class="n">dic</span><span class="p">[</span><span class="s">&#39;binary&#39;</span><span class="p">]</span>
+        <span class="n">dic</span><span class="p">[</span><span class="s">&#39;sep&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span> <span class="k">if</span> <span class="n">binary</span> <span class="k">else</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="n">dic</span><span class="p">[</span><span class="s">&#39;header&#39;</span><span class="p">]</span>
+        <span class="n">version</span> <span class="o">=</span> <span class="n">dic</span><span class="p">[</span><span class="s">&#39;version&#39;</span><span class="p">]</span>
+        <span class="n">dic</span><span class="p">[</span><span class="s">&#39;raw_header&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;</span><span class="se">\xff</span><span class="si">%s</span><span class="se">\xff</span><span class="s">&#39;</span> <span class="k">if</span> <span class="n">binary</span> <span class="k">else</span> <span class="s">&#39;</span><span class="si">%s</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="n">header</span>
+        <span class="n">dic</span><span class="p">[</span><span class="s">&#39;raw_version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="se">\xff</span><span class="s">&#39;</span> <span class="k">if</span> <span class="n">binary</span> <span class="k">else</span> <span class="s">&#39;</span><span class="si">%s</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="n">version</span>
+        <span class="n">dic</span><span class="p">[</span><span class="s">&#39;full_header&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;</span><span class="se">\xff</span><span class="si">%s</span><span class="se">\xff</span><span class="si">%s</span><span class="se">\xff</span><span class="s">&#39;</span> <span class="k">if</span> <span class="n">binary</span> <span class="k">else</span> <span class="s">&#39;</span><span class="si">%s</span><span class="se">\n</span><span class="si">%s</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+
+        <span class="c"># Lock it</span>
+        <span class="n">dic</span><span class="p">[</span><span class="s">&#39;locked&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+</div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_assure_unlocked</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;locked&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s">&#39;class must be unlocked in order to accept changes&#39;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_assure_locked</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;locked&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s">&#39;class must be locked in order to perform this operation&#39;</span><span class="p">)</span>
+
+    <span class="c">#===========================================================================</span>
+    <span class="c"># Registering functions</span>
+    <span class="c">#===========================================================================</span>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BinPack.set_header"><a class="viewcode-back" href="../index.html#binpack.BinPack.set_header">[docs]</a>    <span class="k">def</span> <span class="nf">set_header</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Defines an ascii string that serves as the file header.&#39;&#39;&#39;</span>
+        <span class="c">#TODO: implement ascii data streams with base64 encoding</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_assure_unlocked</span><span class="p">()</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;header&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">header</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;binary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BinPack.set_version"><a class="viewcode-back" href="../index.html#binpack.BinPack.set_version">[docs]</a>    <span class="k">def</span> <span class="nf">set_version</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">version</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Register an ascii string to represent the file version.</span>
+<span class="sd">         </span>
+<span class="sd">        Versioning may be needed if the data format changes with time.&#39;&#39;&#39;</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_assure_unlocked</span><span class="p">()</span>
+        <span class="n">version</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">version</span><span class="p">,</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">version</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BinPack.add_field"><a class="viewcode-back" href="../index.html#binpack.BinPack.add_field">[docs]</a>    <span class="k">def</span> <span class="nf">add_field</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">converter</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Register a field associating a data type and a default value.&#39;&#39;&#39;</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_assure_unlocked</span><span class="p">()</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s">&#39;fields&#39;</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">force</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;field &#39;</span><span class="si">%s</span><span class="s">&#39; already exists!&quot;</span> <span class="o">%</span> <span class="n">field</span><span class="p">)</span>
+
+        <span class="c"># Update list and dictionaries</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">converter</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">converter</span><span class="p">,</span> <span class="n">Field</span><span class="p">):</span>
+            <span class="n">converter</span> <span class="o">=</span> <span class="n">converter</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">converter</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">converter</span> <span class="o">=</span> <span class="n">Bytes</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">converter</span><span class="p">,</span> <span class="n">Field</span><span class="p">):</span>
+            <span class="n">fields</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="n">converter</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;invalid converter of type </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">converter</span><span class="p">))</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BinPack.del_field"><a class="viewcode-back" href="../index.html#binpack.BinPack.del_field">[docs]</a>    <span class="k">def</span> <span class="nf">del_field</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Register a field associating a data type and a default value.&#39;&#39;&#39;</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_assure_unlocked</span><span class="p">()</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s">&#39;fields&#39;</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">())</span>
+        <span class="k">del</span> <span class="n">fields</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BinPack.insert_field"><a class="viewcode-back" href="../index.html#binpack.BinPack.insert_field">[docs]</a>    <span class="k">def</span> <span class="nf">insert_field</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">converter</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Register a field before the given key or index.&#39;&#39;&#39;</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_assure_unlocked</span><span class="p">()</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s">&#39;fields&#39;</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;field &#39;</span><span class="si">%s</span><span class="s">&#39; already exists&quot;</span> <span class="o">%</span> <span class="n">field</span><span class="p">)</span>
+
+        <span class="n">items</span> <span class="o">=</span> <span class="n">fields</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">key</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">fields</span><span class="p">)</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">head</span><span class="p">,</span> <span class="n">tail</span> <span class="o">=</span> <span class="n">items</span><span class="p">[:</span><span class="n">idx</span><span class="p">],</span> <span class="n">items</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span>
+
+        <span class="n">fields</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">(</span><span class="n">head</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;fields&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fields</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">converter</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">fields</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">tail</span><span class="p">)</span>
+
+    <span class="c">#===========================================================================</span>
+    <span class="c"># Class getters</span>
+    <span class="c">#===========================================================================</span></div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">get_header</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;header&#39;</span><span class="p">]</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">get_version</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;version&#39;</span><span class="p">]</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">get_fields</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cls_dict_</span><span class="p">[</span><span class="s">&#39;fields&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+<span class="c">#===============================================================================</span>
+<span class="c"># Converter fields</span>
+<span class="c">#===============================================================================</span></div>
+<div class="viewcode-block" id="Field"><a class="viewcode-back" href="../index.html#binpack.Field">[docs]</a><span class="k">class</span> <span class="nc">Field</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Base class for all field types&#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Field(default) =&gt; creates a field with an optional value&#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default</span> <span class="o">=</span> <span class="n">default</span>
+
+<div class="viewcode-block" id="Field.encoder"><a class="viewcode-back" href="../index.html#binpack.Field.encoder">[docs]</a>    <span class="k">def</span> <span class="nf">encoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Convert arbitrary object to bytes data.</span>
+<span class="sd">        </span>
+<span class="sd">        *Must be overridden in child classes*&#39;&#39;&#39;</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;must be implemented in child classes&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Field.decoder"><a class="viewcode-back" href="../index.html#binpack.Field.decoder">[docs]</a>    <span class="k">def</span> <span class="nf">decoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Convert a data stream back to object.</span>
+<span class="sd">        </span>
+<span class="sd">        *Must be overridden in child classes*&#39;&#39;&#39;</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;must be implemented in child classes&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Field.default"><a class="viewcode-back" href="../index.html#binpack.Field.default">[docs]</a>    <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return the default value for the field&#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default</span>
+</div>
+<div class="viewcode-block" id="Field.default_enc"><a class="viewcode-back" href="../index.html#binpack.Field.default_enc">[docs]</a>    <span class="k">def</span> <span class="nf">default_enc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return a string with the serialized default value for the field&#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="p">())</span>
+</div></div>
+<div class="viewcode-block" id="Bytes"><a class="viewcode-back" href="../index.html#binpack.Bytes">[docs]</a><span class="k">class</span> <span class="nc">Bytes</span><span class="p">(</span><span class="n">Field</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Class for byte string data. </span>
+<span class="sd">    </span>
+<span class="sd">    This is the default data type for any field&#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">encoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">obj</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;expected string, got </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">decoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">data</span>
+</div>
+<div class="viewcode-block" id="String"><a class="viewcode-back" href="../index.html#binpack.String">[docs]</a><span class="k">class</span> <span class="nc">String</span><span class="p">(</span><span class="n">Field</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Data is a unicode string saved using the specified encoding.&#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s">&#39;utf8&#39;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">String</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span> <span class="o">=</span> <span class="n">encoding</span>
+
+    <span class="k">def</span> <span class="nf">encoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoding</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoding</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;expected string, got </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">decoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoding</span><span class="p">)</span>
+
+
+
+</div>
+<span class="k">class</span> <span class="nc">Serializer</span><span class="p">(</span><span class="n">Field</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">serializers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;It must return a tuple of (encoder, decoder) functions. The arguments</span>
+<span class="sd">        from the init method are passed to this function by default. </span>
+<span class="sd">        </span>
+<span class="sd">        e.g., the Pickle serializer return the pickle.dumps, and pickle.loads </span>
+<span class="sd">        functions.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;must be implemented in child classes&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Serializer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_encoder</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decoder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">serializers</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">encoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encoder</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">print</span> <span class="n">obj</span>
+            <span class="k">raise</span>
+
+    <span class="k">def</span> <span class="nf">decoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decoder</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">print</span> <span class="nb">repr</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">raise</span>
+
+<div class="viewcode-block" id="Pickle"><a class="viewcode-back" href="../index.html#binpack.Pickle">[docs]</a><span class="k">class</span> <span class="nc">Pickle</span><span class="p">(</span><span class="n">Serializer</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Serialize python objects using the pickle protocol</span>
+<span class="sd">    </span>
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; pickle_file = BinPack.new_type(&#39;json_file&#39;, &#39;JSON&#39;, &#39;0.1&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; pickle_file.add_field(&#39;data&#39;, Pickle())</span>
+<span class="sd">    &gt;&gt;&gt; pickle_file.lock()</span>
+<span class="sd">    &gt;&gt;&gt; F = StringIO()</span>
+<span class="sd">    &gt;&gt;&gt; with pickle_file(F, &#39;w&#39;) as data:</span>
+<span class="sd">    ...     data[&#39;data&#39;] = [None, 1, &#39;two&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; F.seek(0)</span>
+<span class="sd">    &gt;&gt;&gt; with pickle_file(F) as data:</span>
+<span class="sd">    ...     print(data[&#39;data&#39;])</span>
+<span class="sd">    [None, 1, &#39;two&#39;]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">serializers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">protocol</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Loads pickle module&#39;&#39;&#39;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">cPickle</span> <span class="kn">as</span> <span class="nn">pickle</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">pickle</span>
+        <span class="kn">import</span> <span class="nn">functools</span>
+
+        <span class="n">dumps</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">protocol</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">dumps</span><span class="p">,</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Pickle</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">protocol</span><span class="p">)</span>
+</div>
+<span class="k">class</span> <span class="nc">JSON</span><span class="p">(</span><span class="n">Serializer</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Serialize a JSON structure.</span>
+<span class="sd">    </span>
+<span class="sd">    The JSON serializer accepts the same arguments as the `json.dumps` and </span>
+<span class="sd">    `json.loads` functions with two small differences:</span>
+<span class="sd">    </span>
+<span class="sd">        * The ``cls`` parameter in each dumps/loads function should now be a </span>
+<span class="sd">          tuple (JSONEncoder or None, JSONDecoder or None).</span>
+<span class="sd">          </span>
+<span class="sd">        * The `default` parameter of json_default is now named `json_default`</span>
+<span class="sd">          in order to prevent clashing with the existing `default` parameter.  </span>
+<span class="sd">    </span>
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; json_file = BinPack.new_type(&#39;json_file&#39;, &#39;JSON&#39;, &#39;0.1&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; json_file.add_field(&#39;data&#39;, JSON())</span>
+<span class="sd">    &gt;&gt;&gt; json_file.lock()</span>
+<span class="sd">    &gt;&gt;&gt; F = StringIO()</span>
+<span class="sd">    &gt;&gt;&gt; with json_file(F, &#39;w&#39;) as data:</span>
+<span class="sd">    ...     data[&#39;data&#39;] = {&#39;foo&#39;: &#39;bar&#39;, &#39;spam&#39;: [&#39;ham&#39;, &#39;eggs&#39;]}</span>
+<span class="sd">    &gt;&gt;&gt; F.getvalue()                                        # doctest: +ELLIPSIS</span>
+<span class="sd">    &#39;...{&quot;foo&quot;: &quot;bar&quot;, &quot;spam&quot;: [&quot;ham&quot;, &quot;eggs&quot;]}&#39;</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="c"># common</span>
+                 <span class="n">encoding</span><span class="o">=</span><span class="s">&#39;utf8&#39;</span><span class="p">,</span> <span class="n">cls</span><span class="o">=</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">),</span> <span class="n">use_decimal</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+
+                 <span class="c"># encoding options</span>
+                 <span class="n">skipkeys</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">check_circular</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                 <span class="n">allow_nan</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">json_default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+
+                 <span class="c"># decoding options</span>
+                 <span class="n">object_hook</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">object_pairs_hook</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">parse_float</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">parse_int</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">parse_constant</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+        <span class="n">kwds</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">locals</span><span class="p">())</span>
+        <span class="n">kwds</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;default&#39;</span><span class="p">)</span>
+        <span class="n">kwds</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;self&#39;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">JSON</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">serializers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Loads dumps and loads functions from the simplejson or json modules&#39;&#39;&#39;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">simplejson</span> <span class="kn">as</span> <span class="nn">json</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">json</span>
+
+        <span class="n">kwds</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s">&#39;default&#39;</span><span class="p">,</span> <span class="n">kwds</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;json_default&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">))</span>
+        <span class="n">dump_keys</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;encoding&#39;</span><span class="p">,</span> <span class="s">&#39;cls&#39;</span><span class="p">,</span> <span class="s">&#39;use_decimal&#39;</span><span class="p">,</span> <span class="s">&#39;skipkeys&#39;</span><span class="p">,</span>
+                     <span class="s">&#39;check_circular&#39;</span><span class="p">,</span> <span class="s">&#39;ensure_ascii&#39;</span><span class="p">,</span> <span class="s">&#39;allow_nan&#39;</span><span class="p">,</span> <span class="s">&#39;indent&#39;</span><span class="p">,</span>
+                     <span class="s">&#39;separators&#39;</span><span class="p">,</span> <span class="s">&#39;default&#39;</span><span class="p">]</span>
+        <span class="n">load_keys</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;encoding&#39;</span><span class="p">,</span> <span class="s">&#39;cls&#39;</span><span class="p">,</span> <span class="s">&#39;use_decimal&#39;</span><span class="p">,</span> <span class="s">&#39;object_hook&#39;</span><span class="p">,</span>
+                     <span class="s">&#39;object_pairs_hook&#39;</span><span class="p">,</span> <span class="s">&#39;parse_float&#39;</span><span class="p">,</span> <span class="s">&#39;parse_int&#39;</span><span class="p">,</span>
+                     <span class="s">&#39;parse_constant&#39;</span><span class="p">]</span>
+
+        <span class="n">dumps_kwds</span> <span class="o">=</span> <span class="p">{</span> <span class="n">k</span><span class="p">:</span> <span class="n">kwds</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">dump_keys</span> <span class="p">}</span>
+        <span class="n">loads_kwds</span> <span class="o">=</span> <span class="p">{</span> <span class="n">k</span><span class="p">:</span> <span class="n">kwds</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">load_keys</span> <span class="p">}</span>
+        <span class="n">dumps_kwds</span><span class="p">[</span><span class="s">&#39;cls&#39;</span><span class="p">],</span> <span class="n">loads_kwds</span><span class="p">[</span><span class="s">&#39;cls&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwds</span><span class="p">[</span><span class="s">&#39;cls&#39;</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="o">**</span><span class="n">dumps_kwds</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">loads</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">loads_kwds</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">dumps</span><span class="p">,</span> <span class="n">loads</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Compressed"><a class="viewcode-back" href="../index.html#binpack.Compressed">[docs]</a><span class="k">class</span> <span class="nc">Compressed</span><span class="p">(</span><span class="n">Serializer</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Compressed can be applied to any field in order to compress an </span>
+<span class="sd">    arbitrary data stream. </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filter : Filter instance</span>
+<span class="sd">        The original filter. Its data will be compressed in the file.</span>
+<span class="sd">    method : str</span>
+<span class="sd">        A string describing the compression method. Currently, only &#39;bz2&#39; </span>
+<span class="sd">        and &#39;zlib&#39; are supported</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s">&#39;zlib&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span> <span class="c">#@ReservedAssignment</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compress</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">decompress</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filter</span> <span class="o">=</span> <span class="nb">filter</span>
+
+    <span class="k">def</span> <span class="nf">encoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">decoder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decompress</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="o">.</span><span class="n">decoder</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="o">.</span><span class="n">default</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">default_enc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="o">.</span><span class="n">default_enc</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="c">#===========================================================================</span>
+    <span class="c"># Compressing methods</span>
+    <span class="c">#===========================================================================</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">method</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s">&#39;bz2&#39;</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">bz2</span>
+            <span class="k">return</span> <span class="n">bz2</span><span class="o">.</span><span class="n">compress</span><span class="p">,</span> <span class="n">bz2</span><span class="o">.</span><span class="n">decompress</span>
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s">&#39;zlib&#39;</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">zlib</span>
+            <span class="k">return</span> <span class="n">zlib</span><span class="o">.</span><span class="n">compress</span><span class="p">,</span> <span class="n">zlib</span><span class="o">.</span><span class="n">decompress</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;compression method &#39;</span><span class="si">%s</span><span class="s">&#39; is not supported&quot;</span> <span class="o">%</span> <span class="n">method</span><span class="p">)</span>
+
+<span class="c">#===============================================================================</span>
+<span class="c"># Locks BinPack class</span>
+<span class="c">#===============================================================================</span></div>
+<span class="n">BinPack</span><span class="o">.</span><span class="n">set_header</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="s">&#39;&lt;binary&gt;&#39;</span><span class="p">)</span>
+<span class="n">BinPack</span><span class="o">.</span><span class="n">set_version</span><span class="p">(</span><span class="s">&#39;0.1&#39;</span><span class="p">)</span>
+<span class="n">BinPack</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="s">&#39;data&#39;</span><span class="p">)</span>
+<span class="n">BinPack</span><span class="o">.</span><span class="n">lock</span><span class="p">()</span>
+
+<span class="c">#===============================================================================</span>
+<span class="c"># Utility functions</span>
+<span class="c">#===============================================================================</span>
+<span class="k">def</span> <span class="nf">bytes7num</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Return number as a string of terms that can be read by read_num()&#39;&#39;&#39;</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">chr</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">n</span><span class="p">:</span>
+            <span class="n">n</span><span class="p">,</span> <span class="n">mod</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">128</span><span class="p">)</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mod</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="mi">128</span>
+        <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">chr</span><span class="p">,</span> <span class="n">data</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">read_num</span><span class="p">(</span><span class="n">F</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Read the necessary number of bytes &lt; 128 from F and construct a base-2^7</span>
+<span class="sd">    number as output.&#39;&#39;&#39;</span>
+    <span class="n">nums</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span> <span class="c"># F.read(1) is empty</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;File ended before expected (</span><span class="si">%s</span><span class="s"> bytes read)&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">None</span>
+
+        <span class="k">if</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">127</span><span class="p">:</span>
+            <span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">128</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+            <span class="k">break</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">n</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="mi">7</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">raw_unpack</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Iterates over all fields and returns raw data.</span>
+<span class="sd">    </span>
+<span class="sd">    The iterator that results from raw_upack(F) returns the header, version and</span>
+<span class="sd">    each raw data field in the file object.  </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="n">sep</span> <span class="o">==</span> <span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span><span class="p">:</span>
+        <span class="n">byte</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">byte</span> <span class="o">!=</span> <span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;unexpected first byte: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">ord</span><span class="p">(</span><span class="n">byte</span><span class="p">))</span>
+
+    <span class="c"># Yield header</span>
+    <span class="n">c</span><span class="p">,</span> <span class="n">chars</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">sep</span> <span class="ow">and</span> <span class="n">c</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">chars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">chars</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="k">yield</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">chars</span><span class="p">)</span>
+
+    <span class="c"># Yield version</span>
+    <span class="n">c</span><span class="p">,</span> <span class="n">chars</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">sep</span> <span class="ow">and</span> <span class="n">c</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">chars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">chars</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="k">yield</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">chars</span><span class="p">)</span>
+
+    <span class="c"># Yield fields</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">read_num</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">F</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">if</span> <span class="n">n</span> <span class="k">else</span> <span class="s">&#39;&#39;</span>
+
+<span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="n">F</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Returns the header of a file.&#39;&#39;&#39;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">raw_unpack</span><span class="p">(</span><span class="n">F</span><span class="p">))</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">F</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">header</span>
+
+<span class="k">def</span> <span class="nf">version</span><span class="p">(</span><span class="n">F</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Returns the version of a file.&#39;&#39;&#39;</span>
+
+    <span class="k">return</span> <span class="n">full_header</span><span class="p">(</span><span class="n">F</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">full_header</span><span class="p">(</span><span class="n">F</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Returns a tuple with (header, version) for the file F.&#39;&#39;&#39;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">raw_unpack</span><span class="p">(</span><span class="n">F</span><span class="p">))</span>
+        <span class="n">version</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">raw_unpack</span><span class="p">(</span><span class="n">F</span><span class="p">))</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">F</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+<span class="c">#    from StringIO import StringIO</span>
+<span class="c">#    F = StringIO()</span>
+<span class="c">#    with BinPack(F, mode=&#39;w&#39;) as data:</span>
+<span class="c">#        data[&#39;data&#39;] = &#39;fdsdfsd sds&#39;</span>
+<span class="c">#    print F.getvalue()</span>
+<span class="c">#</span>
+<span class="c">#    F2 = StringIO(F.getvalue())</span>
+<span class="c">#    print header(F2)</span>
+<span class="c">#    with BinPack(F2) as data:</span>
+<span class="c">#        print data[&#39;data&#39;]</span>
+
+    <span class="kn">import</span> <span class="nn">doctest</span>
+    <span class="n">doctest</span><span class="o">.</span><span class="n">testmod</span><span class="p">(</span><span class="n">optionflags</span><span class="o">=</span><span class="n">doctest</span><span class="o">.</span><span class="n">REPORT_ONLY_FIRST_FAILURE</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">binpack v0.1.1 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Fábio Macêdo Mendes.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
