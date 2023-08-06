@@ -1,0 +1,213 @@
+########
+Overview
+########
+
+This Django application provides tools for the web designer to customize 
+the rendering of forms in templates.
+
+*************************************
+Rendering forms with Django is boring
+*************************************
+
+For an introduction to Django forms, see the `Django documentation about forms 
+<http://docs.djangoproject.com/en/dev/ref/forms/>`_.
+
+The following section will point out some limitations of the Django's standard 
+way to display forms in templates. Here is a short list of common problems:
+
+* how to add CSS classes to the form elements?
+* how to display the fields in a different order than specified in the form's
+  python class definition?
+* how to display only a subset of the form? How to display fieldsets?
+* how to customize only a few fields in the form?
+
+If you are already aware of these problems, you can read about
+:ref:`the form_layouts template tag library <form_layouts_overview>` in the
+next section.
+
+Otherwise, let's begin by considering the following Django form:
+
+.. code-block:: python
+
+  from django import forms
+
+  class ContactForm(forms.Form):
+      subject = forms.CharField(max_length=100)
+      message = forms.CharField()
+      sender = forms.EmailField()
+      cc_myself = forms.BooleanField(required=False)
+
+Django's standard way to render forms is to use the form.as_p() method or
+similar:
+
+.. code-block:: django
+
+  {{ my_form.as_p }}
+
+You get something like this:
+
+.. code-block:: html
+
+  <p>
+    <label for="id_subject">Subject:</label>
+    <input id="id_subject" type="text" name="subject" maxlength="100" />
+  </p>
+  <p>
+    <label for="id_message">Message:</label>
+    <input type="text" name="message" id="id_message" />
+  </p>
+  <p>
+    <label for="id_sender">Sender:</label>
+    <input type="text" name="sender" id="id_sender" />
+  </p>
+  <p>
+    <label for="id_cc_myself">Cc myself:</label>
+    <input type="checkbox" name="cc_myself" id="id_cc_myself" />
+  </p>
+
+Seems magic...
+
+HTML output is fully controlled by Python scripts. This is efficient, but the 
+template designer does not have control on it. This does not contribute to 
+the separation between logic and design.
+
+Now, what if the template designer wants to add a "required" CSS class
+attribute to the required fields in a form? He has to write code.
+As explained in the the `Django documentation about form templates
+<http://docs.djangoproject.com/en/dev/topics/forms/#customizing-the-form-template>`_,
+you can write a loop:
+
+.. code-block:: django
+
+  {% for field in form %}
+  <div class="fieldWrapper{% if field.field.required %} required{% endif %}">
+    {{ field.errors }}
+    {{ field.label_tag }}: {{ field }}
+  </div>
+  {% endfor %}
+
+Now what if the template designer want to customize only one field in the form?
+He has to write down the complete form. Here is an example where subject's
+help text is displayed before field, and message label is "Your message":
+
+.. code-block:: django
+
+  <div class="fieldWrapper">
+    {{ form.subject.errors }}
+    {{ form.subject.label_tag }}:
+    <span class="helptext">{{ form.subject.help_text }}</p>
+    {{ form.subject }}
+  </div>
+  <div class="fieldWrapper">
+    {{ form.message.errors }}
+    <label for="id_message">Your message:</label>
+    {{ form.message }}
+    <span class="helptext">{{ form.message.help_text }}</p>
+  </div>
+  <div class="fieldWrapper">
+    {{ form.sender.errors }}
+    {{ form.sender.label_tag }}:
+    {{ form.sender }}
+  </div>
+  <div class="fieldWrapper">
+    {{ form.cc_myself.errors }}
+    {{ form.cc_myself.label_tag }}:
+    {{ form.cc_myself }}
+  </div>
+
+And what if you want to customize many fields in many forms? Then it gets
+really boring, isn't it?
+
+The `Django documentation about reusable form templates
+<http://docs.djangoproject.com/en/dev/topics/forms/#reusable-form-templates>`_
+says::
+
+  If you find yourself doing this often, you might consider creating a custom 
+  inclusion tag.
+
+So, here comes django-formrenderingtools.
+This application uses templates to render forms, wherever it is possible.
+Default templates can be reused, and specific templates can be created if 
+necessary.
+
+.. _form_layouts_overview:
+
+***************************************************
+Introducing the "form_layouts" template tag library
+***************************************************
+
+Consider the form used in the previous section.
+
+Here is how you can use django-formrenderingtools to display it:
+
+.. code-block:: django
+
+  {% load form_layouts %}
+  {% form %}
+
+Now, if you want to customize the "subject" field, create a
+"form_layouts/contact/fields/subject.html" template.
+Write "Hello world!" in this template.
+
+By doing this, you have created a "contact" form layout (the directory name)
+and a custom template for the "subject" field.
+So the new template code is:
+
+.. code-block:: django
+
+  {% load form_layouts %}
+  {% form layout="contact" %}
+
+Refresh your page. You should see "Hello world!" instead of the subject field.
+
+Notice that the template name is important. If the template does not have
+the "good" name, then the template tag will not be able to find it.
+See :doc:`reference/template_names` for details.
+
+Have a look on the "djc/formrenderingtools/templates/form_layouts/default/"
+directory to get the default templates used by the "form_layouts" 
+template tags.
+
+You can customize more fields, forms, labels by creating templates.
+
+You can reuse the "contact" form layout for other forms.
+
+You can override the default form layout so that it fits your coding
+conventions.
+
+Learn more by reading the :doc:`/reference/index` or :doc:`/demo` sections of
+this documentation.
+
+********
+Concepts
+********
+
+The goal of this application is to provide a pack of template tags which helps
+you render each element in a form: full form, list of fields, non field errors 
+(global errors), field errors (specific errors), field, label, help text...
+It is intended to be simple to learn and easy to extend.
+
+Every form element has a corresponding template tag, which uses templates to
+generate the output. Template designers no longer rely on developers to 
+customize the form output.
+
+This application provides a "form_layouts" template tag library 
+which itself provides the following template tags:
+
+* form: renders a full form, i.e. non field errors, all fields, field
+  errors, labels and help texts
+* form_errors: renders global form errors, i.e. non field errors
+* field_list: renders a set of fields in a form, with corresponding 
+  field errors, labels and help texts
+* field: renders a field, with field errors, label and help text
+* field_errors: renders errors related to a field
+* label: renders a field's label
+* help_text: renders a field's help text
+
+For a deeper description of each template tag, see 
+:doc:`reference/template_tags`.
+
+This application uses a template-naming system that lets you reuse generic 
+templates or use specific ones, depending on your needs. You can reuse built-in 
+templates, override them or create your own templates. See
+:doc:`reference/template_names` for details.
