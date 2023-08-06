@@ -1,0 +1,133 @@
+#!/usr/bin/env python
+# -*- coding; utf-8 -*-
+# Author: Ryan Brown
+# Description: Quickly grab all impulse objects matching a certain query
+#
+# Copyright (c) 2011 Ryan Brown ryansb@csh.rit.edu
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions;
+
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+from ish import __version__
+from optparse import OptionParser
+from ish.resources.system import System
+from ish.resources.address import Address
+from ish.resources.address import IPRange
+from ish.resources.system import Interface
+from operator import attrgetter
+
+OBJ_TYPES = {
+		'system': System,
+		'interface': Interface,
+		'address': Address,
+		'iprange': IPRange
+		}
+
+HEADERS = {
+    'Name': {'get': attrgetter('name'), 'length':16},
+    'Owner': {'get': attrgetter('owner'), 'length':20},
+    'Comment': {'get': attrgetter('comment'), 'length':50},
+    'MAC': {'get': attrgetter('mac'), 'length':20},
+    'IP': {'get': attrgetter('address'), 'length':18},
+    'Modified': {'get': attrgetter('formatted_date_modified'), 'length':13},
+}
+
+def format_object(obj, headers=('Name', 'Owner', 'Modified')):
+	"""Description: Returns a string of formatted output
+
+	Can pass in either a list of ImpulseObjects or a single ImpulseObject
+
+	headers is a tuple of the headers for the formatted output
+	They are printed in order, options are:
+		Name, Owner, Comment, MAC, IP, and Modified
+	"""
+	ret = ""
+	formatter_string = ''
+
+	if not isinstance(obj, list):
+		obj = [obj, ]
+
+	def exists(o, h):
+		"""
+		Try to pull out a specified attribute from an object.
+		Returns True if successful, False if AttributeError
+		"""
+		try:
+			HEADERS[h]['get'](o)
+			return True
+		except AttributeError:
+			return False
+
+	headers = filter(lambda h: exists(obj[0], h), headers)
+
+	for h in headers:
+		formatter_string += "%%-%ds" % HEADERS[h]['length']
+	ret += formatter_string % headers
+	ret += '\n'
+	ret += "-" * len(formatter_string % headers)
+	ret += '\n'
+
+	for i in obj:
+		ret_list = []
+		for h in headers:
+			t = unicode(HEADERS[h]['get'](i)) + ''
+			if len(t) > HEADERS[h]['length']:
+				t = t[:HEADERS[h]['length']-3] + '...'
+			ret_list.append(t)
+		ret += (formatter_string % tuple(ret_list)) + '\n'
+	return ret
+
+if __name__ == "__main__":
+	parser = OptionParser(version=__version__,
+			usage="%prog -t <object type> [-p <param> <param value>]\n" +
+			"If no params are given, it will list every object of that type. " +
+			"This may take some time.")
+	parser.add_option("-t", "--type", help="Object type to find." +
+			" Available types: %s" % ', '.join(OBJ_TYPES.keys()), dest="obj_type")
+	parser.add_option("-p", "--param", help="Parameter name.", dest="param_name")
+	parser.add_option("-H", "--headers",
+			help="Specify headers to use as a comma-separated list. " +
+			"[ Name | Owner | Comment | MAC | IP | Modified ]", dest="headers",
+			default="Name,Owner,Modified")
+
+	(options, args) = parser.parse_args()
+
+	if not options.param_name and len(args) == 1:
+		print "Need a parameter name and parameter to search for."
+		parser.print_help()
+		exit()
+
+	if not (options.obj_type in OBJ_TYPES.keys()) and options.obj_type:
+		print "Did not specify a valid object type to return"
+		print "Valid choices are:\n%s" % '\n'.join(OBJ_TYPES.keys())
+		parser.print_help()
+		exit()
+
+	try:
+		if not options.obj_type:
+			pass
+		elif OBJ_TYPES[options.obj_type].pkey == options.param_name:
+			r = OBJ_TYPES[options.obj_type].find(args[0])
+		else:
+			r = OBJ_TYPES[options.obj_type].search(**{options.param_name:args[0]})
+		if not r:
+			print "No results"
+			exit()
+	except IndexError:
+		r = list(OBJ_TYPES[options.obj_type].all())
+	print format_object(r, tuple(options.headers.split(',')))
