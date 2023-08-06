@@ -1,0 +1,188 @@
+{% extends "peerreview/frontend/base.mobile.html" %}
+{% load review_tags %}
+
+{% block extrahead %}
+{% review_item_head_script %}
+
+    <script type="text/javascript">
+        function button_down(btn, item_id, option_id)
+        {
+            var comments = $('#comments_' + item_id).val();
+            review_item(item_id, option_id, comments);
+
+            // Reset the class attr of all the buttons
+            $(btn.parentNode).children('button').each(function(i) {
+                $(this).attr("class","btn btn-small");
+            });
+            // Set the currently pressed button to selected in the group
+            $(btn).attr("class","btn btn-small btn-down active");
+        }
+
+        function post_comment(event, item_id)
+        {
+            if (event.keyCode == 13 && !event.shiftKey)
+            {
+                var comments = $('#comments_' + item_id).val();
+                $.post('{% url peer-review-post-comment %}', { item_id: item_id, csrfmiddlewaretoken: '{{csrf_token}}', comments: comments } );
+            }
+            return;
+        }
+
+        function show_option_group(option_group, item_id)
+        {
+            $(option_group).show('slow');
+            $('#review_btn_' + item_id).hide();
+        }
+
+    </script>
+
+
+{% endblock %}
+
+{% block document_ready %}
+        {{block.super}}
+        $('.btn').button();
+        $('.btn').popover();
+        {% if review.hide_review_box %}
+        $('.option_group').hide();
+        {% endif %}
+{% endblock %}
+
+{% block extrastyle %}
+.box_of_peers {
+    padding-top: 20px;
+    font-size: small;
+}
+
+.pagination {
+    padding: 5px;
+}
+.pagination .current {
+    padding: 5px;
+}
+
+.btn-down {
+    font-weight: bold;
+    color: blue;
+}
+
+.option_group {
+    padding: 5px;
+    visible: false;
+}
+
+.pagination {
+  padding-bottom: 25px;
+}
+
+.comments_box {
+   clear: both;
+   padding-top: 10px;
+   width: 400px;
+}
+{% endblock %}
+
+{% block title %}<h1>{{review.title}}</h1>{% endblock %}
+{% block description %}
+{% if review.description %}
+<!--<div class="well pull-right">
+{{ review.description }}
+</div>-->
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div data-role="page" id="started-list">
+<div data-role="header">
+    <h1>Peer Review - Mobile Edition</h1>
+    <a href="{% url peer-review-index %}" data-icon="home" data-iconpos="notext" data-direction="reverse">Home</a>
+</div>
+
+<div data-role="content">
+
+{% block item_list %}
+    {% for item in items %}
+        {% block item_block %}
+        {{ item.content }}
+        {% endblock %}
+
+        {% block option_group %}
+        <div id="option_group_{{item.id}}" class="option_group well">
+        {{ review.option_group.prefix }}
+            <div class="btn-group" data-toggle="buttons-radio">
+                {% block review_option_group_buttons %}
+                {% for option in review.option_group.options.all %}
+                <button data-toggle="button"
+                        onclick="button_down(this, {{item.id}}, {{option.id}});"
+                        {% if option.description %} title="Option '{{ option.text }}'"
+                        data-content="{{option.description}}{% if option.value %}<P>Value: {{ option.value }} {% endif %}"{% endif %}
+                        class="btn btn-small {% ifequal item.selected_option_id option.id %}btn-down active{% endifequal %}">
+                        {% if option.icon %}<i class="{{option.icon}}">{% endif %}</i>{{ option.text }}
+                </button>
+                {% endfor %}
+                {% endblock %}
+
+                {% block custom_review_option_group_buttons %}{% endblock %}
+
+                {% if review.option_group.comments_enabled %}
+                <div class="comments_box">
+                    <div class="comments_text">Comments:</div>
+                    <textarea onkeypress="post_comment(event, {{ item.id}})" rows="3" cols="180" id="comments_{{item.id}}">{% if item.comments %}{{ item.comments }}{% endif %}</textarea>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if review.show_reviews_from_peers %}
+                <P/>
+                {% for entry in item.entries.all %}
+                <div class="entry_comment"><i class="icon-user"></i>&nbsp;{{entry}}</div>
+                {% endfor %}
+            {% endif %}
+
+        </div>
+        {% if review.hide_review_box %}
+        <div id="review_btn_{{item.id}}" onclick="show_option_group('#option_group_{{item.id}}', {{item.id}});">
+            <i class="icon-comment"></i>
+            {% if item.selected_option_id %}
+            You've allready review this - click to see.
+            {% else %}
+            Click here to review this.
+            {% endif %}
+        </div>
+        {% endif %}
+{% endblock %}
+    {% endfor %}
+</div>
+{% endblock %}
+
+    <div class="pagination">
+        <div class="current">
+            Page {{ items.number }} of {{ items.paginator.num_pages }}.
+        </div>
+
+    <span class="step-links">
+        <span>
+        {% if items.has_previous %}
+            {% if restart_review %}
+                <a class="btn" href="?page={{ items.previous_page_number }}&restart_review=yes">Previous</a>
+            {% else %}
+                <a class="btn" href="?page={{ items.previous_page_number }}">Previous</a>
+            {% endif %}
+        {% endif %}
+        </span>
+        <span>
+        {% if items.has_next %}
+            {% if restart_review %}
+                <a class="btn" href="?page={{ items.next_page_number }}&restart_review=yes">Next</a>
+            {% else %}
+                <a class="btn" href="?page={{ items.next_page_number }}">Next</a>
+            {% endif %}
+        {% else %}
+            <a class="btn" href="{% url peer-review-index %}">Finish review and return to index</a>
+        {% endif %}
+        </span>
+    </span>
+    </div>
+</div>
+</div>
+{% endblock %}
