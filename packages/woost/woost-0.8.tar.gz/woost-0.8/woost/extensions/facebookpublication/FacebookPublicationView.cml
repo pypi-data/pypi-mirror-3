@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<py:woost.views.BackOfficeLayout
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    results = ()
+    form_schema = None
+    form_data = None
+    form_errors = None
+
+    def _get_outcome_translation(self, outcome):
+        if isinstance(outcome, Exception):
+            return translations(outcome)
+        elif self.action == "publish":
+            return translations("woost.extensions.facebookpublication.FacebookPublicationView.success")
+        elif self.action == "check":
+            return translations(
+                "woost.extensions.facebookpublication.FacebookPublicationView."
+                + ("already_published" if outcome else "not_yet_published")
+            )
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/facebookpublication-FacebookPublicationView.css")
+    self.add_resource("/resources/scripts/facebookpublication-FacebookPublicationView.js")
+    ?>
+
+    <py:ready>
+        <?py
+        self.set_client_param("action", self.action)
+        ?>
+    </py:ready>
+
+    <py:with py:element="self.body">
+
+        <h2 py:id="section_title">
+            ${translations("woost.extensions.facebookpublication.FacebookPublicationView.section_title")}
+        </h2>
+
+        <table py:id="results_table" py:visible="@{self.results}">
+            <tr py:id="results_header">
+                <th py:id="publishable_header" class="publishable_cell">
+                    ${translations("woost.extensions.facebookpublication.FacebookPublicationView.publishable_header")}
+                </th>
+                <th py:id="target_header" class="target_cell">
+                    ${translations("woost.extensions.facebookpublication.FacebookPublicationView.target_header")}
+                </th>
+                <th py:id="language_header" class="language_cell">
+                    ${translations("woost.extensions.facebookpublication.FacebookPublicationView.language_header")}
+                </th>
+                <th py:id="outcome_header" class="outcome_cell">
+                    ${translations("woost.extensions.facebookpublication.FacebookPublicationView.outcome_header")}
+                </th>
+            </tr>
+            <py:ready>
+                <tr py:for="i, (publishable, target, language, outcome) in enumerate(self.results)">
+                    <?py
+                    from cocktail.styled import styled                    
+                    
+                    group_publishable = (i and publishable is self.results[i - 1][0])
+                    
+                    if group_publishable:
+                        prev_cell = self.__publishable_starting_row.publishable_cell
+                        if prev_cell["rowspan"]:
+                            prev_cell["rowspan"] += 1
+                        else:
+                            prev_cell["rowspan"] = 2
+                    else:
+                        self.__publishable_starting_row = element
+                        element.add_class("new_publishable_row")
+
+                    group_target = (i and target is self.results[i - 1][1])
+                    
+                    if group_target:
+                        prev_cell = self.__target_starting_row.target_cell
+                        if prev_cell["rowspan"]:
+                            prev_cell["rowspan"] += 1
+                        else:
+                            prev_cell["rowspan"] = 2
+                    else:
+                        self.__target_starting_row = element
+                        element.add_class("new_target_row")
+
+                    group_language = (i and language == self.results[i - 1][2])
+
+                    if group_language:
+                        prev_cell = self.__language_starting_row.language_cell
+                        if prev_cell["rowspan"]:
+                            prev_cell["rowspan"] += 1
+                        else:
+                            prev_cell["rowspan"] = 2
+                    else:
+                        self.__language_starting_row = element
+                        element.add_class("new_language_row")
+
+                    outcome_translation = self._get_outcome_translation(outcome)
+                    group_outcome = (i and outcome_translation == self._get_outcome_translation(self.results[i - 1][3]))
+
+                    if group_outcome:
+                        prev_cell = self.__outcome_starting_row.outcome_cell
+                        if prev_cell["rowspan"]:
+                            prev_cell["rowspan"] += 1
+                        else:
+                            prev_cell["rowspan"] = 2
+                    else:
+                        self.__outcome_starting_row = element
+                        element.add_class("new_outcome_row")
+                    ?>
+                    <td py:local_id="publishable_cell" py:if="not group_publishable">
+                        <py:woost.views.ContentLink
+                            py:item="${publishable}"
+                            py:icon_visible="${True}"/>
+                    </td>
+                    <td py:local_id="target_cell" py:if="not group_target">
+                        <py:woost.views.ContentLink
+                            py:item="${target}"
+                            py:icon_visible="${True}"/>
+                    </td>
+                    <td py:local_id="language_cell" py:if="not group_language">
+                        ${translations(language)}
+                    </td>
+                    <td py:local_id="outcome_cell" py:if="not group_outcome">
+                        <?py 
+                        error = outcome if isinstance(outcome, Exception) else None
+                        if error:
+                            element.add_class("publication_error")
+                        elif self.action == "publish":
+                            element.add_class("publication_success")
+                        ?>
+                        <img py:local_id="outcome_icon" 
+                            py:visible="${self.action == 'publish'}"
+                            src="/resources/images/facebookpublication-${'error' if error else 'success'}.png"/>
+                        ${outcome_translation}
+                    </td>
+                </tr>
+            </py:ready>
+        </table>
+
+        <py:cocktail.html.ErrorBox
+            py:id="error_box"
+            py:errors="@{self.form_errors}"/>
+
+        <py:cocktail.html.Form
+            py:id="publication_form"
+            method="POST"
+            py:schema="@{self.form_schema}"
+            py:data="@{self.form_data}"
+            py:errors="@{self.form_errors}">
+
+            <py:with py:element="element.submit_button" name="action" value="publish">
+                <?py element.empty() ?>
+                ${translations("woost.extensions.facebookpublication.FacebookPublicationView.publication_form.submit_button")}
+            </py:with>
+
+            <button 
+                py:id="close_button"
+                type="submit" 
+                name="action" 
+                value="close"
+                py:before="publication_form.submit_button">
+                ${translations("Action close")}
+            </button>
+
+            <button 
+                py:id="check_button"
+                type="submit" 
+                name="action" 
+                value="check"
+                py:before="publication_form.submit_button">
+                ${translations("woost.extensions.facebookpublication.FacebookPublicationView.publication_form.check_button")}
+            </button>
+
+        </py:cocktail.html.Form>
+
+        <div py:id="loading_sign"
+            class="FacebookPublicationView-loading_sign"
+            py:client_model="woost.extensions.facebookpublication.FacebookPublicationView.loading_sign">            
+            ${translations("woost.extensions.facebookpublication.FacebookPublicationView.loading_sign")}
+        </div>
+
+        <a py:id="publish_again_link" 
+            py:client_model="woost.extensions.facebookpublication.FacebookPublicationView.publish_again_link"
+            href="javascript:">
+            ${translations("woost.extensions.facebookpublication.FacebookPublicationView.publish_again_link")}
+        </a>
+
+    </py:with>
+
+</py:woost.views.BackOfficeLayout>
+

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.controllers import context
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+    
+    <?py-class
+    shop_order = None
+    include_shipping = True
+    include_taxes = True
+    
+    def display_amount(self, amount):
+        return translations(amount) + u" €"
+    ?>
+
+    <py:ready>
+        <?py
+        self.costs = self.shop_order.calculate_cost(
+            include_shipping = self.include_shipping,
+            include_taxes = self.include_taxes    
+        )
+    
+        self._uri = context["cms"].contextual_uri
+        ?>
+    </py:ready>
+
+    <tr py:def="row" py:args="entry, costs">
+        <py:new py:element="self.create_product_cell(entry, costs)"/>
+        <py:new py:element="self.create_price_cell(entry, costs)"/>
+        <py:new py:element="self.create_quantity_cell(entry, costs)"/>
+        <py:new py:element="self.create_remove_cell(entry, costs)"/>
+        <py:new py:element="self.create_total_cell(entry, costs)"/>
+    </tr>
+
+    <td py:def="product_cell" py:args="entry, costs">${translations(entry.product)}</td>    
+    <td py:def="price_cell" py:args="entry, costs">${self.display_amount(costs["price"]["total"])}</td>
+    <td py:def="quantity_cell" py:args="entry, costs">${entry.quantity}</td>
+    <td py:def="remove_cell" py:args="entry, costs" class="remove">
+        <a href="${self._uri('update')}?quantity=0&amp;product=${str(entry.product.id)}">${translations('woost.extensions.shop.ShoppingBasket remove entry')}</a>        
+    </td>
+    <td py:def="total_cell" py:args="entry, costs">${self.display_amount(costs["total_price"])}</td>
+
+    <table py:id="entries_table">
+        <thead>
+            <tr py:id="headers_row">
+                <th class="product">${translations("woost.extensions.shop.ShopOrderTable product header")}</th>
+                <th class="price">${translations("woost.extensions.shop.ShopOrderTable price header")}</th>
+                <th class="quantity">${translations("woost.extensions.shop.ShopOrderTable quantity header")}</th>
+                <th class="remove"></th>
+                <th class="total">${translations("woost.extensions.shop.ShopOrderTable total header")}</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            <py:ready py:if="self.shop_order">
+                <py:new py:element="self.create_row(entry, entry_costs)"
+                        py:for="entry, entry_costs in zip(self.shop_order.entries, self.costs['entries'])"/>
+            </py:ready>
+        </tbody>
+    </table>
+
+    <div py:id="shipping_costs" py:visible="@{self.costs['total_shipping_costs']}">
+        <div class="label">${translations("woost.extensions.shop.ShopOrderTable shipping costs")}</div>
+        <div class="cost">@{self.display_amount(self.costs["total_shipping_costs"])}</div>
+    </div>
+
+    <div py:id="taxes" py:visible="@{self.costs['total_taxes']}">
+        <div class="label">${translations("woost.extensions.shop.ShopOrderTable taxes")}</div>
+        <div class="cost">@{self.display_amount(self.costs["total_taxes"])}</div>
+    </div>
+
+    <div py:id="total">
+        <div class="label">${translations("woost.extensions.shop.ShopOrderTable total")}</div>
+        <div class="cost">@{self.display_amount(self.costs["total"])}</div>
+    </div>
+
+</div>

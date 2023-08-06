@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+import cherrypy
+from difflib import IS_CHARACTER_JUNK
+from cocktail.schema import String, Collection, get_accessor
+from woost.views.htmldiff import html_diff
+from woost.controllers.backoffice.useractions import \
+    add_view_action_context
+?>
+
+<py:woost.views.BackOfficeItemView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+    
+    <?py-class
+    source = None
+    source_accessor = None
+    target = None
+    target_accessor = None
+    changes = None
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/backoffice_diff.css")
+    add_view_action_context(self, "diff")
+    ?>
+
+    <tr py:def="difference_row" py:args="member, language">
+        <?py
+        key = member.name
+        revert_key = key
+
+        if language:
+            revert_key += "-" + language
+
+        a = self.source_accessor.get(self.source, key, default = None, language = language)
+        b = self.target_accessor.get(self.target, key, default = None, language = language)
+        diffs = None
+
+        if isinstance(member, String):
+            a = a.split("\n") if a else []
+            b = b.split("\n") if b else []
+            diffs = html_diff(a, b, charjunk = IS_CHARACTER_JUNK)
+        elif isinstance(member, Collection):
+            a = [translations(x) for x in a] if a else []
+            b = [translations(x) for x in b] if b else []
+            diffs = html_diff(a, b)
+        else:
+            a = [translations(a, default = a)]
+            b = [translations(b, default = b)]
+            diffs = a, b
+        ?>
+        <td class="check">
+            <input type="checkbox" name="reverted_members" value="${revert_key}"/>
+        </td>
+        <td class="member">${translations(member)}
+            <span class="language" py:if="member.translated">(${translations(language)})</span>
+        </td>
+        <td class="previous_value">
+            <div class="diff_unit" py:for="unit in diffs[0]">${unit}</div>
+        </td>
+        <td class="new_value">
+            <div class="diff_unit" py:for="unit in diffs[1]">${unit}</div>
+        </td>            
+    </tr>
+
+    <py:with py:element="self.item_body">
+              
+        <p py:id="no_differences" py:visible="@{not self.changes}">
+            ${translations("No differences")}
+        </p>
+
+        <table py:id="differences" py:visible="@{self.changes}">
+            <tr>
+                <th class="check"/>
+                <th class="member">${translations("woost.views.BackOfficeDiffView member")}</th>
+                <th class="previous_value">${translations("woost.views.BackOfficeDiffView previous value")}</th>
+                <th class="new_value">${translations("woost.views.BackOfficeDiffView new value")}</th>
+            </tr>            
+            <py:ready>
+                <?py
+                if self.source_accessor is None:
+                    self.source_accessor = get_accessor(self.source)
+
+                if self.target_accessor is None:
+                    self.target_accessor = get_accessor(self.target)
+
+                diffs = sorted(self.changes, key = lambda diff: (diff[0].name, diff[1]))
+                ?>
+                <py:new
+                    py:element="self.create_difference_row(member, language)"
+                    py:for="member, language in diffs"/>
+            </py:ready>
+        </table>
+        
+        <!-- Actions -->
+        <py:woost.views.ActionBar
+            py:id="item_body_buttons"
+            py:action_context="item_body_buttons"
+            py:action_target="@{self.edited_item}"
+            py:button_images="${False}"
+            class="buttons">
+            <py:with py:def="action_button" name="item_action"/>
+        </py:woost.views.ActionBar>
+
+    </py:with>
+
+</py:woost.views.BackOfficeItemView>

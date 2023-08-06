@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail import schema
+from woost.models import File
+from woost.controllers.backoffice.useractions import \
+    add_view_action_context
+?>
+
+<py:woost.views.BackOfficeItemView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    translations = ()
+    ?>
+
+    <?py
+    add_view_action_context(self, "show_detail")
+    ?>
+
+    <py:ready>
+        <?py
+        self.changed_keys = set((member.name, language)
+                                for member, language in self.changes)
+        ?>
+    </py:ready>
+
+    <py:woost.views.ContentPropertyTable
+        py:id="property_table"
+        py:parent="self.item_body"
+        py:translations="@{self.translations}"
+        py:schema="@{self.detail_schema}"
+        py:data="@{self.edited_item}"
+        py:base_url="@{self.cms.contextual_uri()}"
+        py:edit_stack="@{self.edit_stack}">
+        
+        <!-- Highlight changed members -->
+        <py:with py:def="value" py:args="member">
+            <?py
+            key = (
+                member.name,
+                get_language()
+                    if member.translated
+                    else None
+            )
+            
+            if key in self.changed_keys:
+                element.add_class("changed")
+            ?>
+        </py:with>
+
+        <?py
+        @extend(element)
+        def _resolve_member_display(property_table, obj, member):
+        
+            if isinstance(member, schema.Collection):
+                if member.related_type \
+                and issubclass(member.related_type, File):
+                    return property_table.create_thumbnail_list
+            elif isinstance(member, schema.Reference):
+                if member.related_type \
+                and issubclass(member.related_type, File):
+                    resource = schema.get(obj, member)
+                    if resource:
+                        return property_table.create_resource_thumbnail(resource)
+
+            return call_base(obj, member)
+        ?>
+
+        <ul py:def="thumbnail_list" py:args="obj, member" py:collapsible="${True}">
+            <?py resources = schema.get(obj, member) ?>
+            <py:new
+                py:tag="li"
+                py:element="property_table.create_resource_thumbnail(resource)"
+                py:for="resource in resources"
+                py:if="resources"/>
+        </ul>
+        
+        <div py:def="resource_thumbnail" py:args="resource">
+            <a href="${self.edit_uri(resource, edit_stack = None)}" class="thumbnail_link">
+                <img class="thumbnail" src="${resource.get_image_uri('backoffice_thumbnail')}"/>
+                <span class="label">${translations(resource, referer = self.edited_item)}</span>
+            </a>
+            <a class="open_resource_link" href="${self.cms.uri(resource)}">
+                ${translations("woost.views.BackOfficeShowDetailView open resource")}
+            </a>
+        </div>
+
+    </py:woost.views.ContentPropertyTable>
+    
+</py:woost.views.BackOfficeItemView>

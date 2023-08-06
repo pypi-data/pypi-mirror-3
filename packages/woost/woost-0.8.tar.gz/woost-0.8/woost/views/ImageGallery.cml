@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.controllers import context
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    gallery_type = "thumbnails" # Either "thumbnails" or "slideshow"
+    labels_visible = True
+    footnotes_visible = True
+    original_link_visible = False
+    close_up_enabled = True
+    close_up_preload = True
+    
+    images = ()
+    accessible_check = True
+
+    _close_up_width = None
+    _close_up_height = None
+    close_up_factory = "image_gallery_close_up"
+    close_up_sizes = {
+        "image_gallery_close_up": (900, 700)
+    }
+
+    _thumbnail_width = None
+    _thumbnail_height = None
+    thumbnail_factory = "image_gallery_thumbnail"
+    thumbnail_sizes = {
+        "image_gallery_thumbnail": (200, 150)
+    }
+
+    slider_options = {
+        "continuous": False
+    }
+
+    def get_footnote(self, image):
+        return getattr(image, "description", None)
+
+    def _get_thumbnail_width(self):
+        if self._thumbnail_width is None:
+            size = self.thumbnail_sizes.get(self.thumbnail_factory)
+            return size and size[0]
+        
+        return self._thumbnail_width
+
+    def _set_thumbnail_width(self, width):
+        self._thumbnail_width = width
+
+    thumbnail_width = property(_get_thumbnail_width, _set_thumbnail_width)
+    
+    def _get_thumbnail_height(self):
+        if self._thumbnail_height is None:
+            size = self.thumbnail_sizes.get(self.thumbnail_factory)
+            return size and size[1]
+
+        return self._thumbnail_height
+
+    def _set_thumbnail_height(self, height):
+        self._thumbnail_height = height
+
+    thumbnail_height = property(_get_thumbnail_height, _set_thumbnail_height)
+
+    def _get_close_up_width(self):
+        if self._close_up_width is None:
+            size = self.close_up_sizes.get(self.close_up_factory)
+            return size and size[0]
+        
+        return self._close_up_width
+
+    def _set_close_up_width(self, width):
+        self._close_up_width = width
+
+    close_up_width = property(_get_close_up_width, _set_close_up_width)
+    
+    def _get_close_up_height(self):
+        if self._close_up_height is None:
+            size = self.close_up_sizes.get(self.close_up_factory)
+            return size and size[1]
+
+        return self._close_up_height
+
+    def _set_close_up_height(self, height):
+        self._close_up_height = height
+
+    close_up_height = property(_get_close_up_height, _set_close_up_height)
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/ImageGallery.css")
+    self.add_resource("/resources/scripts/ImageGallery.js")
+
+    self.slider_options = self.slider_options.copy()
+    ?>
+
+    <py:ready>
+        <?py
+        if not self.images:
+            self.visible = False
+
+        self.add_class(self.gallery_type)
+        self.set_client_param("galleryType", self.gallery_type)
+        self.set_client_param("closeUpPreload", self.close_up_preload)
+
+        if self.gallery_type == "slideshow":
+            self.add_resource("/cocktail/scripts/jquery.sudoSlider.js")
+            self.set_client_param("sliderOptions", self.slider_options)
+            element.add_client_code("this.style.width = '%dpx'" % self.thumbnail_width)
+        ?>
+    </py:ready>
+
+    <ul py:id="image_list">
+        <py:ready>
+            <?py            
+            images = self.images
+            if self.accessible_check:
+                images = (img for img in self.images if img.is_accessible())
+            ?>
+            <py:new
+                py:element="self.create_image_entry(image)"
+                py:for="image in images"/>
+        </py:ready>
+    </ul>
+
+    <li py:def="image_entry" py:args="image">
+        <?py
+        cms = context["cms"]
+        title = image.title or ""
+        
+        # IE 7 requires this... :'(
+        if self.gallery_type == "slideshow":
+            element.set_style("width", "%dpx" % self.thumbnail_width)
+
+        if self.footnotes_visible:
+            footnote = self.get_footnote(image)
+            if footnote:
+                element.set_client_param("footnote", footnote)
+
+        if self.original_link_visible:
+            element.set_client_param(
+                "originalImage",
+                image.get_uri(parameters = {"disposition": "attachment"})
+            )
+        ?>
+        <a py:local_id="image_link"
+            href="${image.get_image_uri(self.close_up_factory)}"
+            target="blank_">
+
+            <?py 
+            if not self.close_up_enabled:
+                element.tag = None
+            ?>
+
+            <py:woost.views.Image 
+                py:local_id="image"
+                py:image="${image}"
+                py:image_factory="${self.thumbnail_factory}"
+                py:accessible_check="${False}"/>
+
+            <span py:local_id="image_label"
+                py:visible="${self.labels_visible}"
+                py:collapsible="${True}">${title}</span>
+        </a>
+    </li>
+
+    <a py:id="next_button"
+        py:client_model="woost.views.ImageGallery.next_button"
+        py:visible="@{self.gallery_type == 'slideshow'}"
+        href="javascript:"
+        title="${translations('woost.views.ImageGallery.next_button')}">
+        <img src="/resources/images/ImageGallery-next_button.png" alt=""/>
+    </a>
+
+    <a py:id="previous_button"
+        py:client_model="woost.views.ImageGallery.previous_button"
+        py:visible="@{self.gallery_type == 'slideshow'}"
+        href="javascript:"
+        title="${translations('woost.views.ImageGallery.previous_button')}">
+        <img src="/resources/images/ImageGallery-previous_button.png" alt=""/>
+    </a>
+
+    <div py:id="image_dialog" 
+        py:client_model="woost.views.ImageGallery.image_dialog"
+        class="ImageGallery-dialog">
+        <div py:id="image_frame">
+            <div py:local_id="header">
+                <span py:local_id="index"></span>
+                <span py:local_id="label"></span>
+            </div>
+            <button py:local_id="close_button" title="${translations('woost.views.ImageGallery.close_button')}">
+                <img src="/resources/images/ImageGallery-close_button.png" alt=""/>
+            </button>
+            <img py:local_id="image"/>
+            <button
+                py:local_id="previous_button"
+                title="${translations('woost.views.ImageGallery.previous_button')}">
+                <img src="/resources/images/ImageGallery-previous_button.png" alt=""/>
+            </button>
+            <button
+                py:local_id="next_button"
+                title="${translations('woost.views.ImageGallery.next_button')}">
+                <img src="/resources/images/ImageGallery-next_button.png" alt=""/>
+            </button>
+        </div>
+        <div py:local_id="footnote"></div>
+        <div py:local_id="original_image_link">
+            <a py:local_id="link">${translations("woost.views.ImageGallery.original_image_link")}</a>
+        </div>
+    </div>
+
+    <div py:id="loading_sign" 
+        py:client_model="woost.views.ImageGallery.loading_sign"
+        class="ImageGallery-loading_sign">
+        ${translations("woost.views.ImageGallery.loading_sign")}
+    </div>
+
+</div>
+

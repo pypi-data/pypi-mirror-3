@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail import schema
+from woost.controllers.backoffice.useractions import \
+    add_view_action_context
+from simplejson import dumps
+?>
+
+<py:woost.views.BackOfficeItemView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py
+    self.add_resource("/cocktail/scripts/jquery.cookie.js")
+    self.add_resource("/resources/scripts/BackOfficeEditView.js")
+    
+    add_view_action_context(self, "edit")
+    ?>
+
+    <?py-class
+    collections = ()
+    errors = ()
+    available_languages = ()
+    ?>
+
+    <py:ready>
+        <?py
+        self.changed_keys = set((member.name, language)
+            for member, language in self.changes)
+        self.add_client_code("cocktail.setLanguages(%s)" % dumps(self.available_languages))
+        ?>
+    </py:ready>
+
+    <div py:id="messages" py:before="self.item_body" py:collapsible="${True}">
+
+        <!-- Draft remark -->
+        <div
+            py:id="draft_box"
+            py:visible="@{self.edited_item.is_draft}"
+            class="draft">
+            <py:ready py:if="self.draft_box.visible">
+                <?py
+                if self.edited_item.draft_source:
+                    element.append(
+                        translations(
+                            "Editing draft copy",
+                            location = self.edit_uri(self.edited_item.draft_source)
+                        )
+                    )
+                else:
+                    element.append(translations("Editing draft"))
+                ?>
+            </py:ready>
+        </div>
+
+        <!-- Errors -->
+        <ul py:id="error_box"
+            py:visible="@{self.submitted and self.errors}">
+            <py:ready py:if="element.visible">
+                <li py:for="error in self.errors">
+                    ${translations(error)}
+                </li>
+            </py:ready>
+        </ul>
+
+    </div>
+
+    <py:with py:element="self.item_body">
+
+        <!-- Tabs -->
+        <div py:id="tabs">                        
+            <py:ready>
+                 <py:new py:element="self.create_tab(member)"
+                     py:for="member in [self.edited_content_type] + list(self.collections)">
+                     <?py
+                     setattr(self, member.name + "_tab", element)
+                     ?>
+                 </py:new>
+             </py:ready>
+         </div>
+
+    </py:with>
+
+    <button
+        py:def="tab"
+        py:args="member"
+        type="submit"
+        name="section">
+        <?py
+        is_collection = isinstance(member, schema.Collection)
+        section_id = member.name if is_collection else "fields"
+        element["value"] = section_id
+        element.add_class(member.name + "_tab")
+
+        if section_id == self.section:
+            element.add_class("selected")
+
+        if self.edited_item.is_inserted and (
+            (is_collection and (member.name, None) in self.changed_keys)
+            or (not is_collection
+                and any(
+                    not isinstance(changed_member, schema.Collection)
+                    for changed_member, language in self.changes
+                )
+            )
+        ):
+            element.add_class("changed")
+        ?>
+        ${translations(member if is_collection else member.name)}
+        <?py
+        if is_collection:
+            items = schema.get(self.form_data, member.name)
+            if items:
+                count = Element("span", class_name = "count")
+                count.append("(" + str(len(items)) + ")")
+                element.append(count)
+        ?>
+    </button>
+
+</py:woost.views.BackOfficeItemView>

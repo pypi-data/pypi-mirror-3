@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from calendar import monthcalendar
+from datetime import date, datetime
+from cocktail import schema
+from cocktail.schema.expressions import Self
+from cocktail.controllers import view_state
+?>
+
+<py:woost.views.ContentView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+        
+    <?py-class
+    content_view_id = "calendar"
+    allow_sorting = False
+    allow_paging = False
+    allow_member_selection = False
+    allow_language_selection = False
+    allow_empty_search = True
+    allow_grouping = False
+    date_members = ()
+    members_paired = False
+    months = range(1, 13)
+    week_days = range(7)
+    first_month = 1
+    
+    excluded_view_state_params = \
+        ContentView.excluded_view_state_params | frozenset(["month", "year"])
+
+    def _init_user_collection(self, user_collection):
+        
+        ContentView._init_user_collection(self, user_collection)
+
+        # Hide filters based on the calendar's date members
+        available_filters = []
+        for filter in user_collection.available_user_filters:
+            filter_members = filter.members
+            if not any(member in filter_members for member in self.date_members):
+                available_filters.append(filter)
+
+        user_collection._available_user_filters = available_filters
+
+        # Setup parameter persistence
+        psource = user_collection.persistent_source
+        user_collection.set_parameter_source("calendar_layout", psource)
+        user_collection.set_parameter_source("year", psource)
+        user_collection.set_parameter_source("month", psource)
+
+        # Find the selected layout: year or month
+        self.calendar_layout = layout = user_collection.params.read(
+            schema.String("calendar_layout",
+                enumeration = set(["year", "month"])
+            )
+        ) or "month"
+
+        # Find the selected date range
+        self.today = date.today()
+        date_type = self.date_members[0].type
+        
+        self.year = user_collection.params.read(
+            schema.Integer("year", default = self.today.year)
+        )
+
+        if layout == "year":
+            dates = self.get_year_dates(self.year, self.first_month)
+            start_date = date_type(dates[0][0], dates[0][1], 1)
+            end_date = date_type(dates[-1][0], dates[-1][1], 1)
+
+        elif layout == "month":
+            self.month = user_collection.params.read(
+                schema.Integer("month", min = 1, max = 12, default = self.today.month)
+            )
+            start_date = date_type(self.year, self.month, 1)            
+            q, r = divmod(self.month, 12)
+            end_date = date_type(self.year + q, r + 1, 1)
+
+        self._start_date = start_date
+        self._end_date = end_date
+        
+    def get_year_dates(self, year, first_month):
+        dates = []
+        for i in range(first_month, first_month + 12):
+            q, r = divmod(i, 13)
+            dates.append((year + q, r + 1 if q else r))
+        return dates
+
+    def get_date_range_expression(self, member, start_date, end_date):
+        return member.greater_equal(start_date).and_(member.lower(end_date))
+
+    def get_calendar_matches(self):
+    
+        # Add filters to the user collection for the selected date range
+        subset = self.user_collection.subset.select()
+        content_type = self.user_collection.type
+        ids = set()
+
+        for member in self.date_members:                        
+            date_expr = self.get_date_range_expression(
+                member,
+                self._start_date,
+                self._end_date
+            )
+            query = content_type.select(filters = [date_expr])
+            ids.update(query.execute(_sorted = False))
+
+        expr = Self.one_of(ids)
+        expr.by_key = True
+        subset.add_filter(expr)
+        return subset
+
+    def get_ongoing_items(self):
+        return self.user_collection.subset.select(
+            filters = [
+                self.date_members[0].lower(self._start_date)
+                .and_(self.date_members[1].greater_equal(self._end_date))
+            ],
+            order = self.date_members[0]
+        )
+
+    def get_item_date(self, item, member):
+        return item.get(member)
+
+    def _consume_entries(self, cell_date):
+        
+        for member in self.date_members:
+            member_entries = self._entries.get(member)
+            
+            while member_entries:
+                comp = self._compare_dates(member_entries[0][0], cell_date)
+
+                if comp == 1:
+                    break
+
+                entry_date, item = member_entries.pop(0)
+
+                if comp == 0:
+                    yield (member, entry_date, item)
+
+    def _compare_dates(self, a, b):
+        return cmp((a.year, a.month, a.day), (b.year, b.month, b.day))
+    ?>
+
+    <?py
+    self.add_resource("/resources/scripts/CalendarContentView.js")
+    ?>
+
+    <py:ready>
+        <?py
+        self.set_client_param("dateMembers", [member.name for member in self.date_members])
+
+        # Sort items by each date member displayed in the calendar
+        self._entries = {}
+
+        for item in self.get_calendar_matches():
+            for member in self.date_members:
+                value = self.get_item_date(item, member)
+                if value is not None:                    
+                    member_entries = self._entries.get(member)
+                    if member_entries is None:
+                        member_entries = []
+                        self._entries[member] = member_entries
+                    member_entries.append((value, item))
+
+        for member_entries in self._entries.itervalues():
+            member_entries.sort()
+        
+        # Don't hide the calendar if there are no results
+        self.collection_display.visible = True
+        self.data_controls.visible = True
+        self.no_results.visible = False
+        ?>
+    </py:ready>
+
+    <div py:id="date_controls" py:parent="self.data_controls">
+        <py:ready>
+
+            <div py:id="layout_controls">
+                <a py:id="year_layout_link" href="?${view_state(calendar_layout = 'year', month = None)}"
+                   py:visible="${self.calendar_layout != 'year'}">
+                    ${translations("woost.views.CalendarContentView select year layout")}
+                </a>
+            </div>
+
+            <div py:id="navigation_links">
+
+                <?py
+                current = {"year": self.today.year, "month": None}
+                prev = {"year": None, "month": None}
+                next = {"year": None, "month": None}
+
+                if self.calendar_layout == "year":
+                    next["year"] = self.today.year + 1
+                    prev["year"] = self.today.year - 1
+                
+                elif self.calendar_layout == "month":
+                    current["month"] = self.today.month
+                    
+                    if self.month == 1:
+                        prev["year"] = self.year - 1
+                        prev["month"] = 12
+                    else:
+                        prev["year"] = self.year
+                        prev["month"] = self.month - 1
+                        
+                    if self.month == 12:
+                        next["year"] = self.year + 1
+                        next["month"] = 1
+                    else:
+                        next["year"] = self.year
+                        next["month"] = self.month + 1
+                ?>
+
+                <a class="current_link" href="?${view_state(**current)}">
+                    ${translations("woost.views.CalendarContentView current " + self.calendar_layout)}
+                </a>
+                <a class="previous_link" href="?${view_state(**prev)}">
+                    <?py element.append("&laquo; " + translations("woost.views.CalendarContentView previous " + self.calendar_layout)) ?>
+                </a>
+                <a class="next_link" href="?${view_state(**next)}">
+                    <?py element.append(translations("woost.views.CalendarContentView next " + self.calendar_layout) + " &raquo;") ?>
+                </a>
+            </div>
+
+            <div py:id="navigation_controls">
+                
+                <select
+                    py:id="month_control"
+                    name="month"
+                    py:if="self.calendar_layout == 'month'">
+                    <option
+                        py:for="i in range(1, 13)"
+                        value="${i}"
+                        selected="${i == self.month}">
+                        ${translations("month %d" % i)}
+                    </option>
+                </select>
+
+                <input
+                    py:id="year_control"
+                    type="text"
+                    name="year"
+                    value="${self.year}"/>
+
+                <input type="submit" value="${translations('Submit')}"/>
+            </div>
+
+        </py:ready>
+    </div>
+
+    <div py:def="collection_display">
+        <py:ready>
+    
+            <!-- Year layout -->
+            <py:block py:if="self.calendar_layout == 'year'">
+                <h1><py:ready>${self.year}</py:ready></h1>
+                <py:new py:element="self.create_year_calendar(self.year, self.first_month)"/>
+            </py:block>
+
+            <!-- Month layout -->
+            <py:block py:if="self.calendar_layout == 'month'">
+                <h1><py:ready>${translations("month %d" % self.month)} ${self.year}</py:ready></h1>
+                <py:new py:element="self.create_month_calendar(self.year, self.month)"/>
+            </py:block>
+
+            <!-- Ongoing matches -->
+            <?py
+            self._ongoing_items = self.members_paired and list(self.get_ongoing_items())
+            ?>
+            <div py:id="ongoing_items_box" py:if="self._ongoing_items">
+                ${translations("woost.views.CalendarContentView ongoing items message")}
+                <ul>
+                    <li py:for="item in self._ongoing_items">
+                        <py:woost.views.ContentLink py:item="${item}"/>
+                    </li>
+                </ul>
+            </div>
+
+        </py:ready>
+    </div>
+
+    <div py:def="year_calendar" py:args="year, first_month = 1">
+        <py:new
+            py:element="self.create_month_calendar(year, month, abbr = True, padding_rows = True)"
+            py:for="year, month in self.get_year_dates(year, first_month)">
+            <?py
+            element.add_class("month%d" % month)
+            thead = element.children[0]
+            ?>
+            <tr py:parent="thead" py:index="0">
+                <th colspan="7" class="month_header">
+                    <a href="?${view_state(year = year, month = month, calendar_layout = 'month')}">
+                        <span class="month">${translations("month %d" % month)}</span>
+                        <span class="year" py:if="first_month != 1">${year}</span>
+                    </a>
+                </th>
+            </tr>
+        </py:new>
+    </div>
+
+    <table py:def="month_calendar" py:args="year, month, abbr = False, padding_rows = False">
+        <thead>
+            <tr>
+                <th py:for="i in self.week_days">
+                    ${translations(("weekday %d" % i) + (abbr and " abbr" or ""))}
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <py:ready>
+                <?py
+                weeks = monthcalendar(year, month)
+                if padding_rows:
+                    while len(weeks) < 6:
+                        weeks.append([0 for i in range(7)])
+                ?>
+                <tr py:for="week in weeks">
+                    <td py:for="week_day, day in enumerate(week)">
+                        <?py
+                        element.add_class("active" if day else "inactive")
+                        element.add_class("weekday%d" % week_day)
+                        cell_date = None
+                        
+                        if day:
+                            cell_date = date(year, month, day)
+                            element.set_client_param("date", self.date_members[0].serialize_request_value(cell_date))
+
+                            if year == self.today.year and month == self.today.month and day == self.today.day:
+                                element.add_class("today")
+                        
+                        cell_entries = list(self._consume_entries(cell_date)) if cell_date else None
+                        ?>
+                        <py:new py:element="month_calendar.create_cell(cell_date, cell_entries)"/>
+                    </td>
+                </tr>
+            </py:ready>
+        </tbody>
+        <div py:def="cell" py:args="cell_date, entries">
+            <div py:local_id="day" py:if="cell_date">${cell_date.day}</div>
+            <?py
+            if entries:
+                element.add_class("has_entries")
+            ?>
+            <div py:local_id="entries" py:if="entries">
+                <div py:for="member, entry_date, item in entries" class="calendar_entry">
+                    <?py
+                    element.add_class(member.name + "_entry")
+                    ?>
+                    <span class="time" py:if="isinstance(entry_date, datetime)">${entry_date.strftime("%H:%M")}</span>
+                    <py:woost.views.ContentLink py:item="${item}"/>
+                    <span class="member" py:if="len(self.date_members) &gt; 1">(${translations(member)})</span>
+                </div>
+            </div>
+        </div>
+    </table>
+
+</py:woost.views.ContentView>

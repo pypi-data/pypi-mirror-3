@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<py:woost.views.BackOfficeLayout
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    selection = ()
+    delete_dry_run = ()
+    _blocked = False
+    _cascade = False
+
+    def _is_blocked(self, node):
+
+        if node["blocking"]:
+            return True
+
+        for cascade_nodes in node["cascade"].itervalues():
+            if any(
+                self._is_blocked(cascade_node) 
+                for cascade_node in cascade_nodes
+            ):
+                return True
+
+        return False
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/BackOfficeDeleteView.css")
+    ?>
+
+    <py:binding>
+        <?py
+        for node in self.delete_dry_run:
+            self._blocked = self._blocked or self._is_blocked(node)
+            self._cascade = self._cascade or bool(node["cascade"])
+        ?>
+    </py:binding>
+
+    <py:with py:element="self.body">
+
+        <p py:id="warning" py:visible="@{not self._blocked}">
+            @{translations("woost.views.BackOfficeDeleteView.warning")}
+        </p>
+
+        <p py:id="cascade_warning" py:visible="@{False and self._cascade}">
+            @{translations("woost.views.BackOfficeDeleteView.cascade_warning")}
+        </p>
+
+        <p py:id="block_notice" py:visible="@{self._blocked}">
+            @{translations("woost.views.BackOfficeDeleteView.block_notice")}
+        </p>
+
+        <div py:id="delete_preview">
+            <py:ready>
+                <py:new py:element="self.create_delete_tree_container(self.delete_dry_run)"/>   
+            </py:ready>
+        </div>
+        
+        <form py:id="buttons" method="post">
+            <button
+                py:id="cancel_button"
+                type="submit"
+                name="action"
+                value="cancel">
+                ${translations("woost.views.BackOfficeDeleteView.cancel_button")}
+            </button>
+            <button
+                py:id="confirm_delete_button"            
+                py:visible="@{not self._blocked}"
+                type="submit"
+                name="action"
+                value="confirm_delete">
+                ${translations("woost.views.BackOfficeDeleteView.confirm_delete_button")}
+            </button>
+        </form>
+
+    </py:with>
+
+    <ul py:def="delete_tree_container" py:args="tree">
+        <li py:for="node in tree">
+            <py:woost.views.ContentLink
+                py:local_id="item_link"
+                py:icon_visible="${True}"
+                py:item="${node['item']}"/>            
+            
+            <div py:local_id="block_details" py:if="node['blocking']">
+                <p py:local_id="details_label">
+                    @{translations("woost.views.BackOfficeDeleteView.block_details")}
+                </p>
+                <dl>
+                    <py:block py:for="blocking_member, blocking_items in node['blocking'].iteritems()">
+                        <dt>${translations(blocking_member)}</dt>
+                        <dd>
+                            <ul>
+                                <li py:for="blocking_item in blocking_items">
+                                    <py:woost.views.ContentLink
+                                        py:icon_visible="${True}"
+                                        py:item="${blocking_item}"/>
+                                </li>
+                            </ul>
+                        </dd>
+                    </py:block>
+                </dl>
+            </div>
+
+            <div py:local_id="cascade_details" py:if="node['cascade']">
+                <p py:local_id="details_label">
+                    @{translations("woost.views.BackOfficeDeleteView.cascade_details")}
+                </p>
+                <dl>
+                    <py:block py:for="cascade_member, cascade_tree in node['cascade'].iteritems()">
+                        <dt>${translations(cascade_member)}</dt>
+                        <dd>
+                            <py:new py:element="self.create_delete_tree_container(cascade_tree)"/>
+                        </dd>
+                    </py:block>
+                </dl>
+            </div>
+        </li>
+    </ul>
+
+</py:woost.views.BackOfficeLayout>

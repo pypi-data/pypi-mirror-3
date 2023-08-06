@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<py:woost.views.BackOfficeLayout
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    py:page_title="Sincronització amb vimeo.com">
+
+    <?py-class
+    form_schema = None
+    form_data = None
+    form_errors = ()
+    created_videos = set()
+    modified_videos = set()
+    deleted_videos = set()
+    ?>
+
+    <div py:def="result_block" py:args="videos, action" py:visible="${bool(videos)}">
+        <div py:local_id="title">
+            ${translations("woost.extensions.vimeo.SynchronizationView %s videos title" % action)}
+        </div>
+        <div py:local_id="explanation">
+            ${translations("woost.extensions.vimeo.SynchronizationView %s videos explanation" % action)}
+        </div>
+        <div py:local_id="videos">
+            <div class="video" py:for="video in videos">
+                <img class="thumbnail" src="${video.small_thumbnail_uri}" py:if="action != 'deleted'"/>
+                <py:woost.views.ContentLink
+                    py:item="${video}"
+                    py:thumbnails="${False}"
+                    py:if="action != 'deleted'"/>
+                <span class="video_title" py:if="action == 'deleted'">${translations(video)}</span>
+                <div class="description" py:if="video.description">${video.description}</div>
+            </div>
+        </div>
+    </div>
+
+    <py:with py:element="self.body">
+        
+        <ul py:id="error_box" py:collapsible="${True}">
+            <py:ready>
+                <li py:for="error in self.form_errors">${translations(error)}</li>
+            </py:ready>
+        </ul>
+
+        <py:cocktail.html.Form
+            method="post"
+            py:id="synchronization_form"
+            py:visible="@{not self.successful}"
+            py:schema="@{self.form_schema}"
+            py:data="@{self.form_data}"
+            py:errors="@{self.form_errors}">
+            
+            <!-- Change the label of the submit button -->
+            <py:with py:element="element.submit_button">
+                <?py element.empty() ?>
+                ${translations("woost.extensions.vimeo.SynchronizationView synchronize button")}
+            </py:with>
+
+        </py:cocktail.html.Form>
+
+        <div py:id="results" py:visible="@{self.successful}">
+            <py:ready>
+                <?py changes = self.created_videos or self.modified_videos or self.deleted_videos ?>
+                ${translations("woost.extensions.vimeo.SynchronizationView " + ("outcome" if changes else "no changes"))}
+                <py:new
+                    py:element="self.create_result_block(self.created_videos, 'created')"
+                    py:local_id="created_videos"/>
+                <py:new
+                    py:element="self.create_result_block(self.modified_videos, 'modified')"
+                    py:local_id="modified_videos"/>
+                <py:new
+                    py:element="self.create_result_block(self.deleted_videos, 'deleted')"
+                    py:local_id="deleted_videos"/>
+            </py:ready>
+        </div>
+
+        <form py:id="back_form" action="@{self.cms.contextual_uri()}" py:visible="@{self.successful}">
+            <div class="buttons">
+                <button type="submit" py:id="cancel_button" name="cancel">
+                    ${translations("woost.extensions.vimeo.SynchronizationView cancel button")}            
+                </button>
+            </div>
+        </form>
+
+    </py:with>
+
+    <py:ready>
+        <?py
+        if not self.successful:
+            self.cancel_button.place_before(self.synchronization_form.submit_button)
+        ?>
+    </py:ready>
+
+</py:woost.views.BackOfficeLayout>

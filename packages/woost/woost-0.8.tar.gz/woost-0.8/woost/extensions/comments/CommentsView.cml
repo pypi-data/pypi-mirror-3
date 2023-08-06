@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+import cgi
+from cocktail.modeling import extend
+from cocktail.translations import translations
+from cocktail.translations.strings import DATE_STYLE_NUMBERS
+?>
+
+<py:cocktail.html.Form
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    action="#comment_errors"
+    method="post"
+    py:visible="@{self.user_collection is not None}">
+
+    <?py-class
+    user_collection = None
+
+    def format_comment(self, content):
+        return cgi.escape(content).replace("\n", "<br />")        
+    ?>
+
+    <div id="comments_list" py:id="comments_list" py:index="0">
+
+        <div py:id="comments_pager">
+            <!-- Comments paging -->
+
+            <py:cocktail.html.Pager
+                py:id="paging_controls"
+                py:user_collection="@{self.user_collection}"
+                py:page_size_editable="${False}">
+                <?py
+                @extend(element)
+                def _get_page_link(self, page_number):
+                    uri = call_base(page_number)
+                    return "%s#comments_list" % uri
+                ?>
+            </py:cocktail.html.Pager>
+
+        </div>
+
+        <!-- Comments -->
+        <div py:id="comments_container">
+            <py:ready>
+                <py:new py:element="self.create_comment_entry(comment_number, comment)"
+                        py:for="comment_number, comment in enumerate(self.user_collection.page_subset)"/>
+            </py:ready>
+        </div>
+
+    </div>
+
+    <py:with py:element="self.fields">
+        <input type="hidden" name="post_comment"/>
+    </py:with>
+
+    <py:cocktail.html.List
+        id="comment_errors"
+        py:before="self.fields"
+        py:collapsible="${True}"
+        py:items="@{[translations(error) for error in self.errors]}"/>
+
+    <div
+        py:def="comment_entry"
+        py:args="comment_number, comment"
+        id="comment-${str(comment.id)}">
+        <div class="comment_info">
+            <span class="comment_number">${comment_number + 1 + (self.user_collection.page * self.user_collection.page_size)}</span>
+            <span class="comment_user_name">${comment.user_name}</span>
+            <span class="comment_date">${translations(comment.creation_time, style = DATE_STYLE_NUMBERS)}</span>
+        </div>
+        <div class="comment_content">${self.format_comment(comment.content)}</div>
+    </div>
+
+</py:cocktail.html.Form>

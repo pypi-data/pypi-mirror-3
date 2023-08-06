@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<py:woost.views.BackOfficeLayout
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    root = None
+    item = None
+    position = None
+    selection = None
+    ?>
+
+    <py:with py:element="self.body" py:tag="form" method="post">
+
+        <py:cocktail.html.TreeView
+            py:id="tree"
+            py:root="@{self.root}"
+            py:root_visible="@{False}"
+            py:create_empty_containers="${True}">
+
+            <?py
+            view = self
+
+            @refine(element)
+            def create_label(self, item):
+                label = loader.new("woost.views.ItemLabel")
+                label.item = item
+
+                if self._is_selected(item):
+                    label.add_class("original_position")
+
+                return label 
+
+            @refine(element)
+            def create_slot(self, parent, position):
+
+                slot = Element("li")
+
+                if view.selection \
+                and any(parent.descends_from(item) for item in view.selection):
+                    slot.visible = False
+                else:
+                    slot.add_class("slot")
+
+                    button = Element("button")
+                    button["name"] = "slot"
+                    button["type"] = "submit"
+                    button["value"] = "%d-%d" % (parent.id, position)
+                    slot.append(button)
+
+                    label = Element("span")
+                    label.add_class("label")
+                    label.append(u"Moure aquí")
+                    button.append(label)
+
+                    button.slot_content = self.create_slot_content()
+                    button.append(button.slot_content)
+
+                return slot
+
+            @refine(element)
+            def create_slot_content(self):
+
+                slot_content = Element()
+                slot_content.add_class("slot_content")
+
+                if view.selection:
+                    for item in view.selection:
+                        label = loader.new("woost.views.ItemLabel")
+                        label.item = item
+                        slot_content.append(label)
+
+                return slot_content
+
+            @refine(element)
+            def get_item_label(self, item):
+                return (
+                    translations(item)
+                    if item
+                    else translations("BackOfficeOrderView last position")
+                )
+
+            @refine(element)
+            def get_child_items(self, parent):
+                return (parent.children or []) if parent else []
+                #return (parent.children or []) + [None] if parent else []
+
+            @refine(element)
+            def _is_selected(self, item):
+                return view.selection and item in view.selection
+
+            @refine(element)
+            def _fill_children_container(self, container, parent, children):
+
+                position = 0
+                prev_slot = self.create_slot(parent, 0)
+                container.append(prev_slot)
+
+                if children:
+                    for child in children:
+
+                        container.append(self.create_entry(child))
+
+                        slot = self.create_slot(parent, position + 1)
+                        container.append(slot)
+
+                        if self._is_selected(child) and len(view.selection) == 1:
+                            slot.visible = False
+                            prev_slot.visible = False
+                        else:
+                            position += 1
+                        
+                        prev_slot = slot
+
+            ?>
+        </py:cocktail.html.TreeView>
+
+        <div py:id="buttons">
+            <button name="action" type="submit" value="cancel">${translations("Cancel")}</button>
+            <!--<button name="action" type="submit" value="move">${translations("Select")}</button>-->
+        </div>
+
+    </py:with>
+
+</py:woost.views.BackOfficeLayout>

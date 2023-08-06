@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.translations import get_language, translations
+from cocktail.html.ieconditionalcomment import IEConditionalComment
+from cocktail.schema import Collection
+from woost.controllers.backoffice.editstack import (
+    EditNode,
+    SelectionNode,
+    RelationNode
+)
+from woost.controllers.backoffice.useractions import add_view_action_context
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+
+    cms = None
+    backoffice = None
+    user = None
+    edit_stack = None
+    notifications = ()
+    client_side_scripting = False
+
+    def get_page_title(self):
+        return self.backoffice and self.backoffice.title
+
+    def get_stack_node_description(self, node):
+
+        if isinstance(node, RelationNode):
+            if isinstance(node.member, Collection):
+                return translations("woost.views.BackOfficeLayout edit stack add")
+            else:
+                return translations("woost.views.BackOfficeLayout edit stack select")
+        elif isinstance(node, SelectionNode):
+            return translations(
+                "woost.views.BackOfficeLayout edit stack select",
+                type = node.content_type
+            )
+        elif isinstance(node, EditNode):
+            if node.item.is_inserted:
+                return translations(node.item)
+            else:
+                return translations("creating", content_type = node.content_type)
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/backoffice.css")
+    self.add_resource("/cocktail/scripts/form.js")
+    self.add_resource("/resources/scripts/BackOfficeLayout.js")
+    
+    # TODO: Implement conditional comments for IE more generally
+    self.add_head_element(IEConditionalComment(condition = "lt IE 8", children = [
+        Element("link",
+            rel = "Stylesheet",
+            type = "text/css",
+            href = "/resources/styles/backoffice_ie.css")
+    ]))
+    
+    self.add_head_element(
+        Element("link",
+            rel = "Stylesheet",
+            type = "text/css",
+            media = "print",
+            href = "/resources/styles/print.css")
+    )
+    
+    self.add_resource("/cocktail/scripts/jquery.hotkeys.js")
+    self.add_resource("/cocktail/scripts/jquery.query.js")
+    self.add_resource("/cocktail/scripts/selectors.js")
+    ?>
+
+    <link rel="icon" type="image/png" href="/resources/images/favicon.ico"/>
+
+    <py:ready>
+        <?py
+        self.language = get_language()
+
+        self.is_client_side_selector = (
+            self.client_side_scripting
+            and self.edit_stack
+            and isinstance(self.edit_stack[-1], (SelectionNode, RelationNode))
+        )
+
+        self.page_title = self.get_page_title()
+
+        if self.backoffice:
+            for resource in self.backoffice.resources:
+                self.add_resource(self.cms.uri(resource), mime_type = resource.mime_type)
+                
+        add_view_action_context(element, "nested" if self.edit_stack else "root")
+        if self.cms:
+            self.set_client_variable("cms_uri", self.cms.contextual_uri())
+        ?>
+    </py:ready>
+
+    <div py:id="header">
+
+        <!-- Page title -->
+        <h1>
+            <a>
+                <py:ready>
+                    <?py                    
+                    if self.cms and not self.is_client_side_selector:
+                        element["href"] = self.cms.contextual_uri()
+                    else:
+                        element.tag = None
+
+                    element.append(self.page_title)
+                    ?>
+                </py:ready>
+            </a>
+        </h1>
+
+        <!-- Identity and logout -->
+        <div py:id="identity"
+            py:visible="@{self.user and not self.user.anonymous and not self.is_client_side_selector}">
+            <py:ready py:if="element.visible">
+                <strong>${translations(self.user)}</strong>
+                <form method="post">
+                    <button py:id="logout_button" name="logout" type="submit">
+                        ${translations("Logout")}
+                    </button>
+                </form>
+            </py:ready>
+        </div>
+    </div>
+
+    <py:woost.views.NotificationBox py:id="notification_box" />
+
+    <py:ready>
+        <?py
+        if self.edit_stack and len(self.edit_stack) > 1 and not self.is_client_side_selector:
+            node_container = None
+            relation = None
+
+            for node in self.edit_stack:
+                
+                # Only show relation nodes when they are at the top of the
+                # stack (ie. when selecting related items)
+                if isinstance(node, RelationNode):
+                    if node is not self.edit_stack[-1]:
+                        continue
+                    relation = node.member
+                
+                # Nesting
+                parent_container = node_container
+                node_container = Element()
+                node_container.add_class("stack_node")
+
+                if parent_container is None:
+                    node_container.place_before(self.body)
+                    node_container.add_class("root")
+                else:
+                    parent_container.append(node_container)
+
+                if node is self.edit_stack[-1]:
+                    node_container.add_class("top")
+
+                # Title
+                node_label = Element()
+                node_label.add_class("label")
+
+                if relation:
+                    node_label.append(
+                        Element("span",
+                            class_name = "relation",
+                            children = [translations(relation)]
+                        )
+                    )
+                    node_label.append(": ")
+                    relation = None
+
+                node_desc = self.get_stack_node_description(node)
+
+                node_label.append(
+                    Element("span", class_name = "description", children = [node_desc])
+                )
+
+                node_container.append(node_label)
+
+            node_container.append(self.body)
+        ?>
+    </py:ready>
+
+    <div py:id="body"/>
+
+    <div py:id="footer"/>
+
+</div>

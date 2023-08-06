@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.modeling import extend, call_base
+from woost.models import (
+    get_current_user,
+    CreateTranslationPermission,
+    DeleteTranslationPermission,
+    Language
+)
+?>
+
+<py:woost.views.BackOfficeEditView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    fields_schema = None
+    form_data = None
+    saved = None 
+    submitted = False
+    changes = None
+    available_languages = ()
+    translations = ()
+    ?>
+
+    <py:with py:element="self.item_body">
+
+        <!-- Translations selector -->
+        <!-- TODO: Promote this to its own view -->
+        <div
+            py:id="translations_selector"
+            py:index="0"
+            py:visible="@{self.edited_content_type.translated}"
+            class="selector">
+
+            <py:ready py:if="self.translations_selector.visible">
+                <?py
+                shortcut = translations("EditView translations shortcut")
+                if shortcut:
+                    element.set_client_param("shortcut", shortcut)
+                ?>
+                <span class="label">${translations("Translations")}</span>                
+                <ul class="selector_content">
+                    <li py:for="language in self.available_languages">
+                        <?py
+                        has_translation = language in self.translations
+                        ?>
+                        <div class="language">
+                            <?py
+                            if has_translation:
+                                element.add_class("selected")
+                                element.set_client_param("language" ,language)
+                            ?>
+                            ${translations(language)}
+                        </div>
+                        <?py
+                        user = get_current_user()
+                        can_add = (
+                            not has_translation
+                            and user.has_permission(CreateTranslationPermission, language = language)
+                        )
+                        can_delete = (
+                            has_translation
+                            and user.has_permission(DeleteTranslationPermission, language = language)
+                        )
+                        ?>
+                        <button
+                            py:if="can_add"
+                            name="add_translation"
+                            type="submit"
+                            value="${language}">
+                            <img src="/resources/images/add_small.png"/>
+                        </button>
+                        <button
+                            py:if="can_delete"
+                            name="delete_translation"
+                            type="submit"
+                            value="${language}">
+                            <img src="/resources/images/delete_small.png"/>
+                        </button>
+                    </li>
+                </ul>
+            </py:ready>
+        </div>
+
+        <!-- Form -->
+        <py:ready>
+            <py:new py:element="loader.new(self.edited_item.edit_form)"
+                py:id="edit_form"
+                py:embeded="${True}"
+                py:tag="div"
+                py:data="@{self.form_data}"
+                py:persistent_object="@{self.edited_item}"
+                py:schema="@{self.fields_schema}"
+                py:errors="@{self.submitted and self.errors}"
+                py:translations="@{[lang for lang in Language.codes if lang in self.translations]}"
+                py:edited_content_type="@{self.edited_content_type}"
+                py:name_prefix="edited_item_"
+                method="post">
+
+                <!-- Highlight changed members -->
+                <py:with py:def="field_instance" py:args="member, language = None" py:baseargs="member, language">
+                    <?py
+                    key = (
+                        member.name,
+                        language
+                    )
+                    
+                    if key in self.changed_keys:
+                        element.add_class("changed")
+                    ?>
+                </py:with>
+                
+            </py:new>
+
+        </py:ready>
+
+    </py:with>
+
+</py:woost.views.BackOfficeEditView>

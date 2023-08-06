@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.controllers import context, Location
+from woost.models import (
+    Publishable,
+    get_current_user,
+    CreatePermission,
+    ModifyPermission,
+    DeletePermission
+)
+?>
+
+<a
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+    
+    <?py-class
+    action = "modify"
+    target = None
+    target_desc = None
+    action_permissions = {
+        "create": CreatePermission,
+        "modify": ModifyPermission,
+        "delete": DeletePermission
+    }
+    edit_parameters = {}
+
+    def is_permitted(self):
+        return get_current_user().has_permission(
+            self.action_permissions[self.action],
+            target = self.target
+        )
+
+    def get_uri(self):
+        backoffice = Publishable.get_instance(qname = "woost.backoffice")
+        if self.action == "create":
+            return context["cms"].uri(
+                backoffice, 
+                "content", "new", "fields",
+                item_type = self.target.full_name,
+                **self.edit_parameters
+            )
+        elif self.action == "modify":
+            return context["cms"].uri(
+                backoffice, 
+                "content", self.target.id, "fields",
+                **self.edit_parameters
+            )
+        elif self.action == "delete":
+            return context["cms"].uri(
+                backoffice,
+                "delete",
+                selection = self.target.id,
+                **self.edit_parameters
+            )
+    ?>
+
+    <py:ready>
+        <?py
+        if self.edit_parameters is self.__class__.edit_parameters:
+            self.edit_parameters = self.edit_parameters.copy()
+
+        if self.target is None:
+            self.target = context["publishable"]
+
+        if self.target_desc is None and self.target is context["publishable"]:
+            self.target_desc = translations("woost.views.EditLink-publishable_target")
+
+        if "root_url" not in self.edit_parameters:
+            self.edit_parameters["root_url"] = unicode(Location.get_current())
+
+        if not self.is_permitted():
+            self.visible = False
+
+        self["href"] = self.get_uri()
+        ?>
+    </py:ready>
+
+    <img py:id="icon"
+        src="/resources/images/EditLink-@{self.action}.png"/>
+
+    <span py:id="label">
+        @{translations("woost.views.EditLink-" + self.action, target_desc = self.target_desc)}
+    </span>
+    
+</a>
+

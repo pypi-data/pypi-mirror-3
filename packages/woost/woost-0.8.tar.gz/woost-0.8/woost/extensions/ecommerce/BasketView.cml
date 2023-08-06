@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from decimal import Decimal
+from cocktail.iteration import first
+from cocktail import schema
+from cocktail.html import Element, Content
+from woost.extensions.ecommerce.ecommerceproduct import ECommerceProduct
+from woost.extensions.ecommerce.basket import Basket
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    order = None
+    
+    order_schema = schema.Schema("Basket", members = [
+        schema.Reference("product", type = ECommerceProduct),
+        schema.Member("actions"),
+        schema.Integer("quantity"),
+        schema.Decimal("price"),
+        schema.Decimal("subtotal"),
+        schema.Decimal("taxes"),
+        schema.Decimal("total")
+    ])
+    currency = u"€"
+    editable = False
+    embeded = False
+    
+    apply_pricing = True
+    apply_shipping_costs = True
+    apply_taxes = True
+
+    forms = None
+    form_errors = ()
+
+    def format_amount(self, amount):
+        return "%s %s" % (translations(amount.quantize(Decimal("1.00"))), self.currency)
+    
+    def create_subtotal_cell(self, member):
+        factory = getattr(self, "create_%s_subtotal_cell" % member.name, None)
+        cell = Element("td") if factory is None else factory()
+        cell.add_class("%s_column" % member.name)
+        return cell
+
+    def create_shipping_costs_cell(self, member):
+        factory = getattr(self, "create_%s_shipping_costs_cell" % member.name, None)
+        cell = Element("td") if factory is None else factory()
+        cell.add_class("%s_column" % member.name)
+        return cell
+
+    def create_taxes_cell(self, member):
+        factory = getattr(self, "create_%s_taxes_cell" % member.name, None)
+        cell = Element("td") if factory is None else factory()
+        cell.add_class("%s_column" % member.name)
+        return cell
+
+    def create_footer_cell(self, member):
+        factory = getattr(self, "create_%s_footer_cell" % member.name, None)
+        cell = Element("td") if factory is None else factory()
+        cell.add_class("%s_column" % member.name)
+        return cell
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/ecommerce-BasketView.css")
+    ?>
+
+    <py:ready>
+        <?py
+        if self.order is None:
+            self.order = Basket.get()
+
+        self.regular_costs = self.order.calculate_cost(
+            apply_pricing = False,
+            apply_shipping_costs = self.apply_shipping_costs,
+            apply_taxes = self.apply_taxes
+        )
+
+        self.costs = self.order.calculate_cost(
+            apply_pricing = self.apply_pricing,
+            apply_shipping_costs = self.apply_shipping_costs,
+            apply_taxes = self.apply_taxes
+        )
+
+        self.order_subtotal = (
+            (self.apply_shipping_costs and self.costs['shipping_costs']['concepts']) 
+            or (self.apply_taxes and self.costs["taxes"]["concepts"])
+        )
+
+        if self.editable:
+
+            self.add_resource("/cocktail/scripts/form.js")
+            
+            if not self.embeded:
+                self.tag = "form"
+                self["method"] = "post"
+
+            self.add_class("editable")
+
+            default_button = Element("button", 
+                type = "submit", 
+                name = "action",
+                value = "set_quantities"
+            )
+            default_button.set_style("visibility", "hidden")
+            default_button.set_style("position", "absolute")
+            self.insert(0, default_button)
+        else:
+            self.add_class("not_editable")
+            self.basket_table.set_member_displayed("actions", False)
+        ?>
+    </py:ready>
+
+    <div py:id="empty_basket_notice" py:visible="@{not self.order.purchases}">
+        ${translations("woost.extensions.ecommerce.BasketView.empty_basket_notice")}
+    </div>
+
+    <py:cocktail.html.ErrorBox
+        py:id="errors"
+        py:errors="@{self.form_errors}"/>
+
+    <py:cocktail.html.Table
+        py:id="basket_table"
+        py:schema="@{self.order_schema}"
+        py:data="@{self.order.purchases}"
+        py:visible="@{bool(self.order.purchases)}"
+        py:resizable="${False}">
+
+        <py:binding>
+            <?py
+            if not self.apply_taxes or not any(
+                purchase_costs["taxes"]["concepts"]
+                for purchase_costs in self.costs["purchases"].itervalues()
+            ):
+                element.set_member_displayed("taxes", False)
+                element.set_member_displayed("subtotal", False)
+            ?>
+        </py:binding>
+
+        <py:block py:def="product_display" py:args="purchase, member">
+            <a 
+                py:local_id="product_image_link"
+                href="${purchase.product.get_uri()}">
+                <py:woost.views.Image
+                    py:local_id="product_image"
+                    py:image="${purchase.product.get_image()}"
+                    py:image_factory="ecommerce_basket_thumbnail" />
+            </a>
+            <a 
+                py:local_id="product_label"
+                href="${purchase.product.get_uri()}">
+                ${translations(purchase.product)}
+            </a>
+            <ul py:local_id="purchase_options" py:collapsible="${True}">
+                <py:new
+                    py:element="self.create_purchase_option(purchase, option)"
+                    py:for="option in purchase.get_options()"
+                    py:where="option is not purchase.__class__.quantity"/>
+            </ul>
+        </py:block>
+
+        <?py
+        @extend(basket_table)
+        def create_quantity_display(basket_table, purchase, member):
+            if not self.editable:
+                return Content(str(purchase.quantity))
+            else:
+                display = loader.new("cocktail.html.TextBox")
+                display["type"] = "number"
+                display["min"] = 1
+                display.value = purchase.quantity
+                return display
+        ?>
+
+        <div py:def="actions_display" py:args="purchase, member">
+            <button 
+                py:local_id="delete_purchase_button"
+                type="submit" 
+                name="delete_purchase" 
+                value="${purchase.id}">
+                ${translations("woost.extensions.ecommerce.BasketView.delete_purchase_button")}
+            </button>
+        </div>
+
+        <py:new 
+            py:element="self.create_price_label(['purchases', purchase, 'price', 'cost'])"
+            py:def="price_display" py:args="purchase, member"/>
+
+        <py:new 
+            py:element="self.create_price_label(['purchases', purchase, 'price', 'total'])"
+            py:def="subtotal_display" py:args="purchase, member"/>
+
+        <div py:def="taxes_display" py:args="purchase, member">
+            <ul>
+                <?py
+                purchase_taxes = purchase.calculate_costs()["taxes"]["concepts"]
+                ?>
+                <li py:for="tax in purchase_taxes">
+                    ${translations(tax)}
+                </li>
+            </ul>
+        </div>
+
+        <py:new 
+            py:element="self.create_price_label(['purchases', purchase, 'total'])"
+            py:def="total_display" py:args="purchase, member"/>
+
+        <py:with py:element="basket_table.body">
+            <py:ready>
+                <tr>
+                    <?py element.visible = self.order_subtotal ?>
+                    <py:new 
+                        py:element="self.create_subtotal_cell(member)"
+                        py:for="member in self.basket_table.displayed_members"/>
+                </tr>
+                <tr>
+                    <?py 
+                    element.visible = (
+                        self.apply_shipping_costs 
+                        and self.costs['shipping_costs']['concepts']
+                    )
+                    ?>
+                    <py:new 
+                        py:element="self.create_shipping_costs_cell(member)"
+                        py:for="member in self.basket_table.displayed_members"/>
+                </tr>
+                <tr>
+                    <?py 
+                    element.visible = (
+                        self.apply_taxes
+                        and self.costs['taxes']['concepts']
+                    )
+                    ?>
+                    <py:new 
+                        py:element="self.create_taxes_cell(member)"
+                        py:for="member in self.basket_table.displayed_members"/>
+                </tr>
+            </py:ready>
+        </py:with>
+
+        <tfoot py:id="basket_table_footer">
+            <tr py:id="basket_table_footer_row">
+                <py:ready>
+                    <py:new 
+                        py:element="self.create_footer_cell(member)"
+                        py:for="member in self.basket_table.displayed_members"/>
+                </py:ready>
+            </tr>
+        </tfoot>
+
+    </py:cocktail.html.Table>
+
+    <div py:def="price_label" py:args="path, show_discounts=True">
+        <?py
+        regular_price = self.regular_costs
+        order_price = self.costs
+
+        for step in path:
+            regular_price = regular_price[step]
+            order_price = order_price[step]
+
+        if show_discounts:
+            has_discount = order_price < regular_price
+
+            if has_discount:
+                element.add_class("discount")
+        ?>
+        <span py:local_id="regular_price" py:visible="${show_discounts and has_discount}">${self.format_amount(regular_price)}</span>
+        <span py:local_id="order_price">${self.format_amount(order_price)}</span>
+    </div>
+
+    <li py:def="purchase_option" py:args="purchase, option">
+        <?py
+        element.add_class("%s_purchase_option" % option.name)
+        ?>
+        <span py:local_id="purchase_option_label">${translations(option)}:</span>
+        <span py:local_id="purchase_option_value">${option.translate_value(purchase.get(option))}</span>
+    </li>
+
+    <td py:def="total_subtotal_cell">
+        <py:new py:element="self.create_price_label(['price', 'total'])"/>
+    </td>
+    
+    <td py:def="product_shipping_costs_cell">
+        ${translations("woost.extensions.ecommerce.BasketView.shipping_costs")}
+    </td>
+    
+    <td py:def="total_shipping_costs_cell">
+        <py:new py:element="self.create_price_label(['shipping_costs', 'total'])"/>
+    </td>
+    
+    <td py:def="product_taxes_cell">
+        ${"%s (%s)" % (translations("woost.extensions.ecommerce.BasketView.taxes"), ", ".join(translations(concept) for concept in self.costs['taxes']['concepts']))}
+    </td>
+    
+    <td py:def="total_taxes_cell">
+        <py:new py:element="self.create_price_label(['taxes', 'total'])"/>
+    </td>
+    
+    <td py:def="actions_footer_cell">
+        <button
+            py:local_id="empty_basket_button"
+            type="submit"
+            name="action"
+            value="empty_basket">
+            ${translations("woost.extensions.ecommerce.BasketView.empty_basket_button")}
+        </button>
+    </td>
+    
+    <td py:def="quantity_footer_cell">
+        <button
+            py:local_id="set_quantities_button"
+            type="submit" 
+            name="action" 
+            value="set_quantities"
+            py:visible="${self.editable}">
+            ${translations("woost.extensions.ecommerce.BasketView.set_quantities_button")}
+        </button>
+    </td>
+
+    <td py:def="total_footer_cell">
+        <py:ready>
+            <py:new py:element="self.create_price_label(['total'], show_discounts=not self.order_subtotal)"/>
+        </py:ready>
+    </td>
+
+</div>
+

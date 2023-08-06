@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.schema import Collection
+from cocktail.html import html5_attr
+from woost.models import Item
+from woost.controllers.backoffice.useractions import (
+    get_view_actions, get_view_actions_context, add_view_action_context
+)
+?>
+
+<py:woost.views.BackOfficeLayout
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    selected_action = None
+    ?>
+
+    <py:ready>
+        <?py
+        self.set_client_param("edit_stack", self.edit_stack.to_param())
+        self.set_client_param("closingItemRequiresConfirmation", self.cms.closing_item_requires_confirmation)
+
+        # Add CSS classes matching the item's content types
+        for cls in self.edited_content_type.descend_inheritance(include_self = True):
+            if cls is not Item:
+                self.add_class(cls.name)
+        
+        if self.edited_item.is_inserted:
+        
+            add_view_action_context(self, "existing_item")
+
+            if self.edited_item.is_draft:
+                add_view_action_context(self, "draft")
+        else:
+            add_view_action_context(self, "new_item")
+
+        if self.changes:
+            add_view_action_context(self, "changed")
+        else:
+            add_view_action_context(self, "unchanged")
+
+        self._actions_context = get_view_actions_context(self)
+                                
+        # Pending changes warning
+        self.add_resource("/resources/scripts/BackOfficeItemView.js")
+        self.set_client_param("hasPendingChanges", bool(self.changes))
+        self.add_client_translation("woost.views.BackOfficeItemView pending changes warning")
+        ?>
+    </py:ready>
+    
+    <!-- Turn the central content into a form -->
+    <py:with
+        py:element="self.body"
+        py:tag="form"
+        method="post"
+        autocomplete="off">
+
+        <?py html5_attr(element, "novalidate", "novalidate") ?>
+
+        <!-- Default button (hidden) -->
+        <button
+            py:index="0"
+            type="submit"
+            name="item_action" value="save"
+            style="display: none"/>
+
+        <!-- Title -->
+        <h2 py:parent="self.body" py:position="0">
+            <py:ready>
+                <?py
+                if self.edited_item.is_inserted \
+                and not (self.edited_item.is_draft and self.edited_item.draft_source is None):
+                    context_desc = translations(self.edited_item)
+                else:
+                    context_desc = translations("creating", content_type = self.edited_content_type)
+                ?>
+                ${context_desc}
+            </py:ready>
+        </h2>
+
+        <!-- Actions -->
+        <py:woost.views.ActionBar
+            py:id="item_buttons"
+            py:action_context="item_buttons"
+            py:action_target="@{self.edited_item}"
+            class="toolbar">
+            <py:with
+                py:def="action_button"
+                py:args="action, extra"
+                name="item_action">
+                <?py
+                if action is self.selected_action:
+                    element.add_class("selected")
+                ?>
+            </py:with>
+        </py:woost.views.ActionBar>
+        
+        <div py:id="item_body"/>
+
+        <!-- Actions -->
+        <py:woost.views.ActionBar
+            py:id="item_bottom_buttons"
+            py:action_context="item_bottom_buttons"
+            py:action_target="@{self.edited_item}"
+            class="toolbar">
+            <py:with
+                py:def="action_button"
+                py:args="action, extra"
+                name="item_action">
+                <?py
+                if action is self.selected_action:
+                    element.add_class("selected")
+                ?>
+            </py:with>
+        </py:woost.views.ActionBar>
+
+    </py:with>
+
+</py:woost.views.BackOfficeLayout>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.schema.expressions import NegativeExpression, TranslationExpression
+from cocktail.html.datadisplay import MULTIPLE_SELECTION
+from woost.models import UserView
+from woost.controllers.backoffice.useractions import \
+    add_view_action_context
+?>
+
+<py:woost.views.BackOfficeLayout
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    sections = "content", "history"
+    user_collection = None
+    available_languages = ()
+    visible_languages = ()
+    available_content_views = ()
+    content_view = None
+    selection_mode = MULTIPLE_SELECTION
+    search_expanded = False
+    user_views = ()
+    ?>
+
+    <?py
+    add_view_action_context(self, "content")
+    ?>
+
+    <py:woost.views.UserViewsBar
+        py:id="user_views_bar"
+        py:after="self.header"
+        py:user_views="@{self.user_views}">
+    
+        <a py:id="add_user_view_button" href="@{self.edit_uri(UserView)}">
+            <py:ready>
+                <?py
+                add_user_view_params = {
+                    "type": self.user_collection.type.full_name,
+                    "content_view": self.user_collection.content_view.content_view_id,
+                    "order": [
+                          ("-" if isinstance(criteria, NegativeExpression) else "")
+                        + (
+                            criteria.operands[0].operands[0].name
+                            if isinstance(criteria.operands[0], TranslationExpression)
+                            else criteria.operands[0].name
+                        )
+                        for criteria in self.user_collection.order
+                    ],
+                    "grouping": self.user_collection.grouping
+                        and self.user_collection.grouping.request_value
+                        or "",
+                    "members": self.user_collection.members,
+                    "page_size": self.user_collection.page_size
+                }
+                filters = add_user_view_params["filters"] = []
+                for i, filter in enumerate(self.user_collection.user_filters):
+                    filters.append(filter.id)
+                    for key in filter.schema.members():
+                        add_user_view_params["filter_%s%d" % (key, i)] = getattr(filter, key)
+
+                element["href"] = self.edit_uri(UserView, "fields", **add_user_view_params)
+                ?>
+            </py:ready>
+            <img src="/resources/images/add_user_view.png"/>
+            <span>${translations('woost.views.BackOfficeContentView add user view')}</span>
+        </a>
+    </py:woost.views.UserViewsBar>
+
+    <py:ready>
+        <py:with py:element="self.user_collection.content_view"
+            py:parent="self.body"
+            action="${self.cms.contextual_uri('content')}"
+            py:cms="${self.cms}"
+            py:backoffice="${self.backoffice}"
+            py:user_collection="${self.user_collection}"
+            py:available_languages="${self.available_languages}"
+            py:selection_mode="${self.selection_mode}"
+            py:edit_stack="${self.edit_stack}"
+            py:search_expanded="${self.search_expanded}">
+            <?py            
+            @extend(element)
+            def content_type_is_selectable(self, content_type):
+                return content_type.visible_from_root \
+                    and call_base(content_type)
+
+            @extend(element)
+            def content_type_is_instantiable(content_view, content_type):
+                return content_type.visible_from_root \
+                    and not content_type.integral \
+                    and call_base(content_type)
+            ?>
+        </py:with>
+    </py:ready>
+
+</py:woost.views.BackOfficeLayout>

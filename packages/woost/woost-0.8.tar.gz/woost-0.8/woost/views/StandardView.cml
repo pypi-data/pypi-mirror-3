@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.html import html5_tag, html5_attr
+from woost.models import Site
+?>
+
+<py:woost.views.BaseView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    py:tag="div">
+
+    <?py-class
+    show_user_controls = True
+
+    def get_title(self):
+        return Site.main.home.title
+        
+    def get_linked_attachments(self):
+        return (attachment
+                for attachment in getattr(self.publishable, "attachments", ())
+                if attachment.is_published())
+
+    def get_logo(self):
+        return Site.main.logo
+    ?>
+
+    <div py:id="header">
+        <?py html5_tag(element, "header") ?>
+
+        <h1 py:id="title_label">
+            <py:ready>
+                <?py 
+                self._title = self.get_title()
+                self._logo = self.get_logo()
+                if self._logo and not self._logo.is_accessible():
+                    self._logo = None
+
+                if not self._title and not self._logo:
+                    element.visible = False
+                ?>
+            </py:ready>
+            <a href="@{self.cms.uri(Site.main.home)}">
+                <py:woost.views.Image
+                    py:id="logo"
+                    py:image="@{self._logo}"
+                    py:accessible_check="${False}"
+                    alt="@{self._title}"/>
+                @{self._logo is None and self._title or ""}
+            </a>
+        </h1>
+
+        <div py:id="identity" py:visible="@{self.show_user_controls and self.user and not self.user.anonymous}">
+            <strong>@{self.identity.visible and translations(self.user) or ""}</strong>
+            <form py:id="logout_form" method="post" action="">
+                <div>
+                    <button py:id="logout_button" name="logout" type="submit">
+                        ${translations("Logout")}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <py:woost.views.LanguageSelector py:id="language_selector"/>
+    </div>
+
+    <div py:id="navigation">
+        <?py html5_tag(element, "nav") ?>
+        <py:woost.views.Menu
+            py:id="menu"
+            py:root_visible="${False}"
+            py:collapsible="${True}"/>
+    </div>
+
+    <div py:id="main">
+        <?py
+        html5_tag(element, "section")
+        html5_attr(element, "role", "main")
+        ?>
+
+        <h2 py:id="content_title_label" py:collapsible="${True}">
+            <py:ready>
+                <?py
+                title = self.get_content_title()
+                if title:
+                    element.append(title)
+                ?>
+            </py:ready>
+        </h2>
+
+        <div py:id="fallback_language_notice" class="notice" py:visible="@{not self.fully_translated}">
+            @{"" if self.fully_translated else translations("woost.views.StandardView fallback language notice", fallback = self.content_language)}
+        </div>
+
+        <?py
+        element.append(self.content)
+        ?>
+
+        <ul py:id="attachments" py:collapsible="${True}">
+            <py:ready>
+                <py:new
+                    py:element="self.create_attachment_entry(attachment)"
+                    py:for="attachment in self.get_linked_attachments()"/>
+            </py:ready>
+        </ul>
+    </div>
+
+    <py:woost.views.EditLink py:def="edit_link" py:visible="@{element.visible and self.show_user_controls}"/>
+
+    <li py:def="attachment_entry" py:args="attachment">
+        <a href="${self.cms.uri(attachment)}" title="${getattr(attachment, 'description', None)}">
+            <img
+                src="${attachment.get_image_uri('icon16')}"
+                alt="${translations('woost.views.StandardView attachment icon description')}"/>
+            <span>${translations(attachment)}</span>
+        </a>
+    </li>
+
+    <div py:id="footer">
+        <?py html5_tag(element, "footer") ?>
+        <div py:id="vcard" py:collapsible="${True}">
+            <?py html5_tag(element, "address") ?>
+            <py:woost.views.Image 
+                py:id="vcard_logo" 
+                class="logo"
+                py:image="@{self.get_logo()}"
+                style="display:none"/>
+            <a
+                py:id="organization_label"
+                class="fn org url"
+                href="@{Site.main.organization_url or Site.main.home.get_uri()}"
+                py:visible="@{Site.main.organization_name}">
+                @{Site.main.organization_name}
+            </a>
+            <div 
+                py:id="vcard_address" 
+                class="adr"
+                py:collapsible="${True}">
+                <span
+                    py:id="address_label"
+                    class="street-address"
+                    py:visible="@{Site.main.address}">
+                    @{Site.main.address}
+                </span>
+                <span class="sep" py:visible="@{Site.main.address}">-</span>
+                <span
+                    py:id="postal_code_label"
+                    class="postal-code"
+                    py:visible="@{Site.main.postal_code}">
+                    @{Site.main.postal_code}
+                </span>
+                <span
+                    py:id="town_label"
+                    class="locality"
+                    py:visible="@{Site.main.town}">
+                    @{Site.main.town}
+                </span>
+                <span
+                    py:id="region_label"
+                    class="region"
+                    py:visible="@{Site.main.address}">
+                    @{Site.main.region}
+                    <?py
+                    if Site.main.town == Site.main.region:
+                        element.set_style("display", "none")
+                    ?>
+                </span>                
+                <span
+                    py:id="country_label"
+                    class="country-name"
+                    py:visible="@{Site.main.country}">
+                    @{Site.main.country}
+                </span>
+            </div>            
+            <span
+                py:id="phone_label"
+                class="tel"
+                py:visible="@{Site.main.phone_number}">
+                <span>${translations("woost.views.StandardView.phone_number")}</span>: 
+                <span class="value">@{Site.main.phone_number}</span>
+            </span>
+            <span class="sep" py:visible="@{Site.main.phone_number and Site.main.fax_number}">-</span>
+            <span 
+                py:id="fax_label"
+                class="tel"
+                py:visible="@{Site.main.fax_number}">
+                <span class="type">Fax</span>:
+                <span class="value">@{Site.main.fax_number}</span>
+            </span>
+            <br/>
+            <a
+                py:id="email_label"
+                class="email"
+                href="mailto:@{Site.main.email or ''}"
+                py:visible="@{Site.main.email}">
+                @{Site.main.email}
+            </a>
+        </div>
+    </div>
+
+</py:woost.views.BaseView>
+

@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from itertools import chain
+from cocktail.html.shortcuts import set_translated_shortcut
+from cocktail.controllers import context
+from woost.controllers.backoffice.useractions import (
+    get_view_actions, get_view_actions_context
+)
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    action_context = None
+    action_target = None
+    button_images = True
+    hide_when_empty = True    
+    group_additional_actions = True
+    min_frequent_actions = 1
+    min_additional_actions = 2
+    empty_result_set = False
+    
+    def get_actions(self, context):
+        return [
+            action
+            for action in get_view_actions(context, self.action_target)
+            if not self.empty_result_set
+            or not action.min 
+            or action.ignores_selection
+        ]
+    ?>
+
+    <py:cocktail.html.Element
+        py:def="action_button"
+        py:args="action, extra"        
+        class="${action.id}_action">
+        <?py
+        panel = action.get_dropdown_panel(self.action_target)
+        
+        if panel:
+            element.add_class("selector")
+            label = Element("span", class_name = "label")
+            element.append(label)
+        else:
+            label = element
+        
+            if action.direct_link:
+                element.tag = "a"
+                element["href"] = action.get_url(context["cms"], None)
+            else:
+                element.tag = "button"
+                element["type"] = "submit"
+                element["name"] = "action"
+                element["value"] = action.id
+
+        set_translated_shortcut(label, "action " + action.id)
+        ?>
+        <py:with py:element="label">
+            <py:new
+                py:element="self.create_action_image(action, extra)"
+                py:if="self.button_images and not extra"/>
+            ${translations("Action " + action.id)}
+        </py:with>
+        <py:new py:element="panel" py:if="panel">
+            <?py element.add_class("selector_content") ?>
+        </py:new>
+    </py:cocktail.html.Element>
+
+    <img
+        py:def="action_image"
+        py:args="action, extra"
+        src="${action.icon_uri}"/>
+
+    <div py:def="additional_actions_selector" class="selector">
+        <span class="label">${translations("woost.views.ActionBar Additional actions")}</span>
+        <div py:id="additional_actions_box" class="selector_content"/>
+    </div>
+
+    <py:ready>
+        <?py
+        if not self.action_context:
+            raise ValueError("woost.views.ActionBar needs an action_context attribute")
+
+        if not self.action_target:
+            raise ValueError("woost.views.ActionBar needs an action_target attribute")
+
+        context = get_view_actions_context(self)        
+        actions = self.get_actions(context | set([self.action_context]))
+        additional_actions = self.get_actions(context | set([self.action_context + "_extra"]))
+
+        groupped = self.group_additional_actions
+
+        # Avoid superflous groupping of additional actions
+        if groupped:
+            if self.min_frequent_actions:                
+                if len(actions) < self.min_frequent_actions:
+                    groupped = False
+
+            if self.min_additional_actions:
+                if len(additional_actions) < self.min_additional_actions:
+                    groupped = False
+
+        if not groupped:
+            actions = chain(actions, additional_actions)
+
+        has_actions = False
+
+        # Frequent actions
+        for action in actions:
+            action_button = self.create_action_button(action, False)
+            self.append(action_button)
+            has_actions = True
+
+        # Additional actions dropdown
+        if groupped:
+            selector = self.create_additional_actions_selector()
+            self.append(selector)
+
+            for action in additional_actions:
+                action_button = self.create_action_button(action, True)
+                self.additional_actions_box.append(action_button)
+                has_actions = True
+
+        # Automatically hide an empty toolbar
+        if self.hide_when_empty and not has_actions:
+            self.visible = False
+        ?>
+    </py:ready>
+</div>

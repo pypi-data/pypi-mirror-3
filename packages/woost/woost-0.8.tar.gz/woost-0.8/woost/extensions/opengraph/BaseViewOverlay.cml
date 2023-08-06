@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.html import Element
+from cocktail.html.utils import escape_attrib
+from cocktail.html.rendering import get_current_rendering
+from woost.extensions.opengraph import OpenGraphExtension
+?>
+
+<py:overlay
+    py:class="woost.views.BaseView"
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    # Default properties for all instances of the template
+    open_graph_properties = {}
+    ?>
+
+    <?py
+    # Each instance of the template automatically gets its own properties dictionary
+    self.open_graph_properties = self.open_graph_properties.copy()
+    
+    @self.when_document_ready
+    def add_open_graph_metadata(document):
+        
+        if self.publishable.open_graph_enabled and self.open_graph_properties:
+
+            # Add the OpenGraph and Facebook namespaces to the HTML document
+            document["xmlns:og"] = "http://ogp.me/ns#"
+            document["xmlns:fb"] = "http://www.facebook.com/2008/fbml"
+
+            # Add the meta tags. Produce the HTML manually, instead of relying
+            # on html.Element rendering; this is a bit of a hack, but sadly
+            # Facebook's OpenGraph parser depends on a precise attribute order,
+            # which element rendering can't guarantee.
+            tag_closure = get_current_rendering().renderer.single_tag_closure
+            meta_template = '<meta property="%s" content="%s"' + tag_closure
+            
+            for name, value in self.open_graph_properties.iteritems():
+                if value is not None:
+                    meta = meta_template % (
+                        escape_attrib(name), 
+                        escape_attrib(value)
+                    )
+                    document.meta_container.append(meta)
+    ?>
+
+    <py:ready>
+        <?py
+        # Apply global and object specific properties; note that properties
+        # defined by the view take precedence
+        properties = OpenGraphExtension.instance.get_properties(self.publishable)
+        for key, value in properties.iteritems():
+            if key not in self.open_graph_properties:
+                self.open_graph_properties[key] = value
+        ?>
+    </py:ready>
+
+</py:overlay>
+

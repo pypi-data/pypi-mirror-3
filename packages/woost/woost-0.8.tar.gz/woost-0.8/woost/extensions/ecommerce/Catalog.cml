@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail import schema
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    pagination = None
+    currency = u"€"
+    form = None
+    _adapter = None
+    _adapted_schemas = None
+
+    def _get_adapted_schema(self, model):
+
+        if self._adapted_schemas is None:
+            self._adapted_schemas = {}
+
+        if self._adapter is None:
+            self._adapter = schema.Adapter()
+            self._adapter.implicit_copy = False
+
+        if model not in self._adapted_schemas:
+            adapted_schema = schema.Schema(self.form.form_id)
+
+            for member in model.get_options():
+                self._adapter.copy(member.name)
+
+            self._adapter.export_schema(model, adapted_schema)
+        else:
+            adapted_schema = self._adapted_schemas[model]
+
+        return adapted_schema
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/ecommerce-Catalog.css")
+    ?>
+
+    <py:cocktail.html.Pager 
+        py:id="pager"
+        py:pagination="@{self.pagination}"/>
+
+    <div py:id="products_list">
+        <py:ready>
+            <py:new 
+                py:element="self.create_product_entry(product, self.form)"
+                py:for="product in self.pagination.current_page_items"/>
+        </py:ready>
+    </div>
+
+    <div py:def="product_entry" py:args="product, form">
+        <a py:local_id="product_link" href="${product.get_uri()}"> 
+            <py:woost.views.Image
+                py:local_id="product_image"
+                py:image="${product.get_image()}"
+                py:effects="${['thumbnail(150,150)', 'align(width=150,height=150,halign=\'center\',valign=\'bottom\',background=\'fff\')']}"
+                py:accessible_check="${False}"/>
+
+            <span py:local_id="product_label">           
+               ${translations(product)}
+            </span>
+        </a>
+
+        <py:woost.extensions.ecommerce.AddProductForm
+            py:local_id="add_product_form"
+            py:product="${product}"
+            py:form="${form}"
+            method="post">
+            <?py
+            element.schema = self._get_adapted_schema(product.purchase_model)
+            if element.product is not form.product:
+                data = {}
+                element.schema.init_instance(data)
+                element.data = data
+                element.errors = ()
+            ?>
+        </py:woost.extensions.ecommerce.AddProductForm>
+
+    </div>
+
+</div>
+

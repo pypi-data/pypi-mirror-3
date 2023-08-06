@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.modeling import OrderedSet
+from cocktail import schema
+?>
+
+<py:woost.views.ContentView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+        
+    <?py
+    self.add_resource("/cocktail/styles/jquery.tablednd.css")
+    self.add_resource("/cocktail/scripts/jquery.tablednd.js")
+    self.add_resource("/resources/scripts/TreeContentView.js")
+    ?>
+
+    <?py-class
+    content_view_id = "tree"
+    children_collection = None
+    allow_sorting = False
+    allow_grouping = False
+    allow_paging = False
+    root = None
+    ?>
+
+    <div py:id="expansion_controls" py:parent="self.data_controls">
+        <span>${translations("woost.views.TreeContentView expansion controls")}</span>
+        <a href="?expanded=">${translations("woost.views.TreeContentView collapse all")}</a>
+        <a href="?expanded=all">${translations("woost.views.TreeContentView expand all")}</a>
+    </div>
+
+    <py:woost.views.ContentTree
+        py:def="collection_display"
+        py:cms="@{self.cms}"
+        py:base_url="@{self.cms.contextual_uri()}"
+        py:translations="@{self.user_collection.languages}"
+        py:children_collection="@{self.children_collection}">
+        <py:binding>
+            <?py
+            # Branch expansion
+            if self.user_collection.expanded_items == "all":
+                element.fully_expanded = True
+            else:
+                element.expanded = self.user_collection.expanded_items
+
+            # Hide parent/children columns
+            parent_member = self.children_collection.related_end
+            element.set_member_displayed(parent_member, False)
+            element.set_member_displayed(self.children_collection, False)
+
+            # Set the root of the tree to any item that satisfies the query, or
+            # that has one or more descendants that do. If self.root is set,
+            # use it to further constraint the root of the tree.
+            subset = self.user_collection.subset
+            accessible_items = set(subset)
+            element.filter_item = accessible_items.__contains__
+            
+            if self.root is not None and not self.root:
+                # Empty root, no point in evaluating descending nodes
+                element.data = []
+            else:
+                def is_visible_branch(item):
+                    if item in accessible_items:
+                        return True
+                    else:
+                        return any(
+                            is_visible_branch(child) 
+                            for child in item.get(self.children_collection)
+                        )
+
+                root = self.root or subset.type.select(parent_member.equal(None))
+                element.data = [item for item in root if is_visible_branch(item)]
+            ?>
+        </py:binding>
+    </py:woost.views.ContentTree>
+
+</py:woost.views.ContentView>

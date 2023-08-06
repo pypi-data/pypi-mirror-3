@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from itertools import chain
+import cherrypy
+from cocktail.iteration import is_empty
+from cocktail.schema import SchemaObjectAccessor
+from cocktail.controllers import view_state
+from cocktail.html.datadisplay import MULTIPLE_SELECTION
+
+NOT_ACCESSIBLE = 0
+ACCESSIBLE = 1
+ACCESSIBLE_DESCENDANTS = 2
+?>
+
+<py:woost.views.ContentTable
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    py:inline_draft_copies="${False}">
+
+    <?py-class
+    accessor = SchemaObjectAccessor
+    selection_mode = MULTIPLE_SELECTION
+    children_collection = "children"
+    expanded = ()
+    filter_item = None
+    fully_expanded = False
+
+    def get_children(self, item):
+        return item.get(self.children_collection)
+
+    __item_access = None
+
+    def _is_accessible(self, item):
+        
+        if self.__item_access is None:
+            self.__item_access = {}
+        
+        accessibility = self.__item_access.get(item)
+
+        if accessibility is None:
+
+            if self.filter_item(item):
+                accessibility = ACCESSIBLE
+            elif any(
+                self._is_accessible(child)
+                for child in self.get_children(item)
+            ):
+                accessibility = ACCESSIBLE_DESCENDANTS
+            else:
+                accessibility = NOT_ACCESSIBLE
+
+            self.__item_access[item] = accessibility
+
+        return accessibility
+
+    def _fill_body(self):
+        
+        self.__depth = 0
+        self.__index = 0
+
+        for item in self.data:
+            self._fill_branch(item)            
+
+    def _fill_branch(self, item):
+
+        if not self.filter_item:
+            access_level = ACCESSIBLE
+        else:
+            access_level = self._is_accessible(item)
+
+        if access_level != NOT_ACCESSIBLE:
+            row = self.create_row(self.__index, item)
+            self.append(row)
+
+            if access_level == ACCESSIBLE_DESCENDANTS:
+                row.add_class("filtered")
+
+            self.__index += 1
+
+            if self.is_expanded(item):
+                self.__depth += 1
+                for item in self.get_children(item):
+                    self._fill_branch(item)
+                self.__depth -= 1
+
+    def is_expanded(self, item):
+        return self.fully_expanded or item.id in self.expanded
+
+    def create_element_display(self, item, member):
+        return self.create_element_cell(item, member)
+    ?>
+
+    <div
+        py:def="element_cell"
+        py:args="item, member">
+
+        <?py
+        # Fake an HTML hierarchy, adding dummy containers. This is a bit of a
+        # hack, but all known alternatives aren't any better, and at least this
+        # allows indentation style to be kept on a style sheet, where it
+        # belongs.
+
+        container = element
+
+        if self.__depth:
+            for i in range(self.__depth):
+                nested_container = Element()
+                nested_container.add_class("depth_level")
+                container.append(nested_container)
+                container = nested_container
+        
+        # Get the expansion state for the entry
+        empty = is_empty(self.get_children(item))
+
+        if empty:
+            element.add_class("leaf")        
+        else:
+            if self.is_expanded(item):
+                state = "expanded"
+                expander_ids = (id
+                                for id in self.expanded
+                                if id != item.id)
+            else:
+                state = "collapsed"
+                expander_ids = chain(
+                    (id for id in self.expanded),
+                    [item.id]
+                )
+        
+            expanded_param = ",".join(str(id) for id in expander_ids)
+            element.add_class(state)
+        ?>
+        <py:with py:element="container">
+            <a py:if="not empty"
+                class="expander"
+                href="?${view_state(expanded = expanded_param)}">
+                <img src="${self.cms.application_uri('resources', 'images', state + '.png')}"/>
+            </a>
+            <py:new py:element="ContentTable.create_element_display(self, item, member)"/>
+        </py:with>
+
+    </div>
+
+</py:woost.views.ContentTable>

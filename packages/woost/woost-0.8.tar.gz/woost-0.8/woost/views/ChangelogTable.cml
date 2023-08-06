@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost.models import (
+    get_current_user,
+    ReadPermission
+)
+?>
+
+<py:woost.views.ContentTable
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    actions = ("create", "modify", "delete")
+    _changes_by_action = None
+
+    def create_row(self, i, item):
+        
+        changes = [
+            change for change in item.changes.values()
+            if get_current_user().has_permission(
+                ReadPermission,
+                target = change.target
+            )
+        ]
+        changes.sort(key = lambda change:
+            tuple(
+                cls.full_name
+                for cls in list(change.target.__class__.descend_inheritance(True))[2:]
+            )
+        )
+
+        self._changes_by_action = {}
+
+        for change in changes:
+            action_id = change.action.identifier
+            action_changes = self._changes_by_action.get(action_id)
+
+            if action_changes is None:
+                action_changes = self._changes_by_action[action_id] = []
+
+            action_changes.append(change)
+
+        return ContentTable.create_row(self, i, item)    
+    ?>
+
+    <?py
+    changes_by_action = lambda changeset: (
+        (action, self._changes_by_action[action])
+        for action in self.actions
+        if action in self._changes_by_action
+    )
+
+    self.split_rows("action", changes_by_action)
+    self.split_rows("changes", changes_by_action)
+    ?>
+
+    <py:with py:def="cell" py:args="item, column">
+        <?py
+        if column.name in ("action", "changes"):
+            action, changes = self.get_member_value(item, column)
+            element.add_class(action + "_action")
+        ?>
+    </py:with>
+
+    <py:block py:def="action_display" py:args="obj, member">
+        <?py
+        action, changes = self.get_member_value(obj, member)
+        ?>
+        ${translations("woost %s action" % action)}
+    </py:block>
+
+    <ul py:def="changes_display" py:args="obj, member">
+        <?py
+        action, changes = self.get_member_value(obj, member)                
+        ?>
+        <li py:for="change in changes">
+            <py:woost.views.ItemLabel py:item="${change.target}"/>
+        </li>
+    </ul>
+
+</py:woost.views.ContentTable>
