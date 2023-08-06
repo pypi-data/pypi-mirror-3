@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+#coding: utf-8
+#
+# File Name: timelined.py
+#
+# Description: Daemon to parse your timeline.
+#
+# Creation Date: 2012-01-12
+#
+# Last Modified: 2012-03-25 11:36
+#
+# Created By: Daniël Franke <daniel@ams-sec.org>
+
+import sys
+import os
+import socket
+import time
+
+from httplib import IncompleteRead
+from ssl import SSLError
+from hashlib import md5
+
+from tweepy import Stream, OAuthHandler
+
+from libweetwit.db import DB
+from libweetwit.timeline import TimeLineListener
+from libweetwit.utils import kill_process
+from libweetwit.exceptions import TwitterError
+
+
+# Very ugly hack to dodge a lot of unicode problems.
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
+# Size of the stream buffer, set to bitewise by default to keep realtime feel
+# on quiet twitter feeds.
+# If timelined becomes too CPU intensive, set this higher.
+# TODO: Make this an autodetectable amount.
+BUFFER_SIZE = 1
+
+
+# Placeholder for the list of stuff we might search for.
+track_list = False
+track_hash = False
+
+# VERY messy for now.
+# TODO: Clean up.
+if len(sys.argv) < 2:
+    print "No storage directory given."
+    sys.exit(2)
+
+storage = sys.argv[1]
+
+# If we have any more arguments, we want to search for these.
+# Note that we we only do one search argument per stream.
+if len(sys.argv) > 2:
+    track_list = [" ".join(sys.argv[2:])]
+
+if not os.path.isdir(storage):
+    print "%s is not a directory." % storage
+    sys.exit(3)
+
+status_dir = os.path.join(storage,  "timelined")
+
+if track_list:
+    track_hash = md5(track_list[0]).hexdigest()
+    status_dir = os.path.join(storage, track_hash)
+
+if not os.path.exists(status_dir):
+    os.mkdir(status_dir)
+
+if not os.path.isdir(status_dir):
+    print "%s is not a directory." % status_dir
+    sys.exit(4)
+
+pidfile = os.path.join(storage, "timelined.pid")
+
+if track_hash:
+    pidfile = os.path.join(storage, track_hash + ".pid")
+
+
+# Make sure this timelined is not already running.
+if os.path.exists(pidfile):
+    with file(pidfile) as f:
+        kill_process(int(f.read().rstrip()))
+    os.unlink(pidfile)
+
+with file(pidfile, "w") as f:
+    f.write(str(os.getpid()))
+
+db = DB(storage)
+
+ck = db.get_config('consumer_key')
+cs = db.get_config('consumer_secret')
+at = db.get_config('access_token')
+ats = db.get_config('access_token_secret')
+
+auth = OAuthHandler(ck, cs)
+auth.set_access_token(at, ats)
+
+# We want to stream at least one iteration.
+do_stream = True
+while do_stream:
+    # If it exits normally, we want to quit.
+    do_stream = False
+    try:
+        stream = Stream(auth=auth, listener=TimeLineListener(status_dir),
+                buffer_size=BUFFER_SIZE, retry_count=10)
+        if track_list:
+            stream.filter(track=track_list)
+        else:
+            stream.userstream()
+    except (IncompleteRead, SSLError, socket.error):
+        # If the stream quites unexpectedly, try again.
+        do_stream = True
+        # Sleep for one second so that we don't hammer the server.
+        time.sleep(1)
+    except TwitterError as error:
+        sys.stderr.write(str(error))
+        sys.exit(1)
