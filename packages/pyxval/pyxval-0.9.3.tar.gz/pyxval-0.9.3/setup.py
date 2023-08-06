@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+
+from __future__ import division, print_function
+
+import sys
+
+from os.path import abspath, join, split
+from setuptools import setup
+
+sys.path.insert(0, join(split(abspath(__file__))[0], 'lib'))
+from pyxval import __version__ as _pyxval_version
+
+setup(name='pyxval',
+      version=_pyxval_version,
+      classifier='Topic :: Scientific/Engineering :: Artificial Intelligence\nDevelopment Status :: 4 - Beta',
+      description='Machine learning cross-validation framework',
+      author='N Lance Hepler',
+      author_email='nlhepler@gmail.com',
+      url='http://github.com/nlhepler/pyxval',
+      license='GNU GPL version 3',
+      packages=['pyxval', 'pyxval._fakemp', 'pyxval._tests'],
+      package_dir={
+            'pyxval': 'lib/pyxval',
+            'pyxval._fakemp': 'lib/pyxval/_fakemp',
+            'pyxval._tests': 'lib/pyxval/_tests'
+     },
+     requires=['six']
+     )
