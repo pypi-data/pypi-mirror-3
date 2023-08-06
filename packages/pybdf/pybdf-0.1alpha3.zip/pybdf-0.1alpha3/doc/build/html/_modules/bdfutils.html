@@ -1,0 +1,478 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>bdfutils &mdash; pybdf alpha1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     'alpha1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pybdf alpha1 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">pybdf alpha1 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for bdfutils</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#!/usr/bin/env python</span>
+<span class="c">#   Copyright (C) 2012 Samuele Carcagno &lt;sam.carcagno@gmail.com&gt;</span>
+<span class="c">#   This file is part of bdfutils</span>
+
+<span class="c">#    bdfutils is free software: you can redistribute it and/or modify</span>
+<span class="c">#    it under the terms of the GNU General Public License as published by</span>
+<span class="c">#    the Free Software Foundation, either version 3 of the License, or</span>
+<span class="c">#    (at your option) any later version.</span>
+
+<span class="c">#    pySoundAnalyser is distributed in the hope that it will be useful,</span>
+<span class="c">#    but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c">#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c">#    GNU General Public License for more details.</span>
+
+<span class="c">#    You should have received a copy of the GNU General Public License</span>
+<span class="c">#    along with bdfutils.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module can be used to read the header and data from</span>
+<span class="sd">24-bit BIOSEMI BDF files recorded with the ActiveTwo system.</span>
+
+<span class="sd"> Examples</span>
+<span class="sd"> --------</span>
+<span class="sd"> &gt;&gt;&gt; bdf_rec = bdfRecording(&#39;res1.bdf&#39;) #create bdfRecording object</span>
+<span class="sd"> &gt;&gt;&gt; bdf_rec.recordDuration #how many seconds the recording lasts</span>
+<span class="sd"> &gt;&gt;&gt; bdf_rec.sampRate #sampling rate for each channel</span>
+<span class="sd"> &gt;&gt;&gt; #read 10 seconds of data from the first two channels</span>
+<span class="sd"> &gt;&gt;&gt; rec = bdf_rec.get_data(channels=[0, 1], beginning=0, end=10)</span>
+<span class="sd"> &gt;&gt;&gt; rec = bdf_rec.get_data_parallel() #read all data using multiprocess</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">copy</span><span class="o">,</span> <span class="nn">multiprocessing</span><span class="o">,</span> <span class="nn">numpy</span>
+<span class="n">__version__</span> <span class="o">=</span> <span class="mf">0.1</span>
+
+<div class="viewcode-block" id="bdfRecording"><a class="viewcode-back" href="../index.html#bdfutils.bdfRecording">[docs]</a><span class="k">class</span> <span class="nc">bdfRecording</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class for dealing with BIOSEMI 24-bit BDF files.</span>
+<span class="sd">    A bdfRecording object is created with the following syntax:</span>
+<span class="sd">    &gt;&gt;&gt; bdf_rec = bdfRecording(&#39;bdf_file.bdf&#39;)</span>
+<span class="sd">    This reads the BDF header, but not the data. You need to use</span>
+<span class="sd">    the get_data or get_data_parallel methods to read the data.</span>
+<span class="sd">    The full documentation of the BDF file format can be found here:</span>
+<span class="sd">    http://www.biosemi.com/faq/file_format.htm</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    idCode : str</span>
+<span class="sd">        Identification code</span>
+<span class="sd">    subjId : str</span>
+<span class="sd">        Local subject identification</span>
+<span class="sd">    recId : str</span>
+<span class="sd">        Local recording identification</span>
+<span class="sd">    startDate : str</span>
+<span class="sd">        Recording start date</span>
+<span class="sd">    startTime : str</span>
+<span class="sd">        Recording start time</span>
+<span class="sd">    nBytes : int</span>
+<span class="sd">        Number of bytes occupied by the bdf header</span>
+<span class="sd">    versionDataFormat : str</span>
+<span class="sd">        Version of data format</span>
+<span class="sd">    nDataRecords : int</span>
+<span class="sd">        Number of data records &quot;-1&quot; if unknown</span>
+<span class="sd">    recordDuration : float</span>
+<span class="sd">        Duration of a data record, in seconds</span>
+<span class="sd">    nChannels : int</span>
+<span class="sd">        Number of channels in data record</span>
+<span class="sd">    chanLabels : list of str</span>
+<span class="sd">        Channel labels</span>
+<span class="sd">    transducer : list of str</span>
+<span class="sd">        Transducer type</span>
+<span class="sd">    physDim : str</span>
+<span class="sd">        Physical dimension of channels</span>
+<span class="sd">    physMin : list of int</span>
+<span class="sd">        Physical minimum in units of physical dimension</span>
+<span class="sd">    physMax : list of int</span>
+<span class="sd">        Physical maximum in units of physical dimension</span>
+<span class="sd">    digMin : list of int</span>
+<span class="sd">        Digital minimum</span>
+<span class="sd">    digMax : list of int</span>
+<span class="sd">        Digital maximum</span>
+<span class="sd">    prefilt : list of str</span>
+<span class="sd">        Prefiltering</span>
+<span class="sd">    nSampRec : list of int</span>
+<span class="sd">        Number of samples in each data record</span>
+<span class="sd">    reserved : list of str</span>
+<span class="sd">        Reserved</span>
+<span class="sd">    scaleFactor : list of floats</span>
+<span class="sd">        Scaling factor for digital to physical dimension</span>
+<span class="sd">    sampRate : list of int</span>
+<span class="sd">        Recording sampling rate</span>
+<span class="sd">    statusChanIdx : int</span>
+<span class="sd">        Index of the status channel</span>
+<span class="sd">    nDataChannels : int</span>
+<span class="sd">        Number of data channels containing data (rather than trigger codes)</span>
+<span class="sd">    dataChanLabels : list of str</span>
+<span class="sd">        Labels of the channels containing data (rather than trigger codes)</span>
+<span class="sd">                                            </span>
+<span class="sd">                                            </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fileName</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fileName</span> <span class="o">=</span> <span class="n">fileName</span>
+        <span class="c">#try:</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fileName</span><span class="p">,</span> <span class="s">&quot;rb&quot;</span><span class="p">)</span>
+        <span class="c">#except IOError:</span>
+        <span class="c">#    print(&quot;Could not open file. Check that that the file name\</span>
+        <span class="c">#    is correct&quot;)</span>
+        <span class="c">#    return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">idCodeNonASCII</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">idCode</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">7</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">subjId</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">80</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recId</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">80</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">startDate</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">startTime</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nBytes</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">versionDataFormat</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">44</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nDataRecords</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recordDuration</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">4</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chanLabels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transducer</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">physDim</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">physMin</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">physMax</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">digMin</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">digMax</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefilt</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reserved</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scaleFactor</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sampRate</span> <span class="o">=</span> <span class="p">[]</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">duration</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recordDuration</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">nDataRecords</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">chanLabels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">16</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">transducer</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">80</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">physDim</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">physMin</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">physMax</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">digMin</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">digMax</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prefilt</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">80</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reserved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">32</span><span class="p">),</span> <span class="s">&#39;ascii&#39;</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scaleFactor</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">physMax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">physMin</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">digMax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">digMin</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statusChanIdx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chanLabels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s">&quot;Status&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nDataChannels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chanLabels</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sampRate</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">recordDuration</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">int16</span><span class="p">))</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<div class="viewcode-block" id="bdfRecording.get_data"><a class="viewcode-back" href="../index.html#bdfutils.bdfRecording.get_data">[docs]</a>    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">beginning</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">trig</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">norm_trig</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">norm_status</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read the data from a bdfRecording object</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        beginning : int</span>
+<span class="sd">            Start time of data chunk to read (seconds).</span>
+<span class="sd">        end : int</span>
+<span class="sd">            End time of data chunk to read (seconds).</span>
+<span class="sd">        channels : list of integers or strings</span>
+<span class="sd">            Channels to read. Both channel numbers, or channel names are accepted. Note that channel numbers are indexed starting from *zero*.</span>
+<span class="sd">        trig : boolean</span>
+<span class="sd">            If True, return the channel containing the triggers</span>
+<span class="sd">        status : boolean</span>
+<span class="sd">            If True, return the channel containing the status codes</span>
+<span class="sd">        norm_trig : boolean</span>
+<span class="sd">            If True, the trigger channel will only signal *changes* between one trigger status to the next. A trigger value that is equal to the previous one will be set to zero</span>
+<span class="sd">        norm_status : boolean</span>
+<span class="sd">            If True, the status channel will only signal *changes* between one status code to the next. A code value that is equal to the previous one will be set to zero</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rec : a dictionary with three keys</span>
+<span class="sd">           - data : an array of floats with dimenions nChannels X nDataPoints</span>
+<span class="sd">           - trigChan : an array of integers with the triggers in decimal format</span>
+<span class="sd">           - statusChan : an array of integers with the status codes in decimal format</span>
+<span class="sd">        </span>
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; x = bdfRecording(&#39;res1.bdf&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; rec = x.get_data(channels=[0, 2], beginning=0, end=10)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">end</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="c">#read all data</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nDataRecords</span>
+        <span class="k">if</span> <span class="n">channels</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="c">#read all data channels</span>
+            <span class="n">channels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">nDataChannels</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Requested channels more than available channels. Exiting&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">channels</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">channels</span><span class="p">)</span>
+        <span class="n">chanLabels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)):</span>
+            <span class="n">chanLabels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span><span class="p">[</span><span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">]])</span>
+        <span class="n">nChannelsToRead</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)</span>
+        
+        <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fileName</span><span class="p">,</span> <span class="s">&quot;rb&quot;</span><span class="p">)</span>
+        <span class="n">recordsToRead</span> <span class="o">=</span> <span class="n">end</span> <span class="o">-</span> <span class="n">beginning</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nChannelsToRead</span><span class="p">,</span> <span class="n">recordsToRead</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">trigChan</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">recordsToRead</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span> <span class="c">#just read them in, and in case user doesn&#39;t want them set to none later, skipping just slows things down because of loop</span>
+        <span class="n">statusChan</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">recordsToRead</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nBytes</span> <span class="o">+</span> <span class="n">beginning</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">recordsToRead</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">statusChanIdx</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">channels</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]):</span>
+                            <span class="n">currChanIdx</span> <span class="o">=</span> <span class="n">channels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                            <span class="n">data</span><span class="p">[</span><span class="n">currChanIdx</span><span class="p">,</span> <span class="n">n</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">+</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">currPos</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+                        <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">currPos</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">trig</span> <span class="o">==</span> <span class="bp">True</span> <span class="ow">or</span> <span class="n">status</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]):</span>
+                            <span class="n">trigChan</span><span class="p">[</span><span class="n">n</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">+</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                            <span class="n">statusChan</span><span class="p">[</span><span class="n">n</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">+</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">currPos</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+                            <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">currPos</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span>
+                              
+        <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">trig</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="n">trigChan</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">8</span> <span class="o">+</span> <span class="n">trigChan</span>
+            <span class="k">if</span> <span class="n">norm_trig</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="n">trigChan</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">trigChan</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">trigChan</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="n">statusChan</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">8</span> <span class="o">+</span> <span class="n">statusChan</span>
+            <span class="k">if</span> <span class="n">norm_status</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="n">statusChan</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">statusChan</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">statusChan</span> <span class="o">=</span> <span class="bp">None</span>
+        
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nChannelsToRead</span><span class="p">):</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">c</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">c</span><span class="p">,:]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">scaleFactor</span><span class="p">[</span><span class="n">c</span><span class="p">]</span>
+
+        <span class="n">rec</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;trigChan&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">trigChan</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;statusChan&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">statusChan</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;chanLabels&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">chanLabels</span>
+        <span class="k">return</span> <span class="n">rec</span>
+</div>
+<div class="viewcode-block" id="bdfRecording.get_data_parallel"><a class="viewcode-back" href="../index.html#bdfutils.bdfRecording.get_data_parallel">[docs]</a>    <span class="k">def</span> <span class="nf">get_data_parallel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">beginning</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">trig</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">norm_trig</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">norm_status</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read the data from a bdfRecording object using the multiprocessing</span>
+<span class="sd">        module to exploit multicore machines.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        beginning : int</span>
+<span class="sd">            Start time of data chunk to read (seconds).</span>
+<span class="sd">        end : int</span>
+<span class="sd">            End time of data chunk to read (seconds).</span>
+<span class="sd">        channels : list of integers or strings</span>
+<span class="sd">            Channels to read. Both channel numbers, or channel names are accepted. Note that channel numbers are indexed starting from *zero*.</span>
+<span class="sd">        trig : boolean</span>
+<span class="sd">            If True, return the channel containing the triggers</span>
+<span class="sd">        status : boolean</span>
+<span class="sd">            If True, return the channel containing the status codes</span>
+<span class="sd">        norm_trig : boolean</span>
+<span class="sd">            If True, the trigger channel will only signal *changes* between one trigger status to the next. A trigger value that is equal to the previous one will be set to zero</span>
+<span class="sd">        norm_status : boolean</span>
+<span class="sd">            If True, the status channel will only signal *changes* between one status code to the next. A code value that is equal to the previous one will be set to zero</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rec : a dictionary with three keys</span>
+<span class="sd">           - data : an array of floats with dimenions nChannels X nDataPoints</span>
+<span class="sd">           - trigChan : an array of integers with the triggers in decimal format</span>
+<span class="sd">           - statusChan : an array of integers with the status codes in decimal format</span>
+<span class="sd">        </span>
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; x = bdfRecording(&#39;res1.bdf&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; rec = x.get_data_parallel(channels=[0, 2], beginning=0, end=10)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">trigChan</span> <span class="o">=</span> <span class="bp">None</span> <span class="c">#initialize to None in case user doesn&#39;t want them</span>
+        <span class="n">statusChan</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">end</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="c">#read all data</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nDataRecords</span>
+        <span class="k">if</span> <span class="n">channels</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span> <span class="c">#read all data channels</span>
+            <span class="n">channels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">nDataChannels</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Requested channels more than available channels. Exiting&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">channels</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">channels</span><span class="p">)</span>
+        <span class="n">chanLabels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)):</span>
+            <span class="n">chanLabels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataChanLabels</span><span class="p">[</span><span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">]])</span>
+        <span class="n">nChannelsToRead</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">)</span>
+        <span class="n">chList</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Pool</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nChannelsToRead</span><span class="p">):</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">apply_async</span><span class="p">(</span><span class="n">readChannel</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fileName</span><span class="p">,</span> <span class="n">channels</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">beginning</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scaleFactor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">statusChanIdx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nBytes</span><span class="p">),</span> <span class="n">callback</span><span class="o">=</span><span class="n">chList</span><span class="o">.</span><span class="n">append</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">trig</span> <span class="o">==</span> <span class="bp">True</span> <span class="ow">or</span> <span class="n">status</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">apply_async</span><span class="p">(</span><span class="n">readChannel</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fileName</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">statusChanIdx</span><span class="p">,</span> <span class="n">beginning</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nChannels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nSampRec</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scaleFactor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">statusChanIdx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nBytes</span><span class="p">),</span> <span class="n">callback</span><span class="o">=</span><span class="n">chList</span><span class="o">.</span><span class="n">append</span><span class="p">)</span>
+        <span class="n">pool</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="n">pool</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nChannelsToRead</span><span class="p">,</span> <span class="n">chList</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">chList</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">chList</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">statusChanIdx</span><span class="p">:</span>
+                <span class="n">trigChan</span> <span class="o">=</span> <span class="n">chList</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">,:]</span>
+                <span class="n">statusChan</span> <span class="o">=</span> <span class="n">chList</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">,:]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">channelPos</span> <span class="o">=</span> <span class="n">chList</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">dataRow</span> <span class="o">=</span> <span class="n">channels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">channelPos</span><span class="p">)</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">dataRow</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">chList</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">trig</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+            <span class="n">trigChan</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">norm_trig</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="n">trigChan</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">trigChan</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+            <span class="n">statusChan</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">norm_status</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="n">statusChan</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">statusChan</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">rec</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;trigChan&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">trigChan</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;statusChan&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">statusChan</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s">&#39;chanLabels&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">chanLabels</span>
+        <span class="k">return</span> <span class="n">rec</span>
+
+
+
+</div></div>
+<span class="k">def</span> <span class="nf">readChannel</span><span class="p">(</span><span class="n">fileName</span><span class="p">,</span> <span class="n">channelNumber</span><span class="p">,</span> <span class="n">beginning</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">nChannels</span><span class="p">,</span> <span class="n">nSampRec</span><span class="p">,</span> <span class="n">scaleFactor</span><span class="p">,</span> <span class="n">statusChanIdx</span><span class="p">,</span> <span class="n">nBytes</span><span class="p">):</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">fileName</span><span class="p">,</span> <span class="s">&quot;rb&quot;</span><span class="p">)</span>
+    <span class="n">recordsToRead</span> <span class="o">=</span> <span class="n">end</span> <span class="o">-</span> <span class="n">beginning</span>
+    <span class="k">if</span> <span class="n">channelNumber</span> <span class="o">==</span> <span class="n">statusChanIdx</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="n">recordsToRead</span><span class="o">*</span><span class="n">nSampRec</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">numpy</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">recordsToRead</span><span class="o">*</span><span class="n">nSampRec</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">nBytes</span> <span class="o">+</span> <span class="n">beginning</span><span class="o">*</span><span class="n">nSampRec</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="o">*</span><span class="n">nChannels</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">recordsToRead</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nChannels</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">statusChanIdx</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="n">channelNumber</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]):</span>
+                        <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">*</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">+</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">currPos</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">currPos</span> <span class="o">+</span> <span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="n">channelNumber</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]):</span>
+                        <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="o">*</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">+</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                        <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">*</span><span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">+</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">currPos</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">currPos</span> <span class="o">+</span> <span class="n">nSampRec</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">channelNumber</span> <span class="o">==</span> <span class="n">statusChanIdx</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">8</span> <span class="o">+</span> <span class="n">data</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span> <span class="o">*</span> <span class="n">scaleFactor</span><span class="p">[</span><span class="n">channelNumber</span><span class="p">]</span>
+    <span class="n">dataL</span> <span class="o">=</span> <span class="p">[</span><span class="n">channelNumber</span><span class="p">,</span> <span class="n">data</span><span class="p">]</span>
+    <span class="c">#data[0,(data.shape[1]-1)] = channelNumber</span>
+    <span class="k">return</span> <span class="n">dataL</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">pybdf alpha1 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Samuele Carcagno.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
