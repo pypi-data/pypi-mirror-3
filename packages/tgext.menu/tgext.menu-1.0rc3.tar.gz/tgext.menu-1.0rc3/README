@@ -1,0 +1,388 @@
+== Welcome to the TurboGears Menu Extension ==
+
+tgext.menu provides a way for controllers to be more easily reused,
+while providing developers a way to stop worrying about the menus in
+their application. In a nutshell, that is what you get.
+
+One thing that all web applications have in common is the need for
+menus to help users navigate the application. The menus can be small,
+single level, easily displayed across the top of the page. Or they can
+be large, complex, hierarchical, and highly variable depending on
+permissions and a whole host of other factors. tgext.menu helps out in
+any of these cases.
+
+
+When you use tgext.menu, you need to do the following three steps:
+
+1. Add it to your project. This is accomplished by modifying your setup.py. Add "tgext.menu" to your **install_requires** list.
+
+
+2. Get JQuery installed. tgext.menu supports working with both ToscaWidgets 1 and 2. You will need to manually choose and install the correct jquery for your application. If you are using ToscaWidgets1, then just run this command:
+
+{{{
+easy_install tw.jquery
+}}}
+
+If you are using ToscaWidgets2, you will need to do the following:
+
+{{{
+easy_install tw2.forms tw2.core
+hg clone https://bitbucket.org/toscawidgets/tw2jquery
+cd tw2jquery
+python setup.py develop
+}}}
+
+3. Update your project/config/app_cfg.py. If you already have a line like this:
+
+{{{
+base_config.variable_provider = my_function
+}}}
+
+Change the {{{variable_provider}}} part to {{{tgext_menu_sub_variable_provider}}}
+
+4. Add the following lines to project/config/app_cfg.py at the bottom of the file.
+
+{{{
+import tgext.menu
+base_config.variable_provider = tgext.menu.menu_variable_provider
+}}}
+
+5. Add it to your master template. This step varies depending on whether you are using Mako or Genshi for your templating engine. In either case, where you have the code to render your navigation bar, put this code:
+
+**Mako**
+
+{{{
+#!html+mako
+${render_navbar()|n}
+}}}
+
+**Genshi**
+
+{{{
+#!genshi
+${HTML(render_navbar())}
+}}}
+
+6. Add tgext.menu into your controllers. Place this code in any controllers that will be using tgext.menu:
+
+{{{
+#!python
+from tgext.menu import navbar, sidebar, menu
+}}}
+
+In front of any @expose'd methods, place a call to add them to your navigation bar, like so:
+
+{{{
+#!python
+@navbar('TestHome')
+@expose('genshi:tgext.menu.test.templates.index')
+def index(self, *p, **kw):
+    return dict()
+}}}
+
+To nest menus, use || as separators, like so:
+
+{{{
+#!python
+@navbar('My || Sub || Menu')
+@expose('genshi:tgext.menu.test.templates.index')
+def index(self, *p, **kw):
+    return dict()
+}}}
+
+
+And that's it, your menus will now render automatically. When you
+addmore items to your navbar using @navbar, they will appear without
+your having to update any templates at all.
+
+== Full Documentation ==
+
+tgext.menu is built around the idea that a given web application can
+have any number of menus. In this extension, each of them are
+named. Two are so common that they are given shortcuts in the API:
+navbar and sidebar. If you have other menus you wish to add to, you
+will need to name them specifically. Fortunately, this is not as hard
+as it sounds.
+
+
+In your controller code, you will be using one of three decorators:
+
+* @navbar('menu path')
+* @sidebar('menu path')
+* @menu('menu path', 'menu name')
+
+Using @menu will be rare. Normally, you will only be using @navbar or
+@sidebar.
+
+=== Appending and Removing Entries ===
+
+In addition, you may be using one of six functions in your code:
+
+* menu_append('menu path', 'menu name')
+* navbar_append('menu path')
+* sidebar_append('menu path')
+* menu_remove('menu path', 'menu name')
+* navbar_remove('menu path')
+* sidebar_remove('menu path')
+
+The above functions are meant to allow you to easily add and remove menu
+entries programmatically.
+
+
+The decorators and methods all take a common set of parameters:
+
+* menu path
+* permission
+* url
+* extension
+* extras
+* sortorder
+* right
+* icon
+
+menu path is simply a string of entries, separated by ||, indicating
+where this particular entry lives in the menu hierarchy. An example
+would be "Help || About" or "Edit || Copy", or "My || Deeply || Nested || Submenu".
+Spaces around || will be stripped off, and are only put
+in those strings for readability.
+
+permission is the permission to check in order to display this item. It may be
+a simple string or a full predicate from repoze.what.
+
+url is the place the menu item points to. It will always be prefixed by the
+path to the controller calling any of these methods *unless* the url is an
+absolute url (i.e.: it has a ":" in it somewhere).
+
+extension is the file extension to put at the end. The dot will be supplied
+for you, so you would only need to add "js" for javascript, for instance.
+
+extras is a dictionary of extra attributes to place on the <li> tag
+which contains the actual <a> tag for this menu item. All extras will
+be placed as is, no filtering or escaping of any sort will be done.
+
+Note that one "special" tag exists: extratext. This is extra text that
+will be rendered after the link. This will allow you to place a
+comment after the link and before the next menu item. For instance,
+this can be used to have a sidebar with links and descriptions on
+those links.
+
+sortorder is the value of this menu item's sortorder. See "sortorder" under
+"Configuration Options" (below) for details on how to use this.
+
+right is a shortcut for adding the HTML class "right" to the menu item. This
+is just a boolean value.
+
+icon is a URL pointing to the icon image file you wish to assign to this
+entry. While you would normally do this with CSS, you have the option of doing
+this in your code if you wish.
+
+If you use the @menu decorator or menu_append or menu_remove, you will need to
+specify which menu this particular menu entry belongs to. This will allow you
+to provide a specific menu for a specific section of your application. An
+example would be if you are writing up an admin module, and want to provide an
+admin-only menu.
+
+Finally, for menu_append, navbar_append, and sidebar_append, you *must* supply
+one additional parameter named "base". "base" is the class instance that is
+the root of the path to be appended. Typically, this will be "self", though if
+you know of another class instance that can be found in the hierarchy, you can
+use that instead (of course, if that is appropriate to do). Failure to supply
+"base" is an error, and will result in an exception being thrown.
+
+=== url_from_menu and get_entry ===
+
+This function allows you to locate the URL that a given menu path
+has. This will be useful, for example, in templates, especially in
+other TurboGears extensions. For instance, if you have the following
+controller code:
+
+{{{
+#!python
+from tg import require, TGController
+from tgext.menu import navbar
+
+class MyController(TGController):
+      @navbar('FooBaz')
+      def foobaz(self, *p, **kw):
+      	  return {}
+}}}
+
+Then, in your template, you can place this code:
+
+{{{
+#!genshi
+<a href="${tg.url(url_from_menu('navbar', 'FooBaz'))}">Go To FooBaz!</a>
+}}}
+
+And the actual link to FooBaz will be rendered at that location,
+regardless of where in your controller hierarchy that particular
+controller was mounted.
+
+
+get_entry will allow you to retrieve the menu object used to store the
+data about the menu entry. This will allow you to do such things as
+update extra attributes, permissions, and the like. It uses the same
+parameters as url_from_menu.
+
+=== switch_template ===
+
+The default template that is provided, while useful, may not meet all of your
+needs. You may write your own Mako template, load it as a single string, and
+pass that string to this function. It will then be compiled and used for all
+menu templates from that point on.
+
+Note that you must pass in one single string, and that string must be a valid
+Mako template, not the name of a template file. For instance, you can use
+something similar to the way the default template is loaded in your own code.
+It is currently loaded this way:
+
+
+{{{
+from pkg_resources import Requirement, resource_string
+tmpl_string = resource_string(Requirement.parse("tgext.menu"),"tgext/menu/templates/divmenu.mak")
+}}}
+
+After that, you may call {{{switch_template(tmpl_string)}}} to begin using
+your template.
+
+=== Render The Menu ===
+
+In your template, you will need to render the menu. This follows a
+similar pattern from above. You will have the following methods
+available to you in your template:
+
+* render_navbar(vertical=False, active=None)
+* render_sidebar(vertical=False, active=None)
+* render_menu(menu_name, vertical=False, active=None)
+
+The "vertical" parameter is used to tell jdMenu that this should be a vertical
+menu.
+
+The "active" parameter is used to tell tgext.menu the menu path for
+the currently rendered page. When this link is rendered in the menus,
+it will be given a CSS class of active. Note that if you leave it as
+None, then no link will ever be given that CSS class.
+
+=== User Defined Callbacks ===
+
+Finally, you may register callbacks from the menu system. These
+callbacks will call your methods and add the results of those methods
+into the user's menus. Note that this happens on every page request,
+so you may have a callback that adds items depending on the parameters
+of the request (the user, the group the user is in, etc). Those
+callback registration functions follow a similar pattern as the
+append/remove functions, and are named as follows:
+
+* register_callback('menu name', function)
+* register_callback_navbar(function)
+* register_callback_sidebar(function)
+* deregister_callback('menu name', function)
+* deregister_callback_navbar(function)
+* deregister_callback_sidebar(function)
+
+Any given callback is expected to return a list of
+tgext.menu.entry. This class uses the same parameters that the
+decorators do, with the same names.
+
+== Configuration Options ==
+
+In your app_cfg, you may have a section named "base_config.tgext_menu". The
+way to add this section is to produce code like this:
+
+{{{
+#!python
+base_config.tgext_menu = {}
+base_config.tgext_menu['inject_css'] = True
+}}}
+
+This has three possible parameters in it: inject_css, inject_js and sortorder.
+
+=== inject_css : default False ===
+
+The "inject_css" parameter is used to inject the default CSS that
+comes from the [[http://jdsharp.us/jQuery/plugins/jdMenu/|jdMenu
+plugin]]. It is set to False,by default, so as to allow you to specify
+your own CSS.
+
+=== inject_js : default True ===
+
+The "inject_js" parameter allows you to turn off the javascript. In this case,
+you will have just a set of ul/li/a tags in your page representing the menu,
+and may do as you see fit with it.
+
+== sortorder: default None ===
+
+"sortorder" is a bit more complex to explain. Basically, using this, you can
+set up the sort ordering for your menus. This is done by assigning entries a
+numeric value, with higher values going towards the right/bottom, and lower
+values towards the left/top. An entry is a single path segment. This is
+accomplished by assigning a dictionary to the sortorder configuration
+paramter. Unassigned entries will be given a value of 999999. All of this is
+best to explain by example.
+
+Assume we have the following menu entries:
+ExitApp
+Foo Spot || Bar
+Foo Spot || Baz
+Foo Spot || Foo
+
+Now assume we have set the following dictionary as our sort order:
+{ 'ExitApp': 20, 'Foo': 10 }
+
+This will result in the menus being order like so:
+ExitApp
+Foo Spot || Foo
+Foo Spot || Bar
+Foo Spot || Baz
+
+'ExitApp' will be compared with 'Foo Spot'. 'Foo Spot' has the value 999999,
+and ExitApp has 20. ExitApp goes first.
+
+In the sub menu for 'Foo Spot', 'Foo' has the value 10, while the others have
+the value 999999. 'Foo' goes first.
+
+== Drawbacks ==
+
+Adding the code for rendering a Google sitemap should be relatively
+easy. However, it has not been done as yet.
+
+=== @require ===
+
+This isn't so much a drawback as it is an issue with getting
+permissions to be honored properly by tgext.menu. As it stands right
+now, tgext.menu honors the allow_only attribute. However, it cannot
+honor the @require decorator without some additional work on your
+part.
+
+The reason for this is because @require is actually a function in its
+own right. It takes a repoze.what Predicate, validates that the
+current user passes the Predicate check, and then calls the wrapped
+method. Therefore, when TurboGears calls your method, it is *actually*
+calling the require function, which validates the security, then calls
+your code, which returns data back up the stack to TurboGears.
+
+By doing this, the Predicate becomes a local variable inside of
+@require that cannot be accessed by outside code. The only way to
+ensure that tgext.menu will properly honor such predicates is to do
+something like this:
+
+{{{
+#!python
+from tg import require, TGController
+from repoze.what.predicates import Not, is_anonymous
+from tgext.menu import navbar
+
+class MyController(TGController):
+      is_not_anon = Not(is_anonymous())
+
+      @require(is_not_anon)
+      @navbar('FooBaz', permission=is_not_anon)
+      def foobaz(self, *p, **kw):
+      	  return {}
+}}}
+
+I do wish there were a better way, but it just doesn't exist yet.
+
+== Doc To-Do Items ==
+
+ * Document the code internally
