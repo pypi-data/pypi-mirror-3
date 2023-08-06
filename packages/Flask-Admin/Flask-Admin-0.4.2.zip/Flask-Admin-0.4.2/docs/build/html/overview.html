@@ -1,0 +1,357 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Quick start &mdash; Flask-Admin 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Flask-Admin 0.1 documentation" href="index.html" />
+    <link rel="next" title="API" href="api.html" />
+    <link rel="prev" title="Flask-Admin" href="index.html" /> 
+  </head>
+  <body>
+  
+  
+
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="quick-start">
+<h1>Quick start<a class="headerlink" href="#quick-start" title="Permalink to this headline">¶</a></h1>
+<p>Start off by creating some data models. In this example we&#8217;ll use
+<a class="reference external" href="http://www.sqlalchemy.org/">SQLAlchemy</a> declarative models.  <a class="reference external" href="http://packages.python.org/Flask-SQLAlchemy/">Flask-SQLAlchemy</a> and
+<a class="reference external" href="http://www.mongoalchemy.org/">MongoAlchemy</a> models are also supported. So here are our models:</p>
+<div class="highlight-python"><pre> from sqlalchemy import create_engine, Column, Integer, String
+ from sqlalchemy.ext.declarative import declarative_base
+
+ engine = create_engine('sqlite://', convert_unicode=True)
+ Base = declarative_base(bind=engine)
+
+ class Student(Base):
+     __tablename__ = 'student'
+
+     id = Column(Integer, primary_key=True)
+     name = Column(String(120), unique=True)
+
+     def __repr__(self):
+         return self.name
+
+class Teacher(Base):
+     __tablename__ = 'teacher'
+
+     id = Column(Integer, primary_key=True)
+     name = Column(String(120), unique=True)
+
+     def __repr__(self):
+         return self.name</pre>
+</div>
+<p>Then create a datastore object using those models and your sqlalchemy
+session:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">flask.ext.admin.datastore.sqlalchemy</span> <span class="kn">import</span> <span class="n">SQLAlchemyDatastore</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="kn">import</span> <span class="n">scoped_session</span><span class="p">,</span> <span class="n">sessionmaker</span>
+
+<span class="n">db_session</span> <span class="o">=</span> <span class="n">scoped_session</span><span class="p">(</span><span class="n">sessionmaker</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="n">engine</span><span class="p">))</span>
+
+<span class="n">admin_datastore</span> <span class="o">=</span> <span class="n">SQLAlchemyDatastore</span><span class="p">((</span><span class="n">Student</span><span class="p">,</span> <span class="n">Teacher</span><span class="p">),</span> <span class="n">db_session</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And create a blueprint using this datastore object:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">admin_blueprint</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">create_admin_blueprint</span><span class="p">(</span><span class="n">admin_datastore</span><span class="p">)</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">admin_blueprint</span><span class="p">,</span> <span class="n">url_prefix</span><span class="o">=</span><span class="s">&#39;/admin&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now the admin interface is set up. If you are running the app with the
+built-in development server via <tt class="xref py py-meth docutils literal"><span class="pre">app.run</span></tt>, then it should be
+available at <a class="reference external" href="http://localhost:5000/admin">http://localhost:5000/admin</a> .</p>
+</div>
+<div class="section" id="some-notes-on-model-classes">
+<h1>Some notes on model classes<a class="headerlink" href="#some-notes-on-model-classes" title="Permalink to this headline">¶</a></h1>
+<p>The __repr__ method of your model class will be used to describe
+specific instances of your models models in things like the list
+view. If you don&#8217;t set it, the default __repr__ method will look
+something like <cite>&lt;__main__.Student object at 0x1bb1490&gt;</cite>, which won&#8217;t
+be very useful for distinguishing model instances.</p>
+<p>Also, your model classes must be able to be initialized without any
+arguments. For example, the following works because in
+<tt class="xref py py-meth docutils literal"><span class="pre">__init__</span></tt>, name is a keyword argument and is therefore
+optional:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">Person</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="mi">120</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+</pre></div>
+</div>
+<p>But the following will not work because in this case, the __init__
+method of <tt class="xref py py-class docutils literal"><span class="pre">User</span></tt> <cite>requires</cite> a name:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">Person</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="mi">120</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="flask-admin-endpoints">
+<h1>Flask-Admin Endpoints<a class="headerlink" href="#flask-admin-endpoints" title="Permalink to this headline">¶</a></h1>
+<p>If you want to refer to views in Flask-Admin, the following endpoints
+are available:</p>
+<dl class="docutils">
+<dt><tt class="xref py py-meth docutils literal"><span class="pre">url_for('admin.index')</span></tt></dt>
+<dd>returns the url for the index view</dd>
+<dt><tt class="xref py py-meth docutils literal"><span class="pre">url_for('admin.list',</span> <span class="pre">model_name='some_model')</span></tt></dt>
+<dd>returns the list view for a given model</dd>
+<dt><tt class="xref py py-meth docutils literal"><span class="pre">url_for('admin.edit',</span> <span class="pre">model_name='some_model',</span> <span class="pre">model_key=model_key)</span></tt></dt>
+<dd>returns the url for the page used for editing a specific model
+instance. The model_key is a key that allows the model to be
+uniquely identified. For example, with the SQLAlchemy datastore,
+the model_key is the set primary key value(s) for a model
+instance. In cases where multiple values identify a model, the
+values will be separated by a <tt class="docutils literal"><span class="pre">'/'</span></tt></dd>
+<dt><tt class="xref py py-meth docutils literal"><span class="pre">url_for('admin.add',</span> <span class="pre">model_name='some_model')</span></tt></dt>
+<dd>returns the url for the adding a new model instance</dd>
+<dt><tt class="xref py py-meth docutils literal"><span class="pre">url_for('admin.delete',</span> <span class="pre">model_name='some_model',</span> <span class="pre">model_key=model_key)</span></tt></dt>
+<dd>returns the url for the page used for deleting a specific model
+instance; see the note about the model_key on the &#8216;admin.edit&#8217;
+endpoint above</dd>
+</dl>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">You can use the <tt class="docutils literal"><span class="pre">name</span></tt> argument in
+<tt class="xref py py-func docutils literal"><span class="pre">create_admin_blueprint</span></tt> to set the name of the
+blueprint. For example if <tt class="docutils literal"><span class="pre">name=&quot;my_named_admin&quot;</span></tt>, then the
+endpoint for the index becomes <tt class="docutils literal"><span class="pre">'my_named_admin.index'</span></tt>. This is
+necessary if you are going to use more than one admin blueprint
+within the same app.</p>
+</div>
+</div>
+<div class="section" id="custom-templates-and-static-files">
+<h1>Custom Templates and Static Files<a class="headerlink" href="#custom-templates-and-static-files" title="Permalink to this headline">¶</a></h1>
+<p>Using Flask blueprints makes customizing the admin interface
+easy. Flask-Admin comes with a default set of templates and static
+files. It&#8217;s possible to customize as much of the interface as you&#8217;d
+like by overriding the files you&#8217;d like to change. To do this, just
+create your own version of the files in the templates and/or static
+directories used by your Flask application.</p>
+<p>The following templates are defined in Flask-Admin:</p>
+<p><tt class="docutils literal"><span class="pre">admin/base.html</span></tt> - This is the primary base template that defines the
+bulk of the look and feel of the Admin. If you are using any of the
+default admin view templates, the base templates should provide the
+following blocks:</p>
+<blockquote>
+<div><p><strong>title</strong> - The title of the page (in the html title element)</p>
+<p><strong>main</strong> - This is where the main content of each of the admin
+views is placed (like editing forms)</p>
+</div></blockquote>
+<p><tt class="docutils literal"><span class="pre">admin/extra_base.html</span></tt> - This is the template that is actually
+inheritted by the default admin view templates. By extending
+base.html, this template allows you to override some of behaviors
+provided in the <cite>base.html</cite> template (e.g. navigation) while
+maintaining the most of base template behavior (like setting up
+Javascript-enhanced UI elements).</p>
+<p><tt class="docutils literal"><span class="pre">admin/index.html</span></tt> - The template used by the <tt class="docutils literal"><span class="pre">admin.index</span></tt> view.</p>
+<p><tt class="docutils literal"><span class="pre">admin/list.html</span></tt> - The template used by the <tt class="docutils literal"><span class="pre">admin.list</span></tt> view.</p>
+<p><tt class="docutils literal"><span class="pre">admin/add.html</span></tt> - The template used by the <tt class="docutils literal"><span class="pre">admin.add</span></tt> view.</p>
+<p><tt class="docutils literal"><span class="pre">admin/edit.html</span></tt> - The template used by the <tt class="docutils literal"><span class="pre">admin.edit</span></tt> view.</p>
+<p>In addition, the following &#8220;helper&#8221; templates are defined. These
+define Jinja macros that are used for rendering things like the
+pagination and forms:</p>
+<p><tt class="docutils literal"><span class="pre">admin/_formhelpers.html</span></tt> - The template that defines the
+<tt class="docutils literal"><span class="pre">render_field</span></tt> macro which is used for rendering fields.</p>
+<p><tt class="docutils literal"><span class="pre">admin/_paginationhelpers.html</span></tt> - The template that defines the
+<tt class="docutils literal"><span class="pre">render_pagination</span></tt> macro used for creating pagination element in
+the list view.</p>
+<p><tt class="docutils literal"><span class="pre">admin/_statichelpers.html</span></tt> - The template that defines the
+<tt class="docutils literal"><span class="pre">static</span></tt> macro. You probably won&#8217;t need to override this one: it
+just points to the <tt class="docutils literal"><span class="pre">admin.static</span></tt> endpoint, which may be easier to
+override directly.</p>
+<p>Refer to the <a class="reference external" href="http://flask.pocoo.org/docs/blueprints/">Flask documentation on blueprints</a> for specifics on how
+blueprints effect the template search path. There is also an example
+of extending the default admin templates in the <a class="reference external" href="https://github.com/wilsaj/flask-admin/tree/master/example/authentication/view_decorator.py">view decorator
+example</a>.</p>
+</div>
+<div class="section" id="custom-forms">
+<h1>Custom Forms<a class="headerlink" href="#custom-forms" title="Permalink to this headline">¶</a></h1>
+<p>Flask-Admin uses the WTForms library to automatically generate the
+form that will be used to add a new instance of a model or edit an
+existing model instance. There may be cases where the automatically
+generated form isn&#8217;t what you want, so you can also create a custom
+form for Flask-Admin to use for a given model.</p>
+<p>For example, consider the following model of a User that stores hashed
+passwords (originally from <a class="reference external" href="http://flask.pocoo.org/snippets/54/">http://flask.pocoo.org/snippets/54/</a>):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">Boolean</span><span class="p">,</span> <span class="n">Column</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">String</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.ext.declarative</span> <span class="kn">import</span> <span class="n">declarative_base</span>
+
+<span class="n">Base</span> <span class="o">=</span> <span class="n">declarative_base</span><span class="p">()</span>
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="n">__tablename__</span> <span class="o">=</span> <span class="s">&#39;user&#39;</span>
+
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="mi">80</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">_password_hash</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s">&#39;password&#39;</span><span class="p">,</span> <span class="n">String</span><span class="p">(</span><span class="mi">80</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="n">is_active</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">Boolean</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">is_active</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">username</span> <span class="o">=</span> <span class="n">username</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">=</span> <span class="n">password</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_active</span> <span class="o">=</span> <span class="n">is_active</span>
+
+    <span class="k">def</span> <span class="nf">check_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">password</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">check_password_hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pw_hash</span><span class="p">,</span> <span class="n">password</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">password</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_password_hash</span>
+
+    <span class="nd">@password.setter</span>
+    <span class="k">def</span> <span class="nf">password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">password</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_password_hash</span> <span class="o">=</span> <span class="n">generate_password_hash</span><span class="p">(</span><span class="n">password</span><span class="p">)</span>
+
+    <span class="n">password</span> <span class="o">=</span> <span class="n">synonym</span><span class="p">(</span><span class="s">&#39;_password_hash&#39;</span><span class="p">,</span> <span class="n">descriptor</span><span class="o">=</span><span class="n">password</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">username</span>
+</pre></div>
+</div>
+<p>To allow this model to be used with a typical password and
+confirmation field form, you could create the following form:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">wtforms</span> <span class="kn">import</span> <span class="n">Form</span><span class="p">,</span> <span class="n">validators</span>
+<span class="kn">from</span> <span class="nn">wtforms.fields</span> <span class="kn">import</span> <span class="n">BooleanField</span><span class="p">,</span> <span class="n">TextField</span><span class="p">,</span> <span class="n">PasswordField</span>
+
+<span class="k">class</span> <span class="nc">UserForm</span><span class="p">(</span><span class="n">Form</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Form for creating or editting User object (via the admin). Define</span>
+<span class="sd">    any handling of fields here. This form class also has precedence</span>
+<span class="sd">    when rendering forms to a webpage, so the model-generated fields</span>
+<span class="sd">    will come after it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">TextField</span><span class="p">(</span><span class="s">u&#39;User name&#39;</span><span class="p">,</span>
+                         <span class="p">[</span><span class="n">validators</span><span class="o">.</span><span class="n">required</span><span class="p">(),</span>
+                          <span class="n">validators</span><span class="o">.</span><span class="n">length</span><span class="p">(</span><span class="nb">max</span><span class="o">=</span><span class="mi">80</span><span class="p">)])</span>
+    <span class="n">password</span> <span class="o">=</span> <span class="n">PasswordField</span><span class="p">(</span><span class="s">&#39;Change Password&#39;</span><span class="p">,</span>
+                             <span class="p">[</span><span class="n">validators</span><span class="o">.</span><span class="n">optional</span><span class="p">(),</span>
+                              <span class="n">validators</span><span class="o">.</span><span class="n">equal_to</span><span class="p">(</span><span class="s">&#39;confirm_password&#39;</span><span class="p">)])</span>
+    <span class="n">confirm_password</span> <span class="o">=</span> <span class="n">PasswordField</span><span class="p">()</span>
+    <span class="n">is_active</span> <span class="o">=</span> <span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And just use the model_forms argument when calling
+<tt class="xref py py-func docutils literal"><span class="pre">SQLAlchemyDatastore</span></tt> to associate this form with the User
+model:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">admin_blueprint</span> <span class="o">=</span> <span class="n">admin</span><span class="o">.</span><span class="n">datastore</span><span class="o">.</span><span class="n">SQLAlchemyDatastore</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">User</span><span class="p">,),</span> <span class="n">db_session</span><span class="p">,</span> <span class="n">model_forms</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;User&#39;</span><span class="p">:</span> <span class="n">UserForm</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>Now the <tt class="xref py py-class docutils literal"><span class="pre">UserForm</span></tt> will be used for editing and adding a new
+user. If the form passes the validation checks, then password will
+propagate to the User model and will be hashed and stored the password
+in the database.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Due to the way that forms are generated, the order of input fields
+is difficult to control. This is something that is expected to
+improve in future versions, but for now a custom form is also the
+only way to specify the order of form fields.</p>
+</div>
+</div>
+<div class="section" id="more-examples">
+<h1>More examples<a class="headerlink" href="#more-examples" title="Permalink to this headline">¶</a></h1>
+<p>The Flask-Admin <a class="reference external" href="https://github.com/wilsaj/flask-admin/tree/master/example">example directory</a> contains some sample applications
+that demonstrate all of the patterns above, plus some additional ideas
+on how you can configure the admin.</p>
+</div>
+<div class="section" id="authors">
+<h1>Authors<a class="headerlink" href="#authors" title="Permalink to this headline">¶</a></h1>
+<p>Flask-Admin was initially developed by Andy Wilson. The current list
+of authors and contributors includes:</p>
+<ul class="simple">
+<li>mfa (Andreas Madsack)</li>
+<li>ralfonso (Ryan Roemmich)</li>
+<li>reite</li>
+<li>delai</li>
+<li>mgood (Matt Good)</li>
+</ul>
+</div>
+<div class="section" id="changelog">
+<h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this headline">¶</a></h1>
+<dl class="docutils">
+<dt>0.4.1</dt>
+<dd><ul class="first last simple">
+<li>fix Flask-SQLAlchemy import path</li>
+</ul>
+</dd>
+<dt>0.4.0</dt>
+<dd><ul class="first last simple">
+<li>front end redesign</li>
+<li>fix bug with displaying default value from SQLAlchemy models</li>
+</ul>
+</dd>
+<dt>0.3.0</dt>
+<dd><ul class="first last simple">
+<li>added datastore API to support additional datastores more easily</li>
+<li>added MongoAlchemy support</li>
+<li>added composite primary key support</li>
+<li>changed <cite>admin.list_view</cite> endpoint to <cite>admin.list</cite> for consistency</li>
+</ul>
+</dd>
+<dt>0.2.x</dt>
+<dd><ul class="first last simple">
+<li>move from flaskext namespace to flask_admin</li>
+<li>miscellaneous fixes and frontend tweaks</li>
+</ul>
+</dd>
+<dt>0.1.x</dt>
+<dd><ul class="first last simple">
+<li>initial release</li>
+</ul>
+</dd>
+</dl>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  
+    <a href="http://github.com/wilsaj/flask-admin"><img style="position: fixed; top: 0; right: 0; border: 0;"
+    src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+  
+
+  
+
+  </body>
+</html>
