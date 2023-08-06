@@ -1,0 +1,135 @@
+Soho bindings
+=============
+
+What is a binding?
+------------------
+
+Soho lets you inject any binding into the template when it is
+evaluated to produce HTML. A classic example is to have a variable
+navigation that highlights the current page:
+
+.. sourcecode:: html
+
+    <ul id="navigation">
+      <li>
+        <a href="/about.html">About</a>
+      </li>
+      <li class="current">
+        <a href="/install.html">Install</a>
+      </li>
+    </ul>
+
+In TAL, you would want to generate it with this:
+
+.. sourcecode:: html
+
+    <ul id="navigation">
+      <li tal:repeat="item context/getNavigation"
+          tal:attributes="class item/css_class | nothing">
+        <a tal:attributes="href item/href;"
+           tal:content="item/title"/>
+      </li>
+    </ul>
+
+The only issue here is to inject ``getNavigation`` in the
+template. With Soho, you only have to write a Python module and define
+the bindings that you want. In this example, we could have a
+hard-coded, context-dependent navigation with the following bindings
+module:
+
+.. sourcecode:: python
+
+    import re
+
+    NAVIGATION = [{'title': 'About',
+                   'href': '/about.html,
+                   'selected': re.compile('/about\.html')},
+                  {'title': 'Install',
+                   'href': '/install.html,
+                   'selected': re.compile('/install\.html')},
+                  ]
+
+
+    def getNavigation(context):
+        """A hard-coded navigation menu."""
+        navigation = [m.copy() for m in NAVIGATION]
+        for item in navigation:
+            selected = item.get('selected')
+            if selected and selected.match(context.path):
+                item['css_class'] = ' current'
+        return navigation
+
+    bindings = (getNavigation, )
+
+As you can see, this is a normal Python module, so you can use other
+Python packages (e.g. the ``re`` package), as usual.
+
+Save this code in a ``mybindings.py`` file somewhere and add this line
+to Soho configuration file:
+
+.. sourcecode:: ini
+
+    bindings = /path/to/mybindings.py
+
+Note that these functions will be bound to the ``Context`` class, so
+the first parameter of these functions should be the context.
+
+
+Available bindings
+------------------
+
+Soho currently comes with a set of bindings.
+
+.. sourcecode:: pycon
+
+    >>> from soho.bindings import *
+
+
+Pygments-related bindings
+.........................
+
+`Pygments`_ is a Python module that can highlight code in several
+languages. Soho comes with a handful of Pygments-related functions
+which can be used as bindings.
+
+.. _Pygments: http://pygments.org
+
+The ``getPygmentsLexers`` function tries to find Pygments "sourcecode"
+directive in your content and return the lexers that are used.
+
+.. sourcecode:: pycon
+
+    >>> source = '''\
+    ... This is a piece of Python code:
+    ...
+    ... .. sourcecode:: python
+    ...
+    ...     def foo(bar=None):
+    ...         print bar
+    ...
+    ... And a piece of reStructuredText:
+    ...
+    ... .. sourcecode:: rest
+    ...
+    ...     **this text in bold**
+    ...
+    ... '''
+    >>> class FakeContext:
+    ...     def __init__(self, source):
+    ...         self.source
+    >>> getPygmentsLexers(FakeContext(source))
+    ('python', 'rest')
+
+There is also a ``getAvailablePygmentsLexers`` function which lists
+all Pygments lexers that are available. These bindings can be quite
+convenient to conditionally include Pygments CSS files. For example,
+in the page template, you would use them like this:
+
+.. sourcecode:: html
+
+    <tal:pygmentscss tal:define="used_lexers context/getPygmentsLexers"
+                     tal:repeat="lexer context/getAvailablePygmentsLexers">
+      <link tal:condition="python: lexer in used_lexers"
+            tal:attributes="href string:/css/pygments-${lexer}.css"
+            rel="stylesheet" type="text/css">
+    </tal:pygmentscss>

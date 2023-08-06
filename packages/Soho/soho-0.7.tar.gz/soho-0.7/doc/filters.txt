@@ -1,0 +1,151 @@
+Soho filters
+============
+
+What is a filter?
+-----------------
+
+Here is a representation of Soho's process:
+
+.. container:: image
+
+   .. image:: filters.png
+      :width: 616
+      :height: 229
+      :alt: A representation of Soho's process
+
+Soho lets you define filters which will be used by the page builder
+before the reST->HTML conversion or after the rendering of the page
+through the template.
+
+Filters can change the content of the page: beautify the text by
+applying typographic rules, add or modify content, etc.
+
+
+How to define your own filters?
+-------------------------------
+
+A filter is a function which takes one parameter (the text itself) and
+return a (possibly) modified version of this text. For example, we
+could define a filter that fixes the spelling of words, using British
+English rules. Putting this piece of code in a ``myfilters.py`` file
+would do it:
+
+.. sourcecode:: python
+
+    def useBritishSpelling(text):
+        text = text.replace('licence', 'license')
+        ## ... (other replacements)
+        return text
+
+    pre_filters = (useBritishSpelling, )
+    post_filters = ()
+
+This file is a normal Python module, so you can use other Python
+packages (e.g. the ``re`` package), as usual. Just make sure to define
+``pre_filters`` or ``post_filters`` variables.
+
+When you are done with this file, you can include it in the
+configuration file with the following statement:
+
+.. sourcecode:: ini
+
+    filters = /path/to/myfilters.py
+
+
+Available filters
+-----------------
+
+Soho comes with built-in filters.
+
+.. sourcecode:: pycon
+
+    >>> from soho.filters import *
+
+As always, there is a ``dummy`` filter, which does nothing:
+
+.. sourcecode:: pycon
+
+    >>> dummy('While my guitar gently weeps')
+    'While my guitar gently weeps'
+
+If you want to use this filter (or any other built-in filter), just
+use this in your custom filters module:
+
+.. sourcecode:: python
+
+    from soho.filters import dummy
+
+    pre_filters = (dummy, )
+
+
+Typography-related filters
+..........................
+
+The somewhat misnamed ``useHTMLentity`` filter replaces some
+characters with their equivalent HTML entity:
+
+.. sourcecode:: pycon
+
+    >>> useHTMLentity('Once upon a time in the West...')
+    'Once upon a time in the West&hellip;'
+
+There is no way to insert non-breaking spaces in reST. Hopefully for
+the typography maniacs (and I am one, actually), there is a filter for
+French typography:
+
+.. sourcecode:: pycon
+
+    >>> ## Guillemets ouvrants et fermants
+    >>> applyFrenchTypographyRules(u"\xab Mes souliers sont rouges \xbb, s'exclama-t-il !")
+    u"\xab&nbsp;Mes souliers sont rouges&nbsp;\xbb, s'exclama-t-il&nbsp;!"
+    >>> applyFrenchTypographyRules("C'est extraordinaire ! N'est-ce pas ?!")
+    "C'est extraordinaire&nbsp;! N'est-ce pas&nbsp;?!"
+    >>> applyFrenchTypographyRules('Oui ; et jamais deux sans trois')
+    'Oui&nbsp;; et jamais deux sans trois'
+    >>> applyFrenchTypographyRules('Oui : je le ferai.')
+    'Oui&nbsp;:&nbsp;je le ferai.'
+
+
+Miscellaneous filters
+.....................
+
+Replace links to text files by links to HTML files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When you write the documentation of a program (for example), it is
+frequent to link to other files. However, they are reStructuredText
+files, too. And when you generate your HTML site, it is convenient to
+automatically convert all your links so that they point to HTML files.
+
+.. sourcecode:: pycon
+
+    >>> text = '''\
+    ... This is a `link`_. This is `another link`_.
+    ...
+    ... .. _link: linked.txt
+    ... .. _another link: linked2.rst
+    ... '''
+    >>> print changeLinksFromTxtToHTML(text)
+    'This is a `link`_. This is `another link`_.
+    
+    .. _link: linked.html
+    .. _another link: linked2.html'
+
+
+Replace XHTML short tags
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Docutils and other tools generate XHTML-like tags that close
+themselves (a.k.a. *short tag*). However, this can be a problem if you
+want to use HTML, since this is not HTML compatible. Hopefully, you
+can use the ``replaceXHTMLShortTags`` filter.
+
+.. sourcecode:: pycon
+
+    >>> replaceXHTMLShortTags('<img src="foo.png" />')
+    '<img src="foo.png">'
+    >>> replaceXHTMLShortTags('<br/>')
+    '<br>'
+
+Note that you should use this function as a post-filter, since it
+processes HTML code.

@@ -1,0 +1,251 @@
+Soho tutorial
+=============
+
+.. contents:: Table of contents
+   :depth: 1
+   :backlinks: none
+
+.. FIXME: replace "you" by "we"
+
+You want to build your next web site. You have decided that you want a
+static site. You want to write the content in reStructuredText and the
+layout in TAL. You may want Soho. You *want* to use Soho. Resistance
+is futile.
+
+This short tutorial will explain the steps taken to build a site very
+similar to `this very web site`_. Note that the tutorial covers all
+features of Soho, though some of them are better covered in other
+documents. Enough talking, let's write this web site.
+
+.. _this very web site: http://code.noherring.com
+
+.. note::
+
+    This tutorial is under progress. If you happen to be interested,
+    feel free to bug me until I complete it...
+
+
+Preparation
+-----------
+
+First, create a new directory. This will be your working directory,
+which you may want to put in the versioning system of your choice
+(e.g. Subversion or CVS)::
+
+    $ mkdir test.com
+    $ cd test.com
+
+We then would like to put our content in a ``src`` directory::
+
+    $ mkdir src
+    $ cd src
+
+We are ready to go. We will see later that ``test.com/`` directory may
+contain other files but, for now, we do not need any of them.
+
+
+Contents
+--------
+
+Soho looks at reStructuredText files (``.txt`` or ``.rst``). Let's
+create the index page of our site, ``index.txt``:
+
+.. sourcecode:: rest
+
+    Welcome to test.com
+    ===================
+
+    Welcome to this test web site.
+
+    .. image:: gnu.jpg
+       :width: 129
+       :height: 122
+       :alt: A gnu
+
+    You may also want to look at the `installation page`_.
+
+    .. _installation page: install.rst
+
+For the sake of the example, we will download `this image of a gnu`_
+and rename it ``gnu.jpg`` in the ``src/`` directory.
+
+.. _this image of a gnu: FIXME
+
+We will also create another source file named ``install.txt``:
+
+.. sourcecode:: rest
+
+    Installation
+    ============
+
+    To **install** Foo, simply double-click on the *blob*.
+
+Now that we have our content, we can go on with the layout.
+
+
+Layout
+------
+
+The layout is represented by a Zope Page Template file, which we will
+name ``main_template.pt`` and put it in ``test.com/`` directory. We
+will begin with this very simple template (which does not conform to
+HTML or XHTML, but we will not care about that, for now):
+
+.. sourcecode:: html
+
+    <metal:block define-macro="master">
+      <h1 tal:content="context/meta/title"></h1>
+      <tal:content tal:replace="structure context/content"/>
+    </metal:block>
+
+First, you will see that we enclose everything in a macro (named
+``master``) with this code:
+
+.. sourcecode:: html
+
+    <metal:block define-macro="master">
+      ...
+    </metal:block>
+
+Then we want to print the title and the content of the page. The page
+itself is available in the template via a binding called
+``context``. Among its attributes, we can use ``meta``, which is a
+mapping that holds all metadata of the page: its title, keyword,
+description and all specific metadata that you could define in your
+reStructuredText source file. We can therefore print the title of the
+page with this simple piece of code:
+
+.. sourcecode:: html
+
+    <h1 tal:content="context/meta/title"/></h1>
+
+As for the content itself, it is available through another binding of
+``context``, quite appropriately called ``content``:
+
+.. sourcecode:: html
+
+    <tal:content tal:replace="context/meta/title"/></tal:content>
+
+
+First run
+---------
+
+As we are already equipped with reStructuredText source files and a
+template, we have all we need to build a first version of our site::
+
+    $ pwd
+    (...)/test.com
+    $ ls -R
+    main_template.pt        src
+
+    ./src:
+    gnu.jpg         index.txt       install.rst
+
+Simply run ``soho`` without any command-line options::
+
+    $ soho
+    (...)     Begin building web site.
+    (...)     Creating new directory: "www"
+    (...)     Copying file "src/gnu.jpg" to "www/gnu.jpg".
+    (...)     Processing "src/index.txt" (writing in "www/index.html").
+    (...)     Processing "src/install.rst" (writing in "www/install.html").
+    (...)     Web site has been built.
+
+As you can see, Soho has processed our reStructuredText files and
+generated corresponding HTML files (in a directory it has created,
+since it did not exist). As for the image, since it is not a
+reStructuredText file, Soho has simply copied it to the output
+directory::
+
+    $ ls -R
+    main_template.pt        src                     www
+
+    ./src:
+    gnu.jpg         index.txt       install.rst
+
+    ./www:
+    gnu.jpg         index.html      install.html
+
+.. note::
+
+    We could have told Soho to use another source directory, another
+    output directory or another template. We could also have asked
+    Soho to ignore certain files. See `usage`_ for a comprehensive
+    reference of the possible options.
+
+    .. _usage: usage.txt
+
+If you try to run Soho again, you will see that it will ignore files
+that have not changed::
+
+    $ soho
+    (...)     Begin building web site.
+    (...)     Ignoring "src/gnu.jpg" because previously generated file seems to be up to date.
+    (...)     Ignoring "src/index.txt" because previously generated file seems to be up to date.
+    (...)     Ignoring "src/install.rst" because previously generated file seems to be up to date.
+    (...)     Web site has been built.
+
+However, running it with the ``-f`` command-line option forces the
+processing of all source files::
+
+    $ soho -f
+    (...)     Begin building web site.
+    (...)     Creating new directory: "www"
+    (...)     Copying file "src/gnu.jpg" to "www/gnu.jpg".
+    (...)     Processing "src/index.txt" (writing in "www/index.html").
+    (...)     Processing "src/install.rst" (writing in "www/install.html").
+    (...)     Web site has been built.
+
+
+Filters
+-------
+
+You probably have open these HTML files in a browser. Everything seems
+fine, though there is a problem with the link from the index page to
+the installation page. Indeed, we have indicated a link to
+``install.txt`` because that is the name of the source file. This is
+convenient if you read the source files. However, the link in the
+generated HTML is broken.
+
+Hopefully, Soho has a feature called "filters". It lets you change the
+text of the source file before or after it is processed, among other
+things. To do that, simply create a file named ``filters.py`` and put
+it in our ``test.com/``.
+
+.. sourcecode:: python
+
+    from soho.filters import changeLinksFromTxtToHTML, replaceXHTMLShortTags
+
+    pre_filters = (changeLinksFromTxtToHTML, )
+
+Here we simply use a built-in filter.
+
+If we regenerate our site (with the ``-f`` option), we will see that
+our link now correctly points to the HTML page.
+
+.. note::
+
+    The `filters`_ chapter goes further into this feature: it presents
+    the different types of filters, all built-in filters, how to
+    define your own filters, etc.
+
+    .. _filters: filters.txt
+
+
+Bindings
+--------
+
+FIXME
+
+
+What to do now?
+---------------
+
+I hope this tutorial has shown how simple Soho is to use. You may want
+to read more about the command-line options and the (optional)
+configuration file in the `usage`_ page. `Filters`_ and `bindings`_
+also have their own chapter.
+
+.. _usage: usage.txt
+.. _Filters: filters.txt
+.. _bindings: bindings.txt
