@@ -1,0 +1,1351 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+    lang="en"
+    metal:use-macro="context/prefs_main_template/macros/master"
+    i18n:domain="plone">
+
+<head>
+<metal:block fill-slot="top_slot">
+
+<tal:defines define="dummy python:request.set('disable_border',1);
+                     disable_column_one python:request.set('disable_plone.leftcolumn',1);
+                     disable_column_two python:request.set('disable_plone.rightcolumn',1);
+                     aceFiles string:${view/portalUrl}/++resource++plone.resourceeditor/ace;">
+
+<!-- ACE editor -->
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${aceFiles}/ace.js"
+    ></script>
+
+<!-- Theme -->
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${aceFiles}/theme-textmate.js"
+    ></script>
+
+<!-- Syntax highlighting -->
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${aceFiles}/mode-xml.js"
+    ></script>
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${aceFiles}/mode-html.js"
+    ></script>
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${aceFiles}/mode-css.js"
+    ></script>
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${aceFiles}/mode-javascript.js"
+    ></script>
+
+
+<!-- Mapper tools -->
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${view/portalUrl}/++resource++plone.resourceeditor/editor.js"></script>
+<script
+    type="text/javascript"
+    charset="utf-8"
+    tal:attributes="src string:${view/portalUrl}/++resource++plone.app.theming/mapper.js"
+    ></script>
+
+
+<!-- Styling for this page -->
+<link
+    rel="stylesheet"
+    type="text/css"
+    tal:attributes="href string:${view/portalUrl}/++resource++plone.app.theming/mapper.css"
+    />
+
+<script type="text/javascript" tal:content="view/jsVariables"></script>
+
+<script type="text/javascript">
+
+    jQuery(function($) {
+
+        $().ready(function() {
+
+            var WINDOW_BASE = window.location.protocol + '//' + window.location.host;
+
+            var WINDOWED_HEIGHT = '300px';
+            var FULLSCREEN_HEIGHT = '600px';
+
+            // Editor management
+
+            var HTMLMode = require("ace/mode/html").Mode;
+            var CSSMode  = require("ace/mode/css").Mode;
+            var XMLMode  = require("ace/mode/xml").Mode;
+            var JSMode   = require("ace/mode/javascript").Mode;
+            var TextMode = require("ace/mode/text").Mode;
+
+            var extensionModes = {
+                css: new CSSMode(),
+                js: new JSMode(),
+                htm: new HTMLMode(),
+                html: new HTMLMode(),
+                xml: new XMLMode()
+            };
+            var defaultMode = new TextMode();
+            var dirties = {}; // which files are dirty?
+
+            function getExtension(path) {
+                var m = path.match(/.(\w+)$/);
+                if(m == null) return null;
+                return m[1];
+            }
+
+            function refreshPreview() {
+                $('#preview-frame').attr("src", $('#preview-frame').attr("src"));
+            }
+
+            // See http://stackoverflow.com/questions/1694295/jquery-background-color-animate-not-working/5718151
+            function animateHighlight(node, highlightColor, duration) {
+                var highlightBg = highlightColor || "#FFFFE3";
+                var animateMs = duration || 750;
+                var originalBg = $(node).css("background-color");
+
+                if (!originalBg || originalBg == highlightBg)
+                    originalBg = "#FFFFFF"; // default to white
+
+                $(node)
+                    .css("backgroundColor", highlightBg)
+                    .animate({ backgroundColor: originalBg }, animateMs, null, function () {
+                        $(node).css("backgroundColor", originalBg);
+                    });
+            };
+
+            window.onbeforeunload = function() {
+                for(key in dirties) {
+                    if(dirties[key]) {
+                        return $("#unload-warning-text").text();
+                    }
+                }
+            };
+
+            if($.browser.msie) {
+                $(".ie-warning").show();
+            }
+
+            // Rule builder and highlighters
+
+            var ruleBuilder = null;
+            var rulesEditor = null;
+            var themeFrameHighlighter = null;
+            var contentFrameHighlighter = null;
+
+            $("#new-rule").overlay({
+                closeOnClick: false,
+                onBeforeClose: function() {
+                    if(ruleBuilder.active && $("#new-rule-step-2").is(":visible")) {
+                        ruleBuilder.end();
+                        rulesEditor.focus();
+                    }
+                }
+            });
+            var ruleBuilderOverlay = $("#new-rule").data('overlay');
+
+            var rulesEditor = new SourceEditor('editor', extensionModes.html, $("#file-contents").text(), !EDITABLE,
+                function() {
+                    dirties['rules.xml'] = true;
+                    $("#rules-editor .dirtyMarker").show();
+                }
+            );
+
+            themeFrameHighlighter = new FrameHighlighter("#theme-frame",
+                function(highlighter, node) { // onselect
+                    $("#theme-frame-info").text(node == null? "" : ruleBuilder.bestSelector(node));
+                },
+                function(highlighter, node) { // onsave
+                    if(node == null) {
+                        $("#theme-frame-shelf-container").hide();
+                    } else {
+                        $("#theme-frame-shelf-container").show();
+                    }
+
+                    animateHighlight($("#theme-panel .frame-info"));
+                    $("#theme-frame-shelf").text(node == null? "" : ruleBuilder.bestSelector(node));
+
+                    if(ruleBuilder.active && ruleBuilder.currentScope == "theme") {
+                        ruleBuilder.select(node);
+                        ruleBuilder.next();
+                    }
+
+                }
+            );
+
+            contentFrameHighlighter = new FrameHighlighter("#content-frame",
+                function(highlighter, node) { // onselect
+                    $("#content-frame-info").text(node == null? "" : ruleBuilder.bestSelector(node));
+                },
+                function(highlighter, node) { // onsave
+                    if(node == null) {
+                        $("#content-frame-shelf-container").hide();
+                    } else {
+                        $("#content-frame-shelf-container").show();
+                    }
+
+                    animateHighlight($("#content-panel .frame-info"));
+                    $("#content-frame-shelf").text(node == null? "" : ruleBuilder.bestSelector(node));
+
+                    if(ruleBuilder.active && ruleBuilder.currentScope == "content") {
+                        ruleBuilder.select(node);
+                        ruleBuilder.next();
+                    }
+                }
+            );
+
+            ruleBuilder = new RuleBuilder(function(ruleBuilder) {
+                $(".wizard-text").css('display', 'none');
+                $.mask.close();
+
+                if(ruleBuilder.currentScope == 'theme') {
+                    if(ruleBuilderOverlay.isOpened()) {
+                        ruleBuilderOverlay.close();
+                    }
+
+                    if(themeFrameHighlighter.saved != null) {
+                        // Use saved rule
+                        ruleBuilder.select(themeFrameHighlighter.saved);
+                        ruleBuilder.next();
+                    } else {
+                        // Let the frame highlighter perform a selection
+                        $("#new-rule-text-select-theme").show();
+                        $("#theme-panel, .wizard-text").expose();
+                    }
+
+                } else if(ruleBuilder.currentScope == 'content') {
+                    if(ruleBuilderOverlay.isOpened()) {
+                        ruleBuilderOverlay.close();
+                    }
+
+                    if(contentFrameHighlighter.saved != null) {
+                        // Use saved rule
+                        ruleBuilder.select(contentFrameHighlighter.saved);
+                        ruleBuilder.next();
+                    } else {
+                        // Let the frame highlighter perform a selection
+                        $("#new-rule-text-select-content").show();
+                        $("#content-panel, .wizard-text").expose();
+                    }
+
+                } else if(ruleBuilder.ruleType != null && ruleBuilder.currentScope == null) {
+                    $("#new-rule-step-1").hide();
+                    $("#new-rule-step-2").show();
+                    updateRule(ruleBuilder);
+
+                    if(!ruleBuilderOverlay.isOpened()) {
+                        ruleBuilderOverlay.load();
+                    }
+
+                } else { // end
+
+                    if(ruleBuilderOverlay.isOpened()) {
+                        ruleBuilderOverlay.close();
+                    }
+
+                    $("#new-rule-step-1").show();
+                    $("#new-rule-step-2").hide();
+
+
+                }
+            });
+
+            function updateRule(ruleBuilder) {
+                $("#new-rule-output").val(
+                    ruleBuilder.buildRule(
+                        $('#new-rule-theme-children').is(':checked'),
+                        $('#new-rule-content-children').is(':checked')
+                    )
+                );
+            }
+
+            $(".wizard-cancel").click(function() {
+                ruleBuilder.end();
+                return false;
+            });
+
+            $(".rule-modifier").change(function() {
+                updateRule(ruleBuilder);
+            });
+
+            $("#new-rule-step-1 .next").click(function() {
+                var ruleType = $("input[name='new-rule-type']:checked").val();
+                ruleBuilder.start(ruleType);
+            });
+
+            // The insert wizard doesn't work well in IE where we use plain
+            // textareas, but we offer a copy-to-clipboard button instead
+            if($.browser.msie) {
+                $("#new-rule-step-2 .insert").hide();
+                $("#new-rule-step-2 .copy").click(function() {
+                    window.clipboardData.setData('Text', $("#new-rule-output").val());
+                    ruleBuilderOverlay.close();
+                });
+            } else {
+                $("#new-rule-step-2 .copy").hide();
+                $("#new-rule-step-2 .insert").click(function() {
+
+                    var rule = $("#new-rule-output").val();
+
+                    // Get the underlying ACE editor: no IE support for this anyway
+                    var aceEditor = rulesEditor.ace;
+
+                    function findStartTag(backwards) {
+                        aceEditor.find("<\\w+", {
+                            backwards: backwards,
+                            wrap: false,
+                            wholeWord: false,
+                            regExp: true
+                        });
+                    }
+
+                    function indent(string, amount) {
+                        var padding = '';
+                        for(var i = 0; i < amount; ++i) {
+                            padding += ' ';
+                        }
+                        return padding + string.replace(/\n/g, '\n' + padding) + '\n\n';
+                    }
+
+                    // Go to the next opening tag - we want to insert before this
+                    findStartTag(false);
+                    if(aceEditor.getCursorPosition().row <= 1) {
+                        // Probably the opening rules tag
+                        findStartTag(false);
+                    }
+
+                    var selectionText = aceEditor.getSession().getTextRange(aceEditor.getSelectionRange());
+
+                    // If we didn't find anything, look for the end of the current tag
+                    if(selectionText == "") {
+
+                        aceEditor.find("(/>|<" + "/)", {
+                            backwards: false,
+                            wrap: false,
+                            wholeWord: false,
+                            regExp: true
+                        });
+
+                        var selectionText = aceEditor.getSession().getTextRange(aceEditor.getSelectionRange());
+                        if(selectionText == "") {
+                            // Still nothing? Go to the end
+                            aceEditor.navigateFileEnd();
+                        } else {
+                            // Go one past the end tag, but first figure out how far we should i
+                            aceEditor.navigateDown();
+                        }
+
+                    }
+
+                    var indentation = aceEditor.getSelectionRange().start.column;
+
+                    var cursorPosition = aceEditor.getCursorPosition();
+                    var newlines = rule.match(/\n/g);
+                    var rows = 0;
+                    if(newlines != null) {
+                        rows = newlines.length;
+                    }
+
+                    aceEditor.navigateTo(cursorPosition.row, 0);
+                    aceEditor.insert(indent(rule, indentation));
+                    aceEditor.navigateTo(cursorPosition.row, 0);
+                    aceEditor.getSelection().selectTo(cursorPosition.row + rows + 1, 0);
+                    rulesEditor.focus();
+                    dirties['rules.xml'] = true;
+                    $("#rules-editor .dirtyMarker").show();
+
+                    ruleBuilderOverlay.close();
+                });
+            }
+
+            // Fullscreen
+
+            $(".fullscreen").click(function(event) {
+                event.preventDefault();
+                $(this).toggleClass("fullscreenActive");
+                return false;
+            });
+
+            // View source
+
+            $(".sourceToggle").click(function(event) {
+                event.preventDefault();
+                $(this).toggleClass("sourceActive");
+                return false;
+            });
+
+            // Enable/disable highlighter
+
+            $(".highlighterToggle").click(function(event) {
+                event.preventDefault();
+                $(this).toggleClass("highlighterDisabled");
+                return false;
+            });
+
+            // Rules editor
+
+            (function() {
+
+                $("#rules-help").overlay();
+
+                $("#rules-save").click(function() {
+
+                    var data = rulesEditor.getValue();
+                    $("#file-contents").val(data);
+
+                    $.ajax({
+                        url: THEME_BASE_URL + '/@@theming-controlpanel-mapper-save',
+                        data: {value: data},
+                        type: 'POST',
+                        success: function(){
+                            refreshPreview();
+                            dirties['rules.xml'] = false;
+                            $("#rules-editor .dirtyMarker").hide();
+                            rulesEditor.focus();
+                        }
+                    });
+                });
+
+                $("#rules-editor .fullscreen").click(function(event) {
+                    event.preventDefault();
+
+                    if($("#rules-editor").is(".width-full")) {
+                        $("#preview-panel").show();
+                        $("#edit-bar").show();
+                        $("#theme-content-row").show();
+                        $("#page-intro").show();
+                        $("#rules-editor").removeClass('width-full')
+                                           .addClass('width-1:2');
+                        $("#new-rule").show();
+                        $("#editor").css('height', WINDOWED_HEIGHT);
+                        rulesEditor.resize();
+                    } else {
+                        $("#preview-panel").hide();
+                        $("#edit-bar").hide();
+                        $("#theme-content-row").hide();
+                        $("#page-intro").hide();
+                        $("#rules-editor").removeClass('width-1:2')
+                                           .addClass('width-full');
+                       $("#new-rule").hide();
+                       $("#editor").css('height', FULLSCREEN_HEIGHT);
+                        rulesEditor.resize();
+                    }
+
+                    return false;
+                });
+            })();
+
+            // Theme panel
+            (function() {
+
+                var themeSource = new SourceEditor('theme-source', extensionModes.html, "", true);
+
+                function reloadFrame() {
+                    var path = $("#file-selector option:selected").val();
+                    var fetch = THEME_BASE_URL + "/@@theming-controlpanel-mapper-getframe?path=" + path + "&amp;theme=off";
+                    $("#theme-frame").attr('src', fetch);
+                }
+
+                function reloadSource() {
+                    var html = $("#theme-frame").contents().find(":root").html();
+                    themeSource.setValue("<" + "html>\n" + html + '\n<' + '/html>');
+                    themeSource.resize();
+                }
+
+                $("#theme-frame").ready(function() {
+                    function setup() {
+                        themeFrameHighlighter.setupElements();
+                        reloadSource();
+                    }
+                    setup();
+                    $("#theme-frame").load(setup);
+                });
+
+                $("#file-selector").change(function() {
+                    reloadFrame();
+                });
+
+                $("#theme-frame").show();
+                $("#theme-source").hide();
+
+                $("#theme-panel .sourceToggle").click(function() {
+                    if($("#theme-frame").is(":visible")) {
+                        $("#theme-frame").hide();
+                        $("#theme-source").show();
+                        reloadSource();
+                        themeSource.focus();
+                    } else {
+                        $("#theme-frame").show();
+                        $("#theme-source").hide();
+                    }
+                });
+
+                $("#theme-panel .highlighterToggle").click(function() {
+                    themeFrameHighlighter.enabled = ! themeFrameHighlighter.enabled;
+                });
+
+                $("#theme-panel .fullscreen").click(function(event) {
+                    event.preventDefault();
+
+                    if($("#theme-panel").is(".width-full")) {
+                        $("#content-panel").show();
+                        $("#edit-bar").show();
+                        $("#rules-results-row").show();
+                        $("#page-intro").show();
+                        $("#theme-panel").removeClass('width-full').addClass('width-1:2');
+                        $("#theme-panel iframe").removeClass('fullscreen-frame');
+                        $("#theme-source").css('height', WINDOWED_HEIGHT);
+                        themeSource.resize();
+                    } else {
+                        $("#content-panel").hide();
+                        $("#edit-bar").hide();
+                        $("#rules-results-row").hide();
+                        $("#page-intro").hide();
+                        $("#theme-panel").removeClass('width-1:2').addClass('width-full');
+                        $("#theme-panel iframe").addClass('fullscreen-frame');
+                        $("#theme-source").css('height', FULLSCREEN_HEIGHT);
+                        themeSource.resize();
+                    }
+
+                    return false;
+                });
+
+                $("#theme-frame-shelf-clear").click(function() {
+                    themeFrameHighlighter.save(null);
+                    return false;
+                });
+
+            })();
+
+            // Content panel
+            (function() {
+
+                var contentSource = new SourceEditor('content-source', extensionModes.html, "", true);
+
+                $("#content-frame").ready(function() {
+                    var linkManager = new LinkManager("#content-frame", 'off',  WINDOW_BASE, THEME_BASE_URL);
+                    function setup() {
+                        contentFrameHighlighter.setupElements();
+                        linkManager.setupLinks();
+                        linkManager.setupForms();
+                    }
+                    setup();
+                    $("#content-frame").load(setup);
+                });
+
+                $("#content-frame").show();
+                $("#content-source").hide();
+
+                $("#content-panel .sourceToggle").click(function() {
+                    if($("#content-frame").is(":visible")) {
+                        var html = $("#content-frame").contents().find(":root").html();
+                        contentSource.setValue("<" + "html>\n" + html + '\n<' + '/html>');
+                        $("#content-frame").hide();
+                        $("#content-source").show();
+                        contentSource.resize();
+                        contentSource.focus();
+                    } else {
+                        $("#content-frame").show();
+                        $("#content-source").hide();
+                    }
+                });
+
+                $("#content-panel .highlighterToggle").click(function() {
+                    contentFrameHighlighter.enabled = ! contentFrameHighlighter.enabled;
+                });
+
+                $("#content-panel .fullscreen").click(function(event) {
+                    event.preventDefault();
+
+                    if($("#content-panel").is(".width-full")) {
+                        $("#theme-panel").show();
+                        $("#edit-bar").show();
+                        $("#rules-results-row").show();
+                        $("#page-intro").show();
+                        $("#content-panel").removeClass('width-full')
+                                           .removeClass('position-0')
+                                           .addClass('width-1:2')
+                                           .addClass('position-1:2');
+
+                        $("#content-panel iframe").removeClass('fullscreen-frame');
+                        $("#content-source").css('height', WINDOWED_HEIGHT);
+                        contentSource.resize();
+                    } else {
+                        $("#theme-panel").hide();
+                        $("#edit-bar").hide();
+                        $("#rules-results-row").hide();
+                        $("#page-intro").hide();
+                        $("#content-panel").removeClass('width-1:2')
+                                           .removeClass('position-1:2')
+                                           .addClass('width-full')
+                                           .addClass('position-0');
+
+                        $("#content-panel iframe").addClass('fullscreen-frame');
+                        $("#content-source").css('height', FULLSCREEN_HEIGHT);
+                        contentSource.resize();
+                   }
+
+                    return false;
+                });
+
+                $("#content-frame-shelf-clear").click(function() {
+                    contentFrameHighlighter.save(null);
+                    return false;
+                });
+
+            })();
+
+            // Preview panel
+            (function() {
+
+                var previewSource = new SourceEditor('preview-source', extensionModes.html, "", true);
+
+                $("#preview-frame").ready(function() {
+                    var linkManager = new LinkManager("#preview-frame", 'apply', WINDOW_BASE, THEME_BASE_URL);
+                    function setup() {
+                        linkManager.setupLinks();
+                        linkManager.setupForms();
+                    }
+                    setup();
+                    $("#preview-frame").load(setup);
+                });
+
+                $("#preview-frame").show();
+                $("#preview-source").hide();
+
+                $("#preview-panel .sourceToggle").click(function() {
+                    if($("#preview-frame").is(":visible")) {
+                        var html = $("#preview-frame").contents().find(":root").html();
+                        previewSource.setValue("\n<" + "html>" + html + '\n<' + '/html>');
+                        $("#preview-frame").hide();
+                        $("#preview-source").show();
+                        previewSource.resize();
+                        previewSource.focus();
+                    } else {
+                        $("#preview-frame").show();
+                        $("#preview-source").hide();
+                    }
+                });
+
+
+                $("#preview-panel .fullscreen").click(function(event) {
+                    event.preventDefault();
+
+                    if($("#preview-panel").is(".width-full")) {
+                        $("#rules-editor").show();
+                        $("#edit-bar").show();
+                        $("#theme-content-row").show();
+                        $("#page-intro").show();
+                        $("#preview-panel").removeClass('width-full')
+                                           .removeClass('position-0')
+                                           .addClass('width-1:2')
+                                           .addClass('position-1:2');
+                        $("#preview-panel iframe").removeClass('fullscreen-frame');
+                        $("#preview-source").css('height', WINDOWED_HEIGHT);
+                        previewSource.resize();
+
+                    } else {
+                        $("#rules-editor").hide();
+                        $("#edit-bar").hide();
+                        $("#theme-content-row").hide();
+                        $("#page-intro").hide();
+                        $("#preview-panel").removeClass('width-1:2')
+                                           .removeClass('position-1:2')
+                                           .addClass('width-full')
+                                           .addClass('position-0');
+                        $("#preview-panel iframe").addClass('fullscreen-frame');
+                        $("#preview-source").css('height', FULLSCREEN_HEIGHT);
+                        previewSource.resize();
+                    }
+
+                    return false;
+                });
+            })();
+
+            // Key bindings
+            (function() {
+
+                var canon = require('pilot/canon');
+                canon.addCommand({
+                    name: 'saveEditor',
+                    bindKey: {
+                        mac: 'Command-S',
+                        win: 'Ctrl+S',
+                        sender: 'editor'
+                    },
+                    exec: function(env, args, request) {
+                        if($(env.editor.container).is("#theme-source")) {
+                            $("#theme-save").click();
+                        } else if($(env.editor.container).is("#editor")) {
+                            $("#rules-save").click();
+                        }
+                    }
+                });
+
+                canon.addCommand({
+                    name: 'newRule',
+                    bindKey: {
+                        mac: 'Command-N',
+                        win: 'Ctrl+N',
+                        sender: 'editor'
+                    },
+                    exec: function(env, args, request) {
+                        $("#new-rule").click();
+                    }
+                });
+
+                canon.addCommand({
+                    name: 'rulesHelp',
+                    bindKey: {
+                        mac: 'Command-H',
+                        win: 'Ctrl+H',
+                        sender: 'editor'
+                    },
+                    exec: function(env, args, request) {
+                        $("#rules-help").click();
+                    }
+                });
+
+            })();
+
+        });
+
+    });
+
+</script>
+</tal:defines>
+
+</metal:block>
+</head>
+
+<body>
+<div metal:fill-slot="prefs_configlet_content" class="documentEditable">
+
+    <!-- simulating views on the groups/user pages until we have real objects. -->
+    <div id="edit-bar" tal:condition="view/editable">
+        <ul class="contentViews" id="content-views">
+          <li>
+            <a tal:attributes="href string:${view/portalUrl}/++theme++${view/name}/@@theming-controlpanel-filemanager"
+               i18n:translate="label_tab_file_manager">
+               Manage theme files
+            </a>
+          </li>
+          <li class="selected">
+            <a tal:attributes="href string:${view/portalUrl}/++theme++${view/name}/@@theming-controlpanel-mapper"
+               i18n:translate="label_tab_theming_mapper">
+               Preview and map rules
+            </a>
+          </li>
+        </ul>
+
+        <div class="contentActions">&nbsp;</div>
+    </div>
+
+    <div metal:use-macro="context/global_statusmessage/macros/portal_message">
+      Portal status message
+    </div>
+
+    <dl class="portalMessage warning" tal:condition="python:view.active and view.editable">
+        <dt i18n:translate="">Warning</dt>
+        <dd i18n:translate="theming_mapper_warning_live">
+            This theme is currently active. Any changes made will be immediately
+            reflected on the live site.
+        </dd>
+    </dl>
+
+    <div id="content">
+
+
+        <div id="page-intro">
+
+            <h1 class="documentFirstHeading"
+                i18n:translate="heading_theme_mapper">Preview and map rules for
+                <span i18n:name="name" tal:content="view/title">name</span></h1>
+
+            <a href=""
+                class="link-parent"
+                tal:attributes="href string:${portal_url}/@@theming-controlpanel"
+                i18n:translate="label_up_to_theming_controlpanel">
+                Back to the control panel
+            </a>
+
+            <dl class="portalMessage info wizard-text" id="new-rule-text-select-theme">
+                <dt i18n:translate="">New rule</dt>
+                <dd i18n:translate="theming_mapper_select_theme">
+                    Please select an element in the "Raw theme" panel.
+                    <button class="wizard-cancel allowMultiSubmit">Cancel</button>
+                </dd>
+            </dl>
+            <dl class="portalMessage info wizard-text" id="new-rule-text-select-content">
+                <dt i18n:translate="">New rule</dt>
+                <dd i18n:translate="theming_mapper_select_content">
+                    Please select an element in the "Unthemed content" panel.
+                    <button class="wizard-cancel allowMultiSubmit">Cancel</button>
+                </dd>
+            </dl>
+
+            <p class="discreet"
+                i18n:translate="help_theme_mapper_overview_editable"
+                tal:condition="view/editable">
+                Below you will find four panels: The raw theme, which you can
+                edit from the
+                <a i18n:name="link_file_manager"
+                   i18n:translate="label_tab_file_manager"
+                   tal:attributes="href string:${view/portalUrl}/++theme++${view/name}/@@theming-controlpanel-filemanager">Manage theme files</a>
+                tab; the unthemed content, i.e. Plone; the rules file, which
+                you can modify; and a preview of the theme being applied to
+                the content using these rules. Use the <strong>New rule</strong>
+                button to build new theming rules using an interactive wizard.
+            </p>
+
+            <p class="discreet"
+                i18n:translate="help_theme_mapper_overview_not_editable"
+                tal:condition="not:view/editable">
+                Below you will find four panels: The raw theme; the unthemed
+                content, i.e. Plone; the rules file; and a preview of the theme
+                being applied to the content using these rules. Use the
+                <strong>New rule</strong> button to build new theming rules
+                using an interactive wizard. Changes made to the theme or rules
+                on the filesystem are reflected immediately after the page
+                is reloaded so long as Zope is running <em>development mode</em>.
+            </p>
+
+            <p class="discreet" i18n:translate="help_theme_mapper_details">
+                Hover over an element in the "Raw theme" or "Unthemed content"
+                panel to see its selector in the status bar at the bottom
+                of the panel. If you wish to navigate the theme or content by clicking links,
+                you can disable the element selector using the toggle icon above the panel.
+            </p>
+
+            <dl style="display: none" class="ie-warning portalMessage warning">
+                <dt i18n:translate="">Warning</dt>
+                <dd i18n:translate="theming_mapper_warning_ie">
+                    You are using Internet Explorer. The theme mapper will work,
+                    but some functionality will not be available. We recommend that
+                    you use Mozilla Firefox or Google Chrome instead.
+                </dd>
+            </dl>
+
+        </div>
+
+        <div id="theme-content-row" class="row splitview">
+            <div id="theme-panel" class="mapper-box cell width-1:2 position-0">
+
+                <div class="panel-toolbar">
+
+                    <select size="1" name="file-selector" id="file-selector">
+                        <option
+                            tal:repeat="f view/themeFiles"
+                            tal:attributes="value string:${view/themeBasePathEncoded}/${f/path};
+                                            data-path f/path;
+                                            data-extension f/extension;
+                                            selected python:f['path'] == view.defaultThemeFile and 'selected' or None"
+                            tal:content="f/path"
+                            />
+                    </select>
+
+                    <a class="sourceToggle" href="#" title="Toggle source view" i18n:attributes="title">&nbsp;</a>
+                    <a class="highlighterToggle" href="#" title="Toggle highlighter" i18n:attributes="title">&nbsp;</a>
+                    <a class="fullscreen" href="#" title="Toggle fullscreen" i18n:attributes="title">&nbsp;</a>
+                </div>
+
+                <label i18n:translate="heading_theme">Raw theme</label>
+
+                <iframe id="theme-frame"
+                    tal:attributes="src string:${view/themeBaseUrl}/@@theming-controlpanel-mapper-getframe?path=/${view/themeBasePathEncoded}/${view/defaultThemeFile}&amp;theme=off"></iframe>
+                <pre class="source-editor" id="theme-source"></pre>
+
+                <div class="frame-info">
+                    <div id="theme-frame-shelf-container" class="frame-shelf" style="display:none">
+                        <span i18n:translate="theming_mapper_shelf_label">Selected:</span>
+                        <span class="shelf" id="theme-frame-shelf"></span>
+                        <a class="clear-shelf" id="theme-frame-shelf-clear" href="#clear"
+                            title="Clear selection" i18n:attributes="title">x</a>
+                    </div>
+                    <span id="theme-frame-info"></span>
+                </div>
+                <div class="discreet" i18n:translate="help_highlighter_selection">
+                    Left-click or press <em>Enter</em> to save. Press <em>Esc</em> to select parent.
+                </div>
+
+            </div>
+            <div id="content-panel" class="mapper-box cell width-1:2 position-1:2">
+
+                <div class="panel-toolbar">
+                    <a class="sourceToggle" href="#" title="Toggle source view" i18n:attributes="title">&nbsp;</a>
+                    <a class="highlighterToggle" href="#" title="Toggle highlighter" i18n:attributes="title">&nbsp;</a>
+                    <a class="fullscreen" href="#" title="Toggle fullscreen" i18n:attributes="title">&nbsp;</a>
+                </div>
+
+                <label i18n:translate="heading_content">Unthemed content</label>
+
+                <iframe id="content-frame"
+                    tal:attributes="src string:${view/themeBaseUrl}/@@theming-controlpanel-mapper-getframe?path=/&amp;theme=off"></iframe>
+                <pre class="source-editor" id="content-source"></pre>
+
+                <div class="frame-info">
+                    <div id="content-frame-shelf-container" class="frame-shelf" style="display:none">
+                        <span i18n:translate="theming_mapper_shelf_label">Selected:</span>
+                        <span class="shelf" id="content-frame-shelf">(none)</span>
+                        <a class="clear-shelf" id="content-frame-shelf-clear" href="#clear"
+                            title="Clear selection" i18n:attributes="title">x</a>
+                    </div>
+                    <span id="content-frame-info"></span>
+                </div>
+                <div class="discreet" i18n:translate="help_highlighter_selection">
+                    Left-click or press <em>Enter</em> to save. Press <em>Esc</em> to select parent.
+                </div>
+
+            </div>
+        </div>
+
+        <div id="rules-results-row" class="row splitview">
+            <div id="rules-editor" class="mapper-box cell width-1:2 position-0">
+
+                <div id="mapper-toolbar" class="panel-toolbar">
+                    <button
+                        tal:condition="view/editable"
+                        id="rules-save"
+                        name="form.button.Save"
+                        class="allowMultiSubmit"
+                        title="Ctrl+S (Windows/Linux) or Cmd+S (Mac)"
+                        i18n:attributes="title"
+                        i18n:translate=""
+                        >Save</button>
+                    <button
+                        id="rules-help"
+                        name="form.button.RulesHelp"
+                        class="allowMultiSubmit"
+                        rel="#rules-help-text"
+                        title="Ctrl+H (Windows/Linux) or Cmd+H (Mac)"
+                        i18n:attributes="title"
+                        i18n:translate=""
+                        >Help</button>
+                    <button
+                        id="new-rule"
+                        name="form.button.BuildRule"
+                        class="allowMultiSubmit"
+                        rel="#new-rule-wizard"
+                        title="Ctrl+N (Windows/Linux) or Cmd+N (Mac)"
+                        i18n:attributes="title"
+                        i18n:translate=""
+                        >New rule</button>
+
+                    <a class="fullscreen" href="#" title="Toggle fullscreen" i18n:attributes="title">&nbsp;</a>
+
+                </div>
+
+                <label i18n:translate="heading_rules">Theme rules</label>
+                <span class="dirtyMarker" style="display:none" title="Unsaved changes" i18n:attributes="title">*</span>
+
+                <pre id="editor"></pre>
+                <textarea id="file-contents" class="hiddenStructure" name="rules"
+                    tal:content="view/rules"></textarea>
+
+            </div>
+            <div id="preview-panel" class="mapper-box cell width-1:2 position-1:2">
+
+                <div class="panel-toolbar">
+                    <a class="sourceToggle" href="#" title="Toggle source view" i18n:attributes="title">&nbsp;</a>
+                    <a class="fullscreen" href="#" title="Toggle fullscreen" i18n:attributes="title">&nbsp;</a>
+                </div>
+
+                <label i18n:translate="heading_result">Themed content</label>
+
+                <iframe id="preview-frame"
+                    tal:attributes="src string:${view/themeBaseUrl}/@@theming-controlpanel-mapper-getframe?path=/&amp;theme=apply"></iframe>
+                <pre class="source-editor" id="preview-source"></pre>
+
+            </div>
+        </div>
+
+        <div id="unload-warning-text" class="hiddenStructure" i18n:translate="theming_mapper_unload_warning">Are you sure you want to leave this page? Unsaved changes will be lost.</div>
+
+        <!-- Help text overlay -->
+        <div id="rules-help-text" class="overlay">
+            <div class="close">
+                <span i18n:translate="">Close</span>
+            </div>
+            <div class="pb-ajax help">
+                <h2 i18n:translate="theming_mapper_heading_rules_help">Diazo cheat sheet</h2>
+                <div i18n:translate="theming_mapper_help_text">
+                    <p>
+                        A <a target="_blank" href="http://diazo.org">Diazo</a> theme consists of:
+                    </p>
+                    <ul>
+                        <li>A <strong>theme</strong> - a static HTML mock-up of the end result</li>
+                        <li>The <strong>content</strong> to be themed, i.e. the content generated by Plone</li>
+                        <li>A set of <strong>rules</strong> that describe how elements in the content
+                            are mapped into the theme.</li>
+                    </ul>
+                    <p>
+                        The <strong>theme mapper</strong> you are using now can help you write your
+                        rules by showing you the content, theme, rules and a preview of the results
+                        on one page. You can also use the <strong>New rule</strong> button to
+                        create rules using a point-and-click interface.
+                    </p>
+                    <h3><a name="help_syntax">Syntax</a></h3>
+                    <p>
+                        The various aspects of the Diazo rules syntax are described below. Please
+                        refer to <a target="_blank" href="http://diazo.org">diazo.org</a> for more details.
+                    </p>
+                    <h4><a name="help_selectors">Selectors</a></h4>
+                    <p>
+                        Each rule is represented by an XML tag that operates on one or more
+                        HTML elements in the content and/or theme. The elements to operate on
+                        are indicated using attributes of the rules known as <strong>selectors</strong>.
+                    </p>
+                    <p>
+                        The easiest way to select elements is to use a CSS expression selector, such as:
+                        <code>css:content="#content"</code> or <code>css:theme="#main .content"</code>.
+                        Any valid CSS 3 expression (including pseudo-selectors like
+                        <code>:first-child</code>) may be used.
+                    </p>
+                    <p>
+                        The standard selectors operate on the element(s) that are matched. If
+                        you want to operate on the children of the matched element instead, use
+                        <code>css:theme-children="..."</code> or <code>css:content-children="..."</code>
+                        instead.
+                    </p>
+                    <p>
+                        If you cannot construct a suitable CSS 3 expression, you can use XPath
+                        expressions such as
+                        <code>content="/head/link"</code> or <code>theme="//div[@id='main']"</code>
+                        (note the lack of a <code>css:</code> prefix when using XPath expressions).
+                        The two approaches are equivalent, and you can mix and match freely, but
+                        you cannot have e.g. both a <code>css:theme</code> and a <code>theme</code>
+                        attribute on a single rule.
+                    </p>
+                    <h4><a name="help_conditions">Conditions</a></h4>
+                    <p>
+                        By default, every rule is executed, though rules that do not match any elements
+                        in the theme are ignored. You can make a rule, set of rules or
+                        theme reference (see below) conditional upon an element appearing
+                        in the content by adding an attribute to the rule like
+                        <code>css:if-content="#some-element"</code> (to use an XPath expression
+                        instead, drop the <code>css:</code> prefix). If no elements match the
+                        expression, the rule is ignored.
+                    </p>
+                    <p class="tip">
+                        <strong>Tip:</strong> if a <code>&lt;replace /&gt;</code> rule matches
+                        an element in the theme but not in the content, the theme node will be
+                        dropped (replaced with nothing). If you do not want this behavior and
+                        you are unsure if the content will contain the relevant element(s),
+                        you can use <code>css:if-content</code> conditional rule. Since this is a
+                        common scenario, there is a shortcut: <code>css:if-content=""</code> means
+                        "use the expression from the <code>css:content</code> attribute".
+                    </p>
+                    <p>
+                        Similarly, you can construct a condition based on the path of the current request
+                        by using an attribute like <code>if-path="/news"</code> (note that there is
+                        no <code>css:if-path</code>). If the path starts with a slash, it will match
+                        from the root of the Plone site. If it ends with a slash, it will
+                        match to the end of the URL. You can set an absolute path by using
+                        a leading and a trailing slash.
+                    </p>
+                    <p>
+                        Finally, you can use arbitrary XPath expressions against any
+                        defined variable using an attribute like <code>if="$host = 'localhost'"</code>.
+                        By default, the variables <code>url</code>, <code>scheme</code>,
+                        <code>host</code> and <code>base</code> are available, representing
+                        the current URL. Themes may define additional variables in their
+                        manifests.
+                    </p>
+                    <h4><a name="help_element">Available rules</a></h4>
+                    <p>
+                        The standard Diazo rules are summarized below. Please refer to
+                        <a target="_blank" href="http://diazo.org">diazo.org</a> for more
+                        details and examples.
+                    </p>
+                    <h5><a name="help_rules"><code>rules</code></a></h5>
+    <pre>
+    &lt;rules&gt;
+        ...
+    &lt;/rules&gt;
+    </pre>
+                    <p>
+                        Wraps a set of rules. Must be used as the root element of the
+                        rules file. Nested <code>&lt;rules /&gt;</code> can be used with
+                        a <a href="#help_conditions">condition</a> to apply a single
+                        condition to a set of rules.
+                    </p>
+                    <p>
+                        When used as the root element of the rules file, the various
+                        XML namespaces must be declared:
+                    </p>
+    <pre>
+    &lt;rules
+        xmlns="http://namespaces.plone.org/diazo"
+        xmlns:css="http://namespaces.plone.org/diazo/css"
+        xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+        ...
+    &lt;/rules&gt;
+    </pre>
+                    <h5><a name="help_theme_notheme"><code>theme</code> and <code>notheme</code></a></h5>
+    <pre>
+    &lt;theme href="theme.html" /&gt;
+    &lt;theme href="news.html" if-path="/news" /&gt;
+    &lt;notheme if="$host = 'admin.example.org'" /&gt;
+    </pre>
+                    <p>
+                        Choose the theme file to be used. The <code>href</code> is a
+                        path relative to the rules file. If multiple <code>&lt;theme /&gt;</code>
+                        elements are present, at most one may be given without a condition.
+                        The first theme with a condition that is true will be used, with the
+                        unconditional theme, if any, used as a fallback.
+                    </p>
+                    <p>
+                        <code>&lt;notheme /&gt;</code> can be used to specify a condition
+                        under which no theme should be used. <code>&lt;notheme /&gt;</code>
+                        takes precedence over <code>&lt;theme /&gt;</code>.
+                    </p>
+                    <p class="tip">
+                        <strong>Tip:</strong> To ensure you do not accidentally style
+                        non-Plone pages, add a condition like
+                        <code>css:if-condition="#visual-portal-wrapper"</code> to the
+                        last theme listed, and do not have any unconditional themes.
+                    </p>
+                    <h5><a name="help_replace"><code>replace</code></a></h5>
+    <pre>
+    &lt;replace
+        css:content="#content"
+        css:theme="#main"
+        /&gt;
+    </pre>
+                    <p>
+                        Replaces the matched element(s) in the theme with the matched
+                        element(s) from the content.
+                    </p>
+                    <h5><a name="help_before_after"><code>before</code> and <code>after</code></a></h5>
+    <pre>
+    &lt;before
+        css:content-children="#portal-column-one"
+        css:theme-children="#portlets"
+        /&gt;
+
+    &lt;after
+        css:content-children="#portal-column-two"
+        css:theme-children="#portlets"
+        /&gt;
+    </pre>
+                    <p>
+                        Inserts the matched element(s) from the content before or after the
+                        matched element(s) in the theme. By using <code>theme-children</code>,
+                        you can insert the matched content element(s) as the first (prepend) or last
+                        (append) element(s) inside the matched theme element(s).
+                    </p>
+                    <h5><a name="help_drop_strip"><code>drop</code> and <code>strip</code></a></h5>
+    <pre>
+    &lt;drop css:content=".documentByLine" /&gt;
+    &lt;drop theme="/head/link" /&gt;
+    &lt;drop css:theme="#content *" attributes="onclick onmouseup" /&gt;
+
+    &lt;strip css:content="#parent-fieldname-text" /&gt;
+    </pre>
+                    <p>
+                        Remove element(s) from the theme or content. Note that unlike most other
+                        rules, a <code>&lt;drop /&gt;</code> or <code>&lt;strip /&gt;</code> rule
+                        can operate on the <code>theme</code> or <code>content</code>, but not both.
+                        <code>&lt;drop /&gt;</code> removes the matched element(s) and any children,
+                        whereas <code>&lt;strip /&gt;</code> removes the matched element(s), but
+                        leaves any children in place.
+                    </p>
+                    <p>
+                        <code>&lt;drop /&gt;</code> may be given a whitespace-separated list of
+                        <code>attributes</code> to drop. In this case, the matched element(s)
+                        themselves will not be removed. Use <code>attributes="*"</code> to
+                        drop all attributes.
+                    </p>
+                    <h5><a name="help_merge"><code>merge</code> and <code>copy</code></a></h5>
+    <pre>
+    &lt;merge
+        attributes="class"
+        css:content="body"
+        css:theme="body"
+        /&gt;
+
+    &lt;copy
+        attributes="class"
+        css:content="#content"
+        css:theme="#main"
+        /&gt;
+    </pre>
+                    <p>
+                        These rules operate on attributes. <code>&lt;merge /&gt;</code> will
+                        add the contents of the named attribute(s) in the theme to the value(s) of
+                        any existing attributes with the same name(s) in the content, separated by
+                        whitespace. It is mainly used to merge CSS classes.
+                    </p>
+                    <p>
+                        <code>&lt;copy /&gt;</code> will copy attributes
+                        from the matched element(s) in the content to the matched element(s)
+                        in the theme, fully replacing any attributes with the same name that
+                        may already be in the theme.
+                    </p>
+                    <p>
+                        The <code>attributes</code> attribute can contain a whitespace-separated
+                        list of attributes, or the special value <code>*</code> to operate on
+                        all attributes of the matched theme element.
+                    </p>
+                    <h4><a name="help_advanced">Advanced modification</a></h4>
+                    <p>
+                        Instead of selecting markup to insert into the theme from the
+                        content, you can place markup directly into the rules file,
+                        as child nodes of the relevant rule element:
+                    </p>
+    <pre>
+    &lt;after css:theme="head"&gt;
+        &lt;style type="text/css"&gt;
+            body > h1 { color: red; }
+        &lt;/style&gt;
+    &lt;/after&gt;
+    </pre>
+                    <p>
+                        This also works on the content, allowing you to modify it
+                        on the fly before any rules are applied:
+                    </p>
+    <pre>
+    &lt;replace css:content="#portal-searchbox input.searchButton"&gt;
+        &lt;button type="submit"&gt;
+            &lt;img src="images/search.png" alt="Search" /&gt;
+        &lt;/button&gt;
+    &lt;/replace&gt;
+    </pre>
+                    <p>
+                        In addition to including static HTML in this manner, you can use
+                        XSLT instructions that operate on the content. You can even use
+                        <code>css:</code> selectors directly in the XSLT.
+                    </p>
+    <pre>
+    &lt;replace css:theme="#details"&gt;
+        &lt;dl id="details"&gt;
+            &lt;xsl:for-each css:select="table#details &gt; tr"&gt;
+                &lt;dt&gt;&lt;xsl:copy-of select="td[1]/text()"/&gt;&lt;/dt&gt;
+                &lt;dd&gt;&lt;xsl:copy-of select="td[2]/node()"/&gt;&lt;/dd&gt;
+            &lt;/xsl:for-each&gt;
+        &lt;/dl&gt;
+    &lt;/replace&gt;
+    </pre>
+                    <p>
+                        Rules may operate on content that is fetched from somewhere
+                        other than the current page being rendered by Plone, by using
+                        the <code>href</code> attribute to specify a path of a resource
+                        relative to the root of the Plone site:
+                    </p>
+    <pre>
+    &lt;after
+        css:theme-children="#leftnav"
+        css:content=".navitem"
+        href="/@@extra-nav"
+        /&gt;
+    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wizard overlay -->
+        <div id="new-rule-wizard" class="overlay overlay-ajax">
+            <div class="close">
+                <span i18n:translate="">Close</span>
+            </div>
+            <div class="pb-ajax">
+                <div class="new-rule">
+                    <h1 class="documentFirstHeading" i18n:translate="theming_mapper_heading_newrule">New rule</h1>
+
+                    <div id="new-rule-step-1">
+                        <div class="documentDescription" i18n:translate="theming_mapper_wizard_step1">
+                            Choose the operation you would like to perform
+                        </div>
+
+                        <form>
+                            <div id="new-rule-type-panel">
+                                <div>
+                                    <input type="radio" name="new-rule-type" value="replace" id="new-rule-replace" checked="checked" />
+                                    <label for="new-rule-replace" i18n:translate="theming_mapping_wizard_replace">
+                                        <strong>Replace</strong> an element of the theme with an element from the content
+                                    </label>
+                                </div>
+                                <div>
+                                    <input type="radio" name="new-rule-type" value="before" id="new-rule-before" />
+                                    <label for="new-rule-before" i18n:translate="theming_mapping_wizard_before">
+                                        Insert an element from the content <strong>before</strong> an element in the theme
+                                    </label>
+                                </div>
+                                <div>
+                                    <input type="radio" name="new-rule-type" value="after" id="new-rule-after" />
+                                    <label for="new-rule-after" i18n:translate="theming_mapping_wizard_after">
+                                        Insert an element from the content <strong>after</strong> an element in the theme
+                                    </label>
+                                </div>
+                                <div>
+                                    <input type="radio" name="new-rule-type" value="drop:content" id="new-rule-drop-content" />
+                                    <label for="new-rule-drop-content" i18n:translate="theming_mapping_wizard_drop_content">
+                                        <strong>Drop</strong> an element in the <strong>content</strong>
+                                    </label>
+                                </div>
+                                <div>
+                                    <input type="radio" name="new-rule-type" value="drop:theme" id="new-rule-drop-theme" />
+                                    <label for="new-rule-drop-theme" i18n:translate="theming_mapping_wizard_drop_theme">
+                                        <strong>Drop</strong> an element in the <strong>theme</strong>
+                                    </label>
+                                </div>
+                            </div>
+                        </form>
+
+                        <div class="formControls new-rule-actions">
+                            <input type="submit" class="allowMultiSubmit context next" i18n:attributes="value" value="Next" />
+                            <input type="submit" class="allowMultiSubmit standalone close" i18n:attributes="value" value="Cancel" />
+                        </div>
+
+                    </div>
+                    <div id="new-rule-step-2" style="display:none">
+                        <div class="documentDescription" i18n:translate="theming_mapper_wizard_step2">
+                            The rule can be found below. Use the checkboxes
+                            to further refine it.
+                        </div>
+                        <form>
+                            <div id="new-rule-output-panel">
+                                <textarea name="new-rule-output" id="new-rule-output"></textarea>
+                            </div>
+                            <div id="new-rule-selector-panel">
+                                <div>
+                                    <input type="checkbox" class="rule-modifier" name="new-rule-theme-children" value="replace" id="new-rule-theme-children" />
+                                    <label for="new-rule-theme-children" i18n:translate="">Apply rule to children of the matched theme node(s)</label>
+                                </div>
+                                <div>
+                                    <input type="checkbox" class="rule-modifier" name="new-rule-content-children" value="replace" id="new-rule-content-children" />
+                                    <label for="new-rule-content-children" i18n:translate="">Apply rule to children of the matched content node(s)</label>
+                                </div>
+                            </div>
+
+                        </form>
+
+                        <div class="formControls new-rule-actions">
+                            <input type="submit" class="allowMultiSubmit context insert" i18n:attributes="value" tal:condition="view/editable" value="Insert" />
+                            <input type="submit" class="allowMultiSubmit context copy" i18n:attributes="value" value="Copy to clipboard" />
+                            <input type="submit" class="allowMultiSubmit standalone close" i18n:attributes="value" value="Close" />
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
